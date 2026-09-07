@@ -1,21 +1,21 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import type { DatasetImportResponse } from '../../types/dataset';
+import { findCellValue, formatCellValue, getColumnCount } from '../../utils/sheet';
 import './SheetViewer.css';
 
 interface SheetViewerProps {
   dataset: DatasetImportResponse;
+  activeSheetIndex: number;
+  onActiveSheetIndexChange: (index: number) => void;
 }
 
 /**
  * Renders a parsed sheet as an index-addressed row/cell grid.
  */
-export function SheetViewer({ dataset }: SheetViewerProps) {
-  const [activeSheetIndex, setActiveSheetIndex] = useState(0);
+export function SheetViewer({ dataset, activeSheetIndex, onActiveSheetIndexChange }: SheetViewerProps) {
   const activeSheet = dataset.sheets[activeSheetIndex];
 
-  const columnCount = useMemo(() => {
-    return activeSheet.rows.reduce((max, row) => Math.max(max, row.cells.length), 0);
-  }, [activeSheet]);
+  const columnCount = useMemo(() => getColumnCount(activeSheet), [activeSheet]);
 
   const columnIndexes = Array.from({ length: columnCount }, (_, index) => index);
 
@@ -28,7 +28,7 @@ export function SheetViewer({ dataset }: SheetViewerProps) {
               key={sheet.sheetName}
               type="button"
               className={index === activeSheetIndex ? 'sheet-viewer__tab sheet-viewer__tab--active' : 'sheet-viewer__tab'}
-              onClick={() => setActiveSheetIndex(index)}
+              onClick={() => onActiveSheetIndexChange(index)}
             >
               {sheet.sheetName}
             </button>
@@ -50,10 +50,9 @@ export function SheetViewer({ dataset }: SheetViewerProps) {
             {activeSheet.rows.map((row) => (
               <tr key={row.rowIndex}>
                 <th className="sheet-viewer__row-index">{row.rowIndex}</th>
-                {columnIndexes.map((columnIndex) => {
-                  const cell = row.cells.find((c) => c.columnIndex === columnIndex);
-                  return <td key={columnIndex}>{formatCellValue(cell?.value)}</td>;
-                })}
+                {columnIndexes.map((columnIndex) => (
+                  <td key={columnIndex}>{formatCellValue(findCellValue(row, columnIndex))}</td>
+                ))}
               </tr>
             ))}
           </tbody>
@@ -61,11 +60,4 @@ export function SheetViewer({ dataset }: SheetViewerProps) {
       </div>
     </div>
   );
-}
-
-function formatCellValue(value: string | number | boolean | null | undefined): string {
-  if (value === null || value === undefined) {
-    return '';
-  }
-  return String(value);
 }

@@ -1,0 +1,106 @@
+.lookup-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.lookup-panel__add-button {
+  align-self: flex-start;
+  padding: 0.55rem 1.1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
+}
+
+.lookup-panel__add-button:hover {
+  border-color: var(--color-primary);
+  background: var(--color-surface-hover);
+}
+
+.lookup-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.lookup-entry__input {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.lookup-entry__input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.lookup-entry__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.lookup-entry__columns {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.lookup-entry__columns .lookup-entry__field {
+  flex: 1 1 140px;
+}
+
+.lookup-entry__label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--color-text-muted);
+}
+
+.lookup-entry__select {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.lookup-entry__select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.lookup-entry__result {
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-hover);
+  font-size: 0.9rem;
+  color: var(--color-text);
+}
+
+.lookup-entry__result-label {
+  font-weight: 600;
+  margin-right: 0.35rem;
+}
+
+.lookup-entry__result--empty {
+  color: var(--color-text-muted);
+}

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { DatasetUploader } from './components/DatasetUploader/DatasetUploader';
+import { LookupPanel } from './components/LookupPanel/LookupPanel';
 import { SheetViewer } from './components/SheetViewer/SheetViewer';
 import { ThemeToggle } from './components/ThemeToggle/ThemeToggle';
 import { useTheme } from './hooks/useTheme';
@@ -8,6 +9,7 @@ import './App.css';
 
 function App() {
   const [dataset, setDataset] = useState<DatasetImportResponse | null>(null);
+  const [activeSheetIndex, setActiveSheetIndex] = useState(0);
   const { theme, toggleTheme } = useTheme();
 
   if (!dataset) {
@@ -42,7 +44,12 @@ function App() {
       </header>
 
       <main className="app__main">
-        <SheetViewer dataset={dataset} />
+        <div className="app__main-left">
+          <LookupPanel sheet={dataset.sheets[activeSheetIndex]} />
+        </div>
+        <div className="app__main-right">
+          <SheetViewer dataset={dataset} activeSheetIndex={activeSheetIndex} onActiveSheetIndexChange={setActiveSheetIndex} />
+        </div>
       </main>
     </div>
   );
