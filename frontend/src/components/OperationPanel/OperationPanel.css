@@ -482,3 +482,24 @@
 .lookup-summary__arrow {
   color: var(--color-primary);
 }
+
+.operation-card__linked {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.2rem;
+  padding-left: 0.9rem;
+  border-left: 2px solid var(--color-border);
+}
+
+.operation-card__linked-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.operation-card__linked-arrow {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  line-height: 1;
+}

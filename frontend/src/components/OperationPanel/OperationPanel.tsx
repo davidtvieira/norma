@@ -5,6 +5,7 @@ import type { ColumnPickField, ColumnPickState } from '../../types/columnPick';
 import type { ColumnHighlight, OperationHighlight } from '../../types/highlight';
 import { useOperationTypes } from '../../hooks/useOperationTypes';
 import { getDependents, resolveOperationInputs } from '../../utils/resolveOperationInputs';
+import { getInputSource } from '../../types/valueSource';
 import type { OperationFields, OperationKind, ReferenceOption } from './operationKind';
 import { lookupKind } from './kinds/lookupKind';
 import { sumKind } from './kinds/sumKind';
@@ -107,6 +108,34 @@ function DraftOperationCard({ name, onNameChange, onCancel, canConfirm, onConfir
   );
 }
 
+interface EditButtonProps {
+  onEdit: () => void;
+  disabled: boolean;
+}
+
+function EditButton({ onEdit, disabled }: EditButtonProps) {
+  return (
+    <button
+      type="button"
+      className="operation-card__edit"
+      onClick={onEdit}
+      disabled={disabled}
+      aria-label="Editar operação"
+      title={disabled ? 'Termine a operação em curso antes de editar outra.' : undefined}
+    >
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path
+          d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </button>
+  );
+}
+
 interface ConfirmedOperationCardProps {
   name: string;
   onEdit: () => void;
@@ -128,24 +157,32 @@ function ConfirmedOperationCard({ name, onEdit, editDisabled, onMouseEnter, onMo
       <div className="operation-card__header">
         <h3 className="operation-card__name">{name || 'Operação sem nome'}</h3>
         <div className="operation-card__actions">
-          <button
-            type="button"
-            className="operation-card__edit"
-            onClick={onEdit}
-            disabled={editDisabled}
-            aria-label="Editar operação"
-            title={editDisabled ? 'Termine a operação em curso antes de editar outra.' : undefined}
-          >
-            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <path
-                d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
+          <EditButton onEdit={onEdit} disabled={editDisabled} />
+        </div>
+      </div>
+
+      <div className="operation-card__summary">{summary}</div>
+
+      {children}
+    </div>
+  );
+}
+
+/**
+ * An operation whose input is a dynamic reference to another confirmed operation: rendered
+ * nested inside that source operation's card (see childOperationsOf/renderConfirmedEntry)
+ * instead of as its own separate card in the list, since the two only make sense together.
+ */
+function LinkedOperationCard({ name, onEdit, editDisabled, onMouseEnter, onMouseLeave, summary, children }: ConfirmedOperationCardProps) {
+  return (
+    <div className="operation-card__linked-item" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
+      <div className="operation-card__header">
+        <span className="operation-card__linked-arrow" aria-hidden="true">
+          ↳
+        </span>
+        <h4 className="operation-card__name">{name || 'Operação sem nome'}</h4>
+        <div className="operation-card__actions">
+          <EditButton onEdit={onEdit} disabled={editDisabled} />
         </div>
       </div>
 
@@ -369,6 +406,54 @@ export function OperationPanel({
     );
   }
 
+  // Confirmed operations whose dynamic input references entryId's result — these are rendered
+  // nested inside entryId's own card (see renderConfirmedEntry) instead of as separate cards,
+  // since a dynamic input only makes sense alongside the operation it's linked to.
+  function childOperationsOf(entryId: string): OperationEntryState[] {
+    return entries.filter((entry) => {
+      if (!entry.confirmed) return false;
+      const source = getInputSource(entry.fields);
+      return source.type === 'reference' && source.operationId === entryId;
+    });
+  }
+
+  function isLinkedChild(entry: OperationEntryState): boolean {
+    const source = getInputSource(entry.fields);
+    return source.type === 'reference' && entries.some((candidate) => candidate.confirmed && candidate.id === source.operationId);
+  }
+
+  function renderConfirmedEntry(entry: OperationEntryState, nested = false): ReactNode {
+    const kind = KINDS_BY_ID[entry.kindId];
+    const CardComponent = nested ? LinkedOperationCard : ConfirmedOperationCard;
+    const children = childOperationsOf(entry.id);
+
+    return (
+      <CardComponent
+        key={entry.id}
+        name={entry.name}
+        onEdit={() => editEntry(entry.id)}
+        editDisabled={hasDraftInProgress}
+        onMouseEnter={() => setHoveredOperationId(entry.id)}
+        onMouseLeave={() => setHoveredOperationId((current) => (current === entry.id ? null : current))}
+        summary={kind.renderSummary(entry.fields, dataset)}
+      >
+        {kind.renderBody({
+          fields: entry.fields,
+          updateFields: (patch) => updateEntryFields(entry.id, patch),
+          datasetId: dataset.datasetId,
+          onMatchChange: (rowIndex) => setMatchedRows((current) => ({ ...current, [entry.id]: rowIndex })),
+          resolvedInput: resolvedInputs[entry.id],
+          referenceOptions: referenceOptionsFor(entry.id),
+          onResultChange: (value) => setResults((current) => ({ ...current, [entry.id]: value })),
+        })}
+
+        {children.length > 0 && (
+          <div className="operation-card__linked">{children.map((child) => renderConfirmedEntry(child, true))}</div>
+        )}
+      </CardComponent>
+    );
+  }
+
   return (
     <OperationPanelShell
       addButtonLabel="+ Adicionar operação"
@@ -395,33 +480,18 @@ export function OperationPanel({
       {listEntries.length > 0 && (
         <OperationList title="Operações" count={listEntries.length}>
           {listEntries.map((entry) => {
-            const kind = KINDS_BY_ID[entry.kindId];
-
             if (!entry.confirmed) {
               return renderDraftCard(entry);
             }
 
-            return (
-              <ConfirmedOperationCard
-                key={entry.id}
-                name={entry.name}
-                onEdit={() => editEntry(entry.id)}
-                editDisabled={hasDraftInProgress}
-                onMouseEnter={() => setHoveredOperationId(entry.id)}
-                onMouseLeave={() => setHoveredOperationId((current) => (current === entry.id ? null : current))}
-                summary={kind.renderSummary(entry.fields, dataset)}
-              >
-                {kind.renderBody({
-                  fields: entry.fields,
-                  updateFields: (patch) => updateEntryFields(entry.id, patch),
-                  datasetId: dataset.datasetId,
-                  onMatchChange: (rowIndex) => setMatchedRows((current) => ({ ...current, [entry.id]: rowIndex })),
-                  resolvedInput: resolvedInputs[entry.id],
-                  referenceOptions: referenceOptionsFor(entry.id),
-                  onResultChange: (value) => setResults((current) => ({ ...current, [entry.id]: value })),
-                })}
-              </ConfirmedOperationCard>
-            );
+            // Rendered nested inside its source operation's card instead (see
+            // renderConfirmedEntry) — a dynamic input only makes sense alongside what it's
+            // linked to, so the two are shown together rather than as separate cards.
+            if (isLinkedChild(entry)) {
+              return null;
+            }
+
+            return renderConfirmedEntry(entry);
           })}
         </OperationList>
       )}
