@@ -9,8 +9,9 @@ import type { OperationFields, OperationKind } from '../operationKind';
 interface LookupFields {
   // The value to search for — typed directly, or chained from another operation's result.
   input: ValueSource;
-  searchSheetIndex: number | '';
-  resultSheetIndex: number | '';
+  // Search and result columns always come from the same table — a lookup matches a row in one
+  // table by its search column and reads the result from another column of that same row.
+  sheetIndex: number | '';
   searchColumn: number | '';
   resultColumn: number | '';
 }
@@ -22,10 +23,9 @@ function asLookupFields(fields: OperationFields): LookupFields {
 export const lookupKind: OperationKind = {
   id: 'lookup',
 
-  createFields: (): OperationFields => ({
+  createFields: (dataset): OperationFields => ({
     input: literalSource(''),
-    searchSheetIndex: '',
-    resultSheetIndex: '',
+    sheetIndex: dataset.sheets.length === 1 ? 0 : '',
     searchColumn: '',
     resultColumn: '',
   } satisfies LookupFields),
@@ -35,42 +35,30 @@ export const lookupKind: OperationKind = {
     return f.searchColumn !== '' && f.resultColumn !== '';
   },
 
-  renderDraftConfig: ({ dataset, entryId, fields, updateFields, searching, startSearching, columnPick, onStartColumnPick, onFinishColumnPick }) => {
+  renderDraftConfig: ({ dataset, entryId, fields, updateFields, columnPick, onStartColumnPick, onFinishColumnPick }) => {
     const f = asLookupFields(fields);
 
     return (
       <>
-        {!searching && (
-          <button type="button" className="operation-entry__start-button" onClick={startSearching}>
-            Procurar valor
-          </button>
-        )}
-
-        {searching && (
+        {dataset.sheets.length > 1 && (
           <div className="operation-entry__columns">
             <TableSelect
-              label="Tabela onde procurar"
+              label="Tabela"
               dataset={dataset}
-              sheetIndex={f.searchSheetIndex}
-              onSelect={(sheetIndex) => updateFields({ searchSheetIndex: sheetIndex, searchColumn: '' })}
-            />
-            <TableSelect
-              label="Tabela a devolver"
-              dataset={dataset}
-              sheetIndex={f.resultSheetIndex}
-              onSelect={(sheetIndex) => updateFields({ resultSheetIndex: sheetIndex, resultColumn: '' })}
+              sheetIndex={f.sheetIndex}
+              onSelect={(sheetIndex) => updateFields({ sheetIndex, searchColumn: '', resultColumn: '' })}
             />
           </div>
         )}
 
-        {f.searchSheetIndex !== '' && f.resultSheetIndex !== '' && (
+        {f.sheetIndex !== '' && (
           <div className="operation-entry__columns">
             <ColumnPickerField
               label="Coluna onde procurar"
               value={f.searchColumn}
               isPicking={columnPick?.entryId === entryId && columnPick.field === 'search'}
               pendingColumn={columnPick?.entryId === entryId && columnPick.field === 'search' ? columnPick.column : null}
-              onStart={() => onStartColumnPick(entryId, 'search', f.searchSheetIndex as number)}
+              onStart={() => onStartColumnPick(entryId, 'search', f.sheetIndex as number)}
               onConfirm={(column) => updateFields({ searchColumn: column })}
               onCancel={onFinishColumnPick}
               onClear={() => updateFields({ searchColumn: '' })}
@@ -80,7 +68,7 @@ export const lookupKind: OperationKind = {
               value={f.resultColumn}
               isPicking={columnPick?.entryId === entryId && columnPick.field === 'result'}
               pendingColumn={columnPick?.entryId === entryId && columnPick.field === 'result' ? columnPick.column : null}
-              onStart={() => onStartColumnPick(entryId, 'result', f.resultSheetIndex as number)}
+              onStart={() => onStartColumnPick(entryId, 'result', f.sheetIndex as number)}
               onConfirm={(column) => updateFields({ resultColumn: column })}
               onCancel={onFinishColumnPick}
               onClear={() => updateFields({ resultColumn: '' })}
@@ -93,16 +81,14 @@ export const lookupKind: OperationKind = {
 
   renderSummary: (fields, dataset) => {
     const f = asLookupFields(fields);
-    const searchSheetIndex = f.searchSheetIndex as number;
-    const resultSheetIndex = f.resultSheetIndex as number;
+    const sheetIndex = f.sheetIndex as number;
     return (
       <>
+        <span>{dataset.sheets[sheetIndex].sheetName}</span>
         <span>
-          {dataset.sheets[searchSheetIndex].sheetName} · Coluna {f.searchColumn}
-        </span>
-        <span className="lookup-summary__arrow">→</span>
-        <span>
-          {dataset.sheets[resultSheetIndex].sheetName} · Coluna {f.resultColumn}
+          · Coluna {f.searchColumn}
+          <span className="lookup-summary__arrow">→</span>
+          Coluna {f.resultColumn}
         </span>
       </>
     );
@@ -127,8 +113,7 @@ export const lookupKind: OperationKind = {
           <LookupResult
             datasetId={datasetId}
             query={query}
-            searchSheetIndex={f.searchSheetIndex as number}
-            resultSheetIndex={f.resultSheetIndex as number}
+            sheetIndex={f.sheetIndex as number}
             searchColumn={f.searchColumn as number}
             resultColumn={f.resultColumn as number}
             onMatchChange={onMatchChange}
@@ -141,12 +126,15 @@ export const lookupKind: OperationKind = {
 
   getColumnHighlights: (fields) => {
     const f = asLookupFields(fields);
-    const highlights = [];
-    if (f.searchSheetIndex !== '' && f.searchColumn !== '') {
-      highlights.push({ sheetIndex: f.searchSheetIndex, column: f.searchColumn, role: 'search' as const });
+    if (f.sheetIndex === '') {
+      return [];
     }
-    if (f.resultSheetIndex !== '' && f.resultColumn !== '') {
-      highlights.push({ sheetIndex: f.resultSheetIndex, column: f.resultColumn, role: 'result' as const });
+    const highlights = [];
+    if (f.searchColumn !== '') {
+      highlights.push({ sheetIndex: f.sheetIndex, column: f.searchColumn, role: 'search' as const });
+    }
+    if (f.resultColumn !== '') {
+      highlights.push({ sheetIndex: f.sheetIndex, column: f.resultColumn, role: 'result' as const });
     }
     return highlights;
   },
@@ -154,13 +142,13 @@ export const lookupKind: OperationKind = {
   getCellHighlight: (fields, matchedRow) => {
     if (matchedRow === null) return null;
     const f = asLookupFields(fields);
-    if (f.searchSheetIndex === '' || f.resultSheetIndex === '' || f.searchColumn === '' || f.resultColumn === '') {
+    if (f.sheetIndex === '' || f.searchColumn === '' || f.resultColumn === '') {
       return null;
     }
     return {
-      searchSheetIndex: f.searchSheetIndex,
+      searchSheetIndex: f.sheetIndex,
       searchColumn: f.searchColumn,
-      resultSheetIndex: f.resultSheetIndex,
+      resultSheetIndex: f.sheetIndex,
       resultColumn: f.resultColumn,
       rowIndex: matchedRow,
     };
@@ -170,8 +158,7 @@ export const lookupKind: OperationKind = {
 interface LookupResultProps {
   datasetId: string;
   query: string;
-  searchSheetIndex: number;
-  resultSheetIndex: number;
+  sheetIndex: number;
   searchColumn: number;
   resultColumn: number;
   onMatchChange: (rowIndex: number | null) => void;
@@ -195,8 +182,7 @@ const LOOKUP_DEBOUNCE_MS = 2000;
 function LookupResult({
   datasetId,
   query,
-  searchSheetIndex,
-  resultSheetIndex,
+  sheetIndex,
   searchColumn,
   resultColumn,
   onMatchChange,
@@ -209,7 +195,14 @@ function LookupResult({
     setState({ status: 'loading' });
 
     const timeoutId = window.setTimeout(() => {
-      lookupValue({ datasetId, query, searchSheetIndex, searchColumn, resultSheetIndex, resultColumn })
+      lookupValue({
+        datasetId,
+        query,
+        searchSheetIndex: sheetIndex,
+        searchColumn,
+        resultSheetIndex: sheetIndex,
+        resultColumn,
+      })
         .then((response) => {
           if (!cancelled) {
             setState({ status: 'done', found: response.found, value: response.value });
@@ -235,7 +228,7 @@ function LookupResult({
     // close over a stable id and a stable setState — safe to omit so they don't reset the
     // debounce timer on every unrelated keystroke elsewhere in the panel.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [datasetId, query, searchSheetIndex, searchColumn, resultSheetIndex, resultColumn]);
+  }, [datasetId, query, sheetIndex, searchColumn, resultColumn]);
 
   if (state.status === 'loading') {
     return <p className="operation-entry__result operation-entry__result--empty">A procurar…</p>;

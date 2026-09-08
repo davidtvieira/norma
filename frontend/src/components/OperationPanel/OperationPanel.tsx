@@ -21,14 +21,21 @@ import './OperationPanel.css';
 
 interface OperationPanelShellProps {
   addButtonLabel: string;
+  addDisabled: boolean;
   onAdd: () => void;
   children: ReactNode;
 }
 
-function OperationPanelShell({ addButtonLabel, onAdd, children }: OperationPanelShellProps) {
+function OperationPanelShell({ addButtonLabel, addDisabled, onAdd, children }: OperationPanelShellProps) {
   return (
     <div className="operation-panel">
-      <button type="button" className="operation-panel__add-button" onClick={onAdd}>
+      <button
+        type="button"
+        className="operation-panel__add-button"
+        onClick={onAdd}
+        disabled={addDisabled}
+        title={addDisabled ? 'Termine a operação em curso antes de criar outra.' : undefined}
+      >
         {addButtonLabel}
       </button>
       {children}
@@ -38,13 +45,16 @@ function OperationPanelShell({ addButtonLabel, onAdd, children }: OperationPanel
 
 interface OperationListProps {
   title: string;
+  count: number;
   children: ReactNode;
 }
 
-function OperationList({ title, children }: OperationListProps) {
+function OperationList({ title, count, children }: OperationListProps) {
   return (
     <div className="operation-panel__list">
-      <h2 className="operation-panel__title">{title}</h2>
+      <h2 className="operation-panel__title">
+        {title} <span className="operation-panel__count">{count}</span>
+      </h2>
       {children}
     </div>
   );
@@ -100,6 +110,7 @@ function DraftOperationCard({ name, onNameChange, onCancel, canConfirm, onConfir
 interface ConfirmedOperationCardProps {
   name: string;
   onEdit: () => void;
+  editDisabled: boolean;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
   summary: ReactNode;
@@ -111,13 +122,20 @@ interface ConfirmedOperationCardProps {
  * a type-specific one-line summary, then whatever type-specific input/result the kind renders
  * as `children`. Hover drives that kind's sheet highlight while the card is under the mouse.
  */
-function ConfirmedOperationCard({ name, onEdit, onMouseEnter, onMouseLeave, summary, children }: ConfirmedOperationCardProps) {
+function ConfirmedOperationCard({ name, onEdit, editDisabled, onMouseEnter, onMouseLeave, summary, children }: ConfirmedOperationCardProps) {
   return (
     <div className="operation-card" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
       <div className="operation-card__header">
         <h3 className="operation-card__name">{name || 'Operação sem nome'}</h3>
         <div className="operation-card__actions">
-          <button type="button" className="operation-card__edit" onClick={onEdit} aria-label="Editar operação">
+          <button
+            type="button"
+            className="operation-card__edit"
+            onClick={onEdit}
+            disabled={editDisabled}
+            aria-label="Editar operação"
+            title={editDisabled ? 'Termine a operação em curso antes de editar outra.' : undefined}
+          >
             <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
               <path
                 d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"
@@ -147,7 +165,6 @@ interface OperationEntryState {
   name: string;
   kindId: string;
   confirmed: boolean;
-  searching: boolean;
   fields: OperationFields;
 }
 
@@ -164,14 +181,13 @@ function generateEntryId(): string {
  * Pure by design: React 18 StrictMode invokes functional setState updaters twice in
  * development to catch impure ones, so this must not rely on shared mutable state.
  */
-function createEntry(kindId: string, name: string): OperationEntryState {
+function createEntry(kindId: string, name: string, dataset: DatasetImportResponse): OperationEntryState {
   return {
     id: generateEntryId(),
     name,
     kindId,
     confirmed: false,
-    searching: false,
-    fields: KINDS_BY_ID[kindId].createFields(),
+    fields: KINDS_BY_ID[kindId].createFields(dataset),
   };
 }
 
@@ -282,11 +298,12 @@ export function OperationPanel({
   }
 
   function editEntry(id: string) {
+    if (entries.some((entry) => !entry.confirmed)) return;
     const entry = entries.find((item) => item.id === id);
     if (entry) {
       setEditSnapshots((current) => ({ ...current, [id]: entry }));
     }
-    updateEntry(id, { confirmed: false, searching: true });
+    updateEntry(id, { confirmed: false });
   }
 
   // × in the draft toolbar: for a brand-new operation (no snapshot) this deletes it. For one
@@ -313,18 +330,52 @@ export function OperationPanel({
   function addOperationOfKind(kindId: string) {
     const label = labelForKind(kindId);
     setEntries((current) => {
+      if (current.some((entry) => !entry.confirmed)) return current;
       const order = current.filter((entry) => entry.kindId === kindId).length + 1;
-      return [...current, createEntry(kindId, `${label} ${order}`)];
+      return [...current, createEntry(kindId, `${label} ${order}`, dataset)];
     });
     setIsPickingKind(false);
   }
 
-  const draftEntries = entries.filter((entry) => !entry.confirmed);
-  const readyOperations = entries.filter((entry) => entry.confirmed);
+  // A brand-new operation (never confirmed, no snapshot to restore) builds up near the add
+  // button. One reopened via "Editar" edits in place instead — it keeps its spot in the
+  // Operações list below, alongside the still-confirmed ones, rather than jumping to the top.
+  const newDraftEntries = entries.filter((entry) => !entry.confirmed && !(entry.id in editSnapshots));
+  const listEntries = entries.filter((entry) => entry.confirmed || entry.id in editSnapshots);
+  const hasDraftInProgress = entries.some((entry) => !entry.confirmed);
+
+  function renderDraftCard(entry: OperationEntryState) {
+    const kind = KINDS_BY_ID[entry.kindId];
+    return (
+      <DraftOperationCard
+        key={entry.id}
+        name={entry.name}
+        onNameChange={(name) => updateEntry(entry.id, { name })}
+        onCancel={() => cancelEntry(entry.id)}
+        canConfirm={kind.canConfirm(entry.fields)}
+        onConfirm={() => updateEntry(entry.id, { confirmed: true })}
+        onDelete={() => removeEntry(entry.id)}
+      >
+        {kind.renderDraftConfig({
+          dataset,
+          entryId: entry.id,
+          fields: entry.fields,
+          updateFields: (patch) => updateEntryFields(entry.id, patch),
+          columnPick,
+          onStartColumnPick,
+          onFinishColumnPick,
+        })}
+      </DraftOperationCard>
+    );
+  }
 
   return (
-    <OperationPanelShell addButtonLabel="+ Adicionar operação" onAdd={() => setIsPickingKind((current) => !current)}>
-      {isPickingKind && (
+    <OperationPanelShell
+      addButtonLabel="+ Adicionar operação"
+      addDisabled={hasDraftInProgress}
+      onAdd={() => setIsPickingKind((current) => !current)}
+    >
+      {isPickingKind && !hasDraftInProgress && (
         <div className="operation-panel__kind-menu">
           {KINDS.map((kind) => (
             <button
@@ -339,42 +390,23 @@ export function OperationPanel({
         </div>
       )}
 
-      {draftEntries.map((entry) => {
-        const kind = KINDS_BY_ID[entry.kindId];
-        return (
-          <DraftOperationCard
-            key={entry.id}
-            name={entry.name}
-            onNameChange={(name) => updateEntry(entry.id, { name })}
-            onCancel={() => cancelEntry(entry.id)}
-            canConfirm={kind.canConfirm(entry.fields)}
-            onConfirm={() => updateEntry(entry.id, { confirmed: true })}
-            onDelete={() => removeEntry(entry.id)}
-          >
-            {kind.renderDraftConfig({
-              dataset,
-              entryId: entry.id,
-              fields: entry.fields,
-              updateFields: (patch) => updateEntryFields(entry.id, patch),
-              searching: entry.searching,
-              startSearching: () => updateEntry(entry.id, { searching: true }),
-              columnPick,
-              onStartColumnPick,
-              onFinishColumnPick,
-            })}
-          </DraftOperationCard>
-        );
-      })}
+      {newDraftEntries.map(renderDraftCard)}
 
-      {readyOperations.length > 0 && (
-        <OperationList title="Operações">
-          {readyOperations.map((entry) => {
+      {listEntries.length > 0 && (
+        <OperationList title="Operações" count={listEntries.length}>
+          {listEntries.map((entry) => {
             const kind = KINDS_BY_ID[entry.kindId];
+
+            if (!entry.confirmed) {
+              return renderDraftCard(entry);
+            }
+
             return (
               <ConfirmedOperationCard
                 key={entry.id}
                 name={entry.name}
                 onEdit={() => editEntry(entry.id)}
+                editDisabled={hasDraftInProgress}
                 onMouseEnter={() => setHoveredOperationId(entry.id)}
                 onMouseLeave={() => setHoveredOperationId((current) => (current === entry.id ? null : current))}
                 summary={kind.renderSummary(entry.fields, dataset)}

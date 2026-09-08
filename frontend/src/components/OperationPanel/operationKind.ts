@@ -24,8 +24,6 @@ export interface OperationDraftContext {
   entryId: string;
   fields: OperationFields;
   updateFields: (patch: OperationFields) => void;
-  searching: boolean;
-  startSearching: () => void;
   columnPick: ColumnPickState | null;
   onStartColumnPick: (entryId: string, field: ColumnPickField, sheetIndex: number) => void;
   onFinishColumnPick: () => void;
@@ -47,7 +45,8 @@ export interface OperationBodyContext {
 export interface OperationKind {
   /** Matches an id from GET /api/v1/dataset/operations. */
   id: string;
-  createFields: () => OperationFields;
+  /** Starting fields for a new entry — given the dataset so a lone table can be pre-selected. */
+  createFields: (dataset: DatasetImportResponse) => OperationFields;
   canConfirm: (fields: OperationFields) => boolean;
   /** The table/column pickers etc. shown while building or editing. */
   renderDraftConfig: (ctx: OperationDraftContext) => ReactNode;

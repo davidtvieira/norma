@@ -61,12 +61,16 @@ export function ColumnPickerField({
   onClear,
 }: ColumnPickerFieldProps) {
   // Clicking a column header in the sheet viewer commits it immediately — no separate
-  // confirm step.
+  // confirm step. onCancel here is really "finish picking" (it's what clears the picker
+  // state up in App), so it also runs on a successful pick, not just on Cancelar — otherwise
+  // the sheet tabs would stay locked to this column's sheet (tabsDisabled tracks picker state)
+  // for as long as the operation is left without an explicit Cancelar click.
   useEffect(() => {
     if (isPicking && pendingColumn !== null) {
       onConfirm(pendingColumn);
+      onCancel();
     }
-  }, [isPicking, pendingColumn, onConfirm]);
+  }, [isPicking, pendingColumn, onConfirm, onCancel]);
 
   return (
     <div className="operation-entry__field">

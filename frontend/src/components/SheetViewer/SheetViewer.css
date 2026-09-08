@@ -2,6 +2,8 @@
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  height: 100%;
+  min-height: 0;
 }
 
 .sheet-viewer__tabs {
@@ -90,7 +92,10 @@
 
 .sheet-viewer__table-wrapper {
   overflow: auto;
-  max-height: 70vh;
+  /* Fills whatever height .sheet-viewer has (matching the left column's height, see App.css)
+     instead of a fixed cap unrelated to it — long tables scroll within that height. */
+  flex: 1;
+  min-height: 0;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);

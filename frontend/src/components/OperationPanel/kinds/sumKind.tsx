@@ -18,26 +18,20 @@ function asSumFields(fields: OperationFields): SumFields {
 export const sumKind: OperationKind = {
   id: 'sum',
 
-  createFields: (): OperationFields => ({
+  createFields: (dataset): OperationFields => ({
     input: literalSource(''),
-    sheetIndex: '',
+    sheetIndex: dataset.sheets.length === 1 ? 0 : '',
     column: '',
   } satisfies SumFields),
 
   canConfirm: (fields) => asSumFields(fields).column !== '',
 
-  renderDraftConfig: ({ dataset, entryId, fields, updateFields, searching, startSearching, columnPick, onStartColumnPick, onFinishColumnPick }) => {
+  renderDraftConfig: ({ dataset, entryId, fields, updateFields, columnPick, onStartColumnPick, onFinishColumnPick }) => {
     const f = asSumFields(fields);
 
     return (
       <>
-        {!searching && (
-          <button type="button" className="operation-entry__start-button" onClick={startSearching}>
-            Selecionar coluna
-          </button>
-        )}
-
-        {searching && (
+        {dataset.sheets.length > 1 && (
           <div className="operation-entry__columns">
             <TableSelect
               label="Tabela"

@@ -1,5 +1,7 @@
 .app {
-  min-height: 100svh;
+  /* A hard height (not just a floor) so .app__main's overflow:hidden/auto actually clip and
+     scroll instead of letting tall content (a big sheet, many operations) grow the whole page. */
+  height: 100svh;
   display: flex;
   flex-direction: column;
   background: var(--color-bg);
