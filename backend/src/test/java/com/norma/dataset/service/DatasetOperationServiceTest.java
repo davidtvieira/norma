@@ -129,7 +129,7 @@ class DatasetOperationServiceTest {
     }
 
     @Test
-    void sumsNumericValuesFromTheStartRowOnward() {
+    void sumsNumericValuesWithinARowRange() {
         SheetData sales = new SheetData("Vendas", 4, List.of(
                 new RowData(0, List.of(new CellData(0, 100L))),
                 new RowData(1, List.of(new CellData(0, 200L))),
@@ -138,10 +138,24 @@ class DatasetOperationServiceTest {
         ));
         String datasetId = storeDataset(new DatasetImportResponse("dataset-sum-1", "test.xlsx", Instant.now(), List.of(sales)));
 
-        SumResponse response = datasetOperationService.sum(new SumRequest(datasetId, 0, 0, 1));
+        SumResponse response = datasetOperationService.sum(new SumRequest(datasetId, 0, 1, 3, 0, 0));
 
         assertThat(response.sum()).isEqualTo(260.5);
-        assertThat(response.rowsSummed()).isEqualTo(3);
+        assertThat(response.cellsSummed()).isEqualTo(3);
+    }
+
+    @Test
+    void sumsNumericValuesAcrossMultipleColumns() {
+        SheetData sales = new SheetData("Vendas", 2, List.of(
+                new RowData(0, List.of(new CellData(0, 10L), new CellData(1, 20L))),
+                new RowData(1, List.of(new CellData(0, 5L), new CellData(1, 15L)))
+        ));
+        String datasetId = storeDataset(new DatasetImportResponse("dataset-sum-3", "test.xlsx", Instant.now(), List.of(sales)));
+
+        SumResponse response = datasetOperationService.sum(new SumRequest(datasetId, 0, 0, 1, 0, 1));
+
+        assertThat(response.sum()).isEqualTo(50.0);
+        assertThat(response.cellsSummed()).isEqualTo(4);
     }
 
     @Test
@@ -153,23 +167,31 @@ class DatasetOperationServiceTest {
         ));
         String datasetId = storeDataset(new DatasetImportResponse("dataset-sum-2", "test.xlsx", Instant.now(), List.of(sales)));
 
-        SumResponse response = datasetOperationService.sum(new SumRequest(datasetId, 0, 0, 0));
+        SumResponse response = datasetOperationService.sum(new SumRequest(datasetId, 0, 0, 2, 0, 0));
 
         assertThat(response.sum()).isEqualTo(10.0);
-        assertThat(response.rowsSummed()).isEqualTo(1);
+        assertThat(response.cellsSummed()).isEqualTo(1);
     }
 
     @Test
     void rejectsANegativeStartRowForSum() {
         String datasetId = twoSheetDataset();
 
-        assertThatThrownBy(() -> datasetOperationService.sum(new SumRequest(datasetId, 0, 0, -1)))
+        assertThatThrownBy(() -> datasetOperationService.sum(new SumRequest(datasetId, 0, -1, 0, 0, 0)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsASumRangeEndingBeforeItStarts() {
+        String datasetId = twoSheetDataset();
+
+        assertThatThrownBy(() -> datasetOperationService.sum(new SumRequest(datasetId, 0, 2, 0, 0, 0)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void rejectsAnUnknownDatasetIdForSum() {
-        assertThatThrownBy(() -> datasetOperationService.sum(new SumRequest("missing-dataset", 0, 0, 0)))
+        assertThatThrownBy(() -> datasetOperationService.sum(new SumRequest("missing-dataset", 0, 0, 0, 0, 0)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 }

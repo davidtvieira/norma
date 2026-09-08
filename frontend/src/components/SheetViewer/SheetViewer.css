@@ -71,6 +71,16 @@
   background: color-mix(in srgb, var(--color-primary) 22%, var(--color-surface));
 }
 
+.sheet-viewer__cell--range-pickable {
+  cursor: cell;
+  user-select: none;
+}
+
+.sheet-viewer__cell--range-preview {
+  background: color-mix(in srgb, var(--color-primary) 35%, var(--color-surface));
+  box-shadow: inset 0 0 0 1px var(--color-primary);
+}
+
 .sheet-viewer__highlight-search-cell {
   background: color-mix(in srgb, var(--color-secondary) 45%, var(--color-surface));
   box-shadow: inset 0 0 0 2px var(--color-secondary);

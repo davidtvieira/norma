@@ -63,25 +63,33 @@ public class DatasetOperationService {
                         "Conjunto de dados não encontrado. Volte a importar o ficheiro."));
 
         SheetData sheet = sheetAt(dataset, request.sheetIndex(), "a somar");
-
-        if (request.startRow() < 0) {
-            throw new IllegalArgumentException("A linha inicial não pode ser negativa.");
-        }
+        validateRange(request.startRow(), request.endRow(), request.startColumn(), request.endColumn());
 
         double total = 0;
-        int rowsSummed = 0;
+        int cellsSummed = 0;
         for (RowData row : sheet.rows()) {
-            if (row.rowIndex() < request.startRow()) {
+            if (row.rowIndex() < request.startRow() || row.rowIndex() > request.endRow()) {
                 continue;
             }
-            Object value = cellValue(row, request.column());
-            if (value instanceof Number number) {
-                total += number.doubleValue();
-                rowsSummed++;
+            for (int column = request.startColumn(); column <= request.endColumn(); column++) {
+                Object value = cellValue(row, column);
+                if (value instanceof Number number) {
+                    total += number.doubleValue();
+                    cellsSummed++;
+                }
             }
         }
 
-        return new SumResponse(total, rowsSummed);
+        return new SumResponse(total, cellsSummed);
+    }
+
+    private void validateRange(int startRow, int endRow, int startColumn, int endColumn) {
+        if (startRow < 0 || startColumn < 0) {
+            throw new IllegalArgumentException("O intervalo não pode começar numa linha ou coluna negativa.");
+        }
+        if (endRow < startRow || endColumn < startColumn) {
+            throw new IllegalArgumentException("O fim do intervalo não pode ser anterior ao início.");
+        }
     }
 
     private SheetData sheetAt(DatasetImportResponse dataset, int sheetIndex, String role) {

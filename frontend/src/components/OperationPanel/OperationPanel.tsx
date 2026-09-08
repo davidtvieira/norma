@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { DatasetImportResponse } from '../../types/dataset';
-import type { ColumnPickField, ColumnPickState } from '../../types/columnPick';
-import type { ColumnHighlight, OperationHighlight } from '../../types/highlight';
+import type { ColumnPickField, ColumnPickState, RangePickState } from '../../types/columnPick';
+import type { ColumnHighlight, OperationHighlight, RangeHighlight } from '../../types/highlight';
 import { useOperationTypes } from '../../hooks/useOperationTypes';
 import { getDependents, resolveOperationInputs } from '../../utils/resolveOperationInputs';
 import { getInputSource } from '../../types/valueSource';
@@ -233,7 +233,11 @@ interface OperationPanelProps {
   columnPick: ColumnPickState | null;
   onStartColumnPick: (entryId: string, field: ColumnPickField, sheetIndex: number) => void;
   onFinishColumnPick: () => void;
+  rangePick: RangePickState | null;
+  onStartRangePick: (entryId: string, sheetIndex: number) => void;
+  onFinishRangePick: () => void;
   onColumnHighlightsChange: (highlights: ColumnHighlight[]) => void;
+  onRangeHighlightsChange: (highlights: RangeHighlight[]) => void;
   onCellHighlightChange: (highlight: OperationHighlight | null) => void;
 }
 
@@ -248,7 +252,11 @@ export function OperationPanel({
   columnPick,
   onStartColumnPick,
   onFinishColumnPick,
+  rangePick,
+  onStartRangePick,
+  onFinishRangePick,
   onColumnHighlightsChange,
+  onRangeHighlightsChange,
   onCellHighlightChange,
 }: OperationPanelProps) {
   const [entries, setEntries] = useState<OperationEntryState[]>([]);
@@ -268,21 +276,24 @@ export function OperationPanel({
   const [results, setResults] = useState<Record<string, string | null>>({});
   const resolvedInputs = resolveOperationInputs(entries, results);
 
-  // Sheet column tints: every operation being built/edited shows its picked columns, and so
+  // Sheet column/range tints: every operation being built/edited shows what it's picked, and so
   // does a confirmed operation under the mouse if its kind has no exact-cell highlight to show
   // instead (e.g. sum, whose result isn't a single cell).
   useEffect(() => {
-    const highlights: ColumnHighlight[] = [];
+    const columns: ColumnHighlight[] = [];
+    const ranges: RangeHighlight[] = [];
     for (const entry of entries) {
       const kind = KINDS_BY_ID[entry.kindId];
       const isDraft = !entry.confirmed;
       const isHoveredWithoutCellPrecision = entry.confirmed && entry.id === hoveredOperationId && !kind.getCellHighlight;
       if (isDraft || isHoveredWithoutCellPrecision) {
-        highlights.push(...kind.getColumnHighlights(entry.fields));
+        columns.push(...kind.getColumnHighlights(entry.fields));
+        ranges.push(...(kind.getRangeHighlights?.(entry.fields) ?? []));
       }
     }
-    onColumnHighlightsChange(highlights);
-  }, [entries, hoveredOperationId, onColumnHighlightsChange]);
+    onColumnHighlightsChange(columns);
+    onRangeHighlightsChange(ranges);
+  }, [entries, hoveredOperationId, onColumnHighlightsChange, onRangeHighlightsChange]);
 
   // Exact input/output cell highlight: only for a hovered confirmed operation whose kind
   // supports that precision, and only once it actually has a match.
@@ -401,6 +412,9 @@ export function OperationPanel({
           columnPick,
           onStartColumnPick,
           onFinishColumnPick,
+          rangePick,
+          onStartRangePick,
+          onFinishRangePick,
         })}
       </DraftOperationCard>
     );

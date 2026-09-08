@@ -1,11 +1,30 @@
-import { useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useState } from 'react';
+import type { CellRange } from '../../types/cellRange';
 import type { DatasetImportResponse } from '../../types/dataset';
-import type { ColumnHighlight, OperationHighlight } from '../../types/highlight';
+import type { ColumnHighlight, OperationHighlight, RangeHighlight } from '../../types/highlight';
 import { findCellValue, formatCellValue, getColumnCount } from '../../utils/sheet';
 import './SheetViewer.css';
 
 interface ColumnPicker {
   selectedColumn: number | null;
+}
+
+interface CellPosition {
+  row: number;
+  column: number;
+}
+
+function normalizeRange(anchor: CellPosition, focus: CellPosition): CellRange {
+  return {
+    startRow: Math.min(anchor.row, focus.row),
+    endRow: Math.max(anchor.row, focus.row),
+    startColumn: Math.min(anchor.column, focus.column),
+    endColumn: Math.max(anchor.column, focus.column),
+  };
+}
+
+function isWithinRange(row: number, column: number, range: CellRange): boolean {
+  return row >= range.startRow && row <= range.endRow && column >= range.startColumn && column <= range.endColumn;
 }
 
 interface SheetViewerProps {
@@ -15,17 +34,23 @@ interface SheetViewerProps {
   tabsDisabled?: boolean;
   columnPicker?: ColumnPicker | null;
   onColumnHeaderClick?: (columnIndex: number) => void;
+  /** When true, dragging over the cell grid selects a rectangular range (see onRangeSelected). */
+  rangePicker?: boolean;
+  onRangeSelected?: (range: CellRange) => void;
   columnHighlights?: ColumnHighlight[];
+  rangeHighlights?: RangeHighlight[];
   cellHighlight?: OperationHighlight | null;
 }
 
 /**
  * Renders a parsed sheet as an index-addressed row/cell grid. When `columnPicker` is set,
  * column headers become clickable so a lookup operation can pick a column directly from
- * the table instead of a dropdown; tabs lock to the sheet being picked from.
- * `columnHighlights` tints whole search/result columns for operations being built or edited.
- * `cellHighlight` marks the exact input/output cell of a confirmed operation's current match,
- * shown while hovering its card. Only whatever belongs to the currently displayed sheet lights up.
+ * the table instead of a dropdown; when `rangePicker` is set, dragging over the cell grid
+ * selects a rectangular block of cells instead, Excel-style — either way tabs lock to the
+ * sheet being picked from. `columnHighlights`/`rangeHighlights` tint whole columns or
+ * rectangular ranges for operations being built or edited. `cellHighlight` marks the exact
+ * input/output cell of a confirmed operation's current match, shown while hovering its card.
+ * Only whatever belongs to the currently displayed sheet lights up.
  */
 export function SheetViewer({
   dataset,
@@ -34,15 +59,47 @@ export function SheetViewer({
   tabsDisabled = false,
   columnPicker = null,
   onColumnHeaderClick,
+  rangePicker = false,
+  onRangeSelected,
   columnHighlights = [],
+  rangeHighlights = [],
   cellHighlight = null,
 }: SheetViewerProps) {
   const activeSheet = dataset.sheets[activeSheetIndex];
   const [hoveredColumn, setHoveredColumn] = useState<number | null>(null);
+  const [dragAnchor, setDragAnchor] = useState<CellPosition | null>(null);
+  const [dragFocus, setDragFocus] = useState<CellPosition | null>(null);
 
   const columnCount = useMemo(() => getColumnCount(activeSheet), [activeSheet]);
 
   const columnIndexes = Array.from({ length: columnCount }, (_, index) => index);
+
+  // Rows aren't guaranteed to be a contiguous 0..N-1 range (no header row is assumed), so a
+  // "whole column" picked from the header spans the sheet's actual first/last row indexes.
+  const rowIndexes = activeSheet.rows.map((row) => row.rowIndex);
+  const minRowIndex = rowIndexes.length > 0 ? Math.min(...rowIndexes) : 0;
+  const maxRowIndex = rowIndexes.length > 0 ? Math.max(...rowIndexes) : 0;
+
+  const dragPreviewRange = dragAnchor && dragFocus ? normalizeRange(dragAnchor, dragFocus) : null;
+
+  // Ends the drag wherever the mouse is released, even outside the table — a per-cell mouseup
+  // handler would miss that case and leave the selection stuck open. Registered synchronously
+  // (useLayoutEffect, not useEffect) so a very fast click's mouseup can't race ahead of it.
+  useLayoutEffect(() => {
+    if (!dragAnchor) return;
+
+    function finishDrag() {
+      if (dragPreviewRange) {
+        onRangeSelected?.(dragPreviewRange);
+      }
+      setDragAnchor(null);
+      setDragFocus(null);
+    }
+
+    window.addEventListener('mouseup', finishDrag);
+    return () => window.removeEventListener('mouseup', finishDrag);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dragAnchor, dragFocus]);
 
   const columnHighlightRoles = useMemo(() => {
     const roles = new Map<number, 'search' | 'result'>();
@@ -54,6 +111,20 @@ export function SheetViewer({
     return roles;
   }, [columnHighlights, activeSheetIndex]);
 
+  const activeRangeHighlights = useMemo(
+    () => rangeHighlights.filter((highlight) => highlight.sheetIndex === activeSheetIndex),
+    [rangeHighlights, activeSheetIndex],
+  );
+
+  function rangeHighlightRoleAt(row: number, column: number): 'search' | 'result' | null {
+    for (const highlight of activeRangeHighlights) {
+      if (isWithinRange(row, column, highlight)) {
+        return highlight.role;
+      }
+    }
+    return null;
+  }
+
   const cellHighlightSearchColumn =
     cellHighlight && cellHighlight.searchSheetIndex === activeSheetIndex ? cellHighlight.searchColumn : null;
   const cellHighlightResultColumn =
@@ -64,6 +135,13 @@ export function SheetViewer({
     <div className="sheet-viewer">
       {columnPicker && (
         <p className="sheet-viewer__picker-banner">Clique numa coluna da tabela para a selecionar.</p>
+      )}
+
+      {rangePicker && (
+        <p className="sheet-viewer__picker-banner">
+          Arraste sobre as células para selecionar um intervalo, ou clique (ou arraste) no cabeçalho de uma coluna para a selecionar
+          por inteiro.
+        </p>
       )}
 
       {dataset.sheets.length > 1 && (
@@ -89,11 +167,13 @@ export function SheetViewer({
               <th className="sheet-viewer__row-index-header" />
               {columnIndexes.map((columnIndex) => {
                 const isSelected = columnPicker?.selectedColumn === columnIndex;
+                const isHeaderInDragPreview =
+                  dragPreviewRange !== null && columnIndex >= dragPreviewRange.startColumn && columnIndex <= dragPreviewRange.endColumn;
                 const columnHighlightRole = columnHighlightRoles.get(columnIndex);
                 const headerClassNames = [
                   'sheet-viewer__col-header',
-                  columnPicker ? 'sheet-viewer__col-header--pickable' : null,
-                  isSelected ? 'sheet-viewer__col-header--selected' : null,
+                  columnPicker || rangePicker ? 'sheet-viewer__col-header--pickable' : null,
+                  isSelected || isHeaderInDragPreview ? 'sheet-viewer__col-header--selected' : null,
                   columnHighlightRole === 'search' ? 'sheet-viewer__highlight-search' : null,
                   columnHighlightRole === 'result' ? 'sheet-viewer__highlight-result' : null,
                   columnIndex === cellHighlightSearchColumn ? 'sheet-viewer__highlight-search' : null,
@@ -107,7 +187,22 @@ export function SheetViewer({
                     key={columnIndex}
                     className={headerClassNames}
                     onClick={columnPicker ? () => onColumnHeaderClick?.(columnIndex) : undefined}
-                    onMouseEnter={columnPicker ? () => setHoveredColumn(columnIndex) : undefined}
+                    onMouseDown={
+                      rangePicker
+                        ? (event) => {
+                            event.preventDefault();
+                            setDragAnchor({ row: minRowIndex, column: columnIndex });
+                            setDragFocus({ row: maxRowIndex, column: columnIndex });
+                          }
+                        : undefined
+                    }
+                    onMouseEnter={
+                      columnPicker
+                        ? () => setHoveredColumn(columnIndex)
+                        : rangePicker && dragAnchor
+                          ? () => setDragFocus({ row: maxRowIndex, column: columnIndex })
+                          : undefined
+                    }
                     onMouseLeave={columnPicker ? () => setHoveredColumn(null) : undefined}
                   >
                     {columnIndex}
@@ -122,20 +217,41 @@ export function SheetViewer({
                 <th className="sheet-viewer__row-index">{row.rowIndex}</th>
                 {columnIndexes.map((columnIndex) => {
                   const columnHighlightRole = columnHighlightRoles.get(columnIndex);
+                  const rangeHighlightRole = rangeHighlightRoleAt(row.rowIndex, columnIndex);
                   const isMatchedRow = row.rowIndex === cellHighlightRowIndex;
+                  const isInDragPreview = dragPreviewRange !== null && isWithinRange(row.rowIndex, columnIndex, dragPreviewRange);
                   const cellClassNames = [
                     columnPicker?.selectedColumn === columnIndex ? 'sheet-viewer__cell--selected-column' : null,
                     columnPicker && hoveredColumn === columnIndex ? 'sheet-viewer__cell--hovered-column' : null,
+                    rangePicker ? 'sheet-viewer__cell--range-pickable' : null,
                     columnHighlightRole === 'search' ? 'sheet-viewer__highlight-search' : null,
                     columnHighlightRole === 'result' ? 'sheet-viewer__highlight-result' : null,
+                    rangeHighlightRole === 'search' ? 'sheet-viewer__highlight-search' : null,
+                    rangeHighlightRole === 'result' ? 'sheet-viewer__highlight-result' : null,
                     isMatchedRow && columnIndex === cellHighlightSearchColumn ? 'sheet-viewer__highlight-search-cell' : null,
                     isMatchedRow && columnIndex === cellHighlightResultColumn ? 'sheet-viewer__highlight-result-cell' : null,
+                    isInDragPreview ? 'sheet-viewer__cell--range-preview' : null,
                   ]
                     .filter(Boolean)
                     .join(' ');
 
                   return (
-                    <td key={columnIndex} className={cellClassNames || undefined}>
+                    <td
+                      key={columnIndex}
+                      className={cellClassNames || undefined}
+                      onMouseDown={
+                        rangePicker
+                          ? (event) => {
+                              event.preventDefault();
+                              setDragAnchor({ row: row.rowIndex, column: columnIndex });
+                              setDragFocus({ row: row.rowIndex, column: columnIndex });
+                            }
+                          : undefined
+                      }
+                      onMouseEnter={
+                        rangePicker && dragAnchor ? () => setDragFocus({ row: row.rowIndex, column: columnIndex }) : undefined
+                      }
+                    >
                       {formatCellValue(findCellValue(row, columnIndex))}
                     </td>
                   );

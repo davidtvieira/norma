@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { DatasetUploader } from './components/DatasetUploader/DatasetUploader';
 import { OperationPanel } from './components/OperationPanel/OperationPanel';
+import { SaveModal } from './components/SaveModal/SaveModal';
 import { SheetViewer } from './components/SheetViewer/SheetViewer';
 import { ThemeToggle } from './components/ThemeToggle/ThemeToggle';
 import { useTheme } from './hooks/useTheme';
 import type { DatasetImportResponse } from './types/dataset';
-import type { ColumnPickField, ColumnPickState } from './types/columnPick';
-import type { ColumnHighlight, OperationHighlight } from './types/highlight';
+import type { ColumnPickField, ColumnPickState, RangePickState } from './types/columnPick';
+import type { ColumnHighlight, OperationHighlight, RangeHighlight } from './types/highlight';
+import type { CellRange } from './types/cellRange';
 import './App.css';
 
 function App() {
@@ -15,8 +17,11 @@ function App() {
   const [modelName, setModelName] = useState('');
   const [activeSheetIndex, setActiveSheetIndex] = useState(0);
   const [columnPick, setColumnPick] = useState<ColumnPickState | null>(null);
+  const [rangePick, setRangePick] = useState<RangePickState | null>(null);
   const [columnHighlights, setColumnHighlights] = useState<ColumnHighlight[]>([]);
+  const [rangeHighlights, setRangeHighlights] = useState<RangeHighlight[]>([]);
   const [cellHighlight, setCellHighlight] = useState<OperationHighlight | null>(null);
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
 
   function startColumnPick(entryId: string, field: ColumnPickField, sheetIndex: number) {
@@ -29,6 +34,18 @@ function App() {
 
   function pickColumn(columnIndex: number) {
     setColumnPick((current) => (current ? { ...current, column: columnIndex } : current));
+  }
+
+  function startRangePick(entryId: string, sheetIndex: number) {
+    setRangePick({ entryId, sheetIndex, range: null });
+  }
+
+  function finishRangePick() {
+    setRangePick(null);
+  }
+
+  function pickRange(range: CellRange) {
+    setRangePick((current) => (current ? { ...current, range } : current));
   }
 
   if (!dataset) {
@@ -122,19 +139,29 @@ function App() {
             columnPick={columnPick}
             onStartColumnPick={startColumnPick}
             onFinishColumnPick={finishColumnPick}
+            rangePick={rangePick}
+            onStartRangePick={startRangePick}
+            onFinishRangePick={finishRangePick}
             onColumnHighlightsChange={setColumnHighlights}
+            onRangeHighlightsChange={setRangeHighlights}
             onCellHighlightChange={setCellHighlight}
           />
+          <button type="button" className="app__save-button" onClick={() => setIsSaveModalOpen(true)}>
+            Guardar modelo
+          </button>
         </div>
         <div className="app__main-right">
           <SheetViewer
             dataset={dataset}
-            activeSheetIndex={columnPick ? columnPick.sheetIndex : activeSheetIndex}
+            activeSheetIndex={columnPick ? columnPick.sheetIndex : rangePick ? rangePick.sheetIndex : activeSheetIndex}
             onActiveSheetIndexChange={setActiveSheetIndex}
-            tabsDisabled={columnPick !== null}
+            tabsDisabled={columnPick !== null || rangePick !== null}
             columnPicker={columnPick ? { selectedColumn: columnPick.column } : null}
             onColumnHeaderClick={pickColumn}
+            rangePicker={rangePick !== null}
+            onRangeSelected={pickRange}
             columnHighlights={columnHighlights}
+            rangeHighlights={rangeHighlights}
             cellHighlight={cellHighlight}
           />
         </div>
@@ -143,6 +170,8 @@ function App() {
       <footer className="app__footer">
         <h1 className="app__brand">Norma</h1>
       </footer>
+
+      <SaveModal open={isSaveModalOpen} onClose={() => setIsSaveModalOpen(false)} />
     </div>
   );
 }

@@ -1,11 +1,13 @@
 export interface SumRequestPayload {
   datasetId: string;
   sheetIndex: number;
-  column: number;
   startRow: number;
+  endRow: number;
+  startColumn: number;
+  endColumn: number;
 }
 
 export interface SumResponsePayload {
   sum: number;
-  rowsSummed: number;
+  cellsSummed: number;
 }

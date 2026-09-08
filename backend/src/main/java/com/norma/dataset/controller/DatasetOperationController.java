@@ -52,9 +52,9 @@ public class DatasetOperationController {
     }
 
     @Operation(
-            summary = "Sum a column",
-            description = "Sums the numeric values of one column, starting from a given row index through the "
-                    + "end of the sheet. Non-numeric and blank cells are skipped."
+            summary = "Sum a range",
+            description = "Sums the numeric values of every cell within the given rectangular range (row/column "
+                    + "bounds, all inclusive). Non-numeric and blank cells are skipped."
     )
     @PostMapping("/api/v1/dataset/operation/sum")
     public ResponseEntity<SumResponse> sum(@RequestBody SumRequest request) {

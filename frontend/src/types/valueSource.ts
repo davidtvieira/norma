@@ -10,11 +10,17 @@ export function literalSource(value: string): ValueSource {
   return { type: 'literal', value };
 }
 
-/** Fields shape every chainable operation kind must expose, regardless of its other fields. */
+/** Fields shape a chainable operation kind exposes, regardless of its other fields. */
 export interface ChainableFields {
   input: ValueSource;
 }
 
+/**
+ * Reads a kind's chainable input, if it has one. Not every kind does (e.g. sum's range is
+ * picked directly from the sheet, with nothing left to type or chain) — those fall back to an
+ * empty literal, which never contributes an edge to the reference graph in
+ * utils/resolveOperationInputs.ts.
+ */
 export function getInputSource(fields: object): ValueSource {
-  return (fields as unknown as ChainableFields).input;
+  return (fields as unknown as Partial<ChainableFields>).input ?? literalSource('');
 }

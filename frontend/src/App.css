@@ -280,6 +280,25 @@
   background: var(--color-surface-hover);
 }
 
+.app__save-button {
+  align-self: flex-start;
+  padding: 0.65rem 1.4rem;
+  border: 1px solid var(--color-primary);
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: var(--color-surface);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.app__save-button:hover {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
 .app__main-right {
   flex: 1 1 50%;
   min-width: 0;

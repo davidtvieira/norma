@@ -46,9 +46,9 @@ export async function listOperationTypes(): Promise<OperationType[]> {
 }
 
 /**
- * Runs a lookup operation against a previously imported dataset. All the matching
- * (search table/column, result table/column, row correspondence) happens on the API —
- * the frontend only sends the inputs and renders the returned value.
+ * Runs a lookup operation against a previously imported dataset. All the matching (scanning
+ * the search range, result table/column, row correspondence) happens on the API — the frontend
+ * only sends the inputs and renders the returned value.
  */
 export async function lookupValue(payload: LookupRequestPayload): Promise<LookupResponsePayload> {
   const response = await fetch(`${API_BASE_URL}/api/v1/dataset/operation/lookup`, {
@@ -66,9 +66,9 @@ export async function lookupValue(payload: LookupRequestPayload): Promise<Lookup
 }
 
 /**
- * Sums the numeric values of one column, starting from a given row index, against a
- * previously imported dataset. The row filtering, numeric-cell filtering and summing all
- * happen on the API — the frontend only sends the inputs and renders the returned total.
+ * Sums the numeric values of every cell within a rectangular range, against a previously
+ * imported dataset. The range filtering, numeric-cell filtering and summing all happen on the
+ * API — the frontend only sends the inputs and renders the returned total.
  */
 export async function sumColumn(payload: SumRequestPayload): Promise<SumResponsePayload> {
   const response = await fetch(`${API_BASE_URL}/api/v1/dataset/operation/sum`, {

@@ -10,6 +10,19 @@ export interface ColumnHighlight {
 }
 
 /**
+ * A rectangular block of cells to tint while an operation is being built or edited — the
+ * range-based counterpart of ColumnHighlight, used for lookup's search range and sum's range.
+ */
+export interface RangeHighlight {
+  sheetIndex: number;
+  startRow: number;
+  endRow: number;
+  startColumn: number;
+  endColumn: number;
+  role: 'search' | 'result';
+}
+
+/**
  * The exact input (search) and output (result) cell a confirmed operation's query currently
  * matches — shown when hovering that operation's card, not while it's being edited. `rowIndex`
  * is the matched row (same index in both sheets); null while there's no match yet, in which

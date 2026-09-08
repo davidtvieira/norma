@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { CellRange } from '../../types/cellRange';
 import type { DatasetImportResponse } from '../../types/dataset';
 import { literalSource, type ValueSource } from '../../types/valueSource';
 import type { ReferenceOption } from './operationKind';
@@ -94,6 +95,78 @@ export function ColumnPickerField({
       {isPicking && (
         <div className="operation-column-picking">
           <span className="operation-column-picking__hint">Escolha uma coluna na tabela à direita</span>
+          <button type="button" className="operation-column-picking__cancel" onClick={onCancel}>
+            Cancelar
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatCellRange(range: CellRange): string {
+  const rows = range.startRow === range.endRow ? `Linha ${range.startRow}` : `Linhas ${range.startRow}-${range.endRow}`;
+  const columns =
+    range.startColumn === range.endColumn ? `Coluna ${range.startColumn}` : `Colunas ${range.startColumn}-${range.endColumn}`;
+  return `${rows} · ${columns}`;
+}
+
+interface RangePickerFieldProps {
+  label: string;
+  value: CellRange | null;
+  isPicking: boolean;
+  pendingRange: CellRange | null;
+  onStart: () => void;
+  onConfirm: (range: CellRange) => void;
+  onCancel: () => void;
+  onClear: () => void;
+}
+
+/**
+ * The range-based counterpart of ColumnPickerField: instead of a single column, the user drags
+ * a rectangle of cells directly in the sheet viewer (see SheetViewer's rangePicker prop), like
+ * selecting a range in Excel. Releasing the drag commits it immediately, mirroring how a column
+ * click commits immediately in ColumnPickerField.
+ */
+export function RangePickerField({
+  label,
+  value,
+  isPicking,
+  pendingRange,
+  onStart,
+  onConfirm,
+  onCancel,
+  onClear,
+}: RangePickerFieldProps) {
+  useEffect(() => {
+    if (isPicking && pendingRange !== null) {
+      onConfirm(pendingRange);
+      onCancel();
+    }
+  }, [isPicking, pendingRange, onConfirm, onCancel]);
+
+  return (
+    <div className="operation-entry__field">
+      <label className="operation-entry__label">{label}</label>
+
+      {!isPicking && value === null && (
+        <button type="button" className="operation-entry__pick-button" onClick={onStart}>
+          Selecionar intervalo
+        </button>
+      )}
+
+      {!isPicking && value !== null && (
+        <div className="operation-column-pill">
+          <span className="operation-column-pill__value">{formatCellRange(value)}</span>
+          <button type="button" className="operation-column-pill__clear" onClick={onClear} aria-label="Alterar intervalo">
+            ×
+          </button>
+        </div>
+      )}
+
+      {isPicking && (
+        <div className="operation-column-picking">
+          <span className="operation-column-picking__hint">Arraste sobre as células da tabela à direita para selecionar um intervalo</span>
           <button type="button" className="operation-column-picking__cancel" onClick={onCancel}>
             Cancelar
           </button>

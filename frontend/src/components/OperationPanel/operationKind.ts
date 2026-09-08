@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { DatasetImportResponse } from '../../types/dataset';
-import type { ColumnPickField, ColumnPickState } from '../../types/columnPick';
-import type { ColumnHighlight, OperationHighlight } from '../../types/highlight';
+import type { ColumnPickField, ColumnPickState, RangePickState } from '../../types/columnPick';
+import type { ColumnHighlight, OperationHighlight, RangeHighlight } from '../../types/highlight';
 import type { ResolvedInput } from '../../utils/resolveOperationInputs';
 
 /** An other confirmed operation the "input" field can point at instead of a typed value. */
@@ -27,6 +27,9 @@ export interface OperationDraftContext {
   columnPick: ColumnPickState | null;
   onStartColumnPick: (entryId: string, field: ColumnPickField, sheetIndex: number) => void;
   onFinishColumnPick: () => void;
+  rangePick: RangePickState | null;
+  onStartRangePick: (entryId: string, sheetIndex: number) => void;
+  onFinishRangePick: () => void;
 }
 
 export interface OperationBodyContext {
@@ -34,7 +37,7 @@ export interface OperationBodyContext {
   updateFields: (patch: OperationFields) => void;
   datasetId: string;
   onMatchChange: (rowIndex: number | null) => void;
-  /** The operation's chainable input ("query", "start row", ...) resolved to a literal value. */
+  /** The operation's chainable input ("query", ...) resolved to a literal value, for kinds that have one. */
   resolvedInput: ResolvedInput;
   /** Other confirmed operations the input field's reference picker can offer. */
   referenceOptions: ReferenceOption[];
@@ -48,7 +51,7 @@ export interface OperationKind {
   /** Starting fields for a new entry — given the dataset so a lone table can be pre-selected. */
   createFields: (dataset: DatasetImportResponse) => OperationFields;
   canConfirm: (fields: OperationFields) => boolean;
-  /** The table/column pickers etc. shown while building or editing. */
+  /** The table/range/column pickers etc. shown while building or editing. */
   renderDraftConfig: (ctx: OperationDraftContext) => ReactNode;
   /** The one-line summary shown on the confirmed card. */
   renderSummary: (fields: OperationFields, dataset: DatasetImportResponse) => ReactNode;
@@ -56,6 +59,8 @@ export interface OperationKind {
   renderBody: (ctx: OperationBodyContext) => ReactNode;
   /** Whole-column tints this operation's fields currently point at. */
   getColumnHighlights: (fields: OperationFields) => ColumnHighlight[];
+  /** Rectangular range tints this operation's fields currently point at. */
+  getRangeHighlights?: (fields: OperationFields) => RangeHighlight[];
   /** Exact input/output cell for the current match, if this kind supports that precision. */
   getCellHighlight?: (fields: OperationFields, matchedRow: number | null) => OperationHighlight | null;
 }
