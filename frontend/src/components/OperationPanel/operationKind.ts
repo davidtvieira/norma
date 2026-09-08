@@ -45,6 +45,13 @@ export interface OperationBodyContext {
   onResultChange: (value: string | null) => void;
 }
 
+export interface OperationInputEditorContext {
+  fields: OperationFields;
+  updateFields: (patch: OperationFields) => void;
+  /** The operation's chainable input resolved to a literal value — drives the reference pill's status text. */
+  resolvedInput: ResolvedInput;
+}
+
 export interface OperationKind {
   /** Matches an id from GET /api/v1/dataset/operations. */
   id: string;
@@ -57,6 +64,14 @@ export interface OperationKind {
   renderSummary: (fields: OperationFields, dataset: DatasetImportResponse) => ReactNode;
   /** The value input + live result shown on the confirmed card. */
   renderBody: (ctx: OperationBodyContext) => ReactNode;
+  /**
+   * The editable literal-input control alone, with no fetching/result of its own — used by
+   * ModelCard (utilizing an already-built model) where the model's shape is fixed and only its
+   * literal inputs remain editable; the result itself comes from a single batched
+   * /model/calculate call instead of each kind fetching its own. Undefined for kinds with no
+   * chainable input (e.g. sum, whose range is picked once and baked into the model).
+   */
+  renderInputEditor?: (ctx: OperationInputEditorContext) => ReactNode;
   /** Whole-column tints this operation's fields currently point at. */
   getColumnHighlights: (fields: OperationFields) => ColumnHighlight[];
   /** Rectangular range tints this operation's fields currently point at. */

@@ -2,6 +2,8 @@ package com.norma.dataset.controller;
 
 import com.norma.dataset.dto.LookupRequest;
 import com.norma.dataset.dto.LookupResponse;
+import com.norma.dataset.dto.ModelCalculateRequest;
+import com.norma.dataset.dto.ModelCalculateResponse;
 import com.norma.dataset.dto.OperationType;
 import com.norma.dataset.dto.SumRequest;
 import com.norma.dataset.dto.SumResponse;
@@ -10,6 +12,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -59,5 +62,20 @@ public class DatasetOperationController {
     @PostMapping("/api/v1/dataset/operation/sum")
     public ResponseEntity<SumResponse> sum(@RequestBody SumRequest request) {
         return ResponseEntity.ok(datasetOperationService.sum(request));
+    }
+
+    @Operation(
+            summary = "Calculate a whole model",
+            description = "Runs every operation of a model against a previously imported dataset in a single "
+                    + "call, resolving chained (reference) inputs between operations server-side instead of the "
+                    + "frontend calling one operation endpoint per entry. Meant for utilizing an already-built "
+                    + "model, not for the editing page, which keeps calling the individual operation endpoints "
+                    + "above as the model is being built. One operation failing doesn't stop the others in the "
+                    + "same request from being computed."
+    )
+    @PostMapping("/api/v1/dataset/{datasetId}/model/calculate")
+    public ResponseEntity<ModelCalculateResponse> calculateModel(
+            @PathVariable String datasetId, @RequestBody ModelCalculateRequest request) {
+        return ResponseEntity.ok(datasetOperationService.calculateModel(datasetId, request.operations()));
     }
 }

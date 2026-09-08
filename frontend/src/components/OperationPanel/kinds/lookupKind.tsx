@@ -94,6 +94,21 @@ export const lookupKind: OperationKind = {
     );
   },
 
+  renderInputEditor: ({ fields, updateFields, resolvedInput }) => {
+    const f = asLookupFields(fields);
+    return (
+      <ValueSourceField
+        label="Valor a procurar"
+        placeholder="Introduza um valor"
+        inputType="text"
+        source={f.input}
+        onChange={(input) => updateFields({ input })}
+        referenceOptions={[]}
+        resolvedInput={resolvedInput}
+      />
+    );
+  },
+
   renderBody: ({ fields, updateFields, datasetId, onMatchChange, resolvedInput, referenceOptions, onResultChange }) => {
     const f = asLookupFields(fields);
     const query = resolvedInput.status === 'ready' ? resolvedInput.value : '';
