@@ -7,7 +7,7 @@
 }
 
 .operation-panel__add-button {
-  align-self: flex-start;
+  width: 100%;
   padding: 0.55rem 1.1rem;
   border: 1px solid var(--color-border);
   border-radius: 999px;
@@ -37,7 +37,7 @@
 
 .operation-panel__kind-menu {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 0.5rem;
   padding: 0.75rem;
   border: 1px solid var(--color-border);
@@ -47,6 +47,7 @@
 }
 
 .operation-panel__kind-option {
+  width: 100%;
   padding: 0.5rem 1rem;
   border: 1px solid var(--color-primary);
   border-radius: var(--radius-sm);
@@ -142,7 +143,7 @@
 }
 
 .operation-entry__pick-button {
-  align-self: flex-start;
+  width: 100%;
   padding: 0.5rem 0.85rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -160,10 +161,11 @@
 }
 
 .operation-column-pill {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 0.5rem;
-  align-self: flex-start;
+  width: 100%;
   padding: 0.4rem 0.6rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -206,7 +208,7 @@
 }
 
 .operation-column-picking__cancel {
-  align-self: flex-start;
+  width: 100%;
   padding: 0.4rem 0.75rem;
   border-radius: var(--radius-sm);
   font: inherit;
@@ -228,7 +230,7 @@
 }
 
 .operation-entry__confirm-button {
-  align-self: flex-start;
+  flex: 1;
   padding: 0.55rem 1.1rem;
   border: 1px solid var(--color-primary);
   border-radius: var(--radius-sm);
@@ -247,6 +249,7 @@
 }
 
 .operation-entry__delete-button {
+  flex: 1;
   padding: 0.55rem 1.1rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -343,7 +346,7 @@
 }
 
 .operation-entry__dynamic-input-button {
-  align-self: flex-start;
+  width: 100%;
   padding: 0.4rem 0.75rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -363,7 +366,7 @@
 
 .operation-entry__dynamic-input-menu {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 0.5rem;
   padding: 0.6rem;
   border: 1px solid var(--color-border);
@@ -372,6 +375,7 @@
 }
 
 .operation-entry__dynamic-input-option {
+  width: 100%;
   padding: 0.4rem 0.75rem;
   border: 1px solid var(--color-primary);
   border-radius: var(--radius-sm);
@@ -388,22 +392,6 @@
   color: var(--color-surface);
 }
 
-.operation-panel__io {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  padding: 1rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-sm);
-}
-
-.operation-panel__io-hint {
-  margin: -0.35rem 0 0;
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-}
 
 .operation-panel__list {
   display: flex;

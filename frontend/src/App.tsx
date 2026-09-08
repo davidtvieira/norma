@@ -1,8 +1,8 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { DatasetUploader } from './components/DatasetUploader/DatasetUploader';
 import { OperationPanel } from './components/OperationPanel/OperationPanel';
-import { OPERATION_KIND_IDS } from './components/OperationPanel/kinds/registry';
+import { KINDS_BY_ID, OPERATION_KIND_IDS } from './components/OperationPanel/kinds/registry';
 import { ModelCard } from './components/ModelCard/ModelCard';
 import { SaveModal } from './components/SaveModal/SaveModal';
 import { SheetViewer } from './components/SheetViewer/SheetViewer';
@@ -12,6 +12,7 @@ import type { DatasetImportResponse } from './types/dataset';
 import type { ColumnPickField, ColumnPickState, RangePickState } from './types/columnPick';
 import type { ColumnHighlight, OperationHighlight, RangeHighlight } from './types/highlight';
 import type { CellRange } from './types/cellRange';
+import { getInputSource } from './types/valueSource';
 import { buildModelExport, parseModelImport, type SerializableEntry } from './utils/modelSerialization';
 import './App.css';
 
@@ -29,14 +30,14 @@ function App() {
   // Mirrors OperationPanel's own entry list (see onEntriesChange) purely so "Guardar modelo" can
   // export it — the panel remains the source of truth while editing.
   const [modelEntries, setModelEntries] = useState<SerializableEntry[]>([]);
-  // Mirrors OperationPanel's model-input/model-output picks (see onModelIOChange), same reason.
+  // The model's designated input/output (see SaveModal) — picked in the save modal rather than
+  // while still building the model, so it doesn't compete for attention with the operations
+  // themselves. Cleared automatically below if the picked operation stops being eligible.
   const [modelInputId, setModelInputId] = useState<string | null>(null);
   const [modelOutputId, setModelOutputId] = useState<string | null>(null);
   // Set right before switching to the editor screen when a model was imported instead of
   // started fresh — consumed once by OperationPanel's initial state on mount.
   const [pendingImportEntries, setPendingImportEntries] = useState<SerializableEntry[] | undefined>(undefined);
-  const [pendingImportInputId, setPendingImportInputId] = useState<string | null>(null);
-  const [pendingImportOutputId, setPendingImportOutputId] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const importFileInputRef = useRef<HTMLInputElement>(null);
   // Set once "Importar Modelo" has loaded a file — the ready screen then offers "Editar Modelo"
@@ -56,6 +57,34 @@ function App() {
     outputOperationId: string | null;
   } | null>(null);
   const { theme, toggleTheme } = useTheme();
+
+  // Only a confirmed operation whose kind has an editable chainable input (see
+  // OperationKind.renderInputEditor), and that isn't itself already chained off another
+  // operation, can be the model's input — otherwise there'd be nothing literal left for a caller
+  // of the model to fill in. Any confirmed operation's result can be the output.
+  const modelInputOptions = modelEntries
+    .filter((entry) => entry.confirmed && KINDS_BY_ID[entry.kindId].renderInputEditor && getInputSource(entry.fields).type === 'literal')
+    .map((entry) => ({ id: entry.id, label: entry.name || 'Operação sem nome' }));
+  const modelOutputOptions = modelEntries
+    .filter((entry) => entry.confirmed)
+    .map((entry) => ({ id: entry.id, label: entry.name || 'Operação sem nome' }));
+
+  // Clears a pick that's no longer valid — the operation was deleted, un-confirmed, or (for the
+  // input) switched to a dynamic/reference value after being picked — instead of silently
+  // exporting a model that points at something stale.
+  useEffect(() => {
+    if (modelInputId && !modelInputOptions.some((option) => option.id === modelInputId)) {
+      setModelInputId(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modelEntries]);
+
+  useEffect(() => {
+    if (modelOutputId && !modelOutputOptions.some((option) => option.id === modelOutputId)) {
+      setModelOutputId(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modelEntries]);
 
   function startColumnPick(entryId: string, field: ColumnPickField, sheetIndex: number) {
     setColumnPick({ entryId, field, sheetIndex, column: null });
@@ -83,8 +112,8 @@ function App() {
 
   function goToEditorFresh() {
     setPendingImportEntries(undefined);
-    setPendingImportInputId(null);
-    setPendingImportOutputId(null);
+    setModelInputId(null);
+    setModelOutputId(null);
     setModelCreated(true);
   }
 
@@ -128,8 +157,8 @@ function App() {
     if (!importedModel) return;
     setModelName(importedModel.modelName);
     setPendingImportEntries(importedModel.entries);
-    setPendingImportInputId(importedModel.inputOperationId);
-    setPendingImportOutputId(importedModel.outputOperationId);
+    setModelInputId(importedModel.inputOperationId);
+    setModelOutputId(importedModel.outputOperationId);
     setModelCreated(true);
   }
 
@@ -288,8 +317,6 @@ function App() {
           <OperationPanel
             dataset={dataset}
             initialEntries={pendingImportEntries}
-            initialInputOperationId={pendingImportInputId}
-            initialOutputOperationId={pendingImportOutputId}
             columnPick={columnPick}
             onStartColumnPick={startColumnPick}
             onFinishColumnPick={finishColumnPick}
@@ -300,10 +327,6 @@ function App() {
             onRangeHighlightsChange={setRangeHighlights}
             onCellHighlightChange={setCellHighlight}
             onEntriesChange={setModelEntries}
-            onModelIOChange={(inputOperationId, outputOperationId) => {
-              setModelInputId(inputOperationId);
-              setModelOutputId(outputOperationId);
-            }}
           />
           <button type="button" className="app__save-button" onClick={() => setIsSaveModalOpen(true)}>
             Guardar modelo
@@ -335,6 +358,12 @@ function App() {
         onClose={() => setIsSaveModalOpen(false)}
         onExport={exportModel}
         canExport={modelEntries.some((entry) => entry.confirmed) && modelInputId !== null && modelOutputId !== null}
+        inputOptions={modelInputOptions}
+        outputOptions={modelOutputOptions}
+        inputOperationId={modelInputId}
+        outputOperationId={modelOutputId}
+        onInputChange={setModelInputId}
+        onOutputChange={setModelOutputId}
       />
     </div>
   );
