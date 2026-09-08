@@ -388,6 +388,23 @@
   color: var(--color-surface);
 }
 
+.operation-panel__io {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.operation-panel__io-hint {
+  margin: -0.35rem 0 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
 .operation-panel__list {
   display: flex;
   flex-direction: column;

@@ -25,7 +25,11 @@ export function SaveModal({ open, onClose, onExport, canExport }: SaveModalProps
           Ainda não é possível guardar o modelo diretamente na plataforma. Pode, no entanto, exportá-lo como ficheiro JSON e
           voltar a importá-lo mais tarde.
         </p>
-        {!canExport && <p className="save-modal__hint">Conclua pelo menos uma operação antes de exportar.</p>}
+        {!canExport && (
+          <p className="save-modal__hint">
+            Conclua pelo menos uma operação e defina o input e o output do modelo antes de exportar.
+          </p>
+        )}
         <div className="save-modal__actions">
           <button type="button" className="save-modal__close-button save-modal__close-button--secondary" onClick={onClose}>
             Fechar

@@ -197,6 +197,79 @@ function LinkedOperationCard({ name, onEdit, editDisabled, onMouseEnter, onMouse
 // what's sent to/matched against the API, only the label shown in the UI is translated here.
 const KIND_LABELS: Record<string, string> = { lookup: 'Pesquisa aninhada', sum: 'Somar' };
 
+interface ModelIOOption {
+  id: string;
+  label: string;
+}
+
+interface ModelIOPanelProps {
+  inputOptions: ModelIOOption[];
+  outputOptions: ModelIOOption[];
+  inputOperationId: string | null;
+  outputOperationId: string | null;
+  onInputChange: (id: string | null) => void;
+  onOutputChange: (id: string | null) => void;
+}
+
+/**
+ * Lets the model's author pick, from the operations already built, which one is "the" input a
+ * caller of the model fills in and which one is "the" output they see — set once here instead of
+ * every operation's own input/result being exposed when the model is later utilized (see
+ * ModelCard). Only operations whose kind has an editable chainable input (see
+ * OperationKind.renderInputEditor) and that aren't themselves already chained off another
+ * operation can be the input; any confirmed operation can be the output.
+ */
+function ModelIOPanel({ inputOptions, outputOptions, inputOperationId, outputOperationId, onInputChange, onOutputChange }: ModelIOPanelProps) {
+  return (
+    <div className="operation-panel__io">
+      <h2 className="operation-panel__title">Input e output do modelo</h2>
+      <p className="operation-panel__io-hint">
+        Escolha qual operação recebe o valor de quem utilizar o modelo, e qual mostra o resultado final.
+      </p>
+
+      <div className="operation-entry__field">
+        <label className="operation-entry__label" htmlFor="model-input-select">
+          Input do modelo
+        </label>
+        <select
+          id="model-input-select"
+          className="operation-entry__select"
+          value={inputOperationId ?? ''}
+          onChange={(event) => onInputChange(event.target.value || null)}
+          disabled={inputOptions.length === 0}
+        >
+          <option value="">{inputOptions.length === 0 ? 'Sem operações elegíveis' : 'Selecione uma operação'}</option>
+          {inputOptions.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="operation-entry__field">
+        <label className="operation-entry__label" htmlFor="model-output-select">
+          Output do modelo
+        </label>
+        <select
+          id="model-output-select"
+          className="operation-entry__select"
+          value={outputOperationId ?? ''}
+          onChange={(event) => onOutputChange(event.target.value || null)}
+          disabled={outputOptions.length === 0}
+        >
+          <option value="">{outputOptions.length === 0 ? 'Sem operações elegíveis' : 'Selecione uma operação'}</option>
+          {outputOptions.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
 interface OperationEntryState {
   id: string;
   name: string;
@@ -243,6 +316,11 @@ interface OperationPanelProps {
   onCellHighlightChange: (highlight: OperationHighlight | null) => void;
   /** Reports the current entry list up so App.tsx can export it (see the "Guardar modelo" flow). */
   onEntriesChange: (entries: SerializableEntry[]) => void;
+  /** Seeds the model input/output pickers on mount, mirroring initialEntries for an imported model. */
+  initialInputOperationId?: string | null;
+  initialOutputOperationId?: string | null;
+  /** Reports the model's input/output picks up, alongside onEntriesChange. */
+  onModelIOChange: (inputOperationId: string | null, outputOperationId: string | null) => void;
 }
 
 /**
@@ -264,8 +342,13 @@ export function OperationPanel({
   onRangeHighlightsChange,
   onCellHighlightChange,
   onEntriesChange,
+  initialInputOperationId,
+  initialOutputOperationId,
+  onModelIOChange,
 }: OperationPanelProps) {
   const [entries, setEntries] = useState<OperationEntryState[]>(() => initialEntries ?? []);
+  const [modelInputId, setModelInputId] = useState<string | null>(() => initialInputOperationId ?? null);
+  const [modelOutputId, setModelOutputId] = useState<string | null>(() => initialOutputOperationId ?? null);
   const operationTypes = useOperationTypes();
   // Snapshot of an operation's confirmed state, taken when it enters edit mode — lets the ×
   // cancel the edit (restore the snapshot) instead of deleting an already-confirmed operation.
@@ -286,6 +369,39 @@ export function OperationPanel({
   useEffect(() => {
     onEntriesChange(entries);
   }, [entries, onEntriesChange]);
+
+  // Only a confirmed operation whose kind has an editable chainable input (ValueSourceField),
+  // and that isn't itself already chained off another operation, can be picked as the model's
+  // input — otherwise there'd be nothing literal left for a caller of the model to fill in.
+  const inputOptions: ModelIOOption[] = entries
+    .filter((entry) => entry.confirmed && KINDS_BY_ID[entry.kindId].renderInputEditor && getInputSource(entry.fields).type === 'literal')
+    .map((entry) => ({ id: entry.id, label: labelForEntry(entry.id) }));
+  // Any confirmed operation's result can be the model's output.
+  const outputOptions: ModelIOOption[] = entries
+    .filter((entry) => entry.confirmed)
+    .map((entry) => ({ id: entry.id, label: labelForEntry(entry.id) }));
+
+  // Clears a pick that's no longer valid — the operation was deleted, un-confirmed, or (for the
+  // input) switched to a dynamic/reference value after being picked — instead of silently
+  // pointing at something that no longer qualifies.
+  useEffect(() => {
+    if (modelInputId && !inputOptions.some((option) => option.id === modelInputId)) {
+      setModelInputId(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries]);
+
+  useEffect(() => {
+    if (modelOutputId && !outputOptions.some((option) => option.id === modelOutputId)) {
+      setModelOutputId(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries]);
+
+  // Lets App.tsx export the model's input/output picks alongside the entry list.
+  useEffect(() => {
+    onModelIOChange(modelInputId, modelOutputId);
+  }, [modelInputId, modelOutputId, onModelIOChange]);
 
   // Sheet column/range tints: every operation being built/edited shows what it's picked, and so
   // does a confirmed operation under the mouse if its kind has no exact-cell highlight to show
@@ -498,6 +614,17 @@ export function OperationPanel({
             </button>
           ))}
         </div>
+      )}
+
+      {listEntries.some((entry) => entry.confirmed) && (
+        <ModelIOPanel
+          inputOptions={inputOptions}
+          outputOptions={outputOptions}
+          inputOperationId={modelInputId}
+          outputOperationId={modelOutputId}
+          onInputChange={setModelInputId}
+          onOutputChange={setModelOutputId}
+        />
       )}
 
       {newDraftEntries.map(renderDraftCard)}

@@ -29,17 +29,32 @@ function App() {
   // Mirrors OperationPanel's own entry list (see onEntriesChange) purely so "Guardar modelo" can
   // export it — the panel remains the source of truth while editing.
   const [modelEntries, setModelEntries] = useState<SerializableEntry[]>([]);
+  // Mirrors OperationPanel's model-input/model-output picks (see onModelIOChange), same reason.
+  const [modelInputId, setModelInputId] = useState<string | null>(null);
+  const [modelOutputId, setModelOutputId] = useState<string | null>(null);
   // Set right before switching to the editor screen when a model was imported instead of
   // started fresh — consumed once by OperationPanel's initial state on mount.
   const [pendingImportEntries, setPendingImportEntries] = useState<SerializableEntry[] | undefined>(undefined);
+  const [pendingImportInputId, setPendingImportInputId] = useState<string | null>(null);
+  const [pendingImportOutputId, setPendingImportOutputId] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const importFileInputRef = useRef<HTMLInputElement>(null);
   // Set once "Importar Modelo" has loaded a file — the ready screen then offers "Editar Modelo"
   // / "Utilizar Modelo" for this same imported model instead of the initial Criar/Importar choice.
-  const [importedModel, setImportedModel] = useState<{ modelName: string; entries: SerializableEntry[] } | null>(null);
+  const [importedModel, setImportedModel] = useState<{
+    modelName: string;
+    entries: SerializableEntry[];
+    inputOperationId: string | null;
+    outputOperationId: string | null;
+  } | null>(null);
   // Set once a model is being utilized (not edited) — switches to the ModelCard screen instead
   // of the full editor for as long as it's non-null.
-  const [utilizeModel, setUtilizeModel] = useState<{ modelName: string; entries: SerializableEntry[] } | null>(null);
+  const [utilizeModel, setUtilizeModel] = useState<{
+    modelName: string;
+    entries: SerializableEntry[];
+    inputOperationId: string | null;
+    outputOperationId: string | null;
+  } | null>(null);
   const { theme, toggleTheme } = useTheme();
 
   function startColumnPick(entryId: string, field: ColumnPickField, sheetIndex: number) {
@@ -68,6 +83,8 @@ function App() {
 
   function goToEditorFresh() {
     setPendingImportEntries(undefined);
+    setPendingImportInputId(null);
+    setPendingImportOutputId(null);
     setModelCreated(true);
   }
 
@@ -88,7 +105,12 @@ function App() {
         // dataset id from the server even for the same uploaded file, which would otherwise
         // block re-importing a model exported earlier in the same session.
         const imported = parseModelImport(text, OPERATION_KIND_IDS);
-        setImportedModel({ modelName: imported.modelName, entries: imported.entries });
+        setImportedModel({
+          modelName: imported.modelName,
+          entries: imported.entries,
+          inputOperationId: imported.inputOperationId,
+          outputOperationId: imported.outputOperationId,
+        });
         setImportError(null);
       })
       .catch((error) => {
@@ -106,6 +128,8 @@ function App() {
     if (!importedModel) return;
     setModelName(importedModel.modelName);
     setPendingImportEntries(importedModel.entries);
+    setPendingImportInputId(importedModel.inputOperationId);
+    setPendingImportOutputId(importedModel.outputOperationId);
     setModelCreated(true);
   }
 
@@ -116,7 +140,7 @@ function App() {
 
   function exportModel() {
     if (!dataset) return;
-    const model = buildModelExport(modelEntries, modelName, dataset.datasetId);
+    const model = buildModelExport(modelEntries, modelName, dataset.datasetId, modelInputId, modelOutputId);
     const blob = new Blob([JSON.stringify(model, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -159,7 +183,13 @@ function App() {
         </header>
 
         <div className="app__utilize-body">
-          <ModelCard dataset={dataset} modelName={utilizeModel.modelName} entries={utilizeModel.entries} />
+          <ModelCard
+            dataset={dataset}
+            modelName={utilizeModel.modelName}
+            entries={utilizeModel.entries}
+            inputOperationId={utilizeModel.inputOperationId}
+            outputOperationId={utilizeModel.outputOperationId}
+          />
         </div>
 
         <footer className="app__footer">
@@ -258,6 +288,8 @@ function App() {
           <OperationPanel
             dataset={dataset}
             initialEntries={pendingImportEntries}
+            initialInputOperationId={pendingImportInputId}
+            initialOutputOperationId={pendingImportOutputId}
             columnPick={columnPick}
             onStartColumnPick={startColumnPick}
             onFinishColumnPick={finishColumnPick}
@@ -268,6 +300,10 @@ function App() {
             onRangeHighlightsChange={setRangeHighlights}
             onCellHighlightChange={setCellHighlight}
             onEntriesChange={setModelEntries}
+            onModelIOChange={(inputOperationId, outputOperationId) => {
+              setModelInputId(inputOperationId);
+              setModelOutputId(outputOperationId);
+            }}
           />
           <button type="button" className="app__save-button" onClick={() => setIsSaveModalOpen(true)}>
             Guardar modelo
@@ -298,7 +334,7 @@ function App() {
         open={isSaveModalOpen}
         onClose={() => setIsSaveModalOpen(false)}
         onExport={exportModel}
-        canExport={modelEntries.some((entry) => entry.confirmed)}
+        canExport={modelEntries.some((entry) => entry.confirmed) && modelInputId !== null && modelOutputId !== null}
       />
     </div>
   );

@@ -31,6 +31,15 @@ export interface ExportedModel {
   version: 1;
   modelName: string;
   datasetId: string;
+  /**
+   * The one operation whose literal value is what a caller of the model fills in, and the one
+   * operation whose result is what a caller sees as "the" answer — set by the model's author (see
+   * OperationPanel's model-input/model-output pickers) so utilizing a model (ModelCard) doesn't
+   * expose every operation's own input/result, only these two. Null until the author has picked
+   * one (or, for a model exported before this existed, always null).
+   */
+  inputOperationId: string | null;
+  outputOperationId: string | null;
   operations: ExportedOperationNode[];
 }
 
@@ -63,13 +72,21 @@ function toNode(entry: SerializableEntry, confirmedEntries: SerializableEntry[])
  * yet), nested to mirror how a dynamically-linked operation is shown nested under its source in
  * the panel — top-level entries are the ones nothing else nests them under.
  */
-export function buildModelExport(entries: SerializableEntry[], modelName: string, datasetId: string): ExportedModel {
+export function buildModelExport(
+  entries: SerializableEntry[],
+  modelName: string,
+  datasetId: string,
+  inputOperationId: string | null,
+  outputOperationId: string | null,
+): ExportedModel {
   const confirmedEntries = entries.filter((entry) => entry.confirmed);
   const roots = confirmedEntries.filter((entry) => !isLinkedChild(entry, confirmedEntries));
   return {
     version: MODEL_EXPORT_VERSION,
     modelName,
     datasetId,
+    inputOperationId,
+    outputOperationId,
     operations: roots.map((entry) => toNode(entry, confirmedEntries)),
   };
 }
@@ -101,6 +118,10 @@ function flattenNode(node: unknown, knownKindIds: Set<string>, out: Serializable
   }
 }
 
+function readOperationId(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
 /**
  * Reverses buildModelExport: flattens the nested tree back into the flat entry list
  * OperationPanel keeps internally. No relationship is lost by flattening — the parent/child
@@ -124,5 +145,13 @@ export function parseModelImport(raw: string, knownKindIds: Set<string>): Export
     flattenNode(node, knownKindIds, entries);
   }
 
-  return { ...model, entries };
+  // Missing on a model exported before the input/output pickers existed — treated as "not set
+  // yet" rather than rejecting the file, same as a freshly created model before its author has
+  // picked one.
+  return {
+    ...model,
+    inputOperationId: readOperationId(model.inputOperationId),
+    outputOperationId: readOperationId(model.outputOperationId),
+    entries,
+  };
 }
