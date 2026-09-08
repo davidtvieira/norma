@@ -1,5 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { DatasetImportResponse } from '../../types/dataset';
+import { literalSource, type ValueSource } from '../../types/valueSource';
+import type { ReferenceOption } from './operationKind';
+import type { ResolvedInput } from '../../utils/resolveOperationInputs';
 
 /**
  * Shared field widgets used inside an operation kind's draft config (see operationKind.ts) —
@@ -91,6 +94,117 @@ export function ColumnPickerField({
             Cancelar
           </button>
         </div>
+      )}
+    </div>
+  );
+}
+
+interface ValueSourceFieldProps {
+  label: string;
+  placeholder: string;
+  inputType: 'text' | 'number';
+  source: ValueSource;
+  onChange: (source: ValueSource) => void;
+  referenceOptions: ReferenceOption[];
+  resolvedInput: ResolvedInput;
+}
+
+/**
+ * A chainable operation input (lookup's query, sum's start row): normally a plain text/number
+ * field, plus an "Input dinâmico" button — mirrors the "+ Adicionar operação" button+menu
+ * pattern — that opens a menu of other confirmed operations to pull the value from instead.
+ * Picking one swaps the field for a pill (mirrors ColumnPickerField) showing that operation's
+ * live result; × reverts to a plain typed value. Hidden entirely when there's nothing to chain
+ * to yet, so a single operation looks exactly like before this feature existed.
+ */
+export function ValueSourceField({
+  label,
+  placeholder,
+  inputType,
+  source,
+  onChange,
+  referenceOptions,
+  resolvedInput,
+}: ValueSourceFieldProps) {
+  const [isChoosingReference, setIsChoosingReference] = useState(false);
+
+  function chooseReference(operationId: string) {
+    onChange({ type: 'reference', operationId });
+    setIsChoosingReference(false);
+  }
+
+  return (
+    <div className="operation-entry__field">
+      <label className="operation-entry__label">{label}</label>
+
+      {source.type === 'literal' && (
+        <>
+          <input
+            type={inputType}
+            className="operation-entry__input"
+            placeholder={placeholder}
+            min={inputType === 'number' ? 0 : undefined}
+            value={source.value}
+            onChange={(event) => onChange(literalSource(event.target.value))}
+          />
+
+          {referenceOptions.length > 0 && !isChoosingReference && (
+            <button
+              type="button"
+              className="operation-entry__dynamic-input-button"
+              onClick={() => setIsChoosingReference(true)}
+            >
+              Input dinâmico
+            </button>
+          )}
+
+          {isChoosingReference && (
+            <div className="operation-entry__dynamic-input-menu">
+              {referenceOptions.map((option) => (
+                <button
+                  key={option.operationId}
+                  type="button"
+                  className="operation-entry__dynamic-input-option"
+                  onClick={() => chooseReference(option.operationId)}
+                >
+                  {option.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="operation-column-picking__cancel"
+                onClick={() => setIsChoosingReference(false)}
+              >
+                Cancelar
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {source.type === 'reference' && (
+        <>
+          <div className="operation-column-pill">
+            <span className="operation-column-pill__value">
+              Resultado de: {referenceOptions.find((option) => option.operationId === source.operationId)?.label ?? '?'}
+            </span>
+            <button
+              type="button"
+              className="operation-column-pill__clear"
+              onClick={() => onChange(literalSource(''))}
+              aria-label="Usar valor fixo"
+            >
+              ×
+            </button>
+          </div>
+
+          <p className="operation-entry__chain-status">
+            {resolvedInput.status === 'pending' && 'A aguardar o resultado dessa operação…'}
+            {resolvedInput.status === 'missing' && 'Essa operação já não existe.'}
+            {resolvedInput.status === 'cycle' && 'Referência circular entre operações.'}
+            {resolvedInput.status === 'ready' && `Valor atual: ${resolvedInput.value || '(vazio)'}`}
+          </p>
+        </>
       )}
     </div>
   );

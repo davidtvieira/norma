@@ -4,7 +4,8 @@ import type { DatasetImportResponse } from '../../types/dataset';
 import type { ColumnPickField, ColumnPickState } from '../../types/columnPick';
 import type { ColumnHighlight, OperationHighlight } from '../../types/highlight';
 import { useOperationTypes } from '../../hooks/useOperationTypes';
-import type { OperationFields, OperationKind } from './operationKind';
+import { getDependents, resolveOperationInputs } from '../../utils/resolveOperationInputs';
+import type { OperationFields, OperationKind, ReferenceOption } from './operationKind';
 import { lookupKind } from './kinds/lookupKind';
 import { sumKind } from './kinds/sumKind';
 import './OperationPanel.css';
@@ -208,6 +209,11 @@ export function OperationPanel({
   // that implement getCellHighlight (currently just lookup).
   const [matchedRows, setMatchedRows] = useState<Record<string, number | null>>({});
   const [isPickingKind, setIsPickingKind] = useState(false);
+  // Each confirmed operation's latest computed result (as a string), keyed by entry id — the
+  // frontend-only stand-in for a chain: another operation's "input" field can reference an id
+  // here instead of a typed value. Null means "no value yet" (loading, error, or not found).
+  const [results, setResults] = useState<Record<string, string | null>>({});
+  const resolvedInputs = resolveOperationInputs(entries, results);
 
   // Sheet column tints: every operation being built/edited shows its picked columns, and so
   // does a confirmed operation under the mouse if its kind has no exact-cell highlight to show
@@ -254,6 +260,25 @@ export function OperationPanel({
       const { [id]: _discarded, ...rest } = current;
       return rest;
     });
+    setResults((current) => {
+      if (!(id in current)) return current;
+      const { [id]: _discarded, ...rest } = current;
+      return rest;
+    });
+  }
+
+  function labelForEntry(id: string): string {
+    return entries.find((entry) => entry.id === id)?.name || 'Operação sem nome';
+  }
+
+  // What a given operation's "input" field can reference: every other confirmed operation,
+  // except ones that (transitively) already read their own input from this one — offering those
+  // would let the user wire up a cycle from the picker itself.
+  function referenceOptionsFor(entryId: string): ReferenceOption[] {
+    const dependents = getDependents(entryId, entries);
+    return entries
+      .filter((entry) => entry.confirmed && entry.id !== entryId && !dependents.has(entry.id))
+      .map((entry) => ({ operationId: entry.id, label: labelForEntry(entry.id) }));
   }
 
   function editEntry(id: string) {
@@ -359,6 +384,9 @@ export function OperationPanel({
                   updateFields: (patch) => updateEntryFields(entry.id, patch),
                   datasetId: dataset.datasetId,
                   onMatchChange: (rowIndex) => setMatchedRows((current) => ({ ...current, [entry.id]: rowIndex })),
+                  resolvedInput: resolvedInputs[entry.id],
+                  referenceOptions: referenceOptionsFor(entry.id),
+                  onResultChange: (value) => setResults((current) => ({ ...current, [entry.id]: value })),
                 })}
               </ConfirmedOperationCard>
             );

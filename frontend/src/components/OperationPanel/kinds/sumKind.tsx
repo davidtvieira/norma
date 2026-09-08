@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { sumColumn } from '../../../services/datasetApi';
-import { ColumnPickerField, TableSelect } from '../fields';
+import { literalSource, type ValueSource } from '../../../types/valueSource';
+import { ColumnPickerField, TableSelect, ValueSourceField } from '../fields';
 import type { OperationFields, OperationKind } from '../operationKind';
 
 interface SumFields {
-  // The row to start summing from (inclusive), typed as text.
-  startRow: string;
+  // The row to start summing from (inclusive) — typed directly, or chained from another operation.
+  input: ValueSource;
   sheetIndex: number | '';
   column: number | '';
 }
@@ -18,7 +19,7 @@ export const sumKind: OperationKind = {
   id: 'sum',
 
   createFields: (): OperationFields => ({
-    startRow: '',
+    input: literalSource(''),
     sheetIndex: '',
     column: '',
   } satisfies SumFields),
@@ -75,25 +76,28 @@ export const sumKind: OperationKind = {
     );
   },
 
-  renderBody: ({ fields, updateFields, datasetId }) => {
+  renderBody: ({ fields, updateFields, datasetId, resolvedInput, referenceOptions, onResultChange }) => {
     const f = asSumFields(fields);
+    const startRow = resolvedInput.status === 'ready' ? resolvedInput.value : '';
     return (
       <>
-        <input
-          type="number"
-          className="operation-entry__input"
+        <ValueSourceField
+          label="Linha inicial"
           placeholder="Linha inicial"
-          min={0}
-          value={f.startRow}
-          onChange={(event) => updateFields({ startRow: event.target.value })}
+          inputType="number"
+          source={f.input}
+          onChange={(input) => updateFields({ input })}
+          referenceOptions={referenceOptions}
+          resolvedInput={resolvedInput}
         />
 
-        {f.startRow.trim() !== '' && (
+        {resolvedInput.status === 'ready' && startRow.trim() !== '' && (
           <SumResult
             datasetId={datasetId}
             sheetIndex={f.sheetIndex as number}
             column={f.column as number}
-            startRow={f.startRow}
+            startRow={startRow}
+            onResultChange={onResultChange}
           />
         )}
       </>
@@ -117,6 +121,7 @@ interface SumResultProps {
   sheetIndex: number;
   column: number;
   startRow: string;
+  onResultChange: (value: string | null) => void;
 }
 
 type SumRequestState =
@@ -134,13 +139,14 @@ const SUM_DEBOUNCE_MS = 2000;
  * only renders the outcome. The request is debounced by SUM_DEBOUNCE_MS so it doesn't fire on
  * every keystroke while the start row is being typed.
  */
-function SumResult({ datasetId, sheetIndex, column, startRow }: SumResultProps) {
+function SumResult({ datasetId, sheetIndex, column, startRow, onResultChange }: SumResultProps) {
   const [state, setState] = useState<SumRequestState>({ status: 'loading' });
 
   useEffect(() => {
     const parsedStartRow = Number(startRow);
     if (!Number.isInteger(parsedStartRow) || parsedStartRow < 0) {
       setState({ status: 'invalid' });
+      onResultChange(null);
       return;
     }
 
@@ -152,11 +158,13 @@ function SumResult({ datasetId, sheetIndex, column, startRow }: SumResultProps) 
         .then((response) => {
           if (!cancelled) {
             setState({ status: 'done', sum: response.sum, rowsSummed: response.rowsSummed });
+            onResultChange(String(response.sum));
           }
         })
         .catch((error) => {
           if (!cancelled) {
             setState({ status: 'error', message: error instanceof Error ? error.message : 'Falha ao somar a coluna.' });
+            onResultChange(null);
           }
         });
     }, SUM_DEBOUNCE_MS);
@@ -164,7 +172,11 @@ function SumResult({ datasetId, sheetIndex, column, startRow }: SumResultProps) 
     return () => {
       cancelled = true;
       window.clearTimeout(timeoutId);
+      onResultChange(null);
     };
+    // onResultChange is a fresh closure from the parent every render but only ever closes over
+    // a stable id and a stable setState — safe to omit so it doesn't reset the debounce timer.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [datasetId, sheetIndex, column, startRow]);
 
   if (state.status === 'invalid') {

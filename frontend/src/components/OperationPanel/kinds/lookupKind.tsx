@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import type { CellValue } from '../../../types/dataset';
 import { lookupValue } from '../../../services/datasetApi';
 import { formatCellValue } from '../../../utils/sheet';
-import { ColumnPickerField, TableSelect } from '../fields';
+import { literalSource, type ValueSource } from '../../../types/valueSource';
+import { ColumnPickerField, TableSelect, ValueSourceField } from '../fields';
 import type { OperationFields, OperationKind } from '../operationKind';
 
 interface LookupFields {
-  query: string;
+  // The value to search for — typed directly, or chained from another operation's result.
+  input: ValueSource;
   searchSheetIndex: number | '';
   resultSheetIndex: number | '';
   searchColumn: number | '';
@@ -21,7 +23,7 @@ export const lookupKind: OperationKind = {
   id: 'lookup',
 
   createFields: (): OperationFields => ({
-    query: '',
+    input: literalSource(''),
     searchSheetIndex: '',
     resultSheetIndex: '',
     searchColumn: '',
@@ -106,27 +108,31 @@ export const lookupKind: OperationKind = {
     );
   },
 
-  renderBody: ({ fields, updateFields, datasetId, onMatchChange }) => {
+  renderBody: ({ fields, updateFields, datasetId, onMatchChange, resolvedInput, referenceOptions, onResultChange }) => {
     const f = asLookupFields(fields);
+    const query = resolvedInput.status === 'ready' ? resolvedInput.value : '';
     return (
       <>
-        <input
-          type="text"
-          className="operation-entry__input"
+        <ValueSourceField
+          label="Valor a procurar"
           placeholder="Introduza um valor"
-          value={f.query}
-          onChange={(event) => updateFields({ query: event.target.value })}
+          inputType="text"
+          source={f.input}
+          onChange={(input) => updateFields({ input })}
+          referenceOptions={referenceOptions}
+          resolvedInput={resolvedInput}
         />
 
-        {f.query.trim() !== '' && (
+        {resolvedInput.status === 'ready' && query.trim() !== '' && (
           <LookupResult
             datasetId={datasetId}
-            query={f.query}
+            query={query}
             searchSheetIndex={f.searchSheetIndex as number}
             resultSheetIndex={f.resultSheetIndex as number}
             searchColumn={f.searchColumn as number}
             resultColumn={f.resultColumn as number}
             onMatchChange={onMatchChange}
+            onResultChange={onResultChange}
           />
         )}
       </>
@@ -169,6 +175,7 @@ interface LookupResultProps {
   searchColumn: number;
   resultColumn: number;
   onMatchChange: (rowIndex: number | null) => void;
+  onResultChange: (value: string | null) => void;
 }
 
 type LookupRequestState =
@@ -193,6 +200,7 @@ function LookupResult({
   searchColumn,
   resultColumn,
   onMatchChange,
+  onResultChange,
 }: LookupResultProps) {
   const [state, setState] = useState<LookupRequestState>({ status: 'loading' });
 
@@ -206,11 +214,13 @@ function LookupResult({
           if (!cancelled) {
             setState({ status: 'done', found: response.found, value: response.value });
             onMatchChange(response.found ? response.rowIndex : null);
+            onResultChange(response.found ? String(response.value ?? '') : null);
           }
         })
         .catch((error) => {
           if (!cancelled) {
             setState({ status: 'error', message: error instanceof Error ? error.message : 'Falha ao procurar o valor.' });
+            onResultChange(null);
           }
         });
     }, LOOKUP_DEBOUNCE_MS);
@@ -219,10 +229,11 @@ function LookupResult({
       cancelled = true;
       window.clearTimeout(timeoutId);
       onMatchChange(null);
+      onResultChange(null);
     };
-    // onMatchChange is a fresh closure from the parent every render but only ever closes over
-    // a stable id and a stable setState — safe to omit so it doesn't reset the debounce timer
-    // on every unrelated keystroke elsewhere in the panel.
+    // onMatchChange/onResultChange are fresh closures from the parent every render but only ever
+    // close over a stable id and a stable setState — safe to omit so they don't reset the
+    // debounce timer on every unrelated keystroke elsewhere in the panel.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [datasetId, query, searchSheetIndex, searchColumn, resultSheetIndex, resultColumn]);
 
