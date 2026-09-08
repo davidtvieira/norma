@@ -21,13 +21,22 @@ import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Converts an uploaded spreadsheet file into the index-addressed dataset JSON contract.
- * Rows and columns are treated as pure sequential data; no header row is assumed.
+ * Rows and columns are treated as pure sequential data; no header row is assumed. The
+ * parsed dataset is kept in the {@link DatasetStore} under a generated id, which is what
+ * later operations reference instead of the full dataset.
  */
 @Service
 public class DatasetParserService {
+
+    private final DatasetStore datasetStore;
+
+    public DatasetParserService(DatasetStore datasetStore) {
+        this.datasetStore = datasetStore;
+    }
 
     public DatasetImportResponse parse(MultipartFile file) {
         try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
@@ -38,7 +47,10 @@ public class DatasetParserService {
                 sheets.add(parseSheet(workbook.getSheetAt(sheetIndex), evaluator));
             }
 
-            return new DatasetImportResponse(file.getOriginalFilename(), Instant.now(), sheets);
+            DatasetImportResponse response = new DatasetImportResponse(
+                    UUID.randomUUID().toString(), file.getOriginalFilename(), Instant.now(), sheets);
+            datasetStore.put(response);
+            return response;
         } catch (IOException | RuntimeException e) {
             throw new DatasetParsingException("Falha ao processar o ficheiro de dados: " + file.getOriginalFilename(), e);
         }

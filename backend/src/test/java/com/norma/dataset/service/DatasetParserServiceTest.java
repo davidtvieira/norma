@@ -1,8 +1,10 @@
 package com.norma.dataset.service;
 
 import com.norma.dataset.dto.DatasetImportResponse;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
@@ -14,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class DatasetParserServiceTest {
 
-    private final DatasetParserService datasetParserService = new DatasetParserService();
+    private final DatasetParserService datasetParserService = new DatasetParserService(new DatasetStore());
 
     @Test
     void parsesRowsAndCellsByIndexWithoutAssumingHeader() throws IOException {
@@ -24,6 +26,7 @@ class DatasetParserServiceTest {
 
         DatasetImportResponse response = datasetParserService.parse(file);
 
+        assertThat(response.datasetId()).isNotBlank();
         assertThat(response.filename()).isEqualTo("data_import.xlsx");
         assertThat(response.sheets()).hasSize(1);
 
@@ -41,8 +44,26 @@ class DatasetParserServiceTest {
         assertThat(dataRow.cells().get(1).value()).isEqualTo("Alice Johnson");
     }
 
+    @Test
+    void parsesLegacyXlsFilesTheSameWayAsXlsx() throws IOException {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "data_import.xls", "application/vnd.ms-excel",
+                buildWorkbookBytes(new HSSFWorkbook()));
+
+        DatasetImportResponse response = datasetParserService.parse(file);
+
+        assertThat(response.filename()).isEqualTo("data_import.xls");
+        var sheet = response.sheets().get(0);
+        assertThat(sheet.rows().get(0).cells().get(0).value()).isEqualTo("ID");
+        assertThat(sheet.rows().get(1).cells().get(0).value()).isEqualTo(101L);
+    }
+
     private byte[] buildWorkbookBytes() throws IOException {
-        try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+        return buildWorkbookBytes(new XSSFWorkbook());
+    }
+
+    private byte[] buildWorkbookBytes(Workbook workbook) throws IOException {
+        try (workbook) {
             Sheet sheet = workbook.createSheet("Sheet1");
 
             Row header = sheet.createRow(0);

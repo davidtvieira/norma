@@ -23,6 +23,279 @@
   background: var(--color-surface-hover);
 }
 
+.lookup-entry__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.lookup-entry__name-input {
+  flex: 1 1 auto;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.lookup-entry__name-input:hover {
+  border-color: var(--color-border);
+}
+
+.lookup-entry__name-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  background: var(--color-surface-hover);
+}
+
+.lookup-entry__remove {
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 0.15rem;
+}
+
+.lookup-entry__remove:hover {
+  color: var(--color-text);
+}
+
+.lookup-entry__search-button {
+  align-self: flex-start;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.lookup-entry__search-button:hover {
+  background: var(--color-primary);
+  color: var(--color-surface);
+}
+
+.lookup-entry__pick-button {
+  align-self: flex-start;
+  padding: 0.5rem 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.lookup-entry__pick-button:hover {
+  border-color: var(--color-primary);
+  background: var(--color-surface-hover);
+}
+
+.lookup-column-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  align-self: flex-start;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-hover);
+}
+
+.lookup-column-pill__value {
+  font-size: 0.875rem;
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.lookup-column-pill__clear {
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 0.15rem;
+}
+
+.lookup-column-pill__clear:hover {
+  color: var(--color-text);
+}
+
+.lookup-column-picking {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px dashed var(--color-primary);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-hover);
+}
+
+.lookup-column-picking__hint {
+  font-size: 0.8rem;
+  color: var(--color-text);
+}
+
+.lookup-entry__confirm-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.lookup-entry__delete-button {
+  padding: 0.55rem 1.1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.lookup-entry__delete-button:hover {
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
+.lookup-entry__confirm-button {
+  align-self: flex-start;
+  padding: 0.55rem 1.1rem;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary);
+  color: var(--color-surface);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.lookup-entry__confirm-button:hover {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
+.lookup-column-picking__cancel {
+  align-self: flex-start;
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-muted);
+}
+
+.lookup-column-picking__cancel:hover {
+  color: var(--color-text);
+}
+
+.lookup-panel__conditions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.lookup-panel__conditions-title {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.lookup-condition {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.2s ease;
+}
+
+.lookup-condition:hover {
+  border-color: var(--color-primary);
+}
+
+.lookup-condition__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.lookup-condition__name {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lookup-condition__summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.lookup-condition__arrow {
+  color: var(--color-primary);
+}
+
+.lookup-condition__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.lookup-condition__edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0.15rem;
+}
+
+.lookup-condition__edit svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.lookup-condition__edit:hover {
+  color: var(--color-primary);
+}
+
 .lookup-entry {
   display: flex;
   flex-direction: column;
@@ -73,6 +346,7 @@
 }
 
 .lookup-entry__select {
+  width: 100%;
   padding: 0.55rem 0.7rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);

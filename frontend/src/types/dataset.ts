@@ -22,6 +22,7 @@ export interface SheetData {
 }
 
 export interface DatasetImportResponse {
+  datasetId: string;
   filename: string;
   uploadedAt: string;
   sheets: SheetData[];

@@ -27,7 +27,7 @@ public class DatasetController {
 
     @Operation(
             summary = "Import a dataset file",
-            description = "Uploads a spreadsheet file (.xlsx) and converts it into index-addressed sheet/row/cell JSON.",
+            description = "Uploads a spreadsheet file (.xlsx or .xls) and converts it into index-addressed sheet/row/cell JSON.",
             requestBody = @RequestBody(
                     required = true,
                     content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE)

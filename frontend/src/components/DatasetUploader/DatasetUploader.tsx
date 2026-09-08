@@ -96,13 +96,13 @@ export function DatasetUploader({ onImportSuccess }: DatasetUploaderProps) {
         <p className="dataset-uploader__title">
           {isUploading ? 'A carregar…' : 'Carregue a sua folha de cálculo'}
         </p>
-        <p className="dataset-uploader__hint">Arraste e largue um ficheiro .xlsx, ou clique para procurar</p>
+        <p className="dataset-uploader__hint">Arraste e largue um ficheiro .xlsx ou .xls, ou clique para procurar</p>
 
         <input
           id="dataset-file-input"
           ref={fileInputRef}
           type="file"
-          accept=".xlsx"
+          accept=".xlsx,.xls"
           onChange={handleFileChange}
           disabled={isUploading}
           className="dataset-uploader__input"
