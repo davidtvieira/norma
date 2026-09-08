@@ -6,6 +6,8 @@ import com.norma.dataset.dto.LookupRequest;
 import com.norma.dataset.dto.LookupResponse;
 import com.norma.dataset.dto.RowData;
 import com.norma.dataset.dto.SheetData;
+import com.norma.dataset.dto.SumRequest;
+import com.norma.dataset.dto.SumResponse;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -123,6 +125,51 @@ class DatasetOperationServiceTest {
         LookupRequest request = new LookupRequest("missing-dataset", 0, 0, 0, 1, "1");
 
         assertThatThrownBy(() -> datasetOperationService.lookup(request))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void sumsNumericValuesFromTheStartRowOnward() {
+        SheetData sales = new SheetData("Vendas", 4, List.of(
+                new RowData(0, List.of(new CellData(0, 100L))),
+                new RowData(1, List.of(new CellData(0, 200L))),
+                new RowData(2, List.of(new CellData(0, 50.5))),
+                new RowData(3, List.of(new CellData(0, 10L)))
+        ));
+        String datasetId = storeDataset(new DatasetImportResponse("dataset-sum-1", "test.xlsx", Instant.now(), List.of(sales)));
+
+        SumResponse response = datasetOperationService.sum(new SumRequest(datasetId, 0, 0, 1));
+
+        assertThat(response.sum()).isEqualTo(260.5);
+        assertThat(response.rowsSummed()).isEqualTo(3);
+    }
+
+    @Test
+    void skipsNonNumericAndBlankCellsWhenSumming() {
+        SheetData sales = new SheetData("Vendas", 3, List.of(
+                new RowData(0, List.of(new CellData(0, 10L))),
+                new RowData(1, List.of(new CellData(0, "não numérico"))),
+                new RowData(2, List.of(new CellData(0, null)))
+        ));
+        String datasetId = storeDataset(new DatasetImportResponse("dataset-sum-2", "test.xlsx", Instant.now(), List.of(sales)));
+
+        SumResponse response = datasetOperationService.sum(new SumRequest(datasetId, 0, 0, 0));
+
+        assertThat(response.sum()).isEqualTo(10.0);
+        assertThat(response.rowsSummed()).isEqualTo(1);
+    }
+
+    @Test
+    void rejectsANegativeStartRowForSum() {
+        String datasetId = twoSheetDataset();
+
+        assertThatThrownBy(() -> datasetOperationService.sum(new SumRequest(datasetId, 0, 0, -1)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsAnUnknownDatasetIdForSum() {
+        assertThatThrownBy(() -> datasetOperationService.sum(new SumRequest("missing-dataset", 0, 0, 0)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 }

@@ -3,6 +3,8 @@ package com.norma.dataset.controller;
 import com.norma.dataset.dto.LookupRequest;
 import com.norma.dataset.dto.LookupResponse;
 import com.norma.dataset.dto.OperationType;
+import com.norma.dataset.dto.SumRequest;
+import com.norma.dataset.dto.SumResponse;
 import com.norma.dataset.service.DatasetOperationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -18,7 +20,10 @@ import java.util.List;
 @Tag(name = "Dataset operations", description = "Data operations executed against an already-imported dataset")
 public class DatasetOperationController {
 
-    private static final List<OperationType> OPERATION_TYPES = List.of(new OperationType("lookup", "Lookup"));
+    private static final List<OperationType> OPERATION_TYPES = List.of(
+            new OperationType("lookup", "Lookup"),
+            new OperationType("sum", "Sum")
+    );
 
     private final DatasetOperationService datasetOperationService;
 
@@ -44,5 +49,15 @@ public class DatasetOperationController {
     @PostMapping("/api/v1/dataset/operation/lookup")
     public ResponseEntity<LookupResponse> lookup(@RequestBody LookupRequest request) {
         return ResponseEntity.ok(datasetOperationService.lookup(request));
+    }
+
+    @Operation(
+            summary = "Sum a column",
+            description = "Sums the numeric values of one column, starting from a given row index through the "
+                    + "end of the sheet. Non-numeric and blank cells are skipped."
+    )
+    @PostMapping("/api/v1/dataset/operation/sum")
+    public ResponseEntity<SumResponse> sum(@RequestBody SumRequest request) {
+        return ResponseEntity.ok(datasetOperationService.sum(request));
     }
 }

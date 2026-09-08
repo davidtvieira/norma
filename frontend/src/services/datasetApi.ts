@@ -1,6 +1,7 @@
 import type { DatasetImportResponse } from '../types/dataset';
 import type { LookupRequestPayload, LookupResponsePayload } from '../types/lookup';
 import type { OperationType } from '../types/operation';
+import type { SumRequestPayload, SumResponsePayload } from '../types/sum';
 
 /**
  * Defaults to a same-origin relative path so the browser only ever talks to whatever
@@ -59,6 +60,26 @@ export async function lookupValue(payload: LookupRequestPayload): Promise<Lookup
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
     throw new Error(errorBody?.message ?? `Falha ao procurar o valor (estado ${response.status})`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Sums the numeric values of one column, starting from a given row index, against a
+ * previously imported dataset. The row filtering, numeric-cell filtering and summing all
+ * happen on the API — the frontend only sends the inputs and renders the returned total.
+ */
+export async function sumColumn(payload: SumRequestPayload): Promise<SumResponsePayload> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/dataset/operation/sum`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    throw new Error(errorBody?.message ?? `Falha ao somar a coluna (estado ${response.status})`);
   }
 
   return response.json();

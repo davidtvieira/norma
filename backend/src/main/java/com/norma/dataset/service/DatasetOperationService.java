@@ -6,6 +6,8 @@ import com.norma.dataset.dto.LookupRequest;
 import com.norma.dataset.dto.LookupResponse;
 import com.norma.dataset.dto.RowData;
 import com.norma.dataset.dto.SheetData;
+import com.norma.dataset.dto.SumRequest;
+import com.norma.dataset.dto.SumResponse;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -53,6 +55,33 @@ public class DatasetOperationService {
         }
 
         return new LookupResponse(true, cellValue(resultRow.get(), request.resultColumn()), matchRow.get().rowIndex());
+    }
+
+    public SumResponse sum(SumRequest request) {
+        DatasetImportResponse dataset = datasetStore.get(request.datasetId())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Conjunto de dados não encontrado. Volte a importar o ficheiro."));
+
+        SheetData sheet = sheetAt(dataset, request.sheetIndex(), "a somar");
+
+        if (request.startRow() < 0) {
+            throw new IllegalArgumentException("A linha inicial não pode ser negativa.");
+        }
+
+        double total = 0;
+        int rowsSummed = 0;
+        for (RowData row : sheet.rows()) {
+            if (row.rowIndex() < request.startRow()) {
+                continue;
+            }
+            Object value = cellValue(row, request.column());
+            if (value instanceof Number number) {
+                total += number.doubleValue();
+                rowsSummed++;
+            }
+        }
+
+        return new SumResponse(total, rowsSummed);
     }
 
     private SheetData sheetAt(DatasetImportResponse dataset, int sheetIndex, String role) {

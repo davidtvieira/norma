@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { DatasetUploader } from './components/DatasetUploader/DatasetUploader';
-import { LookupPanel } from './components/LookupPanel/LookupPanel';
+import { ConditionPanel } from './components/ConditionPanel/ConditionPanel';
 import { SheetViewer } from './components/SheetViewer/SheetViewer';
 import { ThemeToggle } from './components/ThemeToggle/ThemeToggle';
 import { useTheme } from './hooks/useTheme';
@@ -62,7 +62,7 @@ function App() {
 
       <main className="app__main">
         <div className="app__main-left">
-          <LookupPanel
+          <ConditionPanel
             dataset={dataset}
             columnPick={columnPick}
             onStartColumnPick={startColumnPick}
