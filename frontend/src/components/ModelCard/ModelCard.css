@@ -1,0 +1,39 @@
+.model-card {
+  width: 100%;
+  max-width: 480px;
+  padding: 1.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
+}
+
+.model-card__title {
+  margin: 0 0 1.25rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.model-card__operations {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.model-card__operation {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-hover);
+}
+
+.model-card__operation-name {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text);
+}

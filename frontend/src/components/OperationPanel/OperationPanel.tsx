@@ -6,9 +6,9 @@ import type { ColumnHighlight, OperationHighlight, RangeHighlight } from '../../
 import { useOperationTypes } from '../../hooks/useOperationTypes';
 import { getDependents, resolveOperationInputs } from '../../utils/resolveOperationInputs';
 import { getInputSource } from '../../types/valueSource';
-import type { OperationFields, OperationKind, ReferenceOption } from './operationKind';
-import { lookupKind } from './kinds/lookupKind';
-import { sumKind } from './kinds/sumKind';
+import type { SerializableEntry } from '../../utils/modelSerialization';
+import type { OperationFields, ReferenceOption } from './operationKind';
+import { KINDS, KINDS_BY_ID } from './kinds/registry';
 import './OperationPanel.css';
 
 /**
@@ -193,9 +193,9 @@ function LinkedOperationCard({ name, onEdit, editDisabled, onMouseEnter, onMouse
   );
 }
 
-const KINDS: OperationKind[] = [lookupKind, sumKind];
-const KINDS_BY_ID: Record<string, OperationKind> = Object.fromEntries(KINDS.map((kind) => [kind.id, kind]));
-const FALLBACK_LABELS: Record<string, string> = { lookup: 'Lookup', sum: 'Sum' };
+// Overrides the API's (English) labels with their Portuguese display names — the id is still
+// what's sent to/matched against the API, only the label shown in the UI is translated here.
+const KIND_LABELS: Record<string, string> = { lookup: 'Pesquisa aninhada', sum: 'Somar' };
 
 interface OperationEntryState {
   id: string;
@@ -230,6 +230,8 @@ function createEntry(kindId: string, name: string, dataset: DatasetImportRespons
 
 interface OperationPanelProps {
   dataset: DatasetImportResponse;
+  /** Seeds the entry list on mount (e.g. a model just imported on the previous screen). */
+  initialEntries?: SerializableEntry[];
   columnPick: ColumnPickState | null;
   onStartColumnPick: (entryId: string, field: ColumnPickField, sheetIndex: number) => void;
   onFinishColumnPick: () => void;
@@ -239,6 +241,8 @@ interface OperationPanelProps {
   onColumnHighlightsChange: (highlights: ColumnHighlight[]) => void;
   onRangeHighlightsChange: (highlights: RangeHighlight[]) => void;
   onCellHighlightChange: (highlight: OperationHighlight | null) => void;
+  /** Reports the current entry list up so App.tsx can export it (see the "Guardar modelo" flow). */
+  onEntriesChange: (entries: SerializableEntry[]) => void;
 }
 
 /**
@@ -249,6 +253,7 @@ interface OperationPanelProps {
  */
 export function OperationPanel({
   dataset,
+  initialEntries,
   columnPick,
   onStartColumnPick,
   onFinishColumnPick,
@@ -258,8 +263,9 @@ export function OperationPanel({
   onColumnHighlightsChange,
   onRangeHighlightsChange,
   onCellHighlightChange,
+  onEntriesChange,
 }: OperationPanelProps) {
-  const [entries, setEntries] = useState<OperationEntryState[]>([]);
+  const [entries, setEntries] = useState<OperationEntryState[]>(() => initialEntries ?? []);
   const operationTypes = useOperationTypes();
   // Snapshot of an operation's confirmed state, taken when it enters edit mode — lets the ×
   // cancel the edit (restore the snapshot) instead of deleting an already-confirmed operation.
@@ -275,6 +281,11 @@ export function OperationPanel({
   // here instead of a typed value. Null means "no value yet" (loading, error, or not found).
   const [results, setResults] = useState<Record<string, string | null>>({});
   const resolvedInputs = resolveOperationInputs(entries, results);
+
+  // Lets App.tsx export the model (see the "Guardar modelo" flow) without entries living there.
+  useEffect(() => {
+    onEntriesChange(entries);
+  }, [entries, onEntriesChange]);
 
   // Sheet column/range tints: every operation being built/edited shows what it's picked, and so
   // does a confirmed operation under the mouse if its kind has no exact-cell highlight to show
@@ -372,7 +383,7 @@ export function OperationPanel({
   }
 
   function labelForKind(kindId: string): string {
-    return operationTypes.find((type) => type.id === kindId)?.label ?? FALLBACK_LABELS[kindId] ?? kindId;
+    return KIND_LABELS[kindId] ?? operationTypes.find((type) => type.id === kindId)?.label ?? kindId;
   }
 
   function addOperationOfKind(kindId: string) {

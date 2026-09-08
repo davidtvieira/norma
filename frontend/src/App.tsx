@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import type { ChangeEvent } from 'react';
 import { DatasetUploader } from './components/DatasetUploader/DatasetUploader';
 import { OperationPanel } from './components/OperationPanel/OperationPanel';
+import { OPERATION_KIND_IDS } from './components/OperationPanel/kinds/registry';
+import { ModelCard } from './components/ModelCard/ModelCard';
 import { SaveModal } from './components/SaveModal/SaveModal';
 import { SheetViewer } from './components/SheetViewer/SheetViewer';
 import { ThemeToggle } from './components/ThemeToggle/ThemeToggle';
@@ -9,6 +12,7 @@ import type { DatasetImportResponse } from './types/dataset';
 import type { ColumnPickField, ColumnPickState, RangePickState } from './types/columnPick';
 import type { ColumnHighlight, OperationHighlight, RangeHighlight } from './types/highlight';
 import type { CellRange } from './types/cellRange';
+import { buildModelExport, parseModelImport, type SerializableEntry } from './utils/modelSerialization';
 import './App.css';
 
 function App() {
@@ -22,6 +26,20 @@ function App() {
   const [rangeHighlights, setRangeHighlights] = useState<RangeHighlight[]>([]);
   const [cellHighlight, setCellHighlight] = useState<OperationHighlight | null>(null);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  // Mirrors OperationPanel's own entry list (see onEntriesChange) purely so "Guardar modelo" can
+  // export it — the panel remains the source of truth while editing.
+  const [modelEntries, setModelEntries] = useState<SerializableEntry[]>([]);
+  // Set right before switching to the editor screen when a model was imported instead of
+  // started fresh — consumed once by OperationPanel's initial state on mount.
+  const [pendingImportEntries, setPendingImportEntries] = useState<SerializableEntry[] | undefined>(undefined);
+  const [importError, setImportError] = useState<string | null>(null);
+  const importFileInputRef = useRef<HTMLInputElement>(null);
+  // Set once "Importar Modelo" has loaded a file — the ready screen then offers "Editar Modelo"
+  // / "Utilizar Modelo" for this same imported model instead of the initial Criar/Importar choice.
+  const [importedModel, setImportedModel] = useState<{ modelName: string; entries: SerializableEntry[] } | null>(null);
+  // Set once a model is being utilized (not edited) — switches to the ModelCard screen instead
+  // of the full editor for as long as it's non-null.
+  const [utilizeModel, setUtilizeModel] = useState<{ modelName: string; entries: SerializableEntry[] } | null>(null);
   const { theme, toggleTheme } = useTheme();
 
   function startColumnPick(entryId: string, field: ColumnPickField, sheetIndex: number) {
@@ -46,6 +64,66 @@ function App() {
 
   function pickRange(range: CellRange) {
     setRangePick((current) => (current ? { ...current, range } : current));
+  }
+
+  function goToEditorFresh() {
+    setPendingImportEntries(undefined);
+    setModelCreated(true);
+  }
+
+  function triggerImportModel() {
+    setImportError(null);
+    importFileInputRef.current?.click();
+  }
+
+  function handleImportModelFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = ''; // so re-importing the same file path fires onChange again
+    if (!file) return;
+
+    file
+      .text()
+      .then((text) => {
+        // Not checked against the current dataset's id for now: a fresh page load gets a new
+        // dataset id from the server even for the same uploaded file, which would otherwise
+        // block re-importing a model exported earlier in the same session.
+        const imported = parseModelImport(text, OPERATION_KIND_IDS);
+        setImportedModel({ modelName: imported.modelName, entries: imported.entries });
+        setImportError(null);
+      })
+      .catch((error) => {
+        setImportedModel(null);
+        setImportError(error instanceof Error ? error.message : 'Falha ao importar o modelo.');
+      });
+  }
+
+  function cancelImportedModel() {
+    setImportedModel(null);
+    setImportError(null);
+  }
+
+  function goToEditorWithImportedModel() {
+    if (!importedModel) return;
+    setModelName(importedModel.modelName);
+    setPendingImportEntries(importedModel.entries);
+    setModelCreated(true);
+  }
+
+  function goToUtilizeWithImportedModel() {
+    if (!importedModel) return;
+    setUtilizeModel(importedModel);
+  }
+
+  function exportModel() {
+    if (!dataset) return;
+    const model = buildModelExport(modelEntries, modelName, dataset.datasetId);
+    const blob = new Blob([JSON.stringify(model, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${modelName.trim() || 'modelo'}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   if (!dataset) {
@@ -73,6 +151,24 @@ function App() {
     );
   }
 
+  if (utilizeModel) {
+    return (
+      <div className="app app--landing">
+        <header className="app__topbar">
+          <ThemeToggle theme={theme} onToggle={toggleTheme} />
+        </header>
+
+        <div className="app__utilize-body">
+          <ModelCard dataset={dataset} modelName={utilizeModel.modelName} entries={utilizeModel.entries} />
+        </div>
+
+        <footer className="app__footer">
+          <h1 className="app__brand">Norma</h1>
+        </footer>
+      </div>
+    );
+  }
+
   if (!modelCreated) {
     return (
       <div className="app app--landing">
@@ -82,26 +178,51 @@ function App() {
 
         <div className="app__create-model-body">
           <div className="app__create-model-content">
-            <p className="app__create-model-eyebrow">{dataset.filename}</p>
-            <h1 className="app__create-model-title">O seu conjunto de dados está pronto.</h1>
+            <p className="app__create-model-eyebrow">{importedModel ? importedModel.modelName || 'Modelo sem nome' : dataset.filename}</p>
+            <h1 className="app__create-model-title">
+              {importedModel ? 'O modelo foi importado.' : 'O seu conjunto de dados está pronto.'}
+            </h1>
             <p className="app__create-model-hint">
-              Escolha uma das opções abaixo para começar.
+              {importedModel ? 'O que pretende fazer com o modelo importado?' : 'Escolha uma das opções abaixo para começar.'}
             </p>
             <div className="app__create-model-actions">
-              <button type="button" className="app__create-model-button" onClick={() => setModelCreated(true)}>
-                Criar Modelo para este conjunto de dados
-              </button>
-              <button type="button" className="app__create-model-button app__create-model-button--secondary" onClick={() => {}}>
-                Importar Modelo para este conjunto de dados
-              </button>
-              <button
-                type="button"
-                className="app__create-model-button app__create-model-button--back"
-                onClick={() => setDataset(null)}
-              >
-                ← Importar outro conjunto de dados
-              </button>
+              {importedModel ? (
+                <>
+                  <button type="button" className="app__create-model-button" onClick={goToEditorWithImportedModel}>
+                    Editar Modelo
+                  </button>
+                  <button type="button" className="app__create-model-button app__create-model-button--secondary" onClick={goToUtilizeWithImportedModel}>
+                    Utilizar Modelo
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button type="button" className="app__create-model-button" onClick={goToEditorFresh}>
+                    Criar Modelo
+                  </button>
+                  <button type="button" className="app__create-model-button app__create-model-button--secondary" onClick={triggerImportModel}>
+                    Importar Modelo
+                  </button>
+                  <input
+                    ref={importFileInputRef}
+                    type="file"
+                    accept="application/json"
+                    className="app__import-model-file-input"
+                    onChange={handleImportModelFile}
+                  />
+                </>
+              )}
             </div>
+
+            <button
+              type="button"
+              className="app__create-model-button app__create-model-button--back"
+              onClick={importedModel ? cancelImportedModel : () => setDataset(null)}
+            >
+              {importedModel ? '← Voltar' : '← Importar outro conjunto de dados'}
+            </button>
+
+            {importError && <p className="app__create-model-error">{importError}</p>}
           </div>
         </div>
 
@@ -136,6 +257,7 @@ function App() {
           />
           <OperationPanel
             dataset={dataset}
+            initialEntries={pendingImportEntries}
             columnPick={columnPick}
             onStartColumnPick={startColumnPick}
             onFinishColumnPick={finishColumnPick}
@@ -145,6 +267,7 @@ function App() {
             onColumnHighlightsChange={setColumnHighlights}
             onRangeHighlightsChange={setRangeHighlights}
             onCellHighlightChange={setCellHighlight}
+            onEntriesChange={setModelEntries}
           />
           <button type="button" className="app__save-button" onClick={() => setIsSaveModalOpen(true)}>
             Guardar modelo
@@ -171,7 +294,12 @@ function App() {
         <h1 className="app__brand">Norma</h1>
       </footer>
 
-      <SaveModal open={isSaveModalOpen} onClose={() => setIsSaveModalOpen(false)} />
+      <SaveModal
+        open={isSaveModalOpen}
+        onClose={() => setIsSaveModalOpen(false)}
+        onExport={exportModel}
+        canExport={modelEntries.some((entry) => entry.confirmed)}
+      />
     </div>
   );
 }
