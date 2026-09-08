@@ -2,8 +2,8 @@ import { useEffect } from 'react';
 import type { DatasetImportResponse } from '../../types/dataset';
 
 /**
- * Shared field widgets used inside a condition kind's draft config (see conditionKind.ts) —
- * kept separate from ConditionPanel.tsx so kind modules importing these don't create a
+ * Shared field widgets used inside an operation kind's draft config (see operationKind.ts) —
+ * kept separate from OperationPanel.tsx so kind modules importing these don't create a
  * circular import with the orchestrator that imports the kinds.
  */
 
@@ -16,10 +16,10 @@ interface TableSelectProps {
 
 export function TableSelect({ label, dataset, sheetIndex, onSelect }: TableSelectProps) {
   return (
-    <div className="condition-entry__field">
-      <label className="condition-entry__label">{label}</label>
+    <div className="operation-entry__field">
+      <label className="operation-entry__label">{label}</label>
       <select
-        className="condition-entry__select"
+        className="operation-entry__select"
         value={sheetIndex}
         onChange={(event) => onSelect(Number(event.target.value))}
       >
@@ -66,28 +66,28 @@ export function ColumnPickerField({
   }, [isPicking, pendingColumn, onConfirm]);
 
   return (
-    <div className="condition-entry__field">
-      <label className="condition-entry__label">{label}</label>
+    <div className="operation-entry__field">
+      <label className="operation-entry__label">{label}</label>
 
       {!isPicking && value === '' && (
-        <button type="button" className="condition-entry__pick-button" onClick={onStart}>
+        <button type="button" className="operation-entry__pick-button" onClick={onStart}>
           Selecionar coluna
         </button>
       )}
 
       {!isPicking && value !== '' && (
-        <div className="condition-column-pill">
-          <span className="condition-column-pill__value">Coluna {value}</span>
-          <button type="button" className="condition-column-pill__clear" onClick={onClear} aria-label="Alterar coluna">
+        <div className="operation-column-pill">
+          <span className="operation-column-pill__value">Coluna {value}</span>
+          <button type="button" className="operation-column-pill__clear" onClick={onClear} aria-label="Alterar coluna">
             ×
           </button>
         </div>
       )}
 
       {isPicking && (
-        <div className="condition-column-picking">
-          <span className="condition-column-picking__hint">Escolha uma coluna na tabela à direita</span>
-          <button type="button" className="condition-column-picking__cancel" onClick={onCancel}>
+        <div className="operation-column-picking">
+          <span className="operation-column-picking__hint">Escolha uma coluna na tabela à direita</span>
+          <button type="button" className="operation-column-picking__cancel" onClick={onCancel}>
             Cancelar
           </button>
         </div>

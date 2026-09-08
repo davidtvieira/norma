@@ -1,20 +1,22 @@
 import { useState } from 'react';
 import { DatasetUploader } from './components/DatasetUploader/DatasetUploader';
-import { ConditionPanel } from './components/ConditionPanel/ConditionPanel';
+import { OperationPanel } from './components/OperationPanel/OperationPanel';
 import { SheetViewer } from './components/SheetViewer/SheetViewer';
 import { ThemeToggle } from './components/ThemeToggle/ThemeToggle';
 import { useTheme } from './hooks/useTheme';
 import type { DatasetImportResponse } from './types/dataset';
 import type { ColumnPickField, ColumnPickState } from './types/columnPick';
-import type { ColumnHighlight, ConditionHighlight } from './types/highlight';
+import type { ColumnHighlight, OperationHighlight } from './types/highlight';
 import './App.css';
 
 function App() {
   const [dataset, setDataset] = useState<DatasetImportResponse | null>(null);
+  const [modelCreated, setModelCreated] = useState(false);
+  const [modelName, setModelName] = useState('');
   const [activeSheetIndex, setActiveSheetIndex] = useState(0);
   const [columnPick, setColumnPick] = useState<ColumnPickState | null>(null);
   const [columnHighlights, setColumnHighlights] = useState<ColumnHighlight[]>([]);
-  const [cellHighlight, setCellHighlight] = useState<ConditionHighlight | null>(null);
+  const [cellHighlight, setCellHighlight] = useState<OperationHighlight | null>(null);
   const { theme, toggleTheme } = useTheme();
 
   function startColumnPick(entryId: string, field: ColumnPickField, sheetIndex: number) {
@@ -54,6 +56,38 @@ function App() {
     );
   }
 
+  if (!modelCreated) {
+    return (
+      <div className="app app--landing">
+        <header className="app__topbar">
+          <ThemeToggle theme={theme} onToggle={toggleTheme} />
+        </header>
+
+        <div className="app__create-model-body">
+          <div className="app__create-model-content">
+            <p className="app__create-model-eyebrow">{dataset.filename}</p>
+            <h1 className="app__create-model-title">O seu conjunto de dados está pronto.</h1>
+            <p className="app__create-model-hint">
+              Escolha uma das opções abaixo para começar.
+            </p>
+            <div className="app__create-model-actions">
+              <button type="button" className="app__create-model-button" onClick={() => setModelCreated(true)}>
+                Criar modelo
+              </button>
+              <button type="button" className="app__create-model-button app__create-model-button--secondary" onClick={() => {}}>
+                Importar modelo
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <footer className="app__footer">
+          <h1 className="app__brand">Norma</h1>
+        </footer>
+      </div>
+    );
+  }
+
   return (
     <div className="app">
       <header className="app__topbar">
@@ -62,7 +96,14 @@ function App() {
 
       <main className="app__main">
         <div className="app__main-left">
-          <ConditionPanel
+          <input
+            type="text"
+            className="app__model-name-input"
+            placeholder="Nome do modelo"
+            value={modelName}
+            onChange={(event) => setModelName(event.target.value)}
+          />
+          <OperationPanel
             dataset={dataset}
             columnPick={columnPick}
             onStartColumnPick={startColumnPick}

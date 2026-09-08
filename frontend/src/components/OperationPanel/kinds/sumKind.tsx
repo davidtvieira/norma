@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { sumColumn } from '../../../services/datasetApi';
 import { ColumnPickerField, TableSelect } from '../fields';
-import type { ConditionFields, ConditionKind } from '../conditionKind';
+import type { OperationFields, OperationKind } from '../operationKind';
 
 interface SumFields {
   // The row to start summing from (inclusive), typed as text.
@@ -10,14 +10,14 @@ interface SumFields {
   column: number | '';
 }
 
-function asSumFields(fields: ConditionFields): SumFields {
+function asSumFields(fields: OperationFields): SumFields {
   return fields as unknown as SumFields;
 }
 
-export const sumKind: ConditionKind = {
+export const sumKind: OperationKind = {
   id: 'sum',
 
-  createFields: (): ConditionFields => ({
+  createFields: (): OperationFields => ({
     startRow: '',
     sheetIndex: '',
     column: '',
@@ -31,13 +31,13 @@ export const sumKind: ConditionKind = {
     return (
       <>
         {!searching && (
-          <button type="button" className="condition-entry__start-button" onClick={startSearching}>
+          <button type="button" className="operation-entry__start-button" onClick={startSearching}>
             Selecionar coluna
           </button>
         )}
 
         {searching && (
-          <div className="condition-entry__columns">
+          <div className="operation-entry__columns">
             <TableSelect
               label="Tabela"
               dataset={dataset}
@@ -48,7 +48,7 @@ export const sumKind: ConditionKind = {
         )}
 
         {f.sheetIndex !== '' && (
-          <div className="condition-entry__columns">
+          <div className="operation-entry__columns">
             <ColumnPickerField
               label="Coluna a somar"
               value={f.column}
@@ -81,7 +81,7 @@ export const sumKind: ConditionKind = {
       <>
         <input
           type="number"
-          className="condition-entry__input"
+          className="operation-entry__input"
           placeholder="Linha inicial"
           min={0}
           value={f.startRow}
@@ -109,7 +109,7 @@ export const sumKind: ConditionKind = {
   },
 
   // Sum has no single matched cell (it's an aggregate) — no exact-cell highlight. Hovering a
-  // confirmed sum condition falls back to the whole-column tint (see ConditionPanel).
+  // confirmed sum operation falls back to the whole-column tint (see OperationPanel).
 };
 
 interface SumResultProps {
@@ -128,7 +128,7 @@ type SumRequestState =
 const SUM_DEBOUNCE_MS = 2000;
 
 /**
- * Runs the condition entirely on the API: the dataset id (the API keeps the parsed dataset in
+ * Runs the operation entirely on the API: the dataset id (the API keeps the parsed dataset in
  * memory from the import call) plus the sheet/column and start row are sent to
  * /api/v1/dataset/operation/sum, which filters and sums the numeric cells — this component
  * only renders the outcome. The request is debounced by SUM_DEBOUNCE_MS so it doesn't fire on
@@ -168,20 +168,20 @@ function SumResult({ datasetId, sheetIndex, column, startRow }: SumResultProps) 
   }, [datasetId, sheetIndex, column, startRow]);
 
   if (state.status === 'invalid') {
-    return <p className="condition-entry__result condition-entry__result--empty">Introduza uma linha inicial válida (0 ou mais).</p>;
+    return <p className="operation-entry__result operation-entry__result--empty">Introduza uma linha inicial válida (0 ou mais).</p>;
   }
 
   if (state.status === 'loading') {
-    return <p className="condition-entry__result condition-entry__result--empty">A somar…</p>;
+    return <p className="operation-entry__result operation-entry__result--empty">A somar…</p>;
   }
 
   if (state.status === 'error') {
-    return <p className="condition-entry__result condition-entry__result--empty">{state.message}</p>;
+    return <p className="operation-entry__result operation-entry__result--empty">{state.message}</p>;
   }
 
   return (
-    <p className="condition-entry__result">
-      <span className="condition-entry__result-label">Soma:</span> {state.sum} ({state.rowsSummed}{' '}
+    <p className="operation-entry__result">
+      <span className="operation-entry__result-label">Soma:</span> {state.sum} ({state.rowsSummed}{' '}
       {state.rowsSummed === 1 ? 'linha' : 'linhas'})
     </p>
   );

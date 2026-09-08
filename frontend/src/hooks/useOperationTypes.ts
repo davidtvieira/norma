@@ -4,7 +4,7 @@ import type { OperationType } from '../types/operation';
 
 /**
  * Fetches the operation types the API supports (id + display label) once, on mount. Each
- * condition panel looks up its own type by id (e.g. 'lookup', 'sum') instead of assuming
+ * operation panel looks up its own type by id (e.g. 'lookup', 'sum') instead of assuming
  * array order, so this can be shared across panels without them stepping on each other.
  */
 export function useOperationTypes(): OperationType[] {

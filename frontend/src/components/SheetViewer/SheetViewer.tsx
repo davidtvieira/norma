@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { DatasetImportResponse } from '../../types/dataset';
-import type { ColumnHighlight, ConditionHighlight } from '../../types/highlight';
+import type { ColumnHighlight, OperationHighlight } from '../../types/highlight';
 import { findCellValue, formatCellValue, getColumnCount } from '../../utils/sheet';
 import './SheetViewer.css';
 
@@ -16,15 +16,15 @@ interface SheetViewerProps {
   columnPicker?: ColumnPicker | null;
   onColumnHeaderClick?: (columnIndex: number) => void;
   columnHighlights?: ColumnHighlight[];
-  cellHighlight?: ConditionHighlight | null;
+  cellHighlight?: OperationHighlight | null;
 }
 
 /**
  * Renders a parsed sheet as an index-addressed row/cell grid. When `columnPicker` is set,
- * column headers become clickable so a lookup condition can pick a column directly from
+ * column headers become clickable so a lookup operation can pick a column directly from
  * the table instead of a dropdown; tabs lock to the sheet being picked from.
- * `columnHighlights` tints whole search/result columns for conditions being built or edited.
- * `cellHighlight` marks the exact input/output cell of a confirmed condition's current match,
+ * `columnHighlights` tints whole search/result columns for operations being built or edited.
+ * `cellHighlight` marks the exact input/output cell of a confirmed operation's current match,
  * shown while hovering its card. Only whatever belongs to the currently displayed sheet lights up.
  */
 export function SheetViewer({

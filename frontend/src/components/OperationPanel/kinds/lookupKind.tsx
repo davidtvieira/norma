@@ -3,7 +3,7 @@ import type { CellValue } from '../../../types/dataset';
 import { lookupValue } from '../../../services/datasetApi';
 import { formatCellValue } from '../../../utils/sheet';
 import { ColumnPickerField, TableSelect } from '../fields';
-import type { ConditionFields, ConditionKind } from '../conditionKind';
+import type { OperationFields, OperationKind } from '../operationKind';
 
 interface LookupFields {
   query: string;
@@ -13,14 +13,14 @@ interface LookupFields {
   resultColumn: number | '';
 }
 
-function asLookupFields(fields: ConditionFields): LookupFields {
+function asLookupFields(fields: OperationFields): LookupFields {
   return fields as unknown as LookupFields;
 }
 
-export const lookupKind: ConditionKind = {
+export const lookupKind: OperationKind = {
   id: 'lookup',
 
-  createFields: (): ConditionFields => ({
+  createFields: (): OperationFields => ({
     query: '',
     searchSheetIndex: '',
     resultSheetIndex: '',
@@ -39,13 +39,13 @@ export const lookupKind: ConditionKind = {
     return (
       <>
         {!searching && (
-          <button type="button" className="condition-entry__start-button" onClick={startSearching}>
+          <button type="button" className="operation-entry__start-button" onClick={startSearching}>
             Procurar valor
           </button>
         )}
 
         {searching && (
-          <div className="condition-entry__columns">
+          <div className="operation-entry__columns">
             <TableSelect
               label="Tabela onde procurar"
               dataset={dataset}
@@ -62,7 +62,7 @@ export const lookupKind: ConditionKind = {
         )}
 
         {f.searchSheetIndex !== '' && f.resultSheetIndex !== '' && (
-          <div className="condition-entry__columns">
+          <div className="operation-entry__columns">
             <ColumnPickerField
               label="Coluna onde procurar"
               value={f.searchColumn}
@@ -112,7 +112,7 @@ export const lookupKind: ConditionKind = {
       <>
         <input
           type="text"
-          className="condition-entry__input"
+          className="operation-entry__input"
           placeholder="Introduza um valor"
           value={f.query}
           onChange={(event) => updateFields({ query: event.target.value })}
@@ -179,7 +179,7 @@ type LookupRequestState =
 const LOOKUP_DEBOUNCE_MS = 2000;
 
 /**
- * Runs the condition entirely on the API: the dataset id (the API keeps the parsed dataset in
+ * Runs the operation entirely on the API: the dataset id (the API keeps the parsed dataset in
  * memory from the import call) plus the search/result table and column indexes are sent to
  * /api/v1/dataset/operation/lookup, which does the row matching and returns the value — this
  * component only renders the outcome. The request is debounced by LOOKUP_DEBOUNCE_MS so it
@@ -227,22 +227,22 @@ function LookupResult({
   }, [datasetId, query, searchSheetIndex, searchColumn, resultSheetIndex, resultColumn]);
 
   if (state.status === 'loading') {
-    return <p className="condition-entry__result condition-entry__result--empty">A procurar…</p>;
+    return <p className="operation-entry__result operation-entry__result--empty">A procurar…</p>;
   }
 
   if (state.status === 'error') {
-    return <p className="condition-entry__result condition-entry__result--empty">{state.message}</p>;
+    return <p className="operation-entry__result operation-entry__result--empty">{state.message}</p>;
   }
 
   if (!state.found) {
-    return <p className="condition-entry__result condition-entry__result--empty">Sem correspondência encontrada.</p>;
+    return <p className="operation-entry__result operation-entry__result--empty">Sem correspondência encontrada.</p>;
   }
 
   const resultValue = formatCellValue(state.value ?? undefined);
 
   return (
-    <p className="condition-entry__result">
-      <span className="condition-entry__result-label">Resultado:</span> {resultValue || '(vazio)'}
+    <p className="operation-entry__result">
+      <span className="operation-entry__result-label">Resultado:</span> {resultValue || '(vazio)'}
     </p>
   );
 }

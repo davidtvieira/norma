@@ -31,7 +31,7 @@ export async function importDataset(file: File): Promise<DatasetImportResponse> 
 }
 
 /**
- * Fetches the kinds of condition the API supports (id and display label), so the frontend
+ * Fetches the kinds of operation the API supports (id and display label), so the frontend
  * doesn't hardcode operation names that only the backend should own.
  */
 export async function listOperationTypes(): Promise<OperationType[]> {
@@ -46,7 +46,7 @@ export async function listOperationTypes(): Promise<OperationType[]> {
 }
 
 /**
- * Runs a lookup condition against a previously imported dataset. All the matching
+ * Runs a lookup operation against a previously imported dataset. All the matching
  * (search table/column, result table/column, row correspondence) happens on the API —
  * the frontend only sends the inputs and renders the returned value.
  */

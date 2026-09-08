@@ -1,10 +1,10 @@
-.condition-panel {
+.operation-panel {
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
 
-.condition-panel__add-button {
+.operation-panel__add-button {
   align-self: flex-start;
   padding: 0.55rem 1.1rem;
   border: 1px solid var(--color-border);
@@ -18,12 +18,12 @@
   transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
 }
 
-.condition-panel__add-button:hover {
+.operation-panel__add-button:hover {
   border-color: var(--color-primary);
   background: var(--color-surface-hover);
 }
 
-.condition-panel__kind-menu {
+.operation-panel__kind-menu {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
@@ -34,7 +34,7 @@
   box-shadow: var(--shadow-sm);
 }
 
-.condition-panel__kind-option {
+.operation-panel__kind-option {
   padding: 0.5rem 1rem;
   border: 1px solid var(--color-primary);
   border-radius: var(--radius-sm);
@@ -47,12 +47,12 @@
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-.condition-panel__kind-option:hover {
+.operation-panel__kind-option:hover {
   background: var(--color-primary);
   color: var(--color-surface);
 }
 
-.condition-panel__title {
+.operation-panel__title {
   margin: 0;
   font-size: 0.8rem;
   font-weight: 600;
@@ -61,7 +61,7 @@
   color: var(--color-text-muted);
 }
 
-.condition-entry {
+.operation-entry {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
@@ -72,13 +72,13 @@
   box-shadow: var(--shadow-sm);
 }
 
-.condition-entry__toolbar {
+.operation-entry__toolbar {
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
 
-.condition-entry__name-input {
+.operation-entry__name-input {
   flex: 1 1 auto;
   padding: 0.4rem 0.6rem;
   border: 1px solid transparent;
@@ -90,17 +90,17 @@
   font-weight: 600;
 }
 
-.condition-entry__name-input:hover {
+.operation-entry__name-input:hover {
   border-color: var(--color-border);
 }
 
-.condition-entry__name-input:focus {
+.operation-entry__name-input:focus {
   outline: none;
   border-color: var(--color-primary);
   background: var(--color-surface-hover);
 }
 
-.condition-entry__remove {
+.operation-entry__remove {
   border: none;
   background: transparent;
   color: var(--color-text-muted);
@@ -110,11 +110,11 @@
   padding: 0 0.15rem;
 }
 
-.condition-entry__remove:hover {
+.operation-entry__remove:hover {
   color: var(--color-text);
 }
 
-.condition-entry__start-button {
+.operation-entry__start-button {
   align-self: flex-start;
   padding: 0.5rem 1rem;
   border: 1px solid var(--color-primary);
@@ -128,12 +128,12 @@
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-.condition-entry__start-button:hover {
+.operation-entry__start-button:hover {
   background: var(--color-primary);
   color: var(--color-surface);
 }
 
-.condition-entry__pick-button {
+.operation-entry__pick-button {
   align-self: flex-start;
   padding: 0.5rem 0.85rem;
   border: 1px solid var(--color-border);
@@ -146,12 +146,12 @@
   transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 
-.condition-entry__pick-button:hover {
+.operation-entry__pick-button:hover {
   border-color: var(--color-primary);
   background: var(--color-surface-hover);
 }
 
-.condition-column-pill {
+.operation-column-pill {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
@@ -162,13 +162,13 @@
   background: var(--color-surface-hover);
 }
 
-.condition-column-pill__value {
+.operation-column-pill__value {
   font-size: 0.875rem;
   color: var(--color-text);
   font-weight: 500;
 }
 
-.condition-column-pill__clear {
+.operation-column-pill__clear {
   border: none;
   background: transparent;
   color: var(--color-text-muted);
@@ -178,11 +178,11 @@
   padding: 0 0.15rem;
 }
 
-.condition-column-pill__clear:hover {
+.operation-column-pill__clear:hover {
   color: var(--color-text);
 }
 
-.condition-column-picking {
+.operation-column-picking {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -192,12 +192,12 @@
   background: var(--color-surface-hover);
 }
 
-.condition-column-picking__hint {
+.operation-column-picking__hint {
   font-size: 0.8rem;
   color: var(--color-text);
 }
 
-.condition-column-picking__cancel {
+.operation-column-picking__cancel {
   align-self: flex-start;
   padding: 0.4rem 0.75rem;
   border-radius: var(--radius-sm);
@@ -209,17 +209,17 @@
   color: var(--color-text-muted);
 }
 
-.condition-column-picking__cancel:hover {
+.operation-column-picking__cancel:hover {
   color: var(--color-text);
 }
 
-.condition-entry__confirm-row {
+.operation-entry__confirm-row {
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
 
-.condition-entry__confirm-button {
+.operation-entry__confirm-button {
   align-self: flex-start;
   padding: 0.55rem 1.1rem;
   border: 1px solid var(--color-primary);
@@ -233,12 +233,12 @@
   transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
-.condition-entry__confirm-button:hover {
+.operation-entry__confirm-button:hover {
   background: var(--color-primary-hover);
   border-color: var(--color-primary-hover);
 }
 
-.condition-entry__delete-button {
+.operation-entry__delete-button {
   padding: 0.55rem 1.1rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -251,35 +251,35 @@
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
 
-.condition-entry__delete-button:hover {
+.operation-entry__delete-button:hover {
   border-color: var(--color-error);
   color: var(--color-error);
 }
 
-.condition-entry__field {
+.operation-entry__field {
   display: flex;
   flex-direction: column;
   gap: 0.375rem;
 }
 
-.condition-entry__columns {
+.operation-entry__columns {
   display: flex;
   gap: 0.75rem;
   flex-wrap: wrap;
 }
 
-.condition-entry__columns .condition-entry__field {
+.operation-entry__columns .operation-entry__field {
   flex: 1 1 140px;
 }
 
-.condition-entry__label {
+.operation-entry__label {
   font-size: 0.75rem;
   font-weight: 500;
   letter-spacing: 0.02em;
   color: var(--color-text-muted);
 }
 
-.condition-entry__select {
+.operation-entry__select {
   width: 100%;
   padding: 0.55rem 0.7rem;
   border: 1px solid var(--color-border);
@@ -290,12 +290,12 @@
   font-size: 0.875rem;
 }
 
-.condition-entry__select:focus {
+.operation-entry__select:focus {
   outline: none;
   border-color: var(--color-primary);
 }
 
-.condition-entry__input {
+.operation-entry__input {
   padding: 0.6rem 0.75rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -305,12 +305,12 @@
   font-size: 0.9rem;
 }
 
-.condition-entry__input:focus {
+.operation-entry__input:focus {
   outline: none;
   border-color: var(--color-primary);
 }
 
-.condition-entry__result {
+.operation-entry__result {
   margin: 0;
   padding: 0.75rem 0.9rem;
   border-radius: var(--radius-sm);
@@ -319,16 +319,16 @@
   color: var(--color-text);
 }
 
-.condition-entry__result-label {
+.operation-entry__result-label {
   font-weight: 600;
   margin-right: 0.35rem;
 }
 
-.condition-entry__result--empty {
+.operation-entry__result--empty {
   color: var(--color-text-muted);
 }
 
-.condition-panel__list {
+.operation-panel__list {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
@@ -336,7 +336,7 @@
   border-top: 1px solid var(--color-border);
 }
 
-.condition-card {
+.operation-card {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
@@ -348,17 +348,17 @@
   transition: border-color 0.2s ease;
 }
 
-.condition-card:hover {
+.operation-card:hover {
   border-color: var(--color-primary);
 }
 
-.condition-card__header {
+.operation-card__header {
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
 
-.condition-card__name {
+.operation-card__name {
   margin: 0;
   font-size: 0.95rem;
   font-weight: 600;
@@ -368,7 +368,7 @@
   white-space: nowrap;
 }
 
-.condition-card__summary {
+.operation-card__summary {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -377,14 +377,14 @@
   color: var(--color-text-muted);
 }
 
-.condition-card__actions {
+.operation-card__actions {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   margin-left: auto;
 }
 
-.condition-card__edit {
+.operation-card__edit {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -395,12 +395,12 @@
   padding: 0.15rem;
 }
 
-.condition-card__edit svg {
+.operation-card__edit svg {
   width: 0.9rem;
   height: 0.9rem;
 }
 
-.condition-card__edit:hover {
+.operation-card__edit:hover {
   color: var(--color-primary);
 }
 
