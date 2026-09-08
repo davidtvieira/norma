@@ -72,10 +72,17 @@ function App() {
             </p>
             <div className="app__create-model-actions">
               <button type="button" className="app__create-model-button" onClick={() => setModelCreated(true)}>
-                Criar modelo
+                Criar Modelo para este conjunto de dados
               </button>
               <button type="button" className="app__create-model-button app__create-model-button--secondary" onClick={() => {}}>
-                Importar modelo
+                Importar Modelo para este conjunto de dados
+              </button>
+              <button
+                type="button"
+                className="app__create-model-button app__create-model-button--back"
+                onClick={() => setDataset(null)}
+              >
+                ← Importar outro conjunto de dados
               </button>
             </div>
           </div>
@@ -90,7 +97,14 @@ function App() {
 
   return (
     <div className="app">
-      <header className="app__topbar">
+      <header className="app__topbar app__topbar--with-title">
+        <nav className="app__breadcrumbs" aria-label="Breadcrumb">
+          <button type="button" className="app__breadcrumb-item" onClick={() => setModelCreated(false)}>
+            {dataset.filename}
+          </button>
+          <span className="app__breadcrumb-separator">/</span>
+          <span className="app__breadcrumb-item app__breadcrumb-item--current">Criar modelo</span>
+        </nav>
         <ThemeToggle theme={theme} onToggle={toggleTheme} />
       </header>
 

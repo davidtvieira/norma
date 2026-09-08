@@ -14,6 +14,46 @@
   padding: 1.5rem;
 }
 
+.app__topbar--with-title {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.app__breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.app__breadcrumb-item {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.app__breadcrumb-item:hover {
+  color: var(--color-text);
+  text-decoration: underline;
+}
+
+.app__breadcrumb-item--current {
+  color: var(--color-text);
+  font-weight: 600;
+  cursor: default;
+}
+
+.app__breadcrumb-item--current:hover {
+  text-decoration: none;
+}
+
+.app__breadcrumb-separator {
+  color: var(--color-text-muted);
+}
+
 .app__landing-body {
   flex: 1;
   display: flex;
@@ -177,6 +217,19 @@
   background: var(--color-surface-hover);
   border-color: var(--color-primary-hover);
   color: var(--color-primary-hover);
+}
+
+.app__create-model-button--back {
+  background: transparent;
+  border-color: transparent;
+  color: var(--color-text-muted);
+  margin-top: 1rem;
+}
+
+.app__create-model-button--back:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-border);
+  color: var(--color-text);
 }
 
 .app__brand {
