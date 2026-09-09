@@ -27,6 +27,10 @@ function App() {
   const [rangeHighlights, setRangeHighlights] = useState<RangeHighlight[]>([]);
   const [cellHighlight, setCellHighlight] = useState<OperationHighlight | null>(null);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  // The sheet viewer now lives in an off-canvas panel (more room for the operations list) —
+  // closed by default, opened via the "Ver dados" button or automatically whenever a column/
+  // range pick starts, since the sheet has to be visible for that.
+  const [isSheetPanelOpen, setIsSheetPanelOpen] = useState(false);
   // Mirrors OperationPanel's own entry list (see onEntriesChange) purely so "Guardar modelo" can
   // export it — the panel remains the source of truth while editing.
   const [modelEntries, setModelEntries] = useState<SerializableEntry[]>([]);
@@ -86,6 +90,48 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modelEntries]);
 
+  // Auto-open the sheet panel whenever a pick starts, wherever it was triggered from (the panel
+  // itself, if already open, just keeps showing).
+  useEffect(() => {
+    if (columnPick || rangePick) {
+      setIsSheetPanelOpen(true);
+    }
+  }, [columnPick, rangePick]);
+
+  // ...and auto-close it once that pick ends — whether a column/range was actually selected
+  // (ColumnPickerField/RangePickerField commit immediately, see their onConfirm+onCancel) or the
+  // user hit "Cancelar" — either way there's nothing left to do with the sheet visible. Tracked
+  // via a ref rather than derived directly, so opening the panel by hand (the "Ver dados"
+  // button, with no pick involved at all) never gets swept up and closed by this effect.
+  const wasPickingRef = useRef(false);
+  useEffect(() => {
+    const isPicking = columnPick !== null || rangePick !== null;
+    if (wasPickingRef.current && !isPicking) {
+      setIsSheetPanelOpen(false);
+    }
+    wasPickingRef.current = isPicking;
+  }, [columnPick, rangePick]);
+
+  // Closing the panel while a pick is in progress cancels it too — there's nothing useful left
+  // to pick from once the sheet is hidden.
+  function closeSheetPanel() {
+    if (columnPick) finishColumnPick();
+    if (rangePick) finishRangePick();
+    setIsSheetPanelOpen(false);
+  }
+
+  useEffect(() => {
+    if (!isSheetPanelOpen) return;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        closeSheetPanel();
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSheetPanelOpen, columnPick, rangePick]);
+
   function startColumnPick(entryId: string, field: ColumnPickField, sheetIndex: number) {
     setColumnPick({ entryId, field, sheetIndex, column: null });
   }
@@ -114,6 +160,7 @@ function App() {
     setPendingImportEntries(undefined);
     setModelInputId(null);
     setModelOutputId(null);
+    setIsSheetPanelOpen(false);
     setModelCreated(true);
   }
 
@@ -159,6 +206,7 @@ function App() {
     setPendingImportEntries(importedModel.entries);
     setModelInputId(importedModel.inputOperationId);
     setModelOutputId(importedModel.outputOperationId);
+    setIsSheetPanelOpen(false);
     setModelCreated(true);
   }
 
@@ -302,11 +350,16 @@ function App() {
           <span className="app__breadcrumb-separator">/</span>
           <span className="app__breadcrumb-item app__breadcrumb-item--current">Criar modelo</span>
         </nav>
-        <ThemeToggle theme={theme} onToggle={toggleTheme} />
+        <div className="app__topbar-actions">
+          <button type="button" className="app__view-data-button" onClick={() => setIsSheetPanelOpen(true)}>
+            Ver dados
+          </button>
+          <ThemeToggle theme={theme} onToggle={toggleTheme} />
+        </div>
       </header>
 
       <main className="app__main">
-        <div className="app__main-left">
+        <div className="app__main-content">
           <input
             type="text"
             className="app__model-name-input"
@@ -327,12 +380,34 @@ function App() {
             onRangeHighlightsChange={setRangeHighlights}
             onCellHighlightChange={setCellHighlight}
             onEntriesChange={setModelEntries}
+            modelInputId={modelInputId}
+            modelOutputId={modelOutputId}
+            onModelInputChange={setModelInputId}
+            onModelOutputChange={setModelOutputId}
           />
           <button type="button" className="app__save-button" onClick={() => setIsSaveModalOpen(true)}>
             Guardar modelo
           </button>
         </div>
-        <div className="app__main-right">
+      </main>
+
+      <footer className="app__footer">
+        <h1 className="app__brand">Norma</h1>
+      </footer>
+
+      <div
+        className={isSheetPanelOpen ? 'sheet-panel__backdrop sheet-panel__backdrop--visible' : 'sheet-panel__backdrop'}
+        onClick={closeSheetPanel}
+        aria-hidden="true"
+      />
+      <aside className={isSheetPanelOpen ? 'sheet-panel sheet-panel--open' : 'sheet-panel'} aria-hidden={!isSheetPanelOpen}>
+        <div className="sheet-panel__header">
+          <span className="sheet-panel__title">{dataset.filename}</span>
+          <button type="button" className="sheet-panel__close" onClick={closeSheetPanel} aria-label="Fechar">
+            ×
+          </button>
+        </div>
+        <div className="sheet-panel__body">
           <SheetViewer
             dataset={dataset}
             activeSheetIndex={columnPick ? columnPick.sheetIndex : rangePick ? rangePick.sheetIndex : activeSheetIndex}
@@ -347,23 +422,15 @@ function App() {
             cellHighlight={cellHighlight}
           />
         </div>
-      </main>
-
-      <footer className="app__footer">
-        <h1 className="app__brand">Norma</h1>
-      </footer>
+      </aside>
 
       <SaveModal
         open={isSaveModalOpen}
         onClose={() => setIsSaveModalOpen(false)}
         onExport={exportModel}
         canExport={modelEntries.some((entry) => entry.confirmed) && modelInputId !== null && modelOutputId !== null}
-        inputOptions={modelInputOptions}
-        outputOptions={modelOutputOptions}
-        inputOperationId={modelInputId}
-        outputOperationId={modelOutputId}
-        onInputChange={setModelInputId}
-        onOutputChange={setModelOutputId}
+        inputLabel={modelInputOptions.find((option) => option.id === modelInputId)?.label ?? null}
+        outputLabel={modelOutputOptions.find((option) => option.id === modelOutputId)?.label ?? null}
       />
     </div>
   );

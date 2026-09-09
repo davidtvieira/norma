@@ -54,6 +54,30 @@
   color: var(--color-text-muted);
 }
 
+.app__topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.app__view-data-button {
+  padding: 0.5rem 1.1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.app__view-data-button:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-primary);
+}
+
 .app__landing-body {
   flex: 1;
   display: flex;
@@ -270,13 +294,12 @@
 .app__main {
   flex: 1;
   display: flex;
-  gap: 1.75rem;
   padding: 1.75rem;
   overflow: hidden;
 }
 
-.app__main-left {
-  flex: 1 1 50%;
+.app__main-content {
+  flex: 1;
   min-width: 0;
   overflow: auto;
   display: flex;
@@ -325,20 +348,102 @@
   border-color: var(--color-primary-hover);
 }
 
-.app__main-right {
-  flex: 1 1 50%;
+/* Off-canvas sheet viewer: slides in from the right over the editor instead of sitting
+   permanently side-by-side, leaving the full width for the operations list. */
+
+.sheet-panel__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 40%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+  z-index: 20;
+}
+
+.sheet-panel__backdrop--visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sheet-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100svh;
+  width: min(720px, 92vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+  border-left: 1px solid var(--color-border);
+  box-shadow: -12px 0 32px rgb(0 0 0 / 18%);
+  transform: translateX(100%);
+  transition: transform 0.28s ease;
+  z-index: 21;
+}
+
+.sheet-panel--open {
+  transform: translateX(0);
+}
+
+.sheet-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sheet-panel__title {
   min-width: 0;
-  overflow: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--color-text);
+}
+
+.sheet-panel__close {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.sheet-panel__close:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.sheet-panel__body {
+  flex: 1;
+  min-height: 0;
+  padding: 1.25rem 1.5rem 1.5rem;
+  overflow: hidden;
 }
 
 @media (max-width: 640px) {
   .app__main {
-    flex-direction: column;
     overflow: visible;
   }
 
-  .app__main-left,
-  .app__main-right {
+  .app__main-content {
     overflow: visible;
+  }
+
+  .sheet-panel {
+    width: 100vw;
   }
 }

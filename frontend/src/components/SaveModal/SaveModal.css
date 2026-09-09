@@ -49,10 +49,15 @@
   background: var(--color-surface-hover);
 }
 
-.save-modal__io-hint {
+.save-modal__io-item {
   margin: 0;
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  color: var(--color-text);
+}
+
+.save-modal__io-label {
+  font-weight: 600;
+  margin-right: 0.35rem;
 }
 
 .save-modal__actions {
