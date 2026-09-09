@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useRef, useState } from 'react';
 import type { DatasetImportResponse } from '../../types/dataset';
 import type { OperationFields } from '../OperationPanel/operationKind';
 import { KINDS_BY_ID } from '../OperationPanel/kinds/registry';
@@ -20,8 +20,6 @@ interface ModelCardProps {
   outputOperationId: string | null;
 }
 
-const CALCULATE_DEBOUNCE_MS = 800;
-
 /**
  * A model previously built in the editor and re-imported to be used, not edited: the model's
  * name, one editable field for its designated input, and one live result for its designated
@@ -29,7 +27,9 @@ const CALCULATE_DEBOUNCE_MS = 800;
  * chains through), it's just not shown or editable here. Unlike the editing page (OperationPanel),
  * which calls one operation endpoint per entry as the model is being built, this screen sends the
  * whole model in a single call to POST /api/v1/dataset/{datasetId}/model/calculate — the API
- * resolves the chain between operations itself and returns every result together.
+ * resolves the chain between operations itself and returns every result together. Only runs when
+ * "Correr modelo" is clicked — not on page load, and not on every keystroke in the input field —
+ * so editing the input doesn't fire a request per character.
  */
 export function ModelCard({ dataset, modelName, entries, inputOperationId, outputOperationId }: ModelCardProps) {
   const [fields, setFields] = useState<Record<string, OperationFields>>(() =>
@@ -41,50 +41,47 @@ export function ModelCard({ dataset, modelName, entries, inputOperationId, outpu
   // computed the same way the editor does.
   const [results, setResults] = useState<Record<string, string | null>>({});
   const [errors, setErrors] = useState<Record<string, string | null>>({});
-  const [isCalculating, setIsCalculating] = useState(true);
+  const [isCalculating, setIsCalculating] = useState(false);
+  // Distinguishes "never run" (nothing to show yet) from "ran and genuinely found nothing" —
+  // both look like a null result otherwise.
+  const [hasRun, setHasRun] = useState(false);
+  // Ignores a stale response from an earlier click that resolves after a later one, if the user
+  // clicks "Correr modelo" again before the first request finishes.
+  const runIdRef = useRef(0);
 
   const liveEntries = entries.map((entry) => ({ id: entry.id, confirmed: entry.confirmed, fields: fields[entry.id] }));
   const resolvedInputs = resolveOperationInputs(liveEntries, results);
 
-  useEffect(() => {
-    let cancelled = false;
+  function runModel() {
+    const runId = ++runIdRef.current;
     setIsCalculating(true);
 
-    const timeoutId = window.setTimeout(() => {
-      calculateModel(
-        dataset.datasetId,
-        entries.map((entry) => ({ id: entry.id, kind: entry.kindId, fields: fields[entry.id] })),
-      )
-        .then((response) => {
-          if (cancelled) return;
-          const nextResults: Record<string, string | null> = {};
-          const nextErrors: Record<string, string | null> = {};
-          for (const result of response.results) {
-            nextResults[result.id] = result.success && result.value != null ? String(result.value) : null;
-            nextErrors[result.id] = result.success ? null : result.error;
-          }
-          setResults(nextResults);
-          setErrors(nextErrors);
-          setIsCalculating(false);
-        })
-        .catch((error) => {
-          if (cancelled) return;
-          const message = error instanceof Error ? error.message : 'Falha ao calcular o modelo.';
-          setResults({});
-          setErrors(Object.fromEntries(entries.map((entry) => [entry.id, message])));
-          setIsCalculating(false);
-        });
-    }, CALCULATE_DEBOUNCE_MS);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timeoutId);
-    };
-    // entries is fixed for the lifetime of this screen (it's the model as imported/built) — only
-    // the literal value in `fields` for the input entry actually changes here, same debounce
-    // approach as the editor's own per-field fetches (see lookupKind's LookupResult).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dataset.datasetId, fields]);
+    calculateModel(
+      dataset.datasetId,
+      entries.map((entry) => ({ id: entry.id, kind: entry.kindId, fields: fields[entry.id] })),
+    )
+      .then((response) => {
+        if (runId !== runIdRef.current) return;
+        const nextResults: Record<string, string | null> = {};
+        const nextErrors: Record<string, string | null> = {};
+        for (const result of response.results) {
+          nextResults[result.id] = result.success && result.value != null ? String(result.value) : null;
+          nextErrors[result.id] = result.success ? null : result.error;
+        }
+        setResults(nextResults);
+        setErrors(nextErrors);
+        setIsCalculating(false);
+        setHasRun(true);
+      })
+      .catch((error) => {
+        if (runId !== runIdRef.current) return;
+        const message = error instanceof Error ? error.message : 'Falha ao calcular o modelo.';
+        setResults({});
+        setErrors(Object.fromEntries(entries.map((entry) => [entry.id, message])));
+        setIsCalculating(false);
+        setHasRun(true);
+      });
+  }
 
   function updateEntryFields(id: string, patch: OperationFields) {
     setFields((current) => ({ ...current, [id]: { ...current[id], ...patch } }));
@@ -130,25 +127,35 @@ export function ModelCard({ dataset, modelName, entries, inputOperationId, outpu
         <div className="model-card__field">
           <h3 className="model-card__field-name">{outputEntry.name || 'Output'}</h3>
           <ModelOperationResultView
+            hasRun={hasRun}
             isCalculating={isCalculating}
             value={results[outputEntry.id] ?? null}
             error={errors[outputEntry.id] ?? null}
           />
         </div>
       </div>
+
+      <button type="button" className="model-card__run-button" onClick={runModel} disabled={isCalculating}>
+        {isCalculating ? 'A calcular…' : 'Correr modelo'}
+      </button>
     </div>
   );
 }
 
 interface ModelOperationResultViewProps {
+  hasRun: boolean;
   isCalculating: boolean;
   value: string | null;
   error: string | null;
 }
 
-function ModelOperationResultView({ isCalculating, value, error }: ModelOperationResultViewProps) {
+function ModelOperationResultView({ hasRun, isCalculating, value, error }: ModelOperationResultViewProps) {
   if (isCalculating) {
     return <p className="operation-entry__result operation-entry__result--empty">A calcular…</p>;
+  }
+
+  if (!hasRun) {
+    return <p className="operation-entry__result operation-entry__result--empty">Prima "Correr modelo" para ver o resultado.</p>;
   }
 
   if (error) {

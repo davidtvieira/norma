@@ -214,7 +214,23 @@ public class DatasetOperationService {
         validateRange(startRow, endRow, startColumn, endColumn);
 
         SumOutcome outcome = sumRange(sheet, startRow, endRow, startColumn, endColumn);
-        return new ModelOperationResult(operation.id(), true, outcome.total(), null);
+        return new ModelOperationResult(operation.id(), true, normalizeNumber(outcome.total()), null);
+    }
+
+    /**
+     * Mirrors DatasetParserService's own cell-value normalization (an independent copy, not
+     * shared code — same convention as the frontend/backend cycle-detection duplication elsewhere
+     * in this codebase). A whole-number sum needs to stringify the same way a whole-number cell
+     * already does ("24", not "24.0") so a downstream reference to it (see resolveInputValue)
+     * matches cells the same way the editor's own per-operation testing already does there — JS's
+     * String(24.0) is "24", but Java's String.valueOf(24.0) is "24.0", which a plain Double never
+     * getting normalized would otherwise carry through into the chained lookup's query.
+     */
+    private Object normalizeNumber(double value) {
+        if (value == Math.rint(value) && !Double.isInfinite(value)) {
+            return (long) value;
+        }
+        return value;
     }
 
     private record SumOutcome(double total, int cellsSummed) {

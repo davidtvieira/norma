@@ -242,7 +242,10 @@ class DatasetOperationServiceTest {
 
         ModelOperationResult result = response.results().get(0);
         assertThat(result.success()).isTrue();
-        assertThat(result.value()).isEqualTo(15.0);
+        // A whole-number sum normalizes to a Long, same as a whole-number cell value already does
+        // (see DatasetParserService.normalizeNumber) — so a downstream reference to it stringifies
+        // as "15", not "15.0", matching cells the same way the frontend's own testing does.
+        assertThat(result.value()).isEqualTo(15L);
     }
 
     @Test
@@ -271,6 +274,34 @@ class DatasetOperationServiceTest {
         assertThat(byId.get("op-1").value()).isEqualTo("2");
         assertThat(byId.get("op-2").success()).isTrue();
         assertThat(byId.get("op-2").value()).isEqualTo("Caneta");
+    }
+
+    @Test
+    void chainsAWholeNumberSumsResultIntoALookupsInputWithoutATrailingDecimal() {
+        SheetData clients = new SheetData("Clientes", 3, List.of(
+                new RowData(0, List.of(new CellData(0, 10L), new CellData(1, "Ana"))),
+                new RowData(1, List.of(new CellData(0, 15L), new CellData(1, "Bruno")))
+        ));
+        String datasetId = storeDataset(new DatasetImportResponse("dataset-sum-lookup-chain", "test.xlsx", Instant.now(), List.of(clients)));
+
+        // Sums to a whole number (15) that must match a Long-typed cell's own "15" — a naive
+        // String.valueOf(Double) on the raw sum would instead produce "15.0" and never match.
+        ModelOperationInput sum = new ModelOperationInput("op-1", "sum", Map.of(
+                "sheetIndex", 0,
+                "range", Map.of("startRow", 1, "endRow", 1, "startColumn", 0, "endColumn", 0)));
+        ModelOperationInput findByTotal = new ModelOperationInput("op-2", "lookup", Map.of(
+                "input", referenceInput("op-1"),
+                "sheetIndex", 0,
+                "searchColumn", 0,
+                "resultColumn", 1));
+
+        ModelCalculateResponse response = datasetOperationService.calculateModel(datasetId, List.of(sum, findByTotal));
+
+        Map<String, ModelOperationResult> byId = response.results().stream()
+                .collect(java.util.stream.Collectors.toMap(ModelOperationResult::id, r -> r));
+
+        assertThat(byId.get("op-2").success()).isTrue();
+        assertThat(byId.get("op-2").value()).isEqualTo("Bruno");
     }
 
     @Test
