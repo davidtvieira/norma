@@ -32,14 +32,16 @@ export interface ExportedModel {
   modelName: string;
   datasetId: string;
   /**
-   * The one operation whose literal value is what a caller of the model fills in, and the one
-   * operation whose result is what a caller sees as "the" answer — set by the model's author (see
-   * OperationPanel's model-input/model-output pickers) so utilizing a model (ModelCard) doesn't
-   * expose every operation's own input/result, only these two. Null until the author has picked
-   * one (or, for a model exported before this existed, always null).
+   * The operations whose literal values are what a caller of the model fills in (possibly
+   * several, each filled in separately — possibly none, for a model with nothing dynamic left to
+   * fill in), and the operations whose results are what a caller sees as "the" answer(s) —
+   * possibly several too — set by the model's author (see OperationPanel's model-input/
+   * model-output pickers) so utilizing a model (ModelCard) doesn't expose every operation's own
+   * input/result, only these. Both empty until the author has picked at least one (or, for a
+   * model exported before this existed, always empty).
    */
-  inputOperationId: string | null;
-  outputOperationId: string | null;
+  inputOperationIds: string[];
+  outputOperationIds: string[];
   operations: ExportedOperationNode[];
 }
 
@@ -87,8 +89,8 @@ export function buildModelExport(
   entries: SerializableEntry[],
   modelName: string,
   datasetId: string,
-  inputOperationId: string | null,
-  outputOperationId: string | null,
+  inputOperationIds: string[],
+  outputOperationIds: string[],
 ): ExportedModel {
   const confirmedEntries = entries.filter((entry) => entry.confirmed);
   const roots = confirmedEntries.filter((entry) => !isLinkedChild(entry, confirmedEntries));
@@ -96,8 +98,8 @@ export function buildModelExport(
     version: MODEL_EXPORT_VERSION,
     modelName,
     datasetId,
-    inputOperationId,
-    outputOperationId,
+    inputOperationIds,
+    outputOperationIds,
     operations: roots.map((entry) => toNode(entry, confirmedEntries)),
   };
 }
@@ -129,8 +131,20 @@ function flattenNode(node: unknown, knownKindIds: Set<string>, out: Serializable
   }
 }
 
-function readOperationId(value: unknown): string | null {
-  return typeof value === 'string' ? value : null;
+/**
+ * Reads one of the model's designated input/output lists, tolerating a file exported before a
+ * model could have more than one of either: the current array field (`arrayField`) if present,
+ * falling back to wrapping the old singular field (`legacyField`, e.g. `inputOperationId` or
+ * `outputOperationId`) into a one-element array if that one's set, or an empty array for either a
+ * model with none at all or one exported before either field existed.
+ */
+function readOperationIds(model: Record<string, unknown>, arrayField: string, legacyField: string): string[] {
+  const current = model[arrayField];
+  if (Array.isArray(current)) {
+    return current.filter((id): id is string => typeof id === 'string');
+  }
+  const legacy = model[legacyField];
+  return typeof legacy === 'string' ? [legacy] : [];
 }
 
 /**
@@ -159,10 +173,11 @@ export function parseModelImport(raw: string, knownKindIds: Set<string>): Export
   // Missing on a model exported before the input/output pickers existed — treated as "not set
   // yet" rather than rejecting the file, same as a freshly created model before its author has
   // picked one.
+  const rawModel = model as unknown as Record<string, unknown>;
   return {
     ...model,
-    inputOperationId: readOperationId(model.inputOperationId),
-    outputOperationId: readOperationId(model.outputOperationId),
+    inputOperationIds: readOperationIds(rawModel, 'inputOperationIds', 'inputOperationId'),
+    outputOperationIds: readOperationIds(rawModel, 'outputOperationIds', 'outputOperationId'),
     entries,
   };
 }

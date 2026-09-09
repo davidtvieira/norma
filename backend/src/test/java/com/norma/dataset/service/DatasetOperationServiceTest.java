@@ -9,6 +9,8 @@ import com.norma.dataset.dto.LookupResponse;
 import com.norma.dataset.dto.ModelOperationInput;
 import com.norma.dataset.dto.ModelOperationResult;
 import com.norma.dataset.dto.ModelRegisterRequest;
+import com.norma.dataset.dto.NodeRequest;
+import com.norma.dataset.dto.NodeResponse;
 import com.norma.dataset.dto.RowData;
 import com.norma.dataset.dto.SheetData;
 import com.norma.dataset.dto.SumRequest;
@@ -47,16 +49,29 @@ class DatasetOperationServiceTest {
         return dataset.datasetId();
     }
 
-    /** Registers a model and immediately runs it — the shape most of these tests only care about. */
+    /**
+     * Registers a model with a single designated output and immediately runs it, returning that
+     * one result — the shape most of these tests only care about; see registerAndRunMulti for
+     * tests exercising more than one designated output at once.
+     */
     private ModelOperationResult registerAndRun(
             String datasetId,
             List<ModelOperationInput> operations,
-            String inputOperationId,
+            List<String> inputOperationIds,
             String outputOperationId,
-            String inputValue) {
+            Map<String, String> inputValues) {
+        return registerAndRunMulti(datasetId, operations, inputOperationIds, List.of(outputOperationId), inputValues).get(0);
+    }
+
+    private List<ModelOperationResult> registerAndRunMulti(
+            String datasetId,
+            List<ModelOperationInput> operations,
+            List<String> inputOperationIds,
+            List<String> outputOperationIds,
+            Map<String, String> inputValues) {
         String modelId = datasetOperationService.registerModel(
-                datasetId, new ModelRegisterRequest("Test model", operations, inputOperationId, outputOperationId));
-        return datasetOperationService.runModel(datasetId, modelId, inputValue);
+                datasetId, new ModelRegisterRequest("Test model", operations, inputOperationIds, outputOperationIds));
+        return datasetOperationService.runModel(datasetId, modelId, inputValues);
     }
 
     @Test
@@ -379,9 +394,9 @@ class DatasetOperationServiceTest {
                 "resultColumn", 1));
 
         String modelId = datasetOperationService.registerModel(
-                datasetId, new ModelRegisterRequest("Test model", List.of(lookup), "op-1", "op-1"));
+                datasetId, new ModelRegisterRequest("Test model", List.of(lookup), List.of("op-1"), List.of("op-1")));
 
-        ModelOperationResult result = datasetOperationService.runModel(datasetId, modelId, "3");
+        ModelOperationResult result = datasetOperationService.runModel(datasetId, modelId, Map.of("op-1", "3")).get(0);
 
         assertThat(result.success()).isTrue();
         assertThat(result.value()).isEqualTo("Carla");
@@ -398,9 +413,9 @@ class DatasetOperationServiceTest {
                 "resultColumn", 1));
 
         String modelId = datasetOperationService.registerModel(
-                datasetId, new ModelRegisterRequest("Test model", List.of(lookup), "op-1", "op-1"));
+                datasetId, new ModelRegisterRequest("Test model", List.of(lookup), List.of("op-1"), List.of("op-1")));
 
-        ModelOperationResult result = datasetOperationService.runModel(datasetId, modelId, null);
+        ModelOperationResult result = datasetOperationService.runModel(datasetId, modelId, null).get(0);
 
         assertThat(result.success()).isTrue();
         assertThat(result.value()).isNull();
@@ -424,7 +439,7 @@ class DatasetOperationServiceTest {
                 "sheetIndex", 0, "range", Map.of("startRow", 0, "endRow", 0, "startColumn", 0, "endColumn", 0))));
 
         assertThatThrownBy(() -> datasetOperationService.registerModel(
-                datasetId, new ModelRegisterRequest("Test model", operations, null, "does-not-exist")))
+                datasetId, new ModelRegisterRequest("Test model", operations, null, List.of("does-not-exist"))))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -434,7 +449,7 @@ class DatasetOperationServiceTest {
                 "sheetIndex", 0, "range", Map.of("startRow", 0, "endRow", 0, "startColumn", 0, "endColumn", 0))));
 
         assertThatThrownBy(() -> datasetOperationService.registerModel(
-                "missing-dataset", new ModelRegisterRequest("Test model", operations, null, "op-1")))
+                "missing-dataset", new ModelRegisterRequest("Test model", operations, null, List.of("op-1"))))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -537,6 +552,179 @@ class DatasetOperationServiceTest {
     }
 
     @Test
+    void passesAValueThroughViaTheLiveNodeEndpoint() {
+        NodeResponse response = datasetOperationService.node(new NodeRequest("Bruno"));
+
+        assertThat(response.value()).isEqualTo("Bruno");
+    }
+
+    @Test
+    void treatsANullValueAsAnEmptyStringForTheLiveNodeEndpoint() {
+        NodeResponse response = datasetOperationService.node(new NodeRequest(null));
+
+        assertThat(response.value()).isEqualTo("");
+    }
+
+    @Test
+    void aNodeWithALiteralValuePassesItThroughAsItsResult() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationInput node = new ModelOperationInput("op-1", "node", Map.of("input", literalInput("Bruno")));
+
+        ModelOperationResult result = registerAndRun(datasetId, List.of(node), null, "op-1", null);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.value()).isEqualTo("Bruno");
+    }
+
+    @Test
+    void aNodesValueCanBeChainedIntoAnotherOperationsInput() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationInput node = new ModelOperationInput("op-node", "node", Map.of("input", literalInput("Bruno")));
+        ModelOperationInput lookup = new ModelOperationInput("op-lookup", "lookup", Map.of(
+                "input", referenceInput("op-node"),
+                "sheetIndex", 0,
+                "searchColumn", 1,
+                "resultColumn", 0));
+
+        ModelOperationResult result = registerAndRun(datasetId, List.of(node, lookup), null, "op-lookup", null);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.value()).isEqualTo("2");
+    }
+
+    @Test
+    void aModelCanHaveSeveralDesignatedInputsEachOverriddenIndependentlyAtRunTime() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationInput nodeA = new ModelOperationInput("op-a", "node", Map.of("input", literalInput("unused-a")));
+        ModelOperationInput nodeB = new ModelOperationInput("op-b", "node", Map.of("input", literalInput("unused-b")));
+        // The output chains through a counter that adds both nodes' (overridden) values together —
+        // this is the whole point of allowing more than one designated input: a caller fills in
+        // two separate values, not just one.
+        ModelOperationInput counter = new ModelOperationInput("op-counter", "counter", Map.of(
+                "inputs", List.of(referenceInput("op-a"), referenceInput("op-b"))));
+
+        String modelId = datasetOperationService.registerModel(datasetId, new ModelRegisterRequest(
+                "Test model", List.of(nodeA, nodeB, counter), List.of("op-a", "op-b"), List.of("op-counter")));
+
+        ModelOperationResult result = datasetOperationService.runModel(
+                datasetId, modelId, Map.of("op-a", "10", "op-b", "5")).get(0);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.value()).isEqualTo(15L);
+    }
+
+    @Test
+    void treatsAMissingEntryForOneOfSeveralDesignatedInputsAsAnEmptyString() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationInput nodeA = new ModelOperationInput("op-a", "node", Map.of("input", literalInput("unused")));
+        ModelOperationInput nodeB = new ModelOperationInput("op-b", "node", Map.of("input", literalInput("unused")));
+
+        String modelId = datasetOperationService.registerModel(datasetId, new ModelRegisterRequest(
+                "Test model", List.of(nodeA, nodeB), List.of("op-a", "op-b"), List.of("op-b")));
+
+        // Only op-a's value is supplied; op-b (also a designated input) gets no entry, so its
+        // node passes through an empty string rather than the literal it was registered with.
+        ModelOperationResult result = datasetOperationService.runModel(datasetId, modelId, Map.of("op-a", "10")).get(0);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.value()).isEqualTo("");
+    }
+
+    @Test
+    void rejectsRegisteringAModelWhoseInputsIncludeAnUnknownOperation() {
+        String datasetId = twoSheetDataset();
+        List<ModelOperationInput> operations = List.of(new ModelOperationInput("op-1", "sum", Map.of(
+                "sheetIndex", 0, "range", Map.of("startRow", 0, "endRow", 0, "startColumn", 0, "endColumn", 0))));
+
+        assertThatThrownBy(() -> datasetOperationService.registerModel(
+                datasetId, new ModelRegisterRequest("Test model", operations, List.of("does-not-exist"), List.of("op-1"))))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void aModelCanHaveSeveralDesignatedOutputsEachReturnedSeparately() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationInput findAna = new ModelOperationInput("op-a", "lookup", Map.of(
+                "input", literalInput("Ana"), "sheetIndex", 0, "searchColumn", 1, "resultColumn", 0));
+        ModelOperationInput findBruno = new ModelOperationInput("op-b", "lookup", Map.of(
+                "input", literalInput("Bruno"), "sheetIndex", 0, "searchColumn", 1, "resultColumn", 0));
+
+        List<ModelOperationResult> results = registerAndRunMulti(
+                datasetId, List.of(findAna, findBruno), null, List.of("op-a", "op-b"), null);
+
+        assertThat(results).hasSize(2);
+        assertThat(results.get(0).id()).isEqualTo("op-a");
+        assertThat(results.get(0).value()).isEqualTo("1");
+        assertThat(results.get(1).id()).isEqualTo("op-b");
+        assertThat(results.get(1).value()).isEqualTo("2");
+    }
+
+    @Test
+    void reusesAResultAcrossSeveralOutputsThatShareAChainedDependency() {
+        String datasetId = twoSheetDataset();
+
+        // op-id and op-order both sit on the same chain (op-order depends on op-id, which depends
+        // on op-node) — naming both as separate outputs must compute op-node and op-id once each
+        // and reuse them, per the shared resolution cache, not recompute per output.
+        ModelOperationInput node = new ModelOperationInput("op-node", "node", Map.of("input", literalInput("Bruno")));
+        ModelOperationInput findId = new ModelOperationInput("op-id", "lookup", Map.of(
+                "input", referenceInput("op-node"), "sheetIndex", 0, "searchColumn", 1, "resultColumn", 0));
+        ModelOperationInput findOrder = new ModelOperationInput("op-order", "lookup", Map.of(
+                "input", referenceInput("op-id"), "sheetIndex", 1, "searchColumn", 0, "resultColumn", 1));
+
+        List<ModelOperationResult> results = registerAndRunMulti(
+                datasetId, List.of(node, findId, findOrder), null, List.of("op-id", "op-order"), null);
+
+        assertThat(results).hasSize(2);
+        assertThat(results.get(0).value()).isEqualTo("2");
+        assertThat(results.get(1).value()).isEqualTo("Caneta");
+    }
+
+    @Test
+    void oneOutputsErrorDoesNotStopAnotherOutputFromResolving() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationInput broken = new ModelOperationInput("op-broken", "lookup", Map.of(
+                "input", referenceInput("does-not-exist"), "sheetIndex", 0, "searchColumn", 0, "resultColumn", 1));
+        ModelOperationInput sum = new ModelOperationInput("op-sum", "sum", Map.of(
+                "sheetIndex", 0, "range", Map.of("startRow", 0, "endRow", 0, "startColumn", 0, "endColumn", 0)));
+
+        List<ModelOperationResult> results = registerAndRunMulti(
+                datasetId, List.of(broken, sum), null, List.of("op-broken", "op-sum"), null);
+
+        assertThat(results).hasSize(2);
+        assertThat(results.get(0).success()).isFalse();
+        assertThat(results.get(1).success()).isTrue();
+    }
+
+    @Test
+    void rejectsRegisteringAModelWhoseOutputsIncludeAnUnknownOperation() {
+        String datasetId = twoSheetDataset();
+        List<ModelOperationInput> operations = List.of(new ModelOperationInput("op-1", "sum", Map.of(
+                "sheetIndex", 0, "range", Map.of("startRow", 0, "endRow", 0, "startColumn", 0, "endColumn", 0))));
+
+        assertThatThrownBy(() -> datasetOperationService.registerModel(datasetId, new ModelRegisterRequest(
+                "Test model", operations, null, List.of("op-1", "does-not-exist"))))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsRegisteringAModelWithAnEmptyOutputList() {
+        String datasetId = twoSheetDataset();
+        List<ModelOperationInput> operations = List.of(new ModelOperationInput("op-1", "sum", Map.of(
+                "sheetIndex", 0, "range", Map.of("startRow", 0, "endRow", 0, "startColumn", 0, "endColumn", 0))));
+
+        assertThatThrownBy(() -> datasetOperationService.registerModel(
+                datasetId, new ModelRegisterRequest("Test model", operations, null, List.of())))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void rejectsAnUnknownModelIdWhenRunning() {
         String datasetId = twoSheetDataset();
 
@@ -550,7 +738,7 @@ class DatasetOperationServiceTest {
         List<ModelOperationInput> operations = List.of(new ModelOperationInput("op-1", "sum", Map.of(
                 "sheetIndex", 0, "range", Map.of("startRow", 0, "endRow", 0, "startColumn", 0, "endColumn", 0))));
         String modelId = datasetOperationService.registerModel(
-                datasetId, new ModelRegisterRequest("Test model", operations, null, "op-1"));
+                datasetId, new ModelRegisterRequest("Test model", operations, null, List.of("op-1")));
 
         String otherDatasetId = storeDataset(
                 new DatasetImportResponse("dataset-other", "other.xlsx", Instant.now(), List.of()));

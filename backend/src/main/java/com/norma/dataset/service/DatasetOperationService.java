@@ -9,6 +9,8 @@ import com.norma.dataset.dto.LookupResponse;
 import com.norma.dataset.dto.ModelOperationInput;
 import com.norma.dataset.dto.ModelOperationResult;
 import com.norma.dataset.dto.ModelRegisterRequest;
+import com.norma.dataset.dto.NodeRequest;
+import com.norma.dataset.dto.NodeResponse;
 import com.norma.dataset.dto.RowData;
 import com.norma.dataset.dto.SheetData;
 import com.norma.dataset.dto.SumRequest;
@@ -105,10 +107,21 @@ public class DatasetOperationService {
     }
 
     /**
+     * Passes a value straight through — the live-editor counterpart of {@link #computeNode},
+     * called the same way lookup/sum/counter's own live endpoints are while a model is being
+     * built. A node does no computation and has no dataset dependency; this exists purely so a
+     * node's own result-reporting (and therefore its testSignal-gated "Testar modelo" flow) works
+     * the same way every other kind's does.
+     */
+    public NodeResponse node(NodeRequest request) {
+        return new NodeResponse(request.value() == null ? "" : request.value());
+    }
+
+    /**
      * Registers a model against a previously imported dataset so it can be run repeatedly
      * afterwards (see {@link #runModel}) without resending its operations on every run — only
-     * the model's id, kept in memory by {@link ModelStore}, and (on each run) the one value a
-     * caller supplies for its designated input, if it has one.
+     * the model's id, kept in memory by {@link ModelStore}, and (on each run) the values a caller
+     * supplies for its designated input operations, if it has any.
      */
     public String registerModel(String datasetId, ModelRegisterRequest request) {
         datasetStore.get(datasetId)
@@ -119,32 +132,40 @@ public class DatasetOperationService {
         if (operations == null || operations.isEmpty()) {
             throw new IllegalArgumentException("O modelo não tem operações.");
         }
-        if (request.outputOperationId() == null || request.outputOperationId().isBlank()) {
+        List<String> outputOperationIds = request.outputOperationIds() == null ? List.of() : request.outputOperationIds();
+        if (outputOperationIds.isEmpty()) {
             throw new IllegalArgumentException("O modelo não tem um output definido.");
         }
 
         Set<String> ids = operations.stream().map(ModelOperationInput::id).collect(Collectors.toSet());
-        if (!ids.contains(request.outputOperationId())) {
-            throw new IllegalArgumentException("O output indicado não corresponde a nenhuma operação do modelo.");
+        for (String outputOperationId : outputOperationIds) {
+            if (!ids.contains(outputOperationId)) {
+                throw new IllegalArgumentException("Um dos outputs indicados não corresponde a nenhuma operação do modelo.");
+            }
         }
-        if (request.inputOperationId() != null && !ids.contains(request.inputOperationId())) {
-            throw new IllegalArgumentException("O input indicado não corresponde a nenhuma operação do modelo.");
+        List<String> inputOperationIds = request.inputOperationIds() == null ? List.of() : request.inputOperationIds();
+        for (String inputOperationId : inputOperationIds) {
+            if (!ids.contains(inputOperationId)) {
+                throw new IllegalArgumentException("Um dos inputs indicados não corresponde a nenhuma operação do modelo.");
+            }
         }
 
-        StoredModel model = new StoredModel(
-                datasetId, request.name(), operations, request.inputOperationId(), request.outputOperationId());
+        StoredModel model = new StoredModel(datasetId, request.name(), operations, inputOperationIds, outputOperationIds);
         return modelStore.put(model);
     }
 
     /**
-     * Runs a previously registered model and returns only its designated output's result — every
-     * other operation in the model is still computed as needed to resolve the reference chain
-     * leading to that output (kinds are dispatched, and "reference" inputs resolved, the same way
-     * as the single-operation endpoints), it just was never something a caller needed to see.
-     * {@code inputValue} overrides the literal value of the model's designated input operation
-     * for this run (ignored if the model was registered without one).
+     * Runs a previously registered model and returns one result per designated output (always at
+     * least one) — every other operation in the model is still computed as needed to resolve the
+     * reference chain leading to each of them (kinds are dispatched, and "reference" inputs
+     * resolved, the same way as the single-operation endpoints), it just was never something a
+     * caller needed to see. {@code inputValues}, keyed by operation id, overrides the literal
+     * value of each of the model's designated input operations for this run (ignored for a model
+     * registered without any; an input operation missing its own entry is treated as an empty
+     * string). A shared resolution cache is used across every output so an operation more than one
+     * output's chain depends on is only ever computed once per run.
      */
-    public ModelOperationResult runModel(String datasetId, String modelId, String inputValue) {
+    public List<ModelOperationResult> runModel(String datasetId, String modelId, Map<String, String> inputValues) {
         StoredModel model = modelStore.get(modelId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Modelo não encontrado. Volte a preparar o modelo antes de o correr."));
@@ -157,7 +178,7 @@ public class DatasetOperationService {
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Conjunto de dados não encontrado. Volte a importar o ficheiro."));
 
-        List<ModelOperationInput> operations = withInputOverride(model, inputValue);
+        List<ModelOperationInput> operations = withInputOverride(model, inputValues);
 
         Map<String, ModelOperationInput> byId = new LinkedHashMap<>();
         for (ModelOperationInput operation : operations) {
@@ -165,23 +186,34 @@ public class DatasetOperationService {
         }
 
         Set<String> cyclicIds = findCyclicIds(buildReferenceGraph(operations));
-        return resolveOperation(model.outputOperationId(), dataset, byId, cyclicIds, new HashMap<>());
+        Map<String, ModelOperationResult> resolved = new HashMap<>();
+        return model.outputOperationIds().stream()
+                .map(outputOperationId -> resolveOperation(outputOperationId, dataset, byId, cyclicIds, resolved))
+                .toList();
     }
 
     /**
-     * Swaps the registered input operation's "input" field for a literal wrapping the value this
-     * run actually supplies — every other operation's fields are used exactly as registered.
+     * Swaps each registered input operation's "input" field for a literal wrapping the value this
+     * run actually supplies for it — every other operation's fields (including any input
+     * operation missing its own entry in {@code inputValues}, treated as an empty string) are
+     * used exactly as registered.
      */
-    private List<ModelOperationInput> withInputOverride(StoredModel model, String inputValue) {
-        if (model.inputOperationId() == null) {
+    private List<ModelOperationInput> withInputOverride(StoredModel model, Map<String, String> inputValues) {
+        List<String> inputOperationIds = model.inputOperationIds();
+        if (inputOperationIds == null || inputOperationIds.isEmpty()) {
             return model.operations();
         }
-        String value = inputValue == null ? "" : inputValue;
+        Map<String, String> values = inputValues == null ? Map.of() : inputValues;
+        Set<String> inputIds = Set.copyOf(inputOperationIds);
         return model.operations().stream()
-                .map(operation -> operation.id().equals(model.inputOperationId())
-                        ? withLiteralInput(operation, value)
+                .map(operation -> inputIds.contains(operation.id())
+                        ? withLiteralInput(operation, valueOrEmpty(values.get(operation.id())))
                         : operation)
                 .toList();
+    }
+
+    private String valueOrEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     private ModelOperationInput withLiteralInput(ModelOperationInput operation, String value) {
@@ -229,6 +261,7 @@ public class DatasetOperationService {
                 case "lookup" -> computeLookup(operation, dataset, inputValue);
                 case "sum" -> computeSum(operation, dataset);
                 case "counter" -> computeCounter(operation, dataset, byId, cyclicIds, resolved);
+                case "node" -> new ModelOperationResult(id, true, inputValue, null);
                 default -> new ModelOperationResult(id, false, null, "Tipo de operação desconhecido: " + operation.kind());
             };
         } catch (IllegalArgumentException ex) {

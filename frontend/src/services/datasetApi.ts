@@ -6,6 +6,7 @@ import type {
   ModelOperationResultPayload,
   ModelRegisterResponsePayload,
 } from '../types/modelCalculation';
+import type { NodeRequestPayload, NodeResponsePayload } from '../types/node';
 import type { OperationType } from '../types/operation';
 import type { SumRequestPayload, SumResponsePayload } from '../types/sum';
 
@@ -113,24 +114,45 @@ export async function counterValues(payload: CounterRequestPayload): Promise<Cou
 }
 
 /**
+ * Passes a single value straight through. A node has no dataset dependency and does no
+ * computation — this exists purely so a node's live "result" (reportable to a chained operation
+ * the same way any other kind's is) goes through the API, same as every other kind's.
+ */
+export async function nodeValue(payload: NodeRequestPayload): Promise<NodeResponsePayload> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/dataset/operation/node`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    throw new Error(errorBody?.message ?? `Falha ao processar o valor (estado ${response.status})`);
+  }
+
+  return response.json();
+}
+
+/**
  * Registers a model against a previously imported dataset, once, so it can be run repeatedly
  * afterwards (see runModel) without resending its operations on every run — only the model's id,
- * kept server-side, and (on each run) the one value a caller supplies for its designated input.
- * Used only when utilizing an already-built model (ModelCard) — the editing page (OperationPanel)
- * keeps calling the individual /api/v1/dataset/operation/{lookup,sum} endpoints per operation as
+ * kept server-side, and (on each run) the values a caller supplies for its designated input
+ * operations, if it has any (a model can have several, each filled in separately). Used only when
+ * utilizing an already-built model (ModelCard) — the editing page (OperationPanel) keeps calling
+ * the individual /api/v1/dataset/operation/{lookup,sum,counter,node} endpoints per operation as
  * it's being built, where a live per-field result is what's wanted.
  */
 export async function registerModel(
   datasetId: string,
   name: string,
   operations: ModelOperationInputPayload[],
-  inputOperationId: string | null,
-  outputOperationId: string,
+  inputOperationIds: string[],
+  outputOperationIds: string[],
 ): Promise<ModelRegisterResponsePayload> {
   const response = await fetch(`${API_BASE_URL}/api/v1/dataset/${encodeURIComponent(datasetId)}/model`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, operations, inputOperationId, outputOperationId }),
+    body: JSON.stringify({ name, operations, inputOperationIds, outputOperationIds }),
   });
 
   if (!response.ok) {
@@ -143,21 +165,22 @@ export async function registerModel(
 
 /**
  * Runs a previously registered model — resolving chained (reference) inputs between its
- * operations server-side, the same way as a single-operation call — and returns only its
- * designated output's result, not every operation's. `inputValue` replaces the model's
- * designated input operation's literal value for this run (pass null when the model has none).
+ * operations server-side, the same way as a single-operation call — and returns one result per
+ * designated output (always at least one), not every operation's. `inputValues`, keyed by
+ * operation id, replaces each of the model's designated input operations' literal value for this
+ * run (pass an empty object when the model has none).
  */
 export async function runModel(
   datasetId: string,
   modelId: string,
-  inputValue: string | null,
-): Promise<ModelOperationResultPayload> {
+  inputValues: Record<string, string>,
+): Promise<ModelOperationResultPayload[]> {
   const response = await fetch(
     `${API_BASE_URL}/api/v1/dataset/${encodeURIComponent(datasetId)}/model/${encodeURIComponent(modelId)}/run`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ inputValue }),
+      body: JSON.stringify({ inputValues }),
     },
   );
 

@@ -34,11 +34,12 @@ function App() {
   // Mirrors OperationPanel's own entry list (see onEntriesChange) purely so "Guardar modelo" can
   // export it — the panel remains the source of truth while editing.
   const [modelEntries, setModelEntries] = useState<SerializableEntry[]>([]);
-  // The model's designated input/output (see SaveModal) — picked in the save modal rather than
+  // The model's designated inputs/outputs (see SaveModal) — picked in the save modal rather than
   // while still building the model, so it doesn't compete for attention with the operations
-  // themselves. Cleared automatically below if the picked operation stops being eligible.
-  const [modelInputId, setModelInputId] = useState<string | null>(null);
-  const [modelOutputId, setModelOutputId] = useState<string | null>(null);
+  // themselves. Cleared automatically below if a picked operation stops being eligible. A model
+  // can have several of each, each independently toggled on its own node.
+  const [modelInputIds, setModelInputIds] = useState<string[]>([]);
+  const [modelOutputIds, setModelOutputIds] = useState<string[]>([]);
   // Set right before switching to the editor screen when a model was imported instead of
   // started fresh — consumed once by OperationPanel's initial state on mount.
   const [pendingImportEntries, setPendingImportEntries] = useState<SerializableEntry[] | undefined>(undefined);
@@ -49,16 +50,16 @@ function App() {
   const [importedModel, setImportedModel] = useState<{
     modelName: string;
     entries: SerializableEntry[];
-    inputOperationId: string | null;
-    outputOperationId: string | null;
+    inputOperationIds: string[];
+    outputOperationIds: string[];
   } | null>(null);
   // Set once a model is being utilized (not edited) — switches to the ModelCard screen instead
   // of the full editor for as long as it's non-null.
   const [utilizeModel, setUtilizeModel] = useState<{
     modelName: string;
     entries: SerializableEntry[];
-    inputOperationId: string | null;
-    outputOperationId: string | null;
+    inputOperationIds: string[];
+    outputOperationIds: string[];
   } | null>(null);
   const { theme, toggleTheme } = useTheme();
 
@@ -75,34 +76,39 @@ function App() {
 
   // An input is only required to export when there's actually an eligible operation for it —
   // e.g. a model built only from a sum has no literal chainable field anywhere, so it's a fixed
-  // model with nothing dynamic for a caller to fill in, and shouldn't need one picked. An output
-  // is still always required once there's a confirmed operation at all: modelOutputOptions can
-  // only be empty when modelEntries has no confirmed entry, which the check below already covers.
+  // model with nothing dynamic for a caller to fill in, and shouldn't need one picked. At least
+  // one must be picked once any are eligible — same guard rail as before, just no longer capping
+  // it at exactly one. An output is still always required once there's a confirmed operation at
+  // all (same "at least one" rule, unconditional rather than gated by eligibility — any confirmed
+  // operation can be an output): modelOutputOptions can only be empty when modelEntries has no
+  // confirmed entry, which the check below already covers.
   const hasConfirmedEntry = modelEntries.some((entry) => entry.confirmed);
   const isModelInputRequired = modelInputOptions.length > 0;
-  const canExportModel = hasConfirmedEntry && (!isModelInputRequired || modelInputId !== null) && modelOutputId !== null;
+  const canExportModel = hasConfirmedEntry && (!isModelInputRequired || modelInputIds.length > 0) && modelOutputIds.length > 0;
   const exportHint = !hasConfirmedEntry
     ? 'Conclua pelo menos uma operação antes de exportar.'
-    : isModelInputRequired && modelInputId === null
-      ? 'Defina o input do modelo (botão "Input" numa operação elegível) antes de exportar.'
-      : modelOutputId === null
-        ? 'Defina o output do modelo (botão "Output" numa operação) antes de exportar.'
+    : isModelInputRequired && modelInputIds.length === 0
+      ? 'Defina pelo menos um input do modelo (botão "Input" numa operação elegível) antes de exportar.'
+      : modelOutputIds.length === 0
+        ? 'Defina pelo menos um output do modelo (botão "Output" numa operação) antes de exportar.'
         : null;
 
-  // Clears a pick that's no longer valid — the operation was deleted, un-confirmed, or (for the
-  // input) switched to a dynamic/reference value after being picked — instead of silently
-  // exporting a model that points at something stale.
+  // Clears any pick that's no longer valid — the operation was deleted, un-confirmed, or switched
+  // to a dynamic/reference value after being picked — instead of silently exporting a model that
+  // points at something stale.
   useEffect(() => {
-    if (modelInputId && !modelInputOptions.some((option) => option.id === modelInputId)) {
-      setModelInputId(null);
-    }
+    setModelInputIds((current) => {
+      const next = current.filter((id) => modelInputOptions.some((option) => option.id === id));
+      return next.length === current.length ? current : next;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modelEntries]);
 
   useEffect(() => {
-    if (modelOutputId && !modelOutputOptions.some((option) => option.id === modelOutputId)) {
-      setModelOutputId(null);
-    }
+    setModelOutputIds((current) => {
+      const next = current.filter((id) => modelOutputOptions.some((option) => option.id === id));
+      return next.length === current.length ? current : next;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modelEntries]);
 
@@ -185,8 +191,8 @@ function App() {
 
   function goToEditorFresh() {
     setPendingImportEntries(undefined);
-    setModelInputId(null);
-    setModelOutputId(null);
+    setModelInputIds([]);
+    setModelOutputIds([]);
     setIsSheetPanelOpen(false);
     setModelCreated(true);
   }
@@ -211,8 +217,8 @@ function App() {
         setImportedModel({
           modelName: imported.modelName,
           entries: imported.entries,
-          inputOperationId: imported.inputOperationId,
-          outputOperationId: imported.outputOperationId,
+          inputOperationIds: imported.inputOperationIds,
+          outputOperationIds: imported.outputOperationIds,
         });
         setImportError(null);
       })
@@ -231,8 +237,8 @@ function App() {
     if (!importedModel) return;
     setModelName(importedModel.modelName);
     setPendingImportEntries(importedModel.entries);
-    setModelInputId(importedModel.inputOperationId);
-    setModelOutputId(importedModel.outputOperationId);
+    setModelInputIds(importedModel.inputOperationIds);
+    setModelOutputIds(importedModel.outputOperationIds);
     setIsSheetPanelOpen(false);
     setModelCreated(true);
   }
@@ -244,7 +250,7 @@ function App() {
 
   function exportModel() {
     if (!dataset) return;
-    const model = buildModelExport(modelEntries, modelName, dataset.datasetId, modelInputId, modelOutputId);
+    const model = buildModelExport(modelEntries, modelName, dataset.datasetId, modelInputIds, modelOutputIds);
     const blob = new Blob([JSON.stringify(model, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -282,7 +288,16 @@ function App() {
   if (utilizeModel) {
     return (
       <div className="app app--landing">
-        <header className="app__topbar">
+        <header className="app__topbar app__topbar--with-title">
+          <nav className="app__breadcrumbs" aria-label="Breadcrumb">
+            <button type="button" className="app__breadcrumb-item" onClick={() => setUtilizeModel(null)}>
+              {dataset.filename}
+            </button>
+            <span className="app__breadcrumb-separator">/</span>
+            <span className="app__breadcrumb-item app__breadcrumb-item--current">
+              {utilizeModel.modelName || 'Modelo sem nome'}
+            </span>
+          </nav>
           <ThemeToggle theme={theme} onToggle={toggleTheme} />
         </header>
 
@@ -291,17 +306,10 @@ function App() {
             dataset={dataset}
             modelName={utilizeModel.modelName}
             entries={utilizeModel.entries}
-            inputOperationId={utilizeModel.inputOperationId}
-            outputOperationId={utilizeModel.outputOperationId}
+            inputOperationIds={utilizeModel.inputOperationIds}
+            outputOperationIds={utilizeModel.outputOperationIds}
+            onBack={() => setUtilizeModel(null)}
           />
-
-          <button
-            type="button"
-            className="app__create-model-button app__create-model-button--back"
-            onClick={() => setUtilizeModel(null)}
-          >
-            ← Voltar
-          </button>
         </div>
 
         <footer className="app__footer">
@@ -314,7 +322,10 @@ function App() {
   if (!modelCreated) {
     return (
       <div className="app app--landing">
-        <header className="app__topbar">
+        <header className="app__topbar app__topbar--with-title">
+          <nav className="app__breadcrumbs" aria-label="Breadcrumb">
+            <span className="app__breadcrumb-item app__breadcrumb-item--current">{dataset.filename}</span>
+          </nav>
           <ThemeToggle theme={theme} onToggle={toggleTheme} />
         </header>
 
@@ -418,10 +429,10 @@ function App() {
             onOperationConfirmed={closeSheetPanel}
             isSheetPanelOpen={isSheetPanelOpen}
             onEntriesChange={setModelEntries}
-            modelInputId={modelInputId}
-            modelOutputId={modelOutputId}
-            onModelInputChange={setModelInputId}
-            onModelOutputChange={setModelOutputId}
+            modelInputIds={modelInputIds}
+            modelOutputIds={modelOutputIds}
+            onModelInputIdsChange={setModelInputIds}
+            onModelOutputIdsChange={setModelOutputIds}
           />
           <button type="button" className="app__save-button" onClick={() => setIsSaveModalOpen(true)}>
             Guardar modelo
@@ -468,8 +479,24 @@ function App() {
         onExport={exportModel}
         canExport={canExportModel}
         exportHint={exportHint}
-        inputLabel={modelInputOptions.find((option) => option.id === modelInputId)?.label ?? (isModelInputRequired ? null : 'nenhum (modelo fixo)')}
-        outputLabel={modelOutputOptions.find((option) => option.id === modelOutputId)?.label ?? null}
+        inputLabel={
+          modelInputIds.length > 0
+            ? modelInputIds
+                .map((id) => modelInputOptions.find((option) => option.id === id)?.label)
+                .filter((label): label is string => Boolean(label))
+                .join(', ')
+            : isModelInputRequired
+              ? null
+              : 'nenhum (modelo fixo)'
+        }
+        outputLabel={
+          modelOutputIds.length > 0
+            ? modelOutputIds
+                .map((id) => modelOutputOptions.find((option) => option.id === id)?.label)
+                .filter((label): label is string => Boolean(label))
+                .join(', ')
+            : null
+        }
       />
     </div>
   );

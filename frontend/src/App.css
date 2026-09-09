@@ -172,12 +172,13 @@
   padding: 1.5rem;
 }
 
+/* Stretched (not centered) so ModelCard can actually fill the available width/height and split
+   itself into a left input half / right output half — see ModelCard.css. */
 .app__utilize-body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
   gap: 1.25rem;
   padding: 1.5rem;
   overflow: auto;

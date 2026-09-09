@@ -4,8 +4,8 @@
  * ModelRegisterResponse/ModelRunRequest/ModelOperationResult records. A model is registered once
  * (POST /api/v1/dataset/{datasetId}/model) against a dataset, getting back a modelId; it's then
  * run repeatedly (POST .../model/{modelId}/run) by that id alone — the operations themselves
- * never need resending, and a run only ever returns the model's designated output, never every
- * operation's result.
+ * never need resending, and a run only ever returns one result per designated output (there's
+ * always at least one, but there can be more), never every operation's result.
  */
 
 export interface ModelOperationInputPayload {
@@ -24,8 +24,8 @@ export interface ModelOperationResultPayload {
 export interface ModelRegisterRequestPayload {
   name: string;
   operations: ModelOperationInputPayload[];
-  inputOperationId: string | null;
-  outputOperationId: string;
+  inputOperationIds: string[];
+  outputOperationIds: string[];
 }
 
 export interface ModelRegisterResponsePayload {

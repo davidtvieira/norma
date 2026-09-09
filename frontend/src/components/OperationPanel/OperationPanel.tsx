@@ -233,7 +233,7 @@ function ConfirmedOperationCard({
 
 // Overrides the API's (English) labels with their Portuguese display names — the id is still
 // what's sent to/matched against the API, only the label shown in the UI is translated here.
-const KIND_LABELS: Record<string, string> = { lookup: 'Pesquisa aninhada', sum: 'Somar', counter: 'Contador' };
+const KIND_LABELS: Record<string, string> = { lookup: 'Pesquisa aninhada', sum: 'Somar', counter: 'Contador', node: 'Nó' };
 
 interface OperationEntryState {
   id: string;
@@ -297,13 +297,14 @@ interface OperationPanelProps {
   isSheetPanelOpen: boolean;
   /** Reports the current entry list up so App.tsx can export it (see the "Guardar modelo" flow). */
   onEntriesChange: (entries: SerializableEntry[]) => void;
-  /** The model's designated input/output operation — picked directly on a node's toggles below
-   * (see ConfirmedOperationCard) instead of in the save modal. Owned by App.tsx, same as the
-   * column/range pick state above, since it has to survive an operation being deleted/edited. */
-  modelInputId: string | null;
-  modelOutputId: string | null;
-  onModelInputChange: (id: string | null) => void;
-  onModelOutputChange: (id: string | null) => void;
+  /** The model's designated inputs/outputs — picked directly on a node's toggles below (see
+   * ConfirmedOperationCard) instead of in the save modal. Owned by App.tsx, same as the
+   * column/range pick state above, since it has to survive an operation being deleted/edited. A
+   * model can have several of each, independently toggled. */
+  modelInputIds: string[];
+  modelOutputIds: string[];
+  onModelInputIdsChange: (ids: string[]) => void;
+  onModelOutputIdsChange: (ids: string[]) => void;
 }
 
 /** An in-progress canvas pan (dragging empty canvas background) or node drag: the pointer
@@ -359,10 +360,10 @@ export function OperationPanel({
   onOperationConfirmed,
   isSheetPanelOpen,
   onEntriesChange,
-  modelInputId,
-  modelOutputId,
-  onModelInputChange,
-  onModelOutputChange,
+  modelInputIds,
+  modelOutputIds,
+  onModelInputIdsChange,
+  onModelOutputIdsChange,
 }: OperationPanelProps) {
   const [entries, setEntries] = useState<OperationEntryState[]>(() =>
     (initialEntries ?? []).map((entry, index) => ({ ...entry, position: placementFor(index) })),
@@ -703,11 +704,19 @@ export function OperationPanel({
         onMouseEnter={() => setHoveredOperationId(entry.id)}
         onMouseLeave={() => setHoveredOperationId((current) => (current === entry.id ? null : current))}
         onReveal={() => revealEntry(entry)}
-        isModelInput={modelInputId === entry.id}
+        isModelInput={modelInputIds.includes(entry.id)}
         isModelInputEligible={isModelInputEligible}
-        onToggleModelInput={() => onModelInputChange(modelInputId === entry.id ? null : entry.id)}
-        isModelOutput={modelOutputId === entry.id}
-        onToggleModelOutput={() => onModelOutputChange(modelOutputId === entry.id ? null : entry.id)}
+        onToggleModelInput={() =>
+          onModelInputIdsChange(
+            modelInputIds.includes(entry.id) ? modelInputIds.filter((id) => id !== entry.id) : [...modelInputIds, entry.id],
+          )
+        }
+        isModelOutput={modelOutputIds.includes(entry.id)}
+        onToggleModelOutput={() =>
+          onModelOutputIdsChange(
+            modelOutputIds.includes(entry.id) ? modelOutputIds.filter((id) => id !== entry.id) : [...modelOutputIds, entry.id],
+          )
+        }
       >
         {kind.renderBody({
           fields: entry.fields,

@@ -7,12 +7,13 @@ import java.util.List;
 /**
  * A model registered via POST /api/v1/dataset/{datasetId}/model, kept in memory (see ModelStore)
  * so a later run (POST .../model/{modelId}/run) doesn't need the operations resent — only the
- * one value a caller supplies for {@code inputOperationId}, if the model has one.
+ * values a caller supplies for {@code inputOperationIds}, if the model has any. A run returns one
+ * result per entry in {@code outputOperationIds} (always at least one).
  */
 record StoredModel(
         String datasetId,
         String name,
         List<ModelOperationInput> operations,
-        String inputOperationId,
-        String outputOperationId) {
+        List<String> inputOperationIds,
+        List<String> outputOperationIds) {
 }

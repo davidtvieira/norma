@@ -14,41 +14,45 @@ interface ModelCardProps {
   dataset: DatasetImportResponse;
   modelName: string;
   entries: SerializableEntry[];
-  /** The one operation the caller fills in, and the one whose result they see — picked by the
-   * model's author in the editor (see OperationPanel's ModelIOPanel). Every other operation in
-   * `entries` is still computed (a caller-facing output can chain through several internal
-   * operations), just never shown here. */
-  inputOperationId: string | null;
-  outputOperationId: string | null;
+  /** The operations the caller fills in, and the operations whose results they see — both
+   * possibly several, picked by the model's author in the editor (see OperationPanel's
+   * model-input/model-output toggles). Every other operation in `entries` is still computed (a
+   * caller-facing output can chain through several internal operations), just never shown here. */
+  inputOperationIds: string[];
+  outputOperationIds: string[];
+  /** Returns to the screen this model was reached from (see App.tsx) — rendered here, next to
+   * "Correr modelo", rather than as a separate element outside this component. */
+  onBack: () => void;
 }
 
 /**
  * A model previously built in the editor and re-imported to be used, not edited: the model's
- * name, one editable field for its designated input, and one live result for its designated
- * output — every other operation in the model still runs (it may be an internal step the output
- * chains through), it's just not shown or editable here. Unlike the editing page (OperationPanel),
- * which calls one operation endpoint per entry as the model is being built, this screen registers
- * the whole model once (POST /api/v1/dataset/{datasetId}/model) and, from then on, only ever
- * sends the one input value a caller types in — never the operations themselves, and never a
- * per-character request — to POST .../model/{modelId}/run, which resolves the chain between
- * operations server-side and returns only the designated output's result. Only runs when "Correr
- * modelo" is clicked, not on page load and not on every keystroke in the input field.
+ * name, one editable field per designated input (there can be more than one), and one live result
+ * per designated output (there can be more than one of these too) — every other operation in the
+ * model still runs (it may be an internal step an output chains through), it's just not shown or
+ * editable here. Unlike the editing page (OperationPanel), which calls one operation endpoint per
+ * entry as the model is being built, this screen registers the whole model once (POST
+ * /api/v1/dataset/{datasetId}/model) and, from then on, only ever sends the input values a caller
+ * types in — never the operations themselves, and never a per-character request — to POST
+ * .../model/{modelId}/run, which resolves the chain between operations server-side and returns
+ * one result per designated output. Only runs when "Correr modelo" is clicked, not on page load
+ * and not on every keystroke in an input field.
  */
-export function ModelCard({ dataset, modelName, entries, inputOperationId, outputOperationId }: ModelCardProps) {
+export function ModelCard({ dataset, modelName, entries, inputOperationIds, outputOperationIds, onBack }: ModelCardProps) {
   const [fields, setFields] = useState<Record<string, OperationFields>>(() =>
     Object.fromEntries(entries.map((entry) => [entry.id, entry.fields])),
   );
 
   // Null while registration is still in flight (or hasn't started) — "Correr modelo" stays
-  // disabled until there's a model id to run. entries/inputOperationId/outputOperationId are
+  // disabled until there's a model id to run. entries/inputOperationIds/outputOperationIds are
   // fixed for the lifetime of this screen (the model as imported/built), so this only needs to
-  // happen once, against the dataset — never resent as the caller edits the input field.
+  // happen once, against the dataset — never resent as the caller edits an input field.
   const [modelId, setModelId] = useState<string | null>(null);
   const [registerError, setRegisterError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    if (!outputOperationId) {
+    if (outputOperationIds.length === 0) {
       return;
     }
 
@@ -56,8 +60,8 @@ export function ModelCard({ dataset, modelName, entries, inputOperationId, outpu
       dataset.datasetId,
       modelName,
       entries.map((entry) => ({ id: entry.id, kind: entry.kindId, fields: entry.fields })),
-      inputOperationId,
-      outputOperationId,
+      inputOperationIds,
+      outputOperationIds,
     )
       .then((response) => {
         if (!cancelled) setModelId(response.modelId);
@@ -74,7 +78,9 @@ export function ModelCard({ dataset, modelName, entries, inputOperationId, outpu
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataset.datasetId]);
 
-  const [result, setResult] = useState<ModelOperationResultPayload | null>(null);
+  // One result per designated output, in whatever order the run returned them (matched back up
+  // to its own operation below by id, not position).
+  const [results, setResults] = useState<ModelOperationResultPayload[] | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   // Distinguishes "never run" (nothing to show yet) from "ran and genuinely found nothing" —
@@ -97,23 +103,27 @@ export function ModelCard({ dataset, modelName, entries, inputOperationId, outpu
     const runId = ++runIdRef.current;
     setIsRunning(true);
 
-    // Always a literal in practice — only a literal-input operation is eligible to be a model's
-    // designated input (see App.tsx's modelInputOptions) — but ValueSource is a union, so this
-    // still needs to narrow before reading .value.
-    const source = inputOperationId ? getInputSource(fields[inputOperationId]) : null;
-    const inputValue = source && source.type === 'literal' ? source.value : null;
+    // Always a literal in practice — only a literal-input operation is eligible to be one of a
+    // model's designated inputs (see App.tsx's modelInputOptions) — but ValueSource is a union,
+    // so this still needs to narrow before reading .value.
+    const inputValues = Object.fromEntries(
+      inputOperationIds.map((id) => {
+        const source = getInputSource(fields[id]);
+        return [id, source.type === 'literal' ? source.value : ''];
+      }),
+    );
 
-    runModel(dataset.datasetId, modelId, inputValue)
+    runModel(dataset.datasetId, modelId, inputValues)
       .then((response) => {
         if (runId !== runIdRef.current) return;
-        setResult(response);
+        setResults(response);
         setRunError(null);
         setIsRunning(false);
         setHasRun(true);
       })
       .catch((error) => {
         if (runId !== runIdRef.current) return;
-        setResult(null);
+        setResults(null);
         setRunError(error instanceof Error ? error.message : 'Falha ao correr o modelo.');
         setIsRunning(false);
         setHasRun(true);
@@ -124,61 +134,89 @@ export function ModelCard({ dataset, modelName, entries, inputOperationId, outpu
     setFields((current) => ({ ...current, [id]: { ...current[id], ...patch } }));
   }
 
-  // Null is a legitimate, permanent state for the input (not just "not set up yet") — a model
-  // built with no operation eligible to be one (e.g. only a sum, which has no literal chainable
-  // field at all) is a fixed model with nothing dynamic for a caller to fill in. The output has
-  // no such case: some confirmed operation's result is always what the model computes, so a
-  // missing one really does mean the model isn't finished.
-  const inputEntry = entries.find((entry) => entry.id === inputOperationId) ?? null;
-  const outputEntry = entries.find((entry) => entry.id === outputOperationId) ?? null;
+  // Both an empty inputOperationIds and (validated at registration, never actually empty once a
+  // model can be exported at all) outputOperationIds are legitimate, permanent states — a model
+  // built with no operation eligible to be an input (e.g. only a sum, which has no literal
+  // chainable field at all) is a fixed model with nothing dynamic for a caller to fill in.
+  const inputEntries = inputOperationIds
+    .map((id) => entries.find((entry) => entry.id === id))
+    .filter((entry): entry is SerializableEntry => entry !== undefined);
+  const outputEntries = outputOperationIds
+    .map((id) => entries.find((entry) => entry.id === id))
+    .filter((entry): entry is SerializableEntry => entry !== undefined);
 
-  if (!outputEntry) {
+  if (outputEntries.length === 0) {
     return (
-      <div className="model-card">
-        <h2 className="model-card__title">{modelName || 'Modelo sem nome'}</h2>
+      <div className="model-card model-card--empty">
         <p className="model-card__missing-io">
           Este modelo ainda não tem um output definido. Edite o modelo e escolha-o antes de o utilizar.
         </p>
+        <div className="model-card__actions">
+          <button type="button" className="app__create-model-button app__create-model-button--back" onClick={onBack}>
+            ← Voltar
+          </button>
+        </div>
       </div>
     );
   }
 
-  const inputKind = inputEntry ? KINDS_BY_ID[inputEntry.kindId] : null;
-
   return (
     <div className="model-card">
-      <h2 className="model-card__title">{modelName || 'Modelo sem nome'}</h2>
-
       <div className="model-card__io">
-        {inputEntry && inputKind && (
-          <div className="model-card__field">
-            <h3 className="model-card__field-name">{inputEntry.name || 'Input'}</h3>
-            {inputKind.renderInputEditor?.({
-              fields: fields[inputEntry.id],
-              updateFields: (patch) => updateEntryFields(inputEntry.id, patch),
-              resolvedInput: resolvedInputs[inputEntry.id][0],
-            })}
+        {inputEntries.length > 0 && (
+          <div className="model-card__io-panel">
+            <div className="model-card__io-panel-content">
+              <h3 className="model-card__io-panel-title">Input</h3>
+              {inputEntries.map((inputEntry) => {
+                const inputKind = KINDS_BY_ID[inputEntry.kindId];
+                if (!inputKind.renderInputEditor) return null;
+                return (
+                  <div key={inputEntry.id} className="model-card__field">
+                    <h3 className="model-card__field-name">{inputEntry.name || 'Input'}</h3>
+                    {inputKind.renderInputEditor({
+                      fields: fields[inputEntry.id],
+                      updateFields: (patch) => updateEntryFields(inputEntry.id, patch),
+                      resolvedInput: resolvedInputs[inputEntry.id][0],
+                    })}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
-        <div className="model-card__field">
-          <h3 className="model-card__field-name">{outputEntry.name || 'Output'}</h3>
-          <ModelOperationResultView
-            hasRun={hasRun}
-            isCalculating={isRunning}
-            value={result && result.success && result.value != null ? String(result.value) : null}
-            error={runError ?? (result && !result.success ? result.error : null)}
-          />
+        <div className="model-card__io-panel">
+          <div className="model-card__io-panel-content">
+            <h3 className="model-card__io-panel-title">Output</h3>
+            {outputEntries.map((outputEntry) => {
+              const outputResult = results?.find((candidate) => candidate.id === outputEntry.id) ?? null;
+              return (
+                <div key={outputEntry.id} className="model-card__field">
+                  <h3 className="model-card__field-name">{outputEntry.name || 'Output'}</h3>
+                  <ModelOperationResultView
+                    hasRun={hasRun}
+                    isCalculating={isRunning}
+                    value={outputResult && outputResult.success && outputResult.value != null ? String(outputResult.value) : null}
+                    error={runError ?? (outputResult && !outputResult.success ? outputResult.error : null)}
+                  />
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      {registerError ? (
-        <p className="model-card__missing-io">{registerError}</p>
-      ) : (
-        <button type="button" className="model-card__run-button" onClick={run} disabled={isRunning || !modelId}>
-          {isRunning ? 'A calcular…' : 'Correr modelo'}
-        </button>
-      )}
+      <div className="model-card__actions">
+        {registerError && <p className="model-card__missing-io">{registerError}</p>}
+        <div className="model-card__actions-row">
+          <button type="button" className="app__create-model-button app__create-model-button--back" onClick={onBack}>
+            ← Voltar
+          </button>
+          <button type="button" className="model-card__run-button" onClick={run} disabled={isRunning || !modelId}>
+            {isRunning ? 'A calcular…' : 'Correr modelo'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
