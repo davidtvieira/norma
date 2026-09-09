@@ -1,7 +1,11 @@
 /**
- * Payload shapes for POST /api/v1/dataset/{datasetId}/model/calculate — the batch endpoint that
- * calculates every operation of a model in one call (see services/datasetApi.ts's
- * calculateModel). Mirrors the backend's ModelOperationInput/ModelCalculateResponse records.
+ * Payload shapes for registering and running a model — see services/datasetApi.ts's
+ * registerModel/runModel. Mirrors the backend's ModelOperationInput/ModelRegisterRequest/
+ * ModelRegisterResponse/ModelRunRequest/ModelOperationResult records. A model is registered once
+ * (POST /api/v1/dataset/{datasetId}/model) against a dataset, getting back a modelId; it's then
+ * run repeatedly (POST .../model/{modelId}/run) by that id alone — the operations themselves
+ * never need resending, and a run only ever returns the model's designated output, never every
+ * operation's result.
  */
 
 export interface ModelOperationInputPayload {
@@ -17,6 +21,13 @@ export interface ModelOperationResultPayload {
   error: string | null;
 }
 
-export interface ModelCalculateResponsePayload {
-  results: ModelOperationResultPayload[];
+export interface ModelRegisterRequestPayload {
+  name: string;
+  operations: ModelOperationInputPayload[];
+  inputOperationId: string | null;
+  outputOperationId: string;
+}
+
+export interface ModelRegisterResponsePayload {
+  modelId: string;
 }

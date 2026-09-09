@@ -2,8 +2,10 @@ package com.norma.dataset.controller;
 
 import com.norma.dataset.dto.LookupRequest;
 import com.norma.dataset.dto.LookupResponse;
-import com.norma.dataset.dto.ModelCalculateRequest;
-import com.norma.dataset.dto.ModelCalculateResponse;
+import com.norma.dataset.dto.ModelOperationResult;
+import com.norma.dataset.dto.ModelRegisterRequest;
+import com.norma.dataset.dto.ModelRegisterResponse;
+import com.norma.dataset.dto.ModelRunRequest;
 import com.norma.dataset.dto.OperationType;
 import com.norma.dataset.dto.SumRequest;
 import com.norma.dataset.dto.SumResponse;
@@ -65,17 +67,32 @@ public class DatasetOperationController {
     }
 
     @Operation(
-            summary = "Calculate a whole model",
-            description = "Runs every operation of a model against a previously imported dataset in a single "
-                    + "call, resolving chained (reference) inputs between operations server-side instead of the "
-                    + "frontend calling one operation endpoint per entry. Meant for utilizing an already-built "
-                    + "model, not for the editing page, which keeps calling the individual operation endpoints "
-                    + "above as the model is being built. One operation failing doesn't stop the others in the "
-                    + "same request from being computed."
+            summary = "Register a model",
+            description = "Registers a model (every operation's kind and fields, plus which one is its "
+                    + "designated input and output) against a previously imported dataset, returning an id to "
+                    + "run it by. Meant for utilizing an already-built model (ModelCard), not for the editing "
+                    + "page, which keeps calling the individual operation endpoints below as the model is being "
+                    + "built. Registering once and running by id (see below) keeps a model's internals — every "
+                    + "table/column/range detail — out of the repeated requests a caller makes while using it."
     )
-    @PostMapping("/api/v1/dataset/{datasetId}/model/calculate")
-    public ResponseEntity<ModelCalculateResponse> calculateModel(
-            @PathVariable String datasetId, @RequestBody ModelCalculateRequest request) {
-        return ResponseEntity.ok(datasetOperationService.calculateModel(datasetId, request.operations()));
+    @PostMapping("/api/v1/dataset/{datasetId}/model")
+    public ResponseEntity<ModelRegisterResponse> registerModel(
+            @PathVariable String datasetId, @RequestBody ModelRegisterRequest request) {
+        String modelId = datasetOperationService.registerModel(datasetId, request);
+        return ResponseEntity.ok(new ModelRegisterResponse(modelId));
+    }
+
+    @Operation(
+            summary = "Run a registered model",
+            description = "Runs a previously registered model — resolving chained (reference) inputs between "
+                    + "its operations server-side, the same way as a single-operation call — and returns only "
+                    + "its designated output's result, not every operation's. The request body's inputValue "
+                    + "replaces the model's designated input operation's literal value for this run (ignored if "
+                    + "the model has none)."
+    )
+    @PostMapping("/api/v1/dataset/{datasetId}/model/{modelId}/run")
+    public ResponseEntity<ModelOperationResult> runModel(
+            @PathVariable String datasetId, @PathVariable String modelId, @RequestBody ModelRunRequest request) {
+        return ResponseEntity.ok(datasetOperationService.runModel(datasetId, modelId, request.inputValue()));
     }
 }

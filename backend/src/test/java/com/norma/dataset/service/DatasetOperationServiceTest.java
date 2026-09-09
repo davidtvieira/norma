@@ -4,9 +4,9 @@ import com.norma.dataset.dto.CellData;
 import com.norma.dataset.dto.DatasetImportResponse;
 import com.norma.dataset.dto.LookupRequest;
 import com.norma.dataset.dto.LookupResponse;
-import com.norma.dataset.dto.ModelCalculateResponse;
 import com.norma.dataset.dto.ModelOperationInput;
 import com.norma.dataset.dto.ModelOperationResult;
+import com.norma.dataset.dto.ModelRegisterRequest;
 import com.norma.dataset.dto.RowData;
 import com.norma.dataset.dto.SheetData;
 import com.norma.dataset.dto.SumRequest;
@@ -23,7 +23,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class DatasetOperationServiceTest {
 
     private final DatasetStore datasetStore = new DatasetStore();
-    private final DatasetOperationService datasetOperationService = new DatasetOperationService(datasetStore);
+    private final ModelStore modelStore = new ModelStore();
+    private final DatasetOperationService datasetOperationService = new DatasetOperationService(datasetStore, modelStore);
 
     private String twoSheetDataset() {
         SheetData clients = new SheetData("Clientes", 3, List.of(
@@ -42,6 +43,18 @@ class DatasetOperationServiceTest {
     private String storeDataset(DatasetImportResponse dataset) {
         datasetStore.put(dataset);
         return dataset.datasetId();
+    }
+
+    /** Registers a model and immediately runs it — the shape most of these tests only care about. */
+    private ModelOperationResult registerAndRun(
+            String datasetId,
+            List<ModelOperationInput> operations,
+            String inputOperationId,
+            String outputOperationId,
+            String inputValue) {
+        String modelId = datasetOperationService.registerModel(
+                datasetId, new ModelRegisterRequest("Test model", operations, inputOperationId, outputOperationId));
+        return datasetOperationService.runModel(datasetId, modelId, inputValue);
     }
 
     @Test
@@ -208,7 +221,7 @@ class DatasetOperationServiceTest {
     }
 
     @Test
-    void calculatesALookupOperationWithALiteralInput() {
+    void runsALookupOperationWithALiteralInput() {
         String datasetId = twoSheetDataset();
 
         ModelOperationInput lookup = new ModelOperationInput("op-1", "lookup", Map.of(
@@ -217,17 +230,15 @@ class DatasetOperationServiceTest {
                 "searchColumn", 0,
                 "resultColumn", 1));
 
-        ModelCalculateResponse response = datasetOperationService.calculateModel(datasetId, List.of(lookup));
+        ModelOperationResult result = registerAndRun(datasetId, List.of(lookup), null, "op-1", null);
 
-        assertThat(response.results()).hasSize(1);
-        ModelOperationResult result = response.results().get(0);
         assertThat(result.success()).isTrue();
         assertThat(result.value()).isEqualTo("Bruno");
         assertThat(result.error()).isNull();
     }
 
     @Test
-    void calculatesASumOperation() {
+    void runsASumOperation() {
         SheetData sales = new SheetData("Vendas", 2, List.of(
                 new RowData(0, List.of(new CellData(0, 10L))),
                 new RowData(1, List.of(new CellData(0, 5L)))
@@ -238,9 +249,8 @@ class DatasetOperationServiceTest {
                 "sheetIndex", 0,
                 "range", Map.of("startRow", 0, "endRow", 1, "startColumn", 0, "endColumn", 0)));
 
-        ModelCalculateResponse response = datasetOperationService.calculateModel(datasetId, List.of(sum));
+        ModelOperationResult result = registerAndRun(datasetId, List.of(sum), null, "op-1", null);
 
-        ModelOperationResult result = response.results().get(0);
         assertThat(result.success()).isTrue();
         // A whole-number sum normalizes to a Long, same as a whole-number cell value already does
         // (see DatasetParserService.normalizeNumber) — so a downstream reference to it stringifies
@@ -266,14 +276,14 @@ class DatasetOperationServiceTest {
                 "searchColumn", 0,
                 "resultColumn", 1));
 
-        ModelCalculateResponse response = datasetOperationService.calculateModel(datasetId, List.of(findId, findOrder));
+        List<ModelOperationInput> operations = List.of(findId, findOrder);
 
-        Map<String, ModelOperationResult> byId = response.results().stream()
-                .collect(java.util.stream.Collectors.toMap(ModelOperationResult::id, r -> r));
+        ModelOperationResult op1Result = registerAndRun(datasetId, operations, null, "op-1", null);
+        assertThat(op1Result.value()).isEqualTo("2");
 
-        assertThat(byId.get("op-1").value()).isEqualTo("2");
-        assertThat(byId.get("op-2").success()).isTrue();
-        assertThat(byId.get("op-2").value()).isEqualTo("Caneta");
+        ModelOperationResult op2Result = registerAndRun(datasetId, operations, null, "op-2", null);
+        assertThat(op2Result.success()).isTrue();
+        assertThat(op2Result.value()).isEqualTo("Caneta");
     }
 
     @Test
@@ -295,17 +305,14 @@ class DatasetOperationServiceTest {
                 "searchColumn", 0,
                 "resultColumn", 1));
 
-        ModelCalculateResponse response = datasetOperationService.calculateModel(datasetId, List.of(sum, findByTotal));
+        ModelOperationResult result = registerAndRun(datasetId, List.of(sum, findByTotal), null, "op-2", null);
 
-        Map<String, ModelOperationResult> byId = response.results().stream()
-                .collect(java.util.stream.Collectors.toMap(ModelOperationResult::id, r -> r));
-
-        assertThat(byId.get("op-2").success()).isTrue();
-        assertThat(byId.get("op-2").value()).isEqualTo("Bruno");
+        assertThat(result.success()).isTrue();
+        assertThat(result.value()).isEqualTo("Bruno");
     }
 
     @Test
-    void reportsACircularReferenceAsAnErrorWithoutFailingTheWholeRequest() {
+    void reportsACircularReferenceAsAnErrorInsteadOfThrowing() {
         String datasetId = twoSheetDataset();
 
         ModelOperationInput opA = new ModelOperationInput("op-a", "lookup", Map.of(
@@ -313,12 +320,10 @@ class DatasetOperationServiceTest {
         ModelOperationInput opB = new ModelOperationInput("op-b", "lookup", Map.of(
                 "input", referenceInput("op-a"), "sheetIndex", 0, "searchColumn", 0, "resultColumn", 1));
 
-        ModelCalculateResponse response = datasetOperationService.calculateModel(datasetId, List.of(opA, opB));
+        ModelOperationResult result = registerAndRun(datasetId, List.of(opA, opB), null, "op-a", null);
 
-        assertThat(response.results()).allSatisfy(result -> {
-            assertThat(result.success()).isFalse();
-            assertThat(result.error()).isNotBlank();
-        });
+        assertThat(result.success()).isFalse();
+        assertThat(result.error()).isNotBlank();
     }
 
     @Test
@@ -328,35 +333,129 @@ class DatasetOperationServiceTest {
         ModelOperationInput lookup = new ModelOperationInput("op-1", "lookup", Map.of(
                 "input", referenceInput("does-not-exist"), "sheetIndex", 0, "searchColumn", 0, "resultColumn", 1));
 
-        ModelCalculateResponse response = datasetOperationService.calculateModel(datasetId, List.of(lookup));
+        ModelOperationResult result = registerAndRun(datasetId, List.of(lookup), null, "op-1", null);
 
-        ModelOperationResult result = response.results().get(0);
         assertThat(result.success()).isFalse();
         assertThat(result.error()).isNotBlank();
     }
 
     @Test
-    void reportsAnUnknownOperationKindAsAnErrorWithoutFailingTheWholeRequest() {
+    void reportsAnUnknownOperationKindOnTheOutputAsAnError() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationInput unknown = new ModelOperationInput("op-1", "does-not-exist", Map.of());
+
+        ModelOperationResult result = registerAndRun(datasetId, List.of(unknown), null, "op-1", null);
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.error()).isNotBlank();
+    }
+
+    @Test
+    void ignoresAnUnrelatedOperationNotOnTheOutputsReferenceChainEvenIfItsKindIsUnknown() {
         String datasetId = twoSheetDataset();
 
         ModelOperationInput unknown = new ModelOperationInput("op-1", "does-not-exist", Map.of());
         ModelOperationInput sum = new ModelOperationInput("op-2", "sum", Map.of(
                 "sheetIndex", 0, "range", Map.of("startRow", 0, "endRow", 0, "startColumn", 0, "endColumn", 0)));
 
-        ModelCalculateResponse response = datasetOperationService.calculateModel(datasetId, List.of(unknown, sum));
+        // Only what the output (op-2) actually depends on gets computed — op-1 is never referenced
+        // by it, so its broken kind never gets in the way of running the model for op-2.
+        ModelOperationResult result = registerAndRun(datasetId, List.of(unknown, sum), null, "op-2", null);
 
-        Map<String, ModelOperationResult> byId = response.results().stream()
-                .collect(java.util.stream.Collectors.toMap(ModelOperationResult::id, r -> r));
-        assertThat(byId.get("op-1").success()).isFalse();
-        assertThat(byId.get("op-2").success()).isTrue();
+        assertThat(result.success()).isTrue();
     }
 
     @Test
-    void rejectsAnUnknownDatasetIdForModelCalculation() {
+    void overridesTheRegisteredInputsLiteralValueAtRunTime() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationInput lookup = new ModelOperationInput("op-1", "lookup", Map.of(
+                "input", literalInput("this value is only used if a run doesn't override it"),
+                "sheetIndex", 0,
+                "searchColumn", 0,
+                "resultColumn", 1));
+
+        String modelId = datasetOperationService.registerModel(
+                datasetId, new ModelRegisterRequest("Test model", List.of(lookup), "op-1", "op-1"));
+
+        ModelOperationResult result = datasetOperationService.runModel(datasetId, modelId, "3");
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.value()).isEqualTo("Carla");
+    }
+
+    @Test
+    void treatsAMissingInputValueAsAnEmptyStringWhenTheModelHasADesignatedInput() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationInput lookup = new ModelOperationInput("op-1", "lookup", Map.of(
+                "input", literalInput("2"),
+                "sheetIndex", 0,
+                "searchColumn", 0,
+                "resultColumn", 1));
+
+        String modelId = datasetOperationService.registerModel(
+                datasetId, new ModelRegisterRequest("Test model", List.of(lookup), "op-1", "op-1"));
+
+        ModelOperationResult result = datasetOperationService.runModel(datasetId, modelId, null);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.value()).isNull();
+    }
+
+    @Test
+    void rejectsRegisteringAModelWithoutAnOutputOperation() {
+        String datasetId = twoSheetDataset();
         List<ModelOperationInput> operations = List.of(new ModelOperationInput("op-1", "sum", Map.of(
                 "sheetIndex", 0, "range", Map.of("startRow", 0, "endRow", 0, "startColumn", 0, "endColumn", 0))));
 
-        assertThatThrownBy(() -> datasetOperationService.calculateModel("missing-dataset", operations))
+        assertThatThrownBy(() -> datasetOperationService.registerModel(
+                datasetId, new ModelRegisterRequest("Test model", operations, null, null)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsRegisteringAModelWhoseOutputDoesNotMatchAnyOperation() {
+        String datasetId = twoSheetDataset();
+        List<ModelOperationInput> operations = List.of(new ModelOperationInput("op-1", "sum", Map.of(
+                "sheetIndex", 0, "range", Map.of("startRow", 0, "endRow", 0, "startColumn", 0, "endColumn", 0))));
+
+        assertThatThrownBy(() -> datasetOperationService.registerModel(
+                datasetId, new ModelRegisterRequest("Test model", operations, null, "does-not-exist")))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsAnUnknownDatasetIdWhenRegisteringAModel() {
+        List<ModelOperationInput> operations = List.of(new ModelOperationInput("op-1", "sum", Map.of(
+                "sheetIndex", 0, "range", Map.of("startRow", 0, "endRow", 0, "startColumn", 0, "endColumn", 0))));
+
+        assertThatThrownBy(() -> datasetOperationService.registerModel(
+                "missing-dataset", new ModelRegisterRequest("Test model", operations, null, "op-1")))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsAnUnknownModelIdWhenRunning() {
+        String datasetId = twoSheetDataset();
+
+        assertThatThrownBy(() -> datasetOperationService.runModel(datasetId, "missing-model", null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsRunningAModelAgainstADifferentDatasetThanItWasRegisteredFor() {
+        String datasetId = twoSheetDataset();
+        List<ModelOperationInput> operations = List.of(new ModelOperationInput("op-1", "sum", Map.of(
+                "sheetIndex", 0, "range", Map.of("startRow", 0, "endRow", 0, "startColumn", 0, "endColumn", 0))));
+        String modelId = datasetOperationService.registerModel(
+                datasetId, new ModelRegisterRequest("Test model", operations, null, "op-1"));
+
+        String otherDatasetId = storeDataset(
+                new DatasetImportResponse("dataset-other", "other.xlsx", Instant.now(), List.of()));
+
+        assertThatThrownBy(() -> datasetOperationService.runModel(otherDatasetId, modelId, null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 }

@@ -4,9 +4,9 @@ import com.norma.dataset.dto.CellData;
 import com.norma.dataset.dto.DatasetImportResponse;
 import com.norma.dataset.dto.LookupRequest;
 import com.norma.dataset.dto.LookupResponse;
-import com.norma.dataset.dto.ModelCalculateResponse;
 import com.norma.dataset.dto.ModelOperationInput;
 import com.norma.dataset.dto.ModelOperationResult;
+import com.norma.dataset.dto.ModelRegisterRequest;
 import com.norma.dataset.dto.RowData;
 import com.norma.dataset.dto.SheetData;
 import com.norma.dataset.dto.SumRequest;
@@ -20,18 +20,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Runs data operations against a dataset previously imported and kept in memory by
- * {@link DatasetStore} — callers reference it by id instead of resending the full JSON.
+ * {@link DatasetStore} — callers reference it by id instead of resending the full JSON. Models
+ * (see {@link ModelStore}) work the same way: registered once, referenced by id on every run.
  */
 @Service
 public class DatasetOperationService {
 
     private final DatasetStore datasetStore;
+    private final ModelStore modelStore;
 
-    public DatasetOperationService(DatasetStore datasetStore) {
+    public DatasetOperationService(DatasetStore datasetStore, ModelStore modelStore) {
         this.datasetStore = datasetStore;
+        this.modelStore = modelStore;
     }
 
     public LookupResponse lookup(LookupRequest request) {
@@ -78,17 +82,59 @@ public class DatasetOperationService {
     }
 
     /**
-     * Runs every operation of a model against a previously imported dataset in one call: kinds
-     * are dispatched the same way as the single-operation endpoints, but a "reference" input
-     * (see the frontend's ValueSource) is resolved server-side by recursively computing the
-     * operation it points at, instead of the frontend stitching the chain together itself with
-     * one request per operation. One operation failing (a broken/circular reference, a bad
-     * range, an unknown kind) doesn't stop the others in the same request from being computed.
+     * Registers a model against a previously imported dataset so it can be run repeatedly
+     * afterwards (see {@link #runModel}) without resending its operations on every run — only
+     * the model's id, kept in memory by {@link ModelStore}, and (on each run) the one value a
+     * caller supplies for its designated input, if it has one.
      */
-    public ModelCalculateResponse calculateModel(String datasetId, List<ModelOperationInput> operations) {
+    public String registerModel(String datasetId, ModelRegisterRequest request) {
+        datasetStore.get(datasetId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Conjunto de dados não encontrado. Volte a importar o ficheiro."));
+
+        List<ModelOperationInput> operations = request.operations();
+        if (operations == null || operations.isEmpty()) {
+            throw new IllegalArgumentException("O modelo não tem operações.");
+        }
+        if (request.outputOperationId() == null || request.outputOperationId().isBlank()) {
+            throw new IllegalArgumentException("O modelo não tem um output definido.");
+        }
+
+        Set<String> ids = operations.stream().map(ModelOperationInput::id).collect(Collectors.toSet());
+        if (!ids.contains(request.outputOperationId())) {
+            throw new IllegalArgumentException("O output indicado não corresponde a nenhuma operação do modelo.");
+        }
+        if (request.inputOperationId() != null && !ids.contains(request.inputOperationId())) {
+            throw new IllegalArgumentException("O input indicado não corresponde a nenhuma operação do modelo.");
+        }
+
+        StoredModel model = new StoredModel(
+                datasetId, request.name(), operations, request.inputOperationId(), request.outputOperationId());
+        return modelStore.put(model);
+    }
+
+    /**
+     * Runs a previously registered model and returns only its designated output's result — every
+     * other operation in the model is still computed as needed to resolve the reference chain
+     * leading to that output (kinds are dispatched, and "reference" inputs resolved, the same way
+     * as the single-operation endpoints), it just was never something a caller needed to see.
+     * {@code inputValue} overrides the literal value of the model's designated input operation
+     * for this run (ignored if the model was registered without one).
+     */
+    public ModelOperationResult runModel(String datasetId, String modelId, String inputValue) {
+        StoredModel model = modelStore.get(modelId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Modelo não encontrado. Volte a preparar o modelo antes de o correr."));
+
+        if (!model.datasetId().equals(datasetId)) {
+            throw new IllegalArgumentException("Este modelo não pertence ao conjunto de dados indicado.");
+        }
+
         DatasetImportResponse dataset = datasetStore.get(datasetId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Conjunto de dados não encontrado. Volte a importar o ficheiro."));
+
+        List<ModelOperationInput> operations = withInputOverride(model, inputValue);
 
         Map<String, ModelOperationInput> byId = new LinkedHashMap<>();
         for (ModelOperationInput operation : operations) {
@@ -96,13 +142,29 @@ public class DatasetOperationService {
         }
 
         Set<String> cyclicIds = findCyclicIds(buildReferenceGraph(operations));
-        Map<String, ModelOperationResult> resolved = new HashMap<>();
+        return resolveOperation(model.outputOperationId(), dataset, byId, cyclicIds, new HashMap<>());
+    }
 
-        List<ModelOperationResult> results = operations.stream()
-                .map(operation -> resolveOperation(operation.id(), dataset, byId, cyclicIds, resolved))
+    /**
+     * Swaps the registered input operation's "input" field for a literal wrapping the value this
+     * run actually supplies — every other operation's fields are used exactly as registered.
+     */
+    private List<ModelOperationInput> withInputOverride(StoredModel model, String inputValue) {
+        if (model.inputOperationId() == null) {
+            return model.operations();
+        }
+        String value = inputValue == null ? "" : inputValue;
+        return model.operations().stream()
+                .map(operation -> operation.id().equals(model.inputOperationId())
+                        ? withLiteralInput(operation, value)
+                        : operation)
                 .toList();
+    }
 
-        return new ModelCalculateResponse(results);
+    private ModelOperationInput withLiteralInput(ModelOperationInput operation, String value) {
+        Map<String, Object> fields = new HashMap<>(fieldsOf(operation));
+        fields.put("input", Map.of("type", "literal", "value", value));
+        return new ModelOperationInput(operation.id(), operation.kind(), fields);
     }
 
     private ModelOperationResult resolveOperation(

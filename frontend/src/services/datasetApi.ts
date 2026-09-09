@@ -1,6 +1,10 @@
 import type { DatasetImportResponse } from '../types/dataset';
 import type { LookupRequestPayload, LookupResponsePayload } from '../types/lookup';
-import type { ModelCalculateResponsePayload, ModelOperationInputPayload } from '../types/modelCalculation';
+import type {
+  ModelOperationInputPayload,
+  ModelOperationResultPayload,
+  ModelRegisterResponsePayload,
+} from '../types/modelCalculation';
 import type { OperationType } from '../types/operation';
 import type { SumRequestPayload, SumResponsePayload } from '../types/sum';
 
@@ -87,26 +91,57 @@ export async function sumColumn(payload: SumRequestPayload): Promise<SumResponse
 }
 
 /**
- * Calculates every operation of a model in one call: the API resolves chained (reference)
- * inputs between operations itself and returns every result together, instead of the frontend
- * calling one operation endpoint per entry and stitching the chain together client-side. Used
- * only when utilizing an already-built model (ModelCard) — the editing page (OperationPanel)
+ * Registers a model against a previously imported dataset, once, so it can be run repeatedly
+ * afterwards (see runModel) without resending its operations on every run — only the model's id,
+ * kept server-side, and (on each run) the one value a caller supplies for its designated input.
+ * Used only when utilizing an already-built model (ModelCard) — the editing page (OperationPanel)
  * keeps calling the individual /api/v1/dataset/operation/{lookup,sum} endpoints per operation as
  * it's being built, where a live per-field result is what's wanted.
  */
-export async function calculateModel(
+export async function registerModel(
   datasetId: string,
+  name: string,
   operations: ModelOperationInputPayload[],
-): Promise<ModelCalculateResponsePayload> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/dataset/${encodeURIComponent(datasetId)}/model/calculate`, {
+  inputOperationId: string | null,
+  outputOperationId: string,
+): Promise<ModelRegisterResponsePayload> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/dataset/${encodeURIComponent(datasetId)}/model`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ operations }),
+    body: JSON.stringify({ name, operations, inputOperationId, outputOperationId }),
   });
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
-    throw new Error(errorBody?.message ?? `Falha ao calcular o modelo (estado ${response.status})`);
+    throw new Error(errorBody?.message ?? `Falha ao preparar o modelo (estado ${response.status})`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Runs a previously registered model — resolving chained (reference) inputs between its
+ * operations server-side, the same way as a single-operation call — and returns only its
+ * designated output's result, not every operation's. `inputValue` replaces the model's
+ * designated input operation's literal value for this run (pass null when the model has none).
+ */
+export async function runModel(
+  datasetId: string,
+  modelId: string,
+  inputValue: string | null,
+): Promise<ModelOperationResultPayload> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/dataset/${encodeURIComponent(datasetId)}/model/${encodeURIComponent(modelId)}/run`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ inputValue }),
+    },
+  );
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    throw new Error(errorBody?.message ?? `Falha ao correr o modelo (estado ${response.status})`);
   }
 
   return response.json();
