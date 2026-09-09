@@ -233,7 +233,13 @@ function ConfirmedOperationCard({
 
 // Overrides the API's (English) labels with their Portuguese display names — the id is still
 // what's sent to/matched against the API, only the label shown in the UI is translated here.
-const KIND_LABELS: Record<string, string> = { lookup: 'Pesquisa aninhada', sum: 'Somar', counter: 'Contador', node: 'Nó' };
+const KIND_LABELS: Record<string, string> = {
+  lookup: 'Pesquisa aninhada',
+  sum: 'Somar',
+  counter: 'Contador',
+  node: 'Nó',
+  find: 'Localizar',
+};
 
 interface OperationEntryState {
   id: string;

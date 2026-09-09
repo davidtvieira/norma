@@ -4,6 +4,8 @@ import com.norma.dataset.dto.CellData;
 import com.norma.dataset.dto.CounterRequest;
 import com.norma.dataset.dto.CounterResponse;
 import com.norma.dataset.dto.DatasetImportResponse;
+import com.norma.dataset.dto.FindRequest;
+import com.norma.dataset.dto.FindResponse;
 import com.norma.dataset.dto.LookupRequest;
 import com.norma.dataset.dto.LookupResponse;
 import com.norma.dataset.dto.ModelOperationInput;
@@ -229,6 +231,77 @@ class DatasetOperationServiceTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test
+    void findsTheFirstMatchingCellWithinARange() {
+        String datasetId = twoSheetDataset();
+
+        FindResponse response = datasetOperationService.find(new FindRequest(datasetId, 0, 0, 2, 0, 1, "Bruno"));
+
+        assertThat(response.found()).isTrue();
+        assertThat(response.rowIndex()).isEqualTo(1);
+        assertThat(response.columnIndex()).isEqualTo(1);
+    }
+
+    @Test
+    void findsWithinTheSameRowBeforeMovingToTheNextOne() {
+        SheetData sheet = new SheetData("Grid", 2, List.of(
+                new RowData(0, List.of(new CellData(0, "x"), new CellData(1, "alvo"))),
+                new RowData(1, List.of(new CellData(0, "alvo"), new CellData(1, "x")))
+        ));
+        String datasetId = storeDataset(new DatasetImportResponse("dataset-find-1", "test.xlsx", Instant.now(), List.of(sheet)));
+
+        FindResponse response = datasetOperationService.find(new FindRequest(datasetId, 0, 0, 1, 0, 1, "alvo"));
+
+        assertThat(response.found()).isTrue();
+        assertThat(response.rowIndex()).isEqualTo(0);
+        assertThat(response.columnIndex()).isEqualTo(1);
+    }
+
+    @Test
+    void isCaseAndWhitespaceInsensitiveWhenFinding() {
+        String datasetId = twoSheetDataset();
+
+        FindResponse response = datasetOperationService.find(new FindRequest(datasetId, 0, 0, 2, 0, 1, "  bruno "));
+
+        assertThat(response.found()).isTrue();
+        assertThat(response.rowIndex()).isEqualTo(1);
+    }
+
+    @Test
+    void returnsNotFoundWhenNothingInTheRangeMatches() {
+        String datasetId = twoSheetDataset();
+
+        FindResponse response = datasetOperationService.find(new FindRequest(datasetId, 0, 0, 2, 0, 1, "does-not-exist"));
+
+        assertThat(response.found()).isFalse();
+        assertThat(response.rowIndex()).isNull();
+        assertThat(response.columnIndex()).isNull();
+    }
+
+    @Test
+    void aMatchOutsideTheRangeIsNotFound() {
+        String datasetId = twoSheetDataset();
+
+        // "Carla" is row 2, but the range only covers rows 0-1.
+        FindResponse response = datasetOperationService.find(new FindRequest(datasetId, 0, 0, 1, 0, 1, "Carla"));
+
+        assertThat(response.found()).isFalse();
+    }
+
+    @Test
+    void rejectsANegativeStartRowForFind() {
+        String datasetId = twoSheetDataset();
+
+        assertThatThrownBy(() -> datasetOperationService.find(new FindRequest(datasetId, 0, -1, 0, 0, 0, "x")))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsAnUnknownDatasetIdForFind() {
+        assertThatThrownBy(() -> datasetOperationService.find(new FindRequest("missing-dataset", 0, 0, 0, 0, 0, "x")))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
     private Map<String, Object> literalInput(String value) {
         return Map.of("type", "literal", "value", value);
     }
@@ -244,7 +317,7 @@ class DatasetOperationServiceTest {
         ModelOperationInput lookup = new ModelOperationInput("op-1", "lookup", Map.of(
                 "input", literalInput("2"),
                 "sheetIndex", 0,
-                "searchColumn", 0,
+                "searchColumn", literalInput("0"),
                 "resultColumn", 1));
 
         ModelOperationResult result = registerAndRun(datasetId, List.of(lookup), null, "op-1", null);
@@ -283,14 +356,14 @@ class DatasetOperationServiceTest {
         ModelOperationInput findId = new ModelOperationInput("op-1", "lookup", Map.of(
                 "input", literalInput("Bruno"),
                 "sheetIndex", 0,
-                "searchColumn", 1,
+                "searchColumn", literalInput("1"),
                 "resultColumn", 0));
 
         // op-2 chains off op-1's result ("2") as the query against the orders sheet.
         ModelOperationInput findOrder = new ModelOperationInput("op-2", "lookup", Map.of(
                 "input", referenceInput("op-1"),
                 "sheetIndex", 1,
-                "searchColumn", 0,
+                "searchColumn", literalInput("0"),
                 "resultColumn", 1));
 
         List<ModelOperationInput> operations = List.of(findId, findOrder);
@@ -319,7 +392,7 @@ class DatasetOperationServiceTest {
         ModelOperationInput findByTotal = new ModelOperationInput("op-2", "lookup", Map.of(
                 "input", referenceInput("op-1"),
                 "sheetIndex", 0,
-                "searchColumn", 0,
+                "searchColumn", literalInput("0"),
                 "resultColumn", 1));
 
         ModelOperationResult result = registerAndRun(datasetId, List.of(sum, findByTotal), null, "op-2", null);
@@ -333,9 +406,9 @@ class DatasetOperationServiceTest {
         String datasetId = twoSheetDataset();
 
         ModelOperationInput opA = new ModelOperationInput("op-a", "lookup", Map.of(
-                "input", referenceInput("op-b"), "sheetIndex", 0, "searchColumn", 0, "resultColumn", 1));
+                "input", referenceInput("op-b"), "sheetIndex", 0, "searchColumn", literalInput("0"), "resultColumn", 1));
         ModelOperationInput opB = new ModelOperationInput("op-b", "lookup", Map.of(
-                "input", referenceInput("op-a"), "sheetIndex", 0, "searchColumn", 0, "resultColumn", 1));
+                "input", referenceInput("op-a"), "sheetIndex", 0, "searchColumn", literalInput("0"), "resultColumn", 1));
 
         ModelOperationResult result = registerAndRun(datasetId, List.of(opA, opB), null, "op-a", null);
 
@@ -348,7 +421,7 @@ class DatasetOperationServiceTest {
         String datasetId = twoSheetDataset();
 
         ModelOperationInput lookup = new ModelOperationInput("op-1", "lookup", Map.of(
-                "input", referenceInput("does-not-exist"), "sheetIndex", 0, "searchColumn", 0, "resultColumn", 1));
+                "input", referenceInput("does-not-exist"), "sheetIndex", 0, "searchColumn", literalInput("0"), "resultColumn", 1));
 
         ModelOperationResult result = registerAndRun(datasetId, List.of(lookup), null, "op-1", null);
 
@@ -390,7 +463,7 @@ class DatasetOperationServiceTest {
         ModelOperationInput lookup = new ModelOperationInput("op-1", "lookup", Map.of(
                 "input", literalInput("this value is only used if a run doesn't override it"),
                 "sheetIndex", 0,
-                "searchColumn", 0,
+                "searchColumn", literalInput("0"),
                 "resultColumn", 1));
 
         String modelId = datasetOperationService.registerModel(
@@ -409,7 +482,7 @@ class DatasetOperationServiceTest {
         ModelOperationInput lookup = new ModelOperationInput("op-1", "lookup", Map.of(
                 "input", literalInput("2"),
                 "sheetIndex", 0,
-                "searchColumn", 0,
+                "searchColumn", literalInput("0"),
                 "resultColumn", 1));
 
         String modelId = datasetOperationService.registerModel(
@@ -585,13 +658,132 @@ class DatasetOperationServiceTest {
         ModelOperationInput lookup = new ModelOperationInput("op-lookup", "lookup", Map.of(
                 "input", referenceInput("op-node"),
                 "sheetIndex", 0,
-                "searchColumn", 1,
+                "searchColumn", literalInput("1"),
                 "resultColumn", 0));
 
         ModelOperationResult result = registerAndRun(datasetId, List.of(node, lookup), null, "op-lookup", null);
 
         assertThat(result.success()).isTrue();
         assertThat(result.value()).isEqualTo("2");
+    }
+
+    @Test
+    void aFindOperationReportsThePositionOfItsMatchAsItsResult() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationInput find = new ModelOperationInput("op-1", "find", Map.of(
+                "input", literalInput("Bruno"),
+                "sheetIndex", 0,
+                "range", Map.of("startRow", 0, "endRow", 2, "startColumn", 0, "endColumn", 1)));
+
+        ModelOperationResult result = registerAndRun(datasetId, List.of(find), null, "op-1", null);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.value()).isEqualTo("1,1");
+    }
+
+    @Test
+    void aFindOperationWithNoMatchInItsRangeReportsANullResultWithoutError() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationInput find = new ModelOperationInput("op-1", "find", Map.of(
+                "input", literalInput("does-not-exist"),
+                "sheetIndex", 0,
+                "range", Map.of("startRow", 0, "endRow", 2, "startColumn", 0, "endColumn", 1)));
+
+        ModelOperationResult result = registerAndRun(datasetId, List.of(find), null, "op-1", null);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.value()).isNull();
+    }
+
+    @Test
+    void aFindOperationsQueryCanBeChainedFromAnotherOperationsResult() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationInput node = new ModelOperationInput("op-node", "node", Map.of("input", literalInput("Carla")));
+        ModelOperationInput find = new ModelOperationInput("op-find", "find", Map.of(
+                "input", referenceInput("op-node"),
+                "sheetIndex", 0,
+                "range", Map.of("startRow", 0, "endRow", 2, "startColumn", 0, "endColumn", 1)));
+
+        ModelOperationResult result = registerAndRun(datasetId, List.of(node, find), null, "op-find", null);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.value()).isEqualTo("2,1");
+    }
+
+    @Test
+    void aLookupsSearchColumnCanBeChainedFromAFindOperationsResult() {
+        String datasetId = twoSheetDataset();
+
+        // find locates "Carla" within the whole table — she's in column 1 (the name column), row 2.
+        ModelOperationInput find = new ModelOperationInput("op-find", "find", Map.of(
+                "input", literalInput("Carla"),
+                "sheetIndex", 0,
+                "range", Map.of("startRow", 0, "endRow", 2, "startColumn", 0, "endColumn", 1)));
+        // The lookup searches whichever column find landed on (1, parsed out of find's "2,1"
+        // result) for "Carla" again, then reads the id from column 0 of the matching row.
+        ModelOperationInput lookup = new ModelOperationInput("op-lookup", "lookup", Map.of(
+                "input", literalInput("Carla"),
+                "sheetIndex", 0,
+                "searchColumn", referenceInput("op-find"),
+                "resultColumn", 0));
+
+        ModelOperationResult result = registerAndRun(datasetId, List.of(find, lookup), null, "op-lookup", null);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.value()).isEqualTo("3");
+    }
+
+    @Test
+    void aLookupsSearchColumnCanBeAPlainTypedNumberAsBefore() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationInput lookup = new ModelOperationInput("op-1", "lookup", Map.of(
+                "input", literalInput("Bruno"),
+                "sheetIndex", 0,
+                "searchColumn", literalInput("1"),
+                "resultColumn", 0));
+
+        ModelOperationResult result = registerAndRun(datasetId, List.of(lookup), null, "op-1", null);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.value()).isEqualTo("2");
+    }
+
+    @Test
+    void reportsALookupWithANonNumericDynamicSearchColumnAsAnError() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationInput node = new ModelOperationInput("op-node", "node", Map.of("input", literalInput("not-a-column")));
+        ModelOperationInput lookup = new ModelOperationInput("op-lookup", "lookup", Map.of(
+                "input", literalInput("Bruno"),
+                "sheetIndex", 0,
+                "searchColumn", referenceInput("op-node"),
+                "resultColumn", 0));
+
+        ModelOperationResult result = registerAndRun(datasetId, List.of(node, lookup), null, "op-lookup", null);
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.error()).isNotBlank();
+    }
+
+    @Test
+    void detectsACircularReferenceReachedOnlyThroughALookupsSearchColumnField() {
+        String datasetId = twoSheetDataset();
+
+        // op-a's searchColumn chains to op-b, whose own searchColumn chains back to op-a — a
+        // cycle reachable only through searchColumn, not through either one's "input" query.
+        ModelOperationInput opA = new ModelOperationInput("op-a", "lookup", Map.of(
+                "input", literalInput("x"), "sheetIndex", 0, "searchColumn", referenceInput("op-b"), "resultColumn", 0));
+        ModelOperationInput opB = new ModelOperationInput("op-b", "lookup", Map.of(
+                "input", literalInput("x"), "sheetIndex", 0, "searchColumn", referenceInput("op-a"), "resultColumn", 0));
+
+        ModelOperationResult result = registerAndRun(datasetId, List.of(opA, opB), null, "op-a", null);
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.error()).isNotBlank();
     }
 
     @Test
@@ -650,9 +842,9 @@ class DatasetOperationServiceTest {
         String datasetId = twoSheetDataset();
 
         ModelOperationInput findAna = new ModelOperationInput("op-a", "lookup", Map.of(
-                "input", literalInput("Ana"), "sheetIndex", 0, "searchColumn", 1, "resultColumn", 0));
+                "input", literalInput("Ana"), "sheetIndex", 0, "searchColumn", literalInput("1"), "resultColumn", 0));
         ModelOperationInput findBruno = new ModelOperationInput("op-b", "lookup", Map.of(
-                "input", literalInput("Bruno"), "sheetIndex", 0, "searchColumn", 1, "resultColumn", 0));
+                "input", literalInput("Bruno"), "sheetIndex", 0, "searchColumn", literalInput("1"), "resultColumn", 0));
 
         List<ModelOperationResult> results = registerAndRunMulti(
                 datasetId, List.of(findAna, findBruno), null, List.of("op-a", "op-b"), null);
@@ -673,9 +865,9 @@ class DatasetOperationServiceTest {
         // and reuse them, per the shared resolution cache, not recompute per output.
         ModelOperationInput node = new ModelOperationInput("op-node", "node", Map.of("input", literalInput("Bruno")));
         ModelOperationInput findId = new ModelOperationInput("op-id", "lookup", Map.of(
-                "input", referenceInput("op-node"), "sheetIndex", 0, "searchColumn", 1, "resultColumn", 0));
+                "input", referenceInput("op-node"), "sheetIndex", 0, "searchColumn", literalInput("1"), "resultColumn", 0));
         ModelOperationInput findOrder = new ModelOperationInput("op-order", "lookup", Map.of(
-                "input", referenceInput("op-id"), "sheetIndex", 1, "searchColumn", 0, "resultColumn", 1));
+                "input", referenceInput("op-id"), "sheetIndex", 1, "searchColumn", literalInput("0"), "resultColumn", 1));
 
         List<ModelOperationResult> results = registerAndRunMulti(
                 datasetId, List.of(node, findId, findOrder), null, List.of("op-id", "op-order"), null);
@@ -690,7 +882,7 @@ class DatasetOperationServiceTest {
         String datasetId = twoSheetDataset();
 
         ModelOperationInput broken = new ModelOperationInput("op-broken", "lookup", Map.of(
-                "input", referenceInput("does-not-exist"), "sheetIndex", 0, "searchColumn", 0, "resultColumn", 1));
+                "input", referenceInput("does-not-exist"), "sheetIndex", 0, "searchColumn", literalInput("0"), "resultColumn", 1));
         ModelOperationInput sum = new ModelOperationInput("op-sum", "sum", Map.of(
                 "sheetIndex", 0, "range", Map.of("startRow", 0, "endRow", 0, "startColumn", 0, "endColumn", 0)));
 

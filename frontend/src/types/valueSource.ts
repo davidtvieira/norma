@@ -35,15 +35,37 @@ export function getInputSource(fields: object): ValueSource {
   return getInputSources(fields)[0] ?? literalSource('');
 }
 
+function isValueSource(value: unknown): value is ValueSource {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as { type?: unknown; value?: unknown; operationId?: unknown };
+  return (
+    (candidate.type === 'literal' && typeof candidate.value === 'string') ||
+    (candidate.type === 'reference' && typeof candidate.operationId === 'string')
+  );
+}
+
 /**
- * Reads every chainable value source a kind's fields hold, regardless of whether it exposes one
- * (`input`) or several (`inputs`, e.g. counter). Kinds with neither fall back to a single empty
- * literal, same as getInputSource, so callers can always assume at least one entry.
+ * Reads every chainable value source a kind's fields hold. A kind with a *list* of them (e.g.
+ * counter's "inputs") is returned as-is, empty list included — an empty list is a meaningful "no
+ * inputs yet" state there, not "nothing chainable here at all". Otherwise, every OTHER field
+ * that's itself a value source is collected, in object-key order — not just "input" (lookup's
+ * query, node's/find's value, ...), but any additional named chainable field a kind adds too
+ * (e.g. lookup's own "searchColumn", dynamically chainable off another operation's result, most
+ * notably a find's). A kind with no chainable field anywhere falls back to a single empty
+ * literal, so callers can always assume at least one entry in that case.
  */
 export function getInputSources(fields: object): ValueSource[] {
-  const f = fields as Partial<ChainableFields> & Partial<MultiChainableFields>;
+  const f = fields as Record<string, unknown>;
+
   if (Array.isArray(f.inputs)) {
-    return f.inputs;
+    return f.inputs as ValueSource[];
   }
-  return [f.input ?? literalSource('')];
+
+  const sources: ValueSource[] = [];
+  for (const value of Object.values(f)) {
+    if (isValueSource(value)) {
+      sources.push(value);
+    }
+  }
+  return sources.length > 0 ? sources : [literalSource('')];
 }

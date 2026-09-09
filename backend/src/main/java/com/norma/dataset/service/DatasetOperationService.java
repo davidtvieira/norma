@@ -4,6 +4,8 @@ import com.norma.dataset.dto.CellData;
 import com.norma.dataset.dto.CounterRequest;
 import com.norma.dataset.dto.CounterResponse;
 import com.norma.dataset.dto.DatasetImportResponse;
+import com.norma.dataset.dto.FindRequest;
+import com.norma.dataset.dto.FindResponse;
 import com.norma.dataset.dto.LookupRequest;
 import com.norma.dataset.dto.LookupResponse;
 import com.norma.dataset.dto.ModelOperationInput;
@@ -84,6 +86,19 @@ public class DatasetOperationService {
 
         SumOutcome outcome = sumRange(sheet, request.startRow(), request.endRow(), request.startColumn(), request.endColumn());
         return new SumResponse(outcome.total(), outcome.cellsSummed());
+    }
+
+    public FindResponse find(FindRequest request) {
+        DatasetImportResponse dataset = datasetStore.get(request.datasetId())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Conjunto de dados não encontrado. Volte a importar o ficheiro."));
+
+        SheetData sheet = sheetAt(dataset, request.sheetIndex(), "onde procurar");
+        validateRange(request.startRow(), request.endRow(), request.startColumn(), request.endColumn());
+        String normalizedQuery = request.query() == null ? "" : request.query().trim();
+
+        FindOutcome outcome = findInRange(sheet, request.startRow(), request.endRow(), request.startColumn(), request.endColumn(), normalizedQuery);
+        return new FindResponse(outcome.found(), outcome.rowIndex(), outcome.columnIndex());
     }
 
     /**
@@ -258,10 +273,11 @@ public class DatasetOperationService {
         try {
             String inputValue = resolveInputValue(operation, dataset, byId, cyclicIds, resolved);
             return switch (operation.kind()) {
-                case "lookup" -> computeLookup(operation, dataset, inputValue);
+                case "lookup" -> computeLookup(operation, dataset, inputValue, byId, cyclicIds, resolved);
                 case "sum" -> computeSum(operation, dataset);
                 case "counter" -> computeCounter(operation, dataset, byId, cyclicIds, resolved);
                 case "node" -> new ModelOperationResult(id, true, inputValue, null);
+                case "find" -> computeFind(operation, dataset, inputValue);
                 default -> new ModelOperationResult(id, false, null, "Tipo de operação desconhecido: " + operation.kind());
             };
         } catch (IllegalArgumentException ex) {
@@ -323,10 +339,23 @@ public class DatasetOperationService {
         return String.valueOf(referenced.value());
     }
 
-    private ModelOperationResult computeLookup(ModelOperationInput operation, DatasetImportResponse dataset, String query) {
+    /**
+     * Unlike {@code sheetIndex}/{@code resultColumn}, {@code searchColumn} is itself a chainable
+     * field now (same shape as "input") — typed directly, or, notably, chained from a find
+     * operation's own {@code {rowIndex, columnIndex}} result (see {@link #parseColumnIndex}) so a
+     * lookup can search whichever column a find elsewhere in the model landed on.
+     */
+    private ModelOperationResult computeLookup(
+            ModelOperationInput operation,
+            DatasetImportResponse dataset,
+            String query,
+            Map<String, ModelOperationInput> byId,
+            Set<String> cyclicIds,
+            Map<String, ModelOperationResult> resolved) {
+
         Map<String, Object> fields = fieldsOf(operation);
         int sheetIndex = intField(fields, "sheetIndex");
-        int searchColumn = intField(fields, "searchColumn");
+        int searchColumn = resolveColumnIndex(fields, "searchColumn", dataset, byId, cyclicIds, resolved);
         int resultColumn = intField(fields, "resultColumn");
 
         SheetData sheet = sheetAt(dataset, sheetIndex, "onde procurar");
@@ -343,6 +372,41 @@ public class DatasetOperationService {
         return new ModelOperationResult(operation.id(), true, cellValue(matchRow.get(), resultColumn), null);
     }
 
+    private int resolveColumnIndex(
+            Map<String, Object> fields,
+            String fieldName,
+            DatasetImportResponse dataset,
+            Map<String, ModelOperationInput> byId,
+            Set<String> cyclicIds,
+            Map<String, ModelOperationResult> resolved) {
+
+        if (!(fields.get(fieldName) instanceof Map<?, ?> source)) {
+            throw new IllegalArgumentException("Campo obrigatório em falta ou inválido: " + fieldName);
+        }
+        String value = resolveValueSource(asStringKeyedMap(source), dataset, byId, cyclicIds, resolved);
+        return parseColumnIndex(value, fieldName);
+    }
+
+    /**
+     * A chained column index can come straight from a find operation's own combined
+     * {@code "rowIndex,columnIndex"} result (see the live find endpoint's frontend counterpart),
+     * not just a plain typed number — so this takes whatever's after the last comma, if there is
+     * one, rather than requiring the whole string to be a bare integer.
+     */
+    private int parseColumnIndex(String value, String fieldName) {
+        String trimmed = value == null ? "" : value.trim();
+        String raw = trimmed.contains(",") ? trimmed.substring(trimmed.lastIndexOf(',') + 1).trim() : trimmed;
+        try {
+            int parsed = Integer.parseInt(raw);
+            if (parsed < 0) {
+                throw new NumberFormatException();
+            }
+            return parsed;
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("Valor de coluna inválido em " + fieldName + ": " + trimmed);
+        }
+    }
+
     private ModelOperationResult computeSum(ModelOperationInput operation, DatasetImportResponse dataset) {
         Map<String, Object> fields = fieldsOf(operation);
         int sheetIndex = intField(fields, "sheetIndex");
@@ -357,6 +421,35 @@ public class DatasetOperationService {
 
         SumOutcome outcome = sumRange(sheet, startRow, endRow, startColumn, endColumn);
         return new ModelOperationResult(operation.id(), true, normalizeNumber(outcome.total()), null);
+    }
+
+    /**
+     * Unlike lookup (which reads a value from a different column of the matched row), find
+     * reports the position of the match itself — the first cell within its range whose value
+     * matches {@code query} — as a "rowIndex,columnIndex" string, or null if nothing in the range
+     * matches. A plain formatted string, not a map: this is what makes the result chainable
+     * elsewhere in the model in the first place — every chained value is resolved to a string
+     * (see resolveValueSource's {@code String.valueOf}), and a map's own toString has no defined
+     * field order to parse back out reliably, whereas this format is exactly what
+     * {@link #parseColumnIndex} (lookup's own dynamic searchColumn) expects, and matches the live
+     * find endpoint's own frontend counterpart one-for-one.
+     */
+    private ModelOperationResult computeFind(ModelOperationInput operation, DatasetImportResponse dataset, String query) {
+        Map<String, Object> fields = fieldsOf(operation);
+        int sheetIndex = intField(fields, "sheetIndex");
+        Map<String, Object> range = mapField(fields, "range");
+        int startRow = intField(range, "startRow");
+        int endRow = intField(range, "endRow");
+        int startColumn = intField(range, "startColumn");
+        int endColumn = intField(range, "endColumn");
+
+        SheetData sheet = sheetAt(dataset, sheetIndex, "onde procurar");
+        validateRange(startRow, endRow, startColumn, endColumn);
+        String normalizedQuery = query == null ? "" : query.trim();
+
+        FindOutcome outcome = findInRange(sheet, startRow, endRow, startColumn, endColumn, normalizedQuery);
+        Object value = outcome.found() ? outcome.rowIndex() + "," + outcome.columnIndex() : null;
+        return new ModelOperationResult(operation.id(), true, value, null);
     }
 
     /**
@@ -439,6 +532,25 @@ public class DatasetOperationService {
         return new SumOutcome(total, cellsSummed);
     }
 
+    private record FindOutcome(boolean found, Integer rowIndex, Integer columnIndex) {
+    }
+
+    /** Scans the range row by row, then column by column within each row, for the first cell
+     * matching {@code normalizedQuery} — shared by the live find endpoint and computeFind. */
+    private FindOutcome findInRange(SheetData sheet, int startRow, int endRow, int startColumn, int endColumn, String normalizedQuery) {
+        for (RowData row : sheet.rows()) {
+            if (row.rowIndex() < startRow || row.rowIndex() > endRow) {
+                continue;
+            }
+            for (int column = startColumn; column <= endColumn; column++) {
+                if (matches(cellValue(row, column), normalizedQuery)) {
+                    return new FindOutcome(true, row.rowIndex(), column);
+                }
+            }
+        }
+        return new FindOutcome(false, null, null);
+    }
+
     /**
      * entryId -> every operationId it references — usually at most one (lookup's single "input"),
      * but a kind with several chainable fields (counter's "inputs" list) can have more than one,
@@ -486,14 +598,23 @@ public class DatasetOperationService {
         done.put(node, true);
     }
 
-    /** Every operationId referenced by any chainable field in `fields` — "input" (a single value
-     * source) and/or "inputs" (a list of them, e.g. counter). */
+    /**
+     * Every operationId referenced by any chainable field in `fields` — scanned structurally
+     * (any field whose value is itself a reference-shaped map, e.g. "input" or lookup's own
+     * "searchColumn", or a list of them, e.g. counter's "inputs") rather than by a fixed set of
+     * field names, so a new chainable field on any kind is automatically covered here without
+     * this needing to know its name in advance. A field that happens to be a plain map without a
+     * "reference" type (e.g. sum/find's "range") is harmlessly skipped by referencedOperationId.
+     */
     private List<String> referencedOperationIds(Map<String, Object> fields) {
         List<String> ids = new ArrayList<>();
-        referencedOperationId(fields.get("input")).ifPresent(ids::add);
-        if (fields.get("inputs") instanceof List<?> inputs) {
-            for (Object rawSource : inputs) {
-                referencedOperationId(rawSource).ifPresent(ids::add);
+        for (Object value : fields.values()) {
+            if (value instanceof List<?> list) {
+                for (Object rawSource : list) {
+                    referencedOperationId(rawSource).ifPresent(ids::add);
+                }
+            } else {
+                referencedOperationId(value).ifPresent(ids::add);
             }
         }
         return ids;

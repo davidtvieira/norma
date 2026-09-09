@@ -1,5 +1,6 @@
 import type { CounterRequestPayload, CounterResponsePayload } from '../types/counter';
 import type { DatasetImportResponse } from '../types/dataset';
+import type { FindRequestPayload, FindResponsePayload } from '../types/find';
 import type { LookupRequestPayload, LookupResponsePayload } from '../types/lookup';
 import type {
   ModelOperationInputPayload,
@@ -67,6 +68,27 @@ export async function lookupValue(payload: LookupRequestPayload): Promise<Lookup
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
     throw new Error(errorBody?.message ?? `Falha ao procurar o valor (estado ${response.status})`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Searches every cell within a rectangular range, against a previously imported dataset, for the
+ * first one matching the query, and returns its position. Unlike lookup (which reads a value from
+ * a different column of the matched row), the range scanning and matching happen on the API and
+ * the frontend only renders the returned row/column index.
+ */
+export async function findMatch(payload: FindRequestPayload): Promise<FindResponsePayload> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/dataset/operation/find`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    throw new Error(errorBody?.message ?? `Falha ao procurar a posição (estado ${response.status})`);
   }
 
   return response.json();

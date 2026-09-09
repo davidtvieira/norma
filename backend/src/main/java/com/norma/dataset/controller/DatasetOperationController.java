@@ -2,6 +2,8 @@ package com.norma.dataset.controller;
 
 import com.norma.dataset.dto.CounterRequest;
 import com.norma.dataset.dto.CounterResponse;
+import com.norma.dataset.dto.FindRequest;
+import com.norma.dataset.dto.FindResponse;
 import com.norma.dataset.dto.LookupRequest;
 import com.norma.dataset.dto.LookupResponse;
 import com.norma.dataset.dto.NodeRequest;
@@ -30,7 +32,8 @@ public class DatasetOperationController {
             new OperationType("lookup", "Lookup"),
             new OperationType("sum", "Sum"),
             new OperationType("counter", "Counter"),
-            new OperationType("node", "Node")
+            new OperationType("node", "Node"),
+            new OperationType("find", "Find")
     );
 
     private final DatasetOperationService datasetOperationService;
@@ -67,6 +70,19 @@ public class DatasetOperationController {
     @PostMapping("/api/v1/dataset/operation/sum")
     public ResponseEntity<SumResponse> sum(@RequestBody SumRequest request) {
         return ResponseEntity.ok(datasetOperationService.sum(request));
+    }
+
+    @Operation(
+            summary = "Find a value's position",
+            description = "Searches every cell within the given rectangular range (row/column bounds, all "
+                    + "inclusive), row by row then column by column within each row, for the first one matching "
+                    + "the query, and returns its position. Unlike lookup, which reads a value from a different "
+                    + "column of the matched row, find reports the position of the match itself — the row and "
+                    + "column index — not a value read from elsewhere."
+    )
+    @PostMapping("/api/v1/dataset/operation/find")
+    public ResponseEntity<FindResponse> find(@RequestBody FindRequest request) {
+        return ResponseEntity.ok(datasetOperationService.find(request));
     }
 
     @Operation(
