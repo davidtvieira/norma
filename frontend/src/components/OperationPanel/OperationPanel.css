@@ -5,6 +5,13 @@
   padding-bottom: 0.75rem;
 }
 
+.operation-canvas__toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: auto;
+}
+
 .operation-canvas__add-button {
   padding: 0.55rem 1.1rem;
   border: 1px solid var(--color-border);
@@ -52,6 +59,29 @@
 }
 
 .operation-canvas__test-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.operation-canvas__reset-button {
+  padding: 0.55rem 1.1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
+}
+
+.operation-canvas__reset-button:hover:not(:disabled) {
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
+.operation-canvas__reset-button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
 }
@@ -130,6 +160,9 @@
   background: var(--color-surface-hover);
 }
 
+/* Base pill chrome, shared by two different pills: a picked column/range (a real <button> — see
+   the --pickable modifier below) and ValueSourceField's confirmed-reference pill (a <div> with
+   its own nested .operation-entry__reset-button), which still needs the space-between layout. */
 .operation-column-pill {
   display: flex;
   align-items: center;
@@ -142,24 +175,23 @@
   background: var(--color-surface-hover);
 }
 
+/* ColumnPickerField/RangePickerField's picked-value pill: clicking it re-enters picking mode
+   (see onStart) so a new pick just replaces the old value directly, instead of a separate clear
+   step before picking again. */
+.operation-column-pill--pickable {
+  cursor: pointer;
+  font: inherit;
+  transition: border-color 0.2s ease;
+}
+
+.operation-column-pill--pickable:hover {
+  border-color: var(--color-primary);
+}
+
 .operation-column-pill__value {
   font-size: 0.875rem;
   color: var(--color-text);
   font-weight: 500;
-}
-
-.operation-column-pill__clear {
-  border: none;
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  font-size: 1rem;
-  line-height: 1;
-  padding: 0 0.15rem;
-}
-
-.operation-column-pill__clear:hover {
-  color: var(--color-text);
 }
 
 .operation-column-picking {
@@ -296,7 +328,7 @@
   padding: 0.75rem 0.9rem;
   border-radius: var(--radius-sm);
   background: var(--color-surface-hover);
-  font-size: 0.9rem;
+  font-size: 1.05rem;
   color: var(--color-text);
 }
 
@@ -315,8 +347,13 @@
   color: var(--color-text-muted);
 }
 
-.operation-entry__dynamic-input-button {
-  width: 100%;
+.operation-entry__source-toggle {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.operation-entry__source-toggle-button {
+  flex: 1;
   padding: 0.4rem 0.75rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -328,10 +365,83 @@
   transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
 }
 
-.operation-entry__dynamic-input-button:hover {
+.operation-entry__source-toggle-button:hover {
   border-color: var(--color-primary);
   color: var(--color-primary);
-  background: var(--color-surface-hover);
+}
+
+.operation-entry__source-toggle-button--active {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-surface);
+}
+
+.operation-entry__static-input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.operation-entry__static-input-row .operation-entry__input {
+  flex: 1;
+  min-width: 0;
+}
+
+.operation-entry__value-confirm-button {
+  flex-shrink: 0;
+  width: 1.6rem;
+  height: 1.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-primary);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-primary);
+  cursor: pointer;
+  padding: 0;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.operation-entry__value-confirm-button svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.operation-entry__value-confirm-button:hover {
+  background: var(--color-primary);
+  color: var(--color-surface);
+}
+
+.operation-entry__reset-button {
+  flex-shrink: 0;
+  width: 1.6rem;
+  height: 1.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.operation-entry__reset-button svg {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+.operation-entry__reset-button:hover {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-error);
+}
+
+.operation-entry__reset-button:hover {
+  color: var(--color-text);
 }
 
 .operation-entry__dynamic-input-menu {
@@ -341,7 +451,7 @@
   padding: 0.6rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  background: var(--color-surface-hover);
+  background: transparent;
 }
 
 .operation-entry__dynamic-input-option {

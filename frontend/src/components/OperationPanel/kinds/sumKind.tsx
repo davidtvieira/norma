@@ -49,7 +49,6 @@ export const sumKind: OperationKind = {
               onStart={() => onStartRangePick(entryId, f.sheetIndex as number)}
               onConfirm={(range) => updateFields({ range })}
               onCancel={onFinishRangePick}
-              onClear={() => updateFields({ range: null })}
             />
           </div>
         )}
@@ -69,7 +68,7 @@ export const sumKind: OperationKind = {
     );
   },
 
-  renderBody: ({ fields, datasetId, testSignal, onResultChange }) => {
+  renderBody: ({ fields, datasetId, testSignal, resetSignal, onResultChange }) => {
     const f = asSumFields(fields);
     return (
       <SumResult
@@ -77,6 +76,7 @@ export const sumKind: OperationKind = {
         sheetIndex={f.sheetIndex as number}
         range={f.range as CellRange}
         testSignal={testSignal}
+        resetSignal={resetSignal}
         onResultChange={onResultChange}
       />
     );
@@ -103,6 +103,8 @@ interface SumResultProps {
   /** Incremented by "Testar modelo" (see OperationPanel) — the only thing that triggers a
    * request; picking a new range afterward doesn't, until tested again. */
   testSignal: number;
+  /** Incremented by "Limpar teste" — clears the shown result back to not-tested on demand. */
+  resetSignal: number;
   onResultChange: (value: string | null) => void;
 }
 
@@ -120,8 +122,16 @@ type SumRequestState =
  * 'idle' case below, rendering nothing) while the range is still being picked/changed, and no
  * request fires either — see the two effects below.
  */
-function SumResult({ datasetId, sheetIndex, range, testSignal, onResultChange }: SumResultProps) {
+function SumResult({ datasetId, sheetIndex, range, testSignal, resetSignal, onResultChange }: SumResultProps) {
   const [state, setState] = useState<SumRequestState>({ status: 'idle' });
+
+  // "Limpar teste": clears the shown result on demand, independent of any field changing.
+  useEffect(() => {
+    setState({ status: 'idle' });
+    onResultChange(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetSignal]);
+
   // testSignal as of whenever this range last changed — the fetch effect below only actually
   // fetches once testSignal has moved past this baseline, i.e. an actual "Testar modelo" click
   // happened while mounted with this exact range, not merely because some other operation had

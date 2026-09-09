@@ -396,6 +396,9 @@ export function OperationPanel({
   // renderBody (see operationKind.ts) as the one signal that should make it actually call its
   // endpoint, instead of every result live-fetching as soon as its inputs are ready.
   const [testSignal, setTestSignal] = useState(0);
+  // Bumped by "Limpar teste" — the counterpart to testSignal: clears every kind's shown result
+  // back to not-tested without needing to change any of its fields first.
+  const [resetSignal, setResetSignal] = useState(0);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   // The entry currently being built or edited in the left-docked config panel (see
   // renderConfigPanel) instead of on the canvas — set once a kind is picked ("+ Adicionar
@@ -714,6 +717,7 @@ export function OperationPanel({
           referenceOptions: referenceOptionsFor(entry.id),
           onResultChange: (value) => setResults((current) => ({ ...current, [entry.id]: value })),
           testSignal,
+          resetSignal,
         })}
       </ConfirmedOperationCard>
     );
@@ -775,18 +779,29 @@ export function OperationPanel({
         >
           + Adicionar operação
         </button>
-        <button
-          type="button"
-          className="operation-canvas__test-button"
-          onClick={() => setTestSignal((current) => current + 1)}
-          disabled={confirmedCount === 0}
-          title={confirmedCount === 0 ? 'Conclua pelo menos uma operação para a poder testar.' : 'Calcula cada operação com os valores atuais.'}
-        >
-          Testar modelo
-        </button>
         <span className="operation-canvas__count">
           Operações <span className="operation-panel__count">{confirmedCount}</span>
         </span>
+        <div className="operation-canvas__toolbar-actions">
+          <button
+            type="button"
+            className="operation-canvas__reset-button"
+            onClick={() => setResetSignal((current) => current + 1)}
+            disabled={testSignal === 0}
+            title={testSignal === 0 ? 'Ainda não testou o modelo.' : 'Limpa os resultados do último teste.'}
+          >
+            Limpar teste
+          </button>
+          <button
+            type="button"
+            className="operation-canvas__test-button"
+            onClick={() => setTestSignal((current) => current + 1)}
+            disabled={confirmedCount === 0}
+            title={confirmedCount === 0 ? 'Conclua pelo menos uma operação para a poder testar.' : 'Calcula cada operação com os valores atuais.'}
+          >
+            Testar modelo
+          </button>
+        </div>
       </div>
 
       <div

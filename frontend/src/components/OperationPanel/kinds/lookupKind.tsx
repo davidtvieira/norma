@@ -61,7 +61,6 @@ export const lookupKind: OperationKind = {
               onStart={() => onStartColumnPick(entryId, 'search', f.sheetIndex as number)}
               onConfirm={(column) => updateFields({ searchColumn: column })}
               onCancel={onFinishColumnPick}
-              onClear={() => updateFields({ searchColumn: '' })}
             />
             <ColumnPickerField
               label="Coluna a devolver"
@@ -71,7 +70,6 @@ export const lookupKind: OperationKind = {
               onStart={() => onStartColumnPick(entryId, 'result', f.sheetIndex as number)}
               onConfirm={(column) => updateFields({ resultColumn: column })}
               onCancel={onFinishColumnPick}
-              onClear={() => updateFields({ resultColumn: '' })}
             />
           </div>
         )}
@@ -109,7 +107,7 @@ export const lookupKind: OperationKind = {
     );
   },
 
-  renderBody: ({ fields, updateFields, datasetId, testSignal, onMatchChange, resolvedInput, referenceOptions, onResultChange }) => {
+  renderBody: ({ fields, updateFields, datasetId, testSignal, resetSignal, onMatchChange, resolvedInput, referenceOptions, onResultChange }) => {
     const f = asLookupFields(fields);
     const query = resolvedInput.status === 'ready' ? resolvedInput.value : '';
     return (
@@ -132,6 +130,7 @@ export const lookupKind: OperationKind = {
             searchColumn={f.searchColumn as number}
             resultColumn={f.resultColumn as number}
             testSignal={testSignal}
+            resetSignal={resetSignal}
             onMatchChange={onMatchChange}
             onResultChange={onResultChange}
           />
@@ -180,6 +179,8 @@ interface LookupResultProps {
   /** Incremented by "Testar modelo" (see OperationPanel) — the only thing that triggers a
    * request; editing the query/table/columns afterward doesn't, until tested again. */
   testSignal: number;
+  /** Incremented by "Limpar teste" — clears the shown result back to not-tested on demand. */
+  resetSignal: number;
   onMatchChange: (rowIndex: number | null) => void;
   onResultChange: (value: string | null) => void;
 }
@@ -205,10 +206,20 @@ function LookupResult({
   searchColumn,
   resultColumn,
   testSignal,
+  resetSignal,
   onMatchChange,
   onResultChange,
 }: LookupResultProps) {
   const [state, setState] = useState<LookupRequestState>({ status: 'idle' });
+
+  // "Limpar teste": clears the shown result on demand, independent of any field changing.
+  useEffect(() => {
+    setState({ status: 'idle' });
+    onMatchChange(null);
+    onResultChange(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetSignal]);
+
   // testSignal as of whenever this became ready to test (mount, or the query going from empty
   // back to non-empty) — the fetch effect below only actually fetches once testSignal has moved
   // past this baseline, i.e. an actual "Testar modelo" click happened while mounted, not merely

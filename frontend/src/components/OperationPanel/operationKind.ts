@@ -50,6 +50,9 @@ export interface OperationBodyContext {
    * another test does, so the API isn't hit continuously while the model is still being built.
    */
   testSignal: number;
+  /** Incremented by "Limpar teste" (see OperationPanel) — clears whatever this kind's result
+   * component last showed (back to not-tested) without waiting for a field to change. */
+  resetSignal: number;
 }
 
 export interface OperationInputEditorContext {
