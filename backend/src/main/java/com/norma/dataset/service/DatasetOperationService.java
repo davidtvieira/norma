@@ -56,6 +56,7 @@ public class DatasetOperationService {
         String normalizedQuery = request.query() == null ? "" : request.query().trim();
 
         Optional<RowData> matchRow = searchSheet.rows().stream()
+                .filter(row -> row.rowIndex() >= request.startRow())
                 .filter(row -> matches(cellValue(row, request.searchColumn()), normalizedQuery))
                 .findFirst();
 
@@ -340,10 +341,13 @@ public class DatasetOperationService {
     }
 
     /**
-     * Unlike {@code sheetIndex}/{@code resultColumn}, {@code searchColumn} is itself a chainable
-     * field now (same shape as "input") — typed directly, or, notably, chained from a find
-     * operation's own {@code {rowIndex, columnIndex}} result (see {@link #parseColumnIndex}) so a
-     * lookup can search whichever column a find elsewhere in the model landed on.
+     * Unlike {@code sheetIndex}/{@code resultColumn}, {@code searchColumn} and {@code startRow}
+     * are themselves chainable fields now (same shape as "input") — typed directly, or, notably,
+     * chained from a find operation's own combined {@code "rowIndex,columnIndex"} result (see
+     * {@link #parseColumnIndex}/{@link #parseRowIndex}), so a lookup can search whichever column
+     * (and/or start from whichever row) a find elsewhere in the model landed on. {@code startRow}
+     * skips every row before it when scanning for a match (0 searches from the very first row,
+     * same as before this field existed).
      */
     private ModelOperationResult computeLookup(
             ModelOperationInput operation,
@@ -355,13 +359,17 @@ public class DatasetOperationService {
 
         Map<String, Object> fields = fieldsOf(operation);
         int sheetIndex = intField(fields, "sheetIndex");
-        int searchColumn = resolveColumnIndex(fields, "searchColumn", dataset, byId, cyclicIds, resolved);
+        int searchColumn = parseColumnIndex(
+                resolveChainableField(fields, "searchColumn", dataset, byId, cyclicIds, resolved), "searchColumn");
+        int startRow = parseRowIndex(
+                resolveChainableField(fields, "startRow", dataset, byId, cyclicIds, resolved), "startRow");
         int resultColumn = intField(fields, "resultColumn");
 
         SheetData sheet = sheetAt(dataset, sheetIndex, "onde procurar");
         String normalizedQuery = query == null ? "" : query.trim();
 
         Optional<RowData> matchRow = sheet.rows().stream()
+                .filter(row -> row.rowIndex() >= startRow)
                 .filter(row -> matches(cellValue(row, searchColumn), normalizedQuery))
                 .findFirst();
 
@@ -372,7 +380,7 @@ public class DatasetOperationService {
         return new ModelOperationResult(operation.id(), true, cellValue(matchRow.get(), resultColumn), null);
     }
 
-    private int resolveColumnIndex(
+    private String resolveChainableField(
             Map<String, Object> fields,
             String fieldName,
             DatasetImportResponse dataset,
@@ -383,8 +391,7 @@ public class DatasetOperationService {
         if (!(fields.get(fieldName) instanceof Map<?, ?> source)) {
             throw new IllegalArgumentException("Campo obrigatório em falta ou inválido: " + fieldName);
         }
-        String value = resolveValueSource(asStringKeyedMap(source), dataset, byId, cyclicIds, resolved);
-        return parseColumnIndex(value, fieldName);
+        return resolveValueSource(asStringKeyedMap(source), dataset, byId, cyclicIds, resolved);
     }
 
     /**
@@ -396,6 +403,21 @@ public class DatasetOperationService {
     private int parseColumnIndex(String value, String fieldName) {
         String trimmed = value == null ? "" : value.trim();
         String raw = trimmed.contains(",") ? trimmed.substring(trimmed.lastIndexOf(',') + 1).trim() : trimmed;
+        return parseNonNegativeInt(raw, trimmed, fieldName, "coluna");
+    }
+
+    /**
+     * The row-index counterpart of {@link #parseColumnIndex} — a chained value can also come from
+     * a find operation's combined {@code "rowIndex,columnIndex"} result, in which case this takes
+     * whatever's *before* the first comma (the row half) rather than the column half.
+     */
+    private int parseRowIndex(String value, String fieldName) {
+        String trimmed = value == null ? "" : value.trim();
+        String raw = trimmed.contains(",") ? trimmed.substring(0, trimmed.indexOf(',')).trim() : trimmed;
+        return parseNonNegativeInt(raw, trimmed, fieldName, "linha");
+    }
+
+    private int parseNonNegativeInt(String raw, String original, String fieldName, String kind) {
         try {
             int parsed = Integer.parseInt(raw);
             if (parsed < 0) {
@@ -403,7 +425,7 @@ public class DatasetOperationService {
             }
             return parsed;
         } catch (NumberFormatException ex) {
-            throw new IllegalArgumentException("Valor de coluna inválido em " + fieldName + ": " + trimmed);
+            throw new IllegalArgumentException("Valor de " + kind + " inválido em " + fieldName + ": " + original);
         }
     }
 

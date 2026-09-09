@@ -20,6 +20,10 @@ interface LookupFields {
   // own ValueSourceField for it instead, same as the query.
   searchColumn: ValueSource;
   resultColumn: number | '';
+  // Skips every row before it when scanning for a match — chainable too, same as searchColumn,
+  // including from a find's combined result (its row half this time — see parseRowIndex). "0"
+  // (the default) searches from the very first row, same as before this field existed.
+  startRow: ValueSource;
 }
 
 function asLookupFields(fields: OperationFields): LookupFields {
@@ -41,6 +45,20 @@ function parseColumnIndex(resolvedInput: ResolvedInput): number | null {
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
 }
 
+/**
+ * The row-index counterpart of parseColumnIndex — a chained value can also come from a find
+ * operation's combined "rowIndex,columnIndex" result, in which case this takes whatever's
+ * *before* the first comma (the row half) rather than the column half. Mirrors the backend's own
+ * parseRowIndex exactly.
+ */
+function parseRowIndex(resolvedInput: ResolvedInput): number | null {
+  if (resolvedInput.status !== 'ready') return null;
+  const trimmed = resolvedInput.value.trim();
+  const raw = trimmed.includes(',') ? trimmed.slice(0, trimmed.indexOf(',')).trim() : trimmed;
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+}
+
 export const lookupKind: OperationKind = {
   id: 'lookup',
 
@@ -49,6 +67,7 @@ export const lookupKind: OperationKind = {
     sheetIndex: dataset.sheets.length === 1 ? 0 : '',
     searchColumn: literalSource(''),
     resultColumn: '',
+    startRow: literalSource('0'),
   } satisfies LookupFields),
 
   canConfirm: (fields) => asLookupFields(fields).resultColumn !== '',
@@ -64,7 +83,9 @@ export const lookupKind: OperationKind = {
               label="Tabela"
               dataset={dataset}
               sheetIndex={f.sheetIndex}
-              onSelect={(sheetIndex) => updateFields({ sheetIndex, searchColumn: literalSource(''), resultColumn: '' })}
+              onSelect={(sheetIndex) =>
+                updateFields({ sheetIndex, searchColumn: literalSource(''), resultColumn: '', startRow: literalSource('0') })
+              }
             />
           </div>
         )}
@@ -124,12 +145,15 @@ export const lookupKind: OperationKind = {
 
   renderBody: ({ fields, updateFields, datasetId, testSignal, resetSignal, onMatchChange, resolvedInputs, referenceOptions, onResultChange }) => {
     const f = asLookupFields(fields);
-    // "input" (the query) and "searchColumn" are both chainable fields on this kind, declared in
-    // this order in createFields — resolvedInputs mirrors that order (see getInputSources).
+    // "input" (the query), "searchColumn" and "startRow" are all chainable fields on this kind,
+    // declared in this order in createFields — resolvedInputs mirrors that order (see
+    // getInputSources).
     const queryResolved = resolvedInputs[0];
     const searchColumnResolved = resolvedInputs[1] ?? { status: 'missing' as const };
+    const startRowResolved = resolvedInputs[2] ?? { status: 'missing' as const };
     const query = queryResolved.status === 'ready' ? queryResolved.value : '';
     const searchColumn = parseColumnIndex(searchColumnResolved);
+    const startRow = parseRowIndex(startRowResolved);
 
     return (
       <>
@@ -141,6 +165,16 @@ export const lookupKind: OperationKind = {
           onChange={(searchColumn) => updateFields({ searchColumn })}
           referenceOptions={referenceOptions}
           resolvedInput={searchColumnResolved}
+        />
+
+        <ValueSourceField
+          label="Linha inicial"
+          placeholder="Índice da linha"
+          inputType="number"
+          source={f.startRow}
+          onChange={(startRow) => updateFields({ startRow })}
+          referenceOptions={referenceOptions}
+          resolvedInput={startRowResolved}
         />
 
         <ValueSourceField
@@ -159,6 +193,7 @@ export const lookupKind: OperationKind = {
           sheetIndex={f.sheetIndex as number}
           searchColumn={searchColumn}
           resultColumn={f.resultColumn as number}
+          startRow={startRow}
           testSignal={testSignal}
           resetSignal={resetSignal}
           onMatchChange={onMatchChange}
@@ -211,6 +246,9 @@ interface LookupResultProps {
    * "nothing to test" treatment as an empty query. */
   searchColumn: number | null;
   resultColumn: number;
+  /** Null while the (possibly chained) start row hasn't resolved to a valid index yet — same
+   * "nothing to test" treatment as an empty query or unresolved search column. */
+  startRow: number | null;
   /** Incremented by "Testar modelo" (see OperationPanel) — the only thing that triggers a
    * request; editing the query/table/columns afterward doesn't, until tested again. */
   testSignal: number;
@@ -246,6 +284,7 @@ function LookupResult({
   sheetIndex,
   searchColumn,
   resultColumn,
+  startRow,
   testSignal,
   resetSignal,
   onMatchChange,
@@ -283,7 +322,7 @@ function LookupResult({
   const inFlightRef = useRef<{ signal: number; promise: ReturnType<typeof lookupValue> } | null>(null);
 
   useEffect(() => {
-    if (testSignal === 0 || query.trim() === '' || searchColumn === null) {
+    if (testSignal === 0 || query.trim() === '' || searchColumn === null || startRow === null) {
       return;
     }
 
@@ -308,6 +347,7 @@ function LookupResult({
               searchColumn,
               resultSheetIndex: sheetIndex,
               resultColumn,
+              startRow,
             });
             inFlightRef.current = { signal: testSignal, promise };
             return promise;
@@ -336,7 +376,7 @@ function LookupResult({
       onResultChange(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [testSignal, query, sheetIndex, searchColumn, resultColumn]);
+  }, [testSignal, query, sheetIndex, searchColumn, resultColumn, startRow]);
 
   if (state.status === 'idle') {
     return null;

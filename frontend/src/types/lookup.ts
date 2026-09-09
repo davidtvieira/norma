@@ -7,6 +7,9 @@ export interface LookupRequestPayload {
   resultSheetIndex: number;
   resultColumn: number;
   query: string;
+  /** Skips every row before this one when scanning for a match. 0 searches from the very first
+   * row (the only behavior before this field existed). */
+  startRow: number;
 }
 
 export interface LookupResponsePayload {
