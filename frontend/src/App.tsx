@@ -294,6 +294,14 @@ function App() {
             inputOperationId={utilizeModel.inputOperationId}
             outputOperationId={utilizeModel.outputOperationId}
           />
+
+          <button
+            type="button"
+            className="app__create-model-button app__create-model-button--back"
+            onClick={() => setUtilizeModel(null)}
+          >
+            ← Voltar
+          </button>
         </div>
 
         <footer className="app__footer">

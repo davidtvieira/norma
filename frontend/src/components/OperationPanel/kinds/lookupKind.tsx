@@ -122,19 +122,17 @@ export const lookupKind: OperationKind = {
           resolvedInput={resolvedInput}
         />
 
-        {resolvedInput.status === 'ready' && query.trim() !== '' && (
-          <LookupResult
-            datasetId={datasetId}
-            query={query}
-            sheetIndex={f.sheetIndex as number}
-            searchColumn={f.searchColumn as number}
-            resultColumn={f.resultColumn as number}
-            testSignal={testSignal}
-            resetSignal={resetSignal}
-            onMatchChange={onMatchChange}
-            onResultChange={onResultChange}
-          />
-        )}
+        <LookupResult
+          datasetId={datasetId}
+          query={query}
+          sheetIndex={f.sheetIndex as number}
+          searchColumn={f.searchColumn as number}
+          resultColumn={f.resultColumn as number}
+          testSignal={testSignal}
+          resetSignal={resetSignal}
+          onMatchChange={onMatchChange}
+          onResultChange={onResultChange}
+        />
       </>
     );
   },
@@ -197,7 +195,12 @@ type LookupRequestState =
  * /api/v1/dataset/operation/lookup, which does the row matching and returns the value — this
  * component only renders the outcome, and only once "Testar modelo" is actually clicked: nothing
  * shows (see the 'idle' case below, rendering nothing) while the query/table/columns are still
- * being typed/changed, and no request fires either — see the two effects below.
+ * being typed/changed (or, for a dynamic query, not resolved yet), and no request fires either —
+ * see the effect below. Always mounted (even with an empty/unresolved query) rather than only
+ * once ready: mounting late — right as a dynamic query resolves mid test-cycle — would otherwise
+ * hit React StrictMode's dev-only mount→cleanup→mount double-invoke exactly when "Testar modelo"
+ * was clicked, firing two real requests for that one click (one always discarded, but still an
+ * extra call) instead of the single request every other, already-mounted operation makes.
  */
 function LookupResult({
   datasetId,
@@ -220,43 +223,62 @@ function LookupResult({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetSignal]);
 
-  // testSignal as of whenever this became ready to test (mount, or the query going from empty
-  // back to non-empty) — the fetch effect below only actually fetches once testSignal has moved
-  // past this baseline, i.e. an actual "Testar modelo" click happened while mounted, not merely
-  // because some other operation had already been tested earlier.
-  const testSignalBaselineRef = useRef(testSignal);
+  // Which testSignal we've already gotten a definitive response (success or error) for — starts
+  // at 0, "never tested". A *dynamic* query (chained from another operation's result) can go from
+  // empty to a real value right after "Testar modelo" is clicked, once its upstream operation's
+  // own fetch resolves — that's still the same test round, so the fetch below must still fire
+  // once the query catches up, not be treated as a stale edit (a naive "reset on any query
+  // change" would otherwise silently swallow every chained lookup's result — the query change IS
+  // the test arriving, not the user editing something). Only a query/column change once we've
+  // *already* gotten a response for the current testSignal is a genuine post-test edit, which
+  // clears back to idle instead, waiting for the next "Testar modelo" click.
+  const handledForSignalRef = useRef(0);
 
-  // Hides any previous result (and re-arms the baseline above) the moment the query/table/
-  // columns change — a stale result from an earlier test would otherwise keep showing while the
-  // user types something new, easily mistaken for already reflecting it.
-  useEffect(() => {
-    testSignalBaselineRef.current = testSignal;
-    setState({ status: 'idle' });
-    onMatchChange(null);
-    onResultChange(null);
-    // Intentionally excludes testSignal — a test click shouldn't reset the baseline it's the one
-    // advancing past, only an actual field change should.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, sheetIndex, searchColumn, resultColumn]);
+  // The in-flight request for the current testSignal, if one's already been started — reused
+  // instead of starting a second one. React StrictMode runs mount → cleanup → mount again in dev;
+  // both mounts execute synchronously back to back, well before either could see the other's
+  // result, so a ref that only records "done" *after* the request resolves can't stop the second
+  // mount from firing its own duplicate call in the meantime. Recording (and reusing) the in-flight
+  // *promise itself*, synchronously, does: the second mount finds it already there and subscribes
+  // to that same promise instead of calling lookupValue again, so only one real request ever goes
+  // out no matter how many times the effect is (re)invoked for the same testSignal.
+  const inFlightRef = useRef<{ signal: number; promise: ReturnType<typeof lookupValue> } | null>(null);
 
   useEffect(() => {
-    if (testSignal === testSignalBaselineRef.current) {
+    if (testSignal === 0 || query.trim() === '') {
+      return;
+    }
+
+    if (testSignal === handledForSignalRef.current) {
+      setState({ status: 'idle' });
+      onMatchChange(null);
+      onResultChange(null);
       return;
     }
 
     let cancelled = false;
     setState({ status: 'loading' });
 
-    lookupValue({
-      datasetId,
-      query,
-      searchSheetIndex: sheetIndex,
-      searchColumn,
-      resultSheetIndex: sheetIndex,
-      resultColumn,
-    })
+    const request =
+      inFlightRef.current && inFlightRef.current.signal === testSignal
+        ? inFlightRef.current.promise
+        : (() => {
+            const promise = lookupValue({
+              datasetId,
+              query,
+              searchSheetIndex: sheetIndex,
+              searchColumn,
+              resultSheetIndex: sheetIndex,
+              resultColumn,
+            });
+            inFlightRef.current = { signal: testSignal, promise };
+            return promise;
+          })();
+
+    request
       .then((response) => {
         if (!cancelled) {
+          handledForSignalRef.current = testSignal;
           setState({ status: 'done', found: response.found, value: response.value });
           onMatchChange(response.found ? response.rowIndex : null);
           onResultChange(response.found ? String(response.value ?? '') : null);
@@ -264,6 +286,7 @@ function LookupResult({
       })
       .catch((error) => {
         if (!cancelled) {
+          handledForSignalRef.current = testSignal;
           setState({ status: 'error', message: error instanceof Error ? error.message : 'Falha ao procurar o valor.' });
           onResultChange(null);
         }
@@ -274,12 +297,8 @@ function LookupResult({
       onMatchChange(null);
       onResultChange(null);
     };
-    // Deliberately reactive to testSignal alone — query/sheetIndex/searchColumn/resultColumn/
-    // onMatchChange/onResultChange are all read at their current value when that happens (a
-    // fresh render always supplies a fresh closure), but changing on their own must not re-fire
-    // a request; only another "Testar modelo" click should.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [testSignal]);
+  }, [testSignal, query, sheetIndex, searchColumn, resultColumn]);
 
   if (state.status === 'idle') {
     return null;

@@ -187,7 +187,9 @@ interface ValueSourceFieldProps {
  * between typing a plain value and pulling it from another confirmed operation instead. Either
  * side reveals its own control right there, in flow, once picked: "Input estático" a plain field
  * with a ✓ to confirm it, "Input dinâmico" a list of the other confirmed operations — clicking
- * one selects it (and confirms immediately, showing its live result). Confirming either way hides
+ * one selects and confirms it immediately, collapsing to a pill naming the chosen operation (the
+ * value it feeds in, and this operation's own result computed from it, both render separately —
+ * see the kind's renderBody, e.g. LookupResult in lookupKind.tsx). Confirming either way hides
  * the toggle (and, for dynamic, the option list) down to just the confirmed value, with a × to
  * back out and pick again. The "Input dinâmico" side of the toggle only appears once there's
  * something to chain to; with nothing to chain to yet, "Input estático" is the only button and
@@ -314,12 +316,6 @@ export function ValueSourceField({
             <p className="operation-entry__chain-status">
               {resolvedInput.status === 'missing' && 'Essa operação já não existe.'}
               {resolvedInput.status === 'cycle' && 'Referência circular entre operações.'}
-            </p>
-          )}
-
-          {resolvedInput.status === 'ready' && (
-            <p className="operation-entry__result">
-              <span className="operation-entry__result-label">Resultado:</span> {resolvedInput.value || '(vazio)'}
             </p>
           )}
         </>
