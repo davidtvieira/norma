@@ -1,6 +1,8 @@
 package com.norma.dataset.service;
 
 import com.norma.dataset.dto.CellData;
+import com.norma.dataset.dto.CounterRequest;
+import com.norma.dataset.dto.CounterResponse;
 import com.norma.dataset.dto.DatasetImportResponse;
 import com.norma.dataset.dto.LookupRequest;
 import com.norma.dataset.dto.LookupResponse;
@@ -13,6 +15,7 @@ import com.norma.dataset.dto.SumRequest;
 import com.norma.dataset.dto.SumResponse;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -79,6 +82,26 @@ public class DatasetOperationService {
 
         SumOutcome outcome = sumRange(sheet, request.startRow(), request.endRow(), request.startColumn(), request.endColumn());
         return new SumResponse(outcome.total(), outcome.cellsSummed());
+    }
+
+    /**
+     * Adds up however many already-resolved values it's given — the live-editor counterpart of
+     * {@link #computeCounter}, called the same way lookup/sum's own live endpoints are while a
+     * model is being built (see DatasetOperationController), just with no dataset to look
+     * anything up against: each value was already resolved client-side (a typed literal, or
+     * another operation's own live result) before this is ever called.
+     */
+    public CounterResponse counter(CounterRequest request) {
+        List<String> values = request.values() == null ? List.of() : request.values();
+        if (values.isEmpty()) {
+            throw new IllegalArgumentException("O contador não tem nenhuma entrada.");
+        }
+
+        double total = 0;
+        for (String value : values) {
+            total += parseCounterEntry(value);
+        }
+        return new CounterResponse(total);
     }
 
     /**
@@ -205,6 +228,7 @@ public class DatasetOperationService {
             return switch (operation.kind()) {
                 case "lookup" -> computeLookup(operation, dataset, inputValue);
                 case "sum" -> computeSum(operation, dataset);
+                case "counter" -> computeCounter(operation, dataset, byId, cyclicIds, resolved);
                 default -> new ModelOperationResult(id, false, null, "Tipo de operação desconhecido: " + operation.kind());
             };
         } catch (IllegalArgumentException ex) {
@@ -227,16 +251,39 @@ public class DatasetOperationService {
             Map<String, ModelOperationResult> resolved) {
 
         Map<String, Object> fields = fieldsOf(operation);
-        Optional<String> referencedId = referencedOperationId(fields);
-        if (referencedId.isEmpty()) {
-            return literalInputValue(fields);
+        if (!(fields.get("input") instanceof Map<?, ?> source)) {
+            return "";
+        }
+        return resolveValueSource(asStringKeyedMap(source), dataset, byId, cyclicIds, resolved);
+    }
+
+    /**
+     * Resolves a single value-source object (the same {@code {type, value|operationId}} shape
+     * every chainable field — "input" or one entry of "inputs" — uses) to the literal string it
+     * stands for: a literal value as-is, a reference recursively resolved against the operation
+     * it points at. Shared by {@link #resolveInputValue} (kinds with one chainable field, e.g.
+     * lookup) and {@link #computeCounter} (a kind with several).
+     */
+    private String resolveValueSource(
+            Map<String, Object> source,
+            DatasetImportResponse dataset,
+            Map<String, ModelOperationInput> byId,
+            Set<String> cyclicIds,
+            Map<String, ModelOperationResult> resolved) {
+
+        if (!"reference".equals(source.get("type"))) {
+            Object value = source.get("value");
+            return value == null ? "" : String.valueOf(value);
         }
 
-        if (!byId.containsKey(referencedId.get())) {
+        if (!(source.get("operationId") instanceof String referencedId)) {
+            throw new IllegalArgumentException("Refere uma operação que não existe no modelo.");
+        }
+        if (!byId.containsKey(referencedId)) {
             throw new IllegalArgumentException("Refere uma operação que não existe no modelo.");
         }
 
-        ModelOperationResult referenced = resolveOperation(referencedId.get(), dataset, byId, cyclicIds, resolved);
+        ModelOperationResult referenced = resolveOperation(referencedId, dataset, byId, cyclicIds, resolved);
         if (!referenced.success() || referenced.value() == null) {
             throw new IllegalArgumentException("A operação de referência não produziu um resultado.");
         }
@@ -280,6 +327,49 @@ public class DatasetOperationService {
     }
 
     /**
+     * A counter has no dataset dependency of its own (unlike lookup/sum): it just adds up
+     * whatever its "inputs" — each a value source, literal or chained off another operation's
+     * result, same shape as lookup's single "input" — resolve to. Unlike every other kind, it can
+     * have more than one chainable field, which is why cycle detection (see
+     * {@link #buildReferenceGraph}) has to track more than one outgoing edge per operation.
+     */
+    private ModelOperationResult computeCounter(
+            ModelOperationInput operation,
+            DatasetImportResponse dataset,
+            Map<String, ModelOperationInput> byId,
+            Set<String> cyclicIds,
+            Map<String, ModelOperationResult> resolved) {
+
+        Map<String, Object> fields = fieldsOf(operation);
+        if (!(fields.get("inputs") instanceof List<?> inputs) || inputs.isEmpty()) {
+            throw new IllegalArgumentException("O contador não tem nenhuma entrada.");
+        }
+
+        double total = 0;
+        for (Object rawSource : inputs) {
+            if (!(rawSource instanceof Map<?, ?> source)) {
+                throw new IllegalArgumentException("Uma das entradas do contador está mal formada.");
+            }
+            String value = resolveValueSource(asStringKeyedMap(source), dataset, byId, cyclicIds, resolved);
+            total += parseCounterEntry(value);
+        }
+
+        return new ModelOperationResult(operation.id(), true, normalizeNumber(total), null);
+    }
+
+    private double parseCounterEntry(String value) {
+        String trimmed = value == null ? "" : value.trim();
+        if (trimmed.isEmpty()) {
+            throw new IllegalArgumentException("O contador tem uma entrada sem valor.");
+        }
+        try {
+            return Double.parseDouble(trimmed.replace(',', '.'));
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("O contador tem uma entrada que não é numérica: " + trimmed);
+        }
+    }
+
+    /**
      * Mirrors DatasetParserService's own cell-value normalization (an independent copy, not
      * shared code — same convention as the frontend/backend cycle-detection duplication elsewhere
      * in this codebase). A whole-number sum needs to stringify the same way a whole-number cell
@@ -316,48 +406,76 @@ public class DatasetOperationService {
         return new SumOutcome(total, cellsSummed);
     }
 
-    /** entryId -> the operationId it references, for every operation whose "input" field is a reference. */
-    private Map<String, String> buildReferenceGraph(List<ModelOperationInput> operations) {
-        Map<String, String> edges = new HashMap<>();
+    /**
+     * entryId -> every operationId it references — usually at most one (lookup's single "input"),
+     * but a kind with several chainable fields (counter's "inputs" list) can have more than one,
+     * so this is a multi-edge graph rather than a single successor per node.
+     */
+    private Map<String, List<String>> buildReferenceGraph(List<ModelOperationInput> operations) {
+        Map<String, List<String>> edges = new HashMap<>();
         for (ModelOperationInput operation : operations) {
-            referencedOperationId(fieldsOf(operation)).ifPresent(refId -> edges.put(operation.id(), refId));
+            edges.put(operation.id(), referencedOperationIds(fieldsOf(operation)));
         }
         return edges;
     }
 
-    /** Ids of every operation that sits on a reference cycle (directly or transitively self-referencing). */
-    private Set<String> findCyclicIds(Map<String, String> edges) {
+    /**
+     * Ids of every operation that sits on a reference cycle (directly or transitively
+     * self-referencing), found via a DFS walk (coloring each node visiting/done) rather than
+     * chasing a single successor per node, since a node can now have more than one outgoing edge.
+     */
+    private Set<String> findCyclicIds(Map<String, List<String>> edges) {
         Set<String> cyclic = new HashSet<>();
+        Map<String, Boolean> done = new HashMap<>(); // absent = untouched, false = visiting, true = done
+        List<String> stack = new ArrayList<>();
         for (String start : edges.keySet()) {
-            Set<String> seen = new HashSet<>();
-            String current = start;
-            while (current != null) {
-                if (seen.contains(current)) {
-                    if (current.equals(start)) {
-                        cyclic.add(start);
-                    }
-                    break;
-                }
-                seen.add(current);
-                current = edges.get(current);
+            if (!done.containsKey(start)) {
+                visitForCycles(start, edges, done, stack, cyclic);
             }
         }
         return cyclic;
     }
 
-    private Optional<String> referencedOperationId(Map<String, Object> fields) {
-        if (!(fields.get("input") instanceof Map<?, ?> source) || !"reference".equals(source.get("type"))) {
+    private void visitForCycles(
+            String node, Map<String, List<String>> edges, Map<String, Boolean> done, List<String> stack, Set<String> cyclic) {
+        done.put(node, false);
+        stack.add(node);
+        for (String next : edges.getOrDefault(node, List.of())) {
+            Boolean state = done.get(next);
+            if (Boolean.FALSE.equals(state)) {
+                int cycleStart = stack.indexOf(next);
+                cyclic.addAll(stack.subList(cycleStart, stack.size()));
+            } else if (state == null) {
+                visitForCycles(next, edges, done, stack, cyclic);
+            }
+        }
+        stack.remove(stack.size() - 1);
+        done.put(node, true);
+    }
+
+    /** Every operationId referenced by any chainable field in `fields` — "input" (a single value
+     * source) and/or "inputs" (a list of them, e.g. counter). */
+    private List<String> referencedOperationIds(Map<String, Object> fields) {
+        List<String> ids = new ArrayList<>();
+        referencedOperationId(fields.get("input")).ifPresent(ids::add);
+        if (fields.get("inputs") instanceof List<?> inputs) {
+            for (Object rawSource : inputs) {
+                referencedOperationId(rawSource).ifPresent(ids::add);
+            }
+        }
+        return ids;
+    }
+
+    private Optional<String> referencedOperationId(Object rawSource) {
+        if (!(rawSource instanceof Map<?, ?> source) || !"reference".equals(source.get("type"))) {
             return Optional.empty();
         }
         return source.get("operationId") instanceof String operationId ? Optional.of(operationId) : Optional.empty();
     }
 
-    private String literalInputValue(Map<String, Object> fields) {
-        if (fields.get("input") instanceof Map<?, ?> source && "literal".equals(source.get("type"))) {
-            Object value = source.get("value");
-            return value == null ? "" : String.valueOf(value);
-        }
-        return "";
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> asStringKeyedMap(Map<?, ?> map) {
+        return (Map<String, Object>) map;
     }
 
     private Map<String, Object> fieldsOf(ModelOperationInput operation) {

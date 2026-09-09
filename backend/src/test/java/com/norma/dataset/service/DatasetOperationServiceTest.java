@@ -1,6 +1,8 @@
 package com.norma.dataset.service;
 
 import com.norma.dataset.dto.CellData;
+import com.norma.dataset.dto.CounterRequest;
+import com.norma.dataset.dto.CounterResponse;
 import com.norma.dataset.dto.DatasetImportResponse;
 import com.norma.dataset.dto.LookupRequest;
 import com.norma.dataset.dto.LookupResponse;
@@ -434,6 +436,104 @@ class DatasetOperationServiceTest {
         assertThatThrownBy(() -> datasetOperationService.registerModel(
                 "missing-dataset", new ModelRegisterRequest("Test model", operations, null, "op-1")))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void addsUpTheCountersValuesViaTheLiveEndpoint() {
+        CounterResponse response = datasetOperationService.counter(new CounterRequest(List.of("2", "3.5", "10")));
+
+        assertThat(response.total()).isEqualTo(15.5);
+    }
+
+    @Test
+    void rejectsALiveCounterCallWithNoValues() {
+        assertThatThrownBy(() -> datasetOperationService.counter(new CounterRequest(List.of())))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsALiveCounterCallWithANonNumericValue() {
+        assertThatThrownBy(() -> datasetOperationService.counter(new CounterRequest(List.of("1", "not-a-number"))))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void sumsAllOfACountersInputs() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationInput counter = new ModelOperationInput("op-1", "counter", Map.of(
+                "inputs", List.of(literalInput("2"), literalInput("3.5"), literalInput("10"))));
+
+        ModelOperationResult result = registerAndRun(datasetId, List.of(counter), null, "op-1", null);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.value()).isEqualTo(15.5);
+    }
+
+    @Test
+    void sumsSeveralOtherOperationsResultsThroughACounter() {
+        SheetData sales = new SheetData("Vendas", 2, List.of(
+                new RowData(0, List.of(new CellData(0, 10L))),
+                new RowData(1, List.of(new CellData(0, 5L)))
+        ));
+        String datasetId = storeDataset(new DatasetImportResponse("dataset-counter-1", "test.xlsx", Instant.now(), List.of(sales)));
+
+        ModelOperationInput sumA = new ModelOperationInput("op-a", "sum", Map.of(
+                "sheetIndex", 0, "range", Map.of("startRow", 0, "endRow", 0, "startColumn", 0, "endColumn", 0)));
+        ModelOperationInput sumB = new ModelOperationInput("op-b", "sum", Map.of(
+                "sheetIndex", 0, "range", Map.of("startRow", 1, "endRow", 1, "startColumn", 0, "endColumn", 0)));
+        // The counter takes both sums as inputs — this is its whole point: unlike every other
+        // kind (at most one chainable field), it can chain off several operations at once.
+        ModelOperationInput counter = new ModelOperationInput("op-counter", "counter", Map.of(
+                "inputs", List.of(referenceInput("op-a"), referenceInput("op-b"), literalInput("100"))));
+
+        ModelOperationResult result = registerAndRun(
+                datasetId, List.of(sumA, sumB, counter), null, "op-counter", null);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.value()).isEqualTo(115L);
+    }
+
+    @Test
+    void reportsACounterWithNoInputsAsAnError() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationInput counter = new ModelOperationInput("op-1", "counter", Map.of("inputs", List.of()));
+
+        ModelOperationResult result = registerAndRun(datasetId, List.of(counter), null, "op-1", null);
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.error()).isNotBlank();
+    }
+
+    @Test
+    void reportsANonNumericCounterEntryAsAnError() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationInput counter = new ModelOperationInput("op-1", "counter", Map.of(
+                "inputs", List.of(literalInput("not-a-number"))));
+
+        ModelOperationResult result = registerAndRun(datasetId, List.of(counter), null, "op-1", null);
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.error()).isNotBlank();
+    }
+
+    @Test
+    void reportsACircularReferenceThroughACountersMultipleInputsAsAnError() {
+        String datasetId = twoSheetDataset();
+
+        // op-a's counter chains back to op-b, which chains back to op-a — a cycle reachable
+        // through only one of the counter's two inputs, the other being a plain literal.
+        ModelOperationInput opA = new ModelOperationInput("op-a", "counter", Map.of(
+                "inputs", List.of(referenceInput("op-b"), literalInput("1"))));
+        ModelOperationInput opB = new ModelOperationInput("op-b", "counter", Map.of(
+                "inputs", List.of(referenceInput("op-a"))));
+
+        ModelOperationResult result = registerAndRun(datasetId, List.of(opA, opB), null, "op-a", null);
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.error()).isNotBlank();
     }
 
     @Test

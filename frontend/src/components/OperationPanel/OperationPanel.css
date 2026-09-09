@@ -160,6 +160,16 @@
   background: var(--color-surface-hover);
 }
 
+.operation-entry__pick-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.operation-entry__pick-button:disabled:hover {
+  border-color: var(--color-border);
+  background: transparent;
+}
+
 /* Base pill chrome, shared by two different pills: a picked column/range (a real <button> — see
    the --pickable modifier below) and ValueSourceField's confirmed-reference pill (a <div> with
    its own nested .operation-entry__reset-button), which still needs the space-between layout. */
@@ -470,6 +480,23 @@
 .operation-entry__dynamic-input-option:hover {
   background: var(--color-primary);
   color: var(--color-surface);
+}
+
+/* counterKind: one row per input, each a full ValueSourceField plus a × to remove it (hidden
+   while only one input remains — a counter always keeps at least one). */
+.counter-entry__input-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+
+.counter-entry__input-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.counter-entry__remove-input {
+  margin-top: 1.55rem;
 }
 
 

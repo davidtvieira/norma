@@ -1,3 +1,4 @@
+import type { CounterRequestPayload, CounterResponsePayload } from '../types/counter';
 import type { DatasetImportResponse } from '../types/dataset';
 import type { LookupRequestPayload, LookupResponsePayload } from '../types/lookup';
 import type {
@@ -85,6 +86,27 @@ export async function sumColumn(payload: SumRequestPayload): Promise<SumResponse
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
     throw new Error(errorBody?.message ?? `Falha ao somar a coluna (estado ${response.status})`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Adds up however many already-resolved values it's given. Unlike lookup/sum, a counter has no
+ * dataset dependency of its own — each value was already resolved client-side (a typed literal,
+ * or another operation's own live result) before this is called, so no datasetId/table/column/
+ * range is sent, only the values — the API just does the actual addition.
+ */
+export async function counterValues(payload: CounterRequestPayload): Promise<CounterResponsePayload> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/dataset/operation/counter`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    throw new Error(errorBody?.message ?? `Falha ao somar as entradas (estado ${response.status})`);
   }
 
   return response.json();

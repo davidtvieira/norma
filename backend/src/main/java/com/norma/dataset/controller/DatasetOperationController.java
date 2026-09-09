@@ -1,5 +1,7 @@
 package com.norma.dataset.controller;
 
+import com.norma.dataset.dto.CounterRequest;
+import com.norma.dataset.dto.CounterResponse;
 import com.norma.dataset.dto.LookupRequest;
 import com.norma.dataset.dto.LookupResponse;
 import com.norma.dataset.dto.ModelOperationResult;
@@ -27,7 +29,8 @@ public class DatasetOperationController {
 
     private static final List<OperationType> OPERATION_TYPES = List.of(
             new OperationType("lookup", "Lookup"),
-            new OperationType("sum", "Sum")
+            new OperationType("sum", "Sum"),
+            new OperationType("counter", "Counter")
     );
 
     private final DatasetOperationService datasetOperationService;
@@ -64,6 +67,18 @@ public class DatasetOperationController {
     @PostMapping("/api/v1/dataset/operation/sum")
     public ResponseEntity<SumResponse> sum(@RequestBody SumRequest request) {
         return ResponseEntity.ok(datasetOperationService.sum(request));
+    }
+
+    @Operation(
+            summary = "Add up a list of values",
+            description = "Adds together however many already-resolved values it's given. Unlike lookup/sum, "
+                    + "a counter has no dataset dependency of its own — each value was already resolved "
+                    + "client-side (typed directly, or chained from another operation's own live result) "
+                    + "before this is called, so no datasetId/table/column/range is sent here, only the values."
+    )
+    @PostMapping("/api/v1/dataset/operation/counter")
+    public ResponseEntity<CounterResponse> counter(@RequestBody CounterRequest request) {
+        return ResponseEntity.ok(datasetOperationService.counter(request));
     }
 
     @Operation(

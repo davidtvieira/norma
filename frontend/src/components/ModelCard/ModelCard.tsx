@@ -156,7 +156,7 @@ export function ModelCard({ dataset, modelName, entries, inputOperationId, outpu
             {inputKind.renderInputEditor?.({
               fields: fields[inputEntry.id],
               updateFields: (patch) => updateEntryFields(inputEntry.id, patch),
-              resolvedInput: resolvedInputs[inputEntry.id],
+              resolvedInput: resolvedInputs[inputEntry.id][0],
             })}
           </div>
         )}

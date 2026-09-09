@@ -1,4 +1,4 @@
-import { getInputSource } from '../types/valueSource';
+import { getInputSources } from '../types/valueSource';
 
 /**
  * Any operation entry, reduced to what (de)serialization needs — kept separate from
@@ -45,16 +45,27 @@ export interface ExportedModel {
 
 const MODEL_EXPORT_VERSION = 1;
 
+/**
+ * An entry's tree parent for export nesting: the first of its (possibly several — e.g. counter's
+ * "inputs" list) chainable fields that's a reference. Purely cosmetic — a node that references
+ * more than one other operation still nests under only this one, since the tree can't show two
+ * parents at once, but every reference it holds (not just this "primary" one) stays fully
+ * preserved in its own `fields` regardless of where it ends up nested, which is what
+ * flattenNode/computation actually reads back — nesting position never carries relationship data
+ * of its own.
+ */
+function primaryReferenceId(fields: Record<string, unknown>): string | null {
+  const reference = getInputSources(fields).find((source) => source.type === 'reference');
+  return reference?.type === 'reference' ? reference.operationId : null;
+}
+
 function childrenOf(entryId: string, confirmedEntries: SerializableEntry[]): SerializableEntry[] {
-  return confirmedEntries.filter((entry) => {
-    const source = getInputSource(entry.fields);
-    return source.type === 'reference' && source.operationId === entryId;
-  });
+  return confirmedEntries.filter((entry) => primaryReferenceId(entry.fields) === entryId);
 }
 
 function isLinkedChild(entry: SerializableEntry, confirmedEntries: SerializableEntry[]): boolean {
-  const source = getInputSource(entry.fields);
-  return source.type === 'reference' && confirmedEntries.some((candidate) => candidate.id === source.operationId);
+  const parentId = primaryReferenceId(entry.fields);
+  return parentId !== null && confirmedEntries.some((candidate) => candidate.id === parentId);
 }
 
 function toNode(entry: SerializableEntry, confirmedEntries: SerializableEntry[]): ExportedOperationNode {

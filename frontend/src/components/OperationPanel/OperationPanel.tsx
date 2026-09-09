@@ -5,7 +5,7 @@ import type { ColumnPickField, ColumnPickState, RangePickState } from '../../typ
 import type { ColumnHighlight, OperationHighlight, RangeHighlight } from '../../types/highlight';
 import { useOperationTypes } from '../../hooks/useOperationTypes';
 import { getDependents, resolveOperationInputs } from '../../utils/resolveOperationInputs';
-import { getInputSource } from '../../types/valueSource';
+import { getInputSource, getInputSources } from '../../types/valueSource';
 import type { SerializableEntry } from '../../utils/modelSerialization';
 import type { OperationFields, ReferenceOption } from './operationKind';
 import { KINDS, KINDS_BY_ID } from './kinds/registry';
@@ -233,7 +233,7 @@ function ConfirmedOperationCard({
 
 // Overrides the API's (English) labels with their Portuguese display names — the id is still
 // what's sent to/matched against the API, only the label shown in the UI is translated here.
-const KIND_LABELS: Record<string, string> = { lookup: 'Pesquisa aninhada', sum: 'Somar' };
+const KIND_LABELS: Record<string, string> = { lookup: 'Pesquisa aninhada', sum: 'Somar', counter: 'Contador' };
 
 interface OperationEntryState {
   id: string;
@@ -410,7 +410,7 @@ export function OperationPanel({
   // frontend-only stand-in for a chain: another operation's "input" field can reference an id
   // here instead of a typed value. Null means "no value yet" (loading, error, or not found).
   const [results, setResults] = useState<Record<string, string | null>>({});
-  const resolvedInputs = resolveOperationInputs(entries, results);
+  const resolvedInputsByEntry = resolveOperationInputs(entries, results);
 
   // The canvas' pan offset (dragging empty background) and, independently, a node being dragged
   // — see the window-level listener effect below. Both are plain pointer-delta math, no library.
@@ -627,11 +627,12 @@ export function OperationPanel({
   const entriesById = new Map(entries.map((entry) => [entry.id, entry]));
   const edges: Edge[] = entries.flatMap((entry) => {
     if (!entry.confirmed) return [];
-    const source = getInputSource(entry.fields);
-    if (source.type !== 'reference') return [];
-    const from = entriesById.get(source.operationId);
-    if (!from) return [];
-    return [{ fromId: from.id, toId: entry.id, from: from.position, to: entry.position }];
+    return getInputSources(entry.fields).flatMap((source) => {
+      if (source.type !== 'reference') return [];
+      const from = entriesById.get(source.operationId);
+      if (!from) return [];
+      return [{ fromId: from.id, toId: entry.id, from: from.position, to: entry.position }];
+    });
   });
 
   function renderDraftCard(entry: OperationEntryState) {
@@ -713,7 +714,8 @@ export function OperationPanel({
           updateFields: (patch) => updateEntryFields(entry.id, patch),
           datasetId: dataset.datasetId,
           onMatchChange: (rowIndex) => setMatchedRows((current) => ({ ...current, [entry.id]: rowIndex })),
-          resolvedInput: resolvedInputs[entry.id],
+          resolvedInput: resolvedInputsByEntry[entry.id][0],
+          resolvedInputs: resolvedInputsByEntry[entry.id],
           referenceOptions: referenceOptionsFor(entry.id),
           onResultChange: (value) => setResults((current) => ({ ...current, [entry.id]: value })),
           testSignal,
@@ -813,8 +815,8 @@ export function OperationPanel({
       >
         <div className="operation-canvas__surface" style={{ transform: `translate(${viewOffset.x}px, ${viewOffset.y}px)` }}>
           <svg className="operation-canvas__edges">
-            {edges.map((edge) => (
-              <path key={`${edge.fromId}-${edge.toId}`} d={edgePath(edge)} />
+            {edges.map((edge, index) => (
+              <path key={`${edge.fromId}-${edge.toId}-${index}`} d={edgePath(edge)} />
             ))}
           </svg>
 

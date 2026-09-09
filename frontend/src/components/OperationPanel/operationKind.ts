@@ -37,8 +37,13 @@ export interface OperationBodyContext {
   updateFields: (patch: OperationFields) => void;
   datasetId: string;
   onMatchChange: (rowIndex: number | null) => void;
-  /** The operation's chainable input ("query", ...) resolved to a literal value, for kinds that have one. */
+  /** The operation's chainable input ("query", ...) resolved to a literal value, for kinds that
+   * have exactly one. Always resolvedInputs[0] — kept alongside it so a single-input kind (e.g.
+   * lookup) doesn't need to index into an array for the one value it actually has. */
   resolvedInput: ResolvedInput;
+  /** Every one of the operation's chainable inputs, resolved in field order — for a kind with
+   * several (e.g. counter's "inputs" list) rather than just one. */
+  resolvedInputs: ResolvedInput[];
   /** Other confirmed operations the input field's reference picker can offer. */
   referenceOptions: ReferenceOption[];
   /** Reports this operation's own result so a later operation can reference it; null clears it. */
