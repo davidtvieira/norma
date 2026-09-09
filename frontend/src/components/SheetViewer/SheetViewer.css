@@ -40,6 +40,36 @@
   font-size: 0.85rem;
 }
 
+.sheet-viewer__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.sheet-viewer__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.sheet-viewer__legend-swatch {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 3px;
+}
+
+/* Same colors the highlight classes below tint cells with, just solid instead of mixed at low
+   opacity into the surface — a diluted swatch would barely read as a color at this size. */
+.sheet-viewer__legend-swatch--search {
+  background: var(--color-secondary);
+}
+
+.sheet-viewer__legend-swatch--result {
+  background: var(--color-primary);
+}
+
 .sheet-viewer__col-header--pickable {
   cursor: pointer;
   transition: background-color 0.2s ease, color 0.2s ease;

@@ -73,6 +73,22 @@ function App() {
     .filter((entry) => entry.confirmed)
     .map((entry) => ({ id: entry.id, label: entry.name || 'Operação sem nome' }));
 
+  // An input is only required to export when there's actually an eligible operation for it —
+  // e.g. a model built only from a sum has no literal chainable field anywhere, so it's a fixed
+  // model with nothing dynamic for a caller to fill in, and shouldn't need one picked. An output
+  // is still always required once there's a confirmed operation at all: modelOutputOptions can
+  // only be empty when modelEntries has no confirmed entry, which the check below already covers.
+  const hasConfirmedEntry = modelEntries.some((entry) => entry.confirmed);
+  const isModelInputRequired = modelInputOptions.length > 0;
+  const canExportModel = hasConfirmedEntry && (!isModelInputRequired || modelInputId !== null) && modelOutputId !== null;
+  const exportHint = !hasConfirmedEntry
+    ? 'Conclua pelo menos uma operação antes de exportar.'
+    : isModelInputRequired && modelInputId === null
+      ? 'Defina o input do modelo (botão "Input" numa operação elegível) antes de exportar.'
+      : modelOutputId === null
+        ? 'Defina o output do modelo (botão "Output" numa operação) antes de exportar.'
+        : null;
+
   // Clears a pick that's no longer valid — the operation was deleted, un-confirmed, or (for the
   // input) switched to a dynamic/reference value after being picked — instead of silently
   // exporting a model that points at something stale.
@@ -98,19 +114,21 @@ function App() {
     }
   }, [columnPick, rangePick]);
 
-  // ...and auto-close it once that pick ends — whether a column/range was actually selected
-  // (ColumnPickerField/RangePickerField commit immediately, see their onConfirm+onCancel) or the
-  // user hit "Cancelar" — either way there's nothing left to do with the sheet visible. Tracked
-  // via a ref rather than derived directly, so opening the panel by hand (the "Ver dados"
-  // button, with no pick involved at all) never gets swept up and closed by this effect.
-  const wasPickingRef = useRef(false);
+  // ...and auto-close it once a column pick ends — a single clicked column is unambiguous, so
+  // there's nothing left to confirm with the sheet still visible. A range pick is left open on
+  // purpose: unlike a column, the selected rectangle isn't obvious at a glance, so closing the
+  // moment the drag ends would make it harder to actually check what got selected — the user
+  // closes it manually once they've confirmed it (×, backdrop, or Escape). Tracked via a ref
+  // rather than derived directly, so opening the panel by hand (the "Ver dados" button, with no
+  // pick involved at all) never gets swept up and closed by this effect.
+  const wasPickingColumnRef = useRef(false);
   useEffect(() => {
-    const isPicking = columnPick !== null || rangePick !== null;
-    if (wasPickingRef.current && !isPicking) {
+    const isPickingColumn = columnPick !== null;
+    if (wasPickingColumnRef.current && !isPickingColumn) {
       setIsSheetPanelOpen(false);
     }
-    wasPickingRef.current = isPicking;
-  }, [columnPick, rangePick]);
+    wasPickingColumnRef.current = isPickingColumn;
+  }, [columnPick]);
 
   // Closing the panel while a pick is in progress cancels it too — there's nothing useful left
   // to pick from once the sheet is hidden.
@@ -154,6 +172,15 @@ function App() {
 
   function pickRange(range: CellRange) {
     setRangePick((current) => (current ? { ...current, range } : current));
+  }
+
+  // The click counterpart to OperationPanel's hover-driven sheet tinting (see RevealButton) —
+  // hovering only shows a highlight if the panel already happens to be open, so this actually
+  // opens it (and switches to the operation's own sheet) instead of just tinting whatever's
+  // already visible.
+  function revealInSheet(sheetIndex: number) {
+    setActiveSheetIndex(sheetIndex);
+    setIsSheetPanelOpen(true);
   }
 
   function goToEditorFresh() {
@@ -379,6 +406,9 @@ function App() {
             onColumnHighlightsChange={setColumnHighlights}
             onRangeHighlightsChange={setRangeHighlights}
             onCellHighlightChange={setCellHighlight}
+            onRevealInSheet={revealInSheet}
+            onOperationConfirmed={closeSheetPanel}
+            isSheetPanelOpen={isSheetPanelOpen}
             onEntriesChange={setModelEntries}
             modelInputId={modelInputId}
             modelOutputId={modelOutputId}
@@ -428,8 +458,9 @@ function App() {
         open={isSaveModalOpen}
         onClose={() => setIsSaveModalOpen(false)}
         onExport={exportModel}
-        canExport={modelEntries.some((entry) => entry.confirmed) && modelInputId !== null && modelOutputId !== null}
-        inputLabel={modelInputOptions.find((option) => option.id === modelInputId)?.label ?? null}
+        canExport={canExportModel}
+        exportHint={exportHint}
+        inputLabel={modelInputOptions.find((option) => option.id === modelInputId)?.label ?? (isModelInputRequired ? null : 'nenhum (modelo fixo)')}
         outputLabel={modelOutputOptions.find((option) => option.id === modelOutputId)?.label ?? null}
       />
     </div>

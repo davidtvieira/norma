@@ -43,6 +43,13 @@ export interface OperationBodyContext {
   referenceOptions: ReferenceOption[];
   /** Reports this operation's own result so a later operation can reference it; null clears it. */
   onResultChange: (value: string | null) => void;
+  /**
+   * Incremented by "Testar modelo" (see OperationPanel) — the one thing that should make a kind's
+   * result component actually call its endpoint. Configuring the operation further (typing a
+   * literal value, picking a different column/range, ...) must not call it on its own; only
+   * another test does, so the API isn't hit continuously while the model is still being built.
+   */
+  testSignal: number;
 }
 
 export interface OperationInputEditorContext {
@@ -60,7 +67,8 @@ export interface OperationKind {
   canConfirm: (fields: OperationFields) => boolean;
   /** The table/range/column pickers etc. shown while building or editing. */
   renderDraftConfig: (ctx: OperationDraftContext) => ReactNode;
-  /** The one-line summary shown on the confirmed card. */
+  /** The one-line "which table/columns/range" detail shown at the bottom of the confirmed card
+   * (see OperationPanel's ConfirmedOperationCard footer). */
   renderSummary: (fields: OperationFields, dataset: DatasetImportResponse) => ReactNode;
   /** The value input + live result shown on the confirmed card. */
   renderBody: (ctx: OperationBodyContext) => ReactNode;

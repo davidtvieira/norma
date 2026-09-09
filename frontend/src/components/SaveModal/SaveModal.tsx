@@ -5,6 +5,11 @@ interface SaveModalProps {
   onClose: () => void;
   onExport: () => void;
   canExport: boolean;
+  /** What's still missing before canExport is true — null once it is. An input is only ever
+   * something to fix here if the model actually has an operation eligible to be one (see
+   * App.tsx's isModelInputRequired); a model with none (e.g. built only from a sum) is a fixed
+   * model with nothing dynamic for a caller to fill in, and never blocks on it. */
+  exportHint: string | null;
   /** Names of the model's designated input/output operation — null while not yet set. Read-only
    * here: both are now picked directly on the operation's node (see OperationPanel's "Input"/
    * "Output" toggles), not in this modal. */
@@ -17,7 +22,7 @@ interface SaveModalProps {
  * yet, but exporting it as a JSON file (see utils/modelSerialization.ts) already is — the same
  * file can later be re-imported via "Importar Modelo para este conjunto de dados".
  */
-export function SaveModal({ open, onClose, onExport, canExport, inputLabel, outputLabel }: SaveModalProps) {
+export function SaveModal({ open, onClose, onExport, canExport, exportHint, inputLabel, outputLabel }: SaveModalProps) {
   if (!open) return null;
 
   return (
@@ -40,12 +45,7 @@ export function SaveModal({ open, onClose, onExport, canExport, inputLabel, outp
           </p>
         </div>
 
-        {!canExport && (
-          <p className="save-modal__hint">
-            Conclua pelo menos uma operação e defina o input e o output do modelo (botões "Input"/"Output" em cada operação)
-            antes de exportar.
-          </p>
-        )}
+        {exportHint && <p className="save-modal__hint">{exportHint}</p>}
         <div className="save-modal__actions">
           <button type="button" className="save-modal__close-button save-modal__close-button--secondary" onClick={onClose}>
             Fechar

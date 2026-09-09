@@ -7,6 +7,10 @@ export interface ColumnHighlight {
   sheetIndex: number;
   column: number;
   role: 'search' | 'result';
+  /** Overrides the role's default legend text (see SheetViewer) — e.g. sum's range says "Onde
+   * soma" instead of the "search" role's default "Onde procura", since it isn't actually a
+   * search. Only changes the label; the role still drives the tint color. */
+  label?: string;
 }
 
 /**
@@ -20,6 +24,7 @@ export interface RangeHighlight {
   startColumn: number;
   endColumn: number;
   role: 'search' | 'result';
+  label?: string;
 }
 
 /**

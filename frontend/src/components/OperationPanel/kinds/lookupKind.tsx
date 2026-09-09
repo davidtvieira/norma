@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { CellValue } from '../../../types/dataset';
 import { lookupValue } from '../../../services/datasetApi';
 import { formatCellValue } from '../../../utils/sheet';
@@ -109,7 +109,7 @@ export const lookupKind: OperationKind = {
     );
   },
 
-  renderBody: ({ fields, updateFields, datasetId, onMatchChange, resolvedInput, referenceOptions, onResultChange }) => {
+  renderBody: ({ fields, updateFields, datasetId, testSignal, onMatchChange, resolvedInput, referenceOptions, onResultChange }) => {
     const f = asLookupFields(fields);
     const query = resolvedInput.status === 'ready' ? resolvedInput.value : '';
     return (
@@ -131,6 +131,7 @@ export const lookupKind: OperationKind = {
             sheetIndex={f.sheetIndex as number}
             searchColumn={f.searchColumn as number}
             resultColumn={f.resultColumn as number}
+            testSignal={testSignal}
             onMatchChange={onMatchChange}
             onResultChange={onResultChange}
           />
@@ -176,23 +177,26 @@ interface LookupResultProps {
   sheetIndex: number;
   searchColumn: number;
   resultColumn: number;
+  /** Incremented by "Testar modelo" (see OperationPanel) — the only thing that triggers a
+   * request; editing the query/table/columns afterward doesn't, until tested again. */
+  testSignal: number;
   onMatchChange: (rowIndex: number | null) => void;
   onResultChange: (value: string | null) => void;
 }
 
 type LookupRequestState =
+  | { status: 'idle' }
   | { status: 'loading' }
   | { status: 'error'; message: string }
   | { status: 'done'; found: boolean; value: CellValue | null };
-
-const LOOKUP_DEBOUNCE_MS = 2000;
 
 /**
  * Runs the operation entirely on the API: the dataset id (the API keeps the parsed dataset in
  * memory from the import call) plus the search/result table and column indexes are sent to
  * /api/v1/dataset/operation/lookup, which does the row matching and returns the value — this
- * component only renders the outcome. The request is debounced by LOOKUP_DEBOUNCE_MS so it
- * doesn't fire on every keystroke while the query is being typed.
+ * component only renders the outcome, and only once "Testar modelo" is actually clicked: nothing
+ * shows (see the 'idle' case below, rendering nothing) while the query/table/columns are still
+ * being typed/changed, and no request fires either — see the two effects below.
  */
 function LookupResult({
   datasetId,
@@ -200,50 +204,75 @@ function LookupResult({
   sheetIndex,
   searchColumn,
   resultColumn,
+  testSignal,
   onMatchChange,
   onResultChange,
 }: LookupResultProps) {
-  const [state, setState] = useState<LookupRequestState>({ status: 'loading' });
+  const [state, setState] = useState<LookupRequestState>({ status: 'idle' });
+  // testSignal as of whenever this became ready to test (mount, or the query going from empty
+  // back to non-empty) — the fetch effect below only actually fetches once testSignal has moved
+  // past this baseline, i.e. an actual "Testar modelo" click happened while mounted, not merely
+  // because some other operation had already been tested earlier.
+  const testSignalBaselineRef = useRef(testSignal);
+
+  // Hides any previous result (and re-arms the baseline above) the moment the query/table/
+  // columns change — a stale result from an earlier test would otherwise keep showing while the
+  // user types something new, easily mistaken for already reflecting it.
+  useEffect(() => {
+    testSignalBaselineRef.current = testSignal;
+    setState({ status: 'idle' });
+    onMatchChange(null);
+    onResultChange(null);
+    // Intentionally excludes testSignal — a test click shouldn't reset the baseline it's the one
+    // advancing past, only an actual field change should.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, sheetIndex, searchColumn, resultColumn]);
 
   useEffect(() => {
+    if (testSignal === testSignalBaselineRef.current) {
+      return;
+    }
+
     let cancelled = false;
     setState({ status: 'loading' });
 
-    const timeoutId = window.setTimeout(() => {
-      lookupValue({
-        datasetId,
-        query,
-        searchSheetIndex: sheetIndex,
-        searchColumn,
-        resultSheetIndex: sheetIndex,
-        resultColumn,
+    lookupValue({
+      datasetId,
+      query,
+      searchSheetIndex: sheetIndex,
+      searchColumn,
+      resultSheetIndex: sheetIndex,
+      resultColumn,
+    })
+      .then((response) => {
+        if (!cancelled) {
+          setState({ status: 'done', found: response.found, value: response.value });
+          onMatchChange(response.found ? response.rowIndex : null);
+          onResultChange(response.found ? String(response.value ?? '') : null);
+        }
       })
-        .then((response) => {
-          if (!cancelled) {
-            setState({ status: 'done', found: response.found, value: response.value });
-            onMatchChange(response.found ? response.rowIndex : null);
-            onResultChange(response.found ? String(response.value ?? '') : null);
-          }
-        })
-        .catch((error) => {
-          if (!cancelled) {
-            setState({ status: 'error', message: error instanceof Error ? error.message : 'Falha ao procurar o valor.' });
-            onResultChange(null);
-          }
-        });
-    }, LOOKUP_DEBOUNCE_MS);
+      .catch((error) => {
+        if (!cancelled) {
+          setState({ status: 'error', message: error instanceof Error ? error.message : 'Falha ao procurar o valor.' });
+          onResultChange(null);
+        }
+      });
 
     return () => {
       cancelled = true;
-      window.clearTimeout(timeoutId);
       onMatchChange(null);
       onResultChange(null);
     };
-    // onMatchChange/onResultChange are fresh closures from the parent every render but only ever
-    // close over a stable id and a stable setState — safe to omit so they don't reset the
-    // debounce timer on every unrelated keystroke elsewhere in the panel.
+    // Deliberately reactive to testSignal alone — query/sheetIndex/searchColumn/resultColumn/
+    // onMatchChange/onResultChange are all read at their current value when that happens (a
+    // fresh render always supplies a fresh closure), but changing on their own must not re-fire
+    // a request; only another "Testar modelo" click should.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [datasetId, query, sheetIndex, searchColumn, resultColumn]);
+  }, [testSignal]);
+
+  if (state.status === 'idle') {
+    return null;
+  }
 
   if (state.status === 'loading') {
     return <p className="operation-entry__result operation-entry__result--empty">A procurar…</p>;

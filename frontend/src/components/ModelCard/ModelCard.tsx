@@ -90,35 +90,42 @@ export function ModelCard({ dataset, modelName, entries, inputOperationId, outpu
     setFields((current) => ({ ...current, [id]: { ...current[id], ...patch } }));
   }
 
+  // Null is a legitimate, permanent state for the input (not just "not set up yet") — a model
+  // built with no operation eligible to be one (e.g. only a sum, which has no literal chainable
+  // field at all) is a fixed model with nothing dynamic for a caller to fill in. The output has
+  // no such case: some confirmed operation's result is always what the model computes, so a
+  // missing one really does mean the model isn't finished.
   const inputEntry = entries.find((entry) => entry.id === inputOperationId) ?? null;
   const outputEntry = entries.find((entry) => entry.id === outputOperationId) ?? null;
 
-  if (!inputEntry || !outputEntry) {
+  if (!outputEntry) {
     return (
       <div className="model-card">
         <h2 className="model-card__title">{modelName || 'Modelo sem nome'}</h2>
         <p className="model-card__missing-io">
-          Este modelo ainda não tem um input e um output definidos. Edite o modelo e escolha-os antes de o utilizar.
+          Este modelo ainda não tem um output definido. Edite o modelo e escolha-o antes de o utilizar.
         </p>
       </div>
     );
   }
 
-  const inputKind = KINDS_BY_ID[inputEntry.kindId];
+  const inputKind = inputEntry ? KINDS_BY_ID[inputEntry.kindId] : null;
 
   return (
     <div className="model-card">
       <h2 className="model-card__title">{modelName || 'Modelo sem nome'}</h2>
 
       <div className="model-card__io">
-        <div className="model-card__field">
-          <h3 className="model-card__field-name">{inputEntry.name || 'Input'}</h3>
-          {inputKind.renderInputEditor?.({
-            fields: fields[inputEntry.id],
-            updateFields: (patch) => updateEntryFields(inputEntry.id, patch),
-            resolvedInput: resolvedInputs[inputEntry.id],
-          })}
-        </div>
+        {inputEntry && inputKind && (
+          <div className="model-card__field">
+            <h3 className="model-card__field-name">{inputEntry.name || 'Input'}</h3>
+            {inputKind.renderInputEditor?.({
+              fields: fields[inputEntry.id],
+              updateFields: (patch) => updateEntryFields(inputEntry.id, patch),
+              resolvedInput: resolvedInputs[inputEntry.id],
+            })}
+          </div>
+        )}
 
         <div className="model-card__field">
           <h3 className="model-card__field-name">{outputEntry.name || 'Output'}</h3>

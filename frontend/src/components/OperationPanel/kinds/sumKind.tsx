@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { sumColumn } from '../../../services/datasetApi';
 import type { CellRange } from '../../../types/cellRange';
 import { RangePickerField, TableSelect } from '../fields';
@@ -69,9 +69,17 @@ export const sumKind: OperationKind = {
     );
   },
 
-  renderBody: ({ fields, datasetId, onResultChange }) => {
+  renderBody: ({ fields, datasetId, testSignal, onResultChange }) => {
     const f = asSumFields(fields);
-    return <SumResult datasetId={datasetId} sheetIndex={f.sheetIndex as number} range={f.range as CellRange} onResultChange={onResultChange} />;
+    return (
+      <SumResult
+        datasetId={datasetId}
+        sheetIndex={f.sheetIndex as number}
+        range={f.range as CellRange}
+        testSignal={testSignal}
+        onResultChange={onResultChange}
+      />
+    );
   },
 
   getColumnHighlights: () => [],
@@ -81,7 +89,7 @@ export const sumKind: OperationKind = {
     if (f.sheetIndex === '' || f.range === null) {
       return [];
     }
-    return [{ sheetIndex: f.sheetIndex, ...f.range, role: 'search' as const }];
+    return [{ sheetIndex: f.sheetIndex, ...f.range, role: 'search' as const, label: 'Onde soma' }];
   },
 
   // Sum has no single matched cell (it's an aggregate) — no exact-cell highlight. Hovering a
@@ -92,10 +100,14 @@ interface SumResultProps {
   datasetId: string;
   sheetIndex: number;
   range: CellRange;
+  /** Incremented by "Testar modelo" (see OperationPanel) — the only thing that triggers a
+   * request; picking a new range afterward doesn't, until tested again. */
+  testSignal: number;
   onResultChange: (value: string | null) => void;
 }
 
 type SumRequestState =
+  | { status: 'idle' }
   | { status: 'loading' }
   | { status: 'error'; message: string }
   | { status: 'done'; sum: number; cellsSummed: number };
@@ -103,14 +115,36 @@ type SumRequestState =
 /**
  * Runs the operation entirely on the API: the dataset id (the API keeps the parsed dataset in
  * memory from the import call) plus the sheet and range are sent to
- * /api/v1/dataset/operation/sum, which filters and sums the numeric cells — this component
- * only renders the outcome. Fires immediately on a new range (no debounce needed — a drag
- * selection is a single discrete event, not a keystroke stream).
+ * /api/v1/dataset/operation/sum, which filters and sums the numeric cells — this component only
+ * renders the outcome, and only once "Testar modelo" is actually clicked: nothing shows (see the
+ * 'idle' case below, rendering nothing) while the range is still being picked/changed, and no
+ * request fires either — see the two effects below.
  */
-function SumResult({ datasetId, sheetIndex, range, onResultChange }: SumResultProps) {
-  const [state, setState] = useState<SumRequestState>({ status: 'loading' });
+function SumResult({ datasetId, sheetIndex, range, testSignal, onResultChange }: SumResultProps) {
+  const [state, setState] = useState<SumRequestState>({ status: 'idle' });
+  // testSignal as of whenever this range last changed — the fetch effect below only actually
+  // fetches once testSignal has moved past this baseline, i.e. an actual "Testar modelo" click
+  // happened while mounted with this exact range, not merely because some other operation had
+  // already been tested earlier.
+  const testSignalBaselineRef = useRef(testSignal);
+
+  // Hides any previous result (and re-arms the baseline above) the moment the range/table
+  // changes — a stale result from an earlier test would otherwise keep showing after picking a
+  // new range, easily mistaken for already reflecting it.
+  useEffect(() => {
+    testSignalBaselineRef.current = testSignal;
+    setState({ status: 'idle' });
+    onResultChange(null);
+    // Intentionally excludes testSignal — a test click shouldn't reset the baseline it's the one
+    // advancing past, only an actual range change should.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sheetIndex, range.startRow, range.endRow, range.startColumn, range.endColumn]);
 
   useEffect(() => {
+    if (testSignal === testSignalBaselineRef.current) {
+      return;
+    }
+
     let cancelled = false;
     setState({ status: 'loading' });
 
@@ -139,10 +173,14 @@ function SumResult({ datasetId, sheetIndex, range, onResultChange }: SumResultPr
       cancelled = true;
       onResultChange(null);
     };
-    // onResultChange is a fresh closure from the parent every render but only ever closes over
-    // a stable id and a stable setState — safe to omit.
+    // Deliberately reactive to testSignal alone — see the equivalent note in lookupKind.tsx's
+    // LookupResult.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [datasetId, sheetIndex, range.startRow, range.endRow, range.startColumn, range.endColumn]);
+  }, [testSignal]);
+
+  if (state.status === 'idle') {
+    return null;
+  }
 
   if (state.status === 'loading') {
     return <p className="operation-entry__result operation-entry__result--empty">A somar…</p>;

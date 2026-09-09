@@ -50,7 +50,6 @@ function placementFor(index: number): NodePosition {
 interface DraftOperationCardProps {
   name: string;
   onNameChange: (name: string) => void;
-  onCancel: () => void;
   canConfirm: boolean;
   onConfirm: () => void;
   onDelete: () => void;
@@ -58,25 +57,21 @@ interface DraftOperationCardProps {
 }
 
 /**
- * An operation being built or edited: name + cancel (× reverts an edit back to the confirmed
- * state, or deletes a never-confirmed draft), then whatever type-specific config the kind
- * renders as `children`, then confirm/delete once ready.
+ * An operation being built or edited: name, then whatever type-specific config the kind renders
+ * as `children`, then confirm/delete once ready. Always shown inside the config panel (see
+ * OperationPanel's renderConfigPanel), whose own × already cancels — reverting an edit back to
+ * its confirmed state, or deleting a never-confirmed draft — so there's no second one here.
  */
-function DraftOperationCard({ name, onNameChange, onCancel, canConfirm, onConfirm, onDelete, children }: DraftOperationCardProps) {
+function DraftOperationCard({ name, onNameChange, canConfirm, onConfirm, onDelete, children }: DraftOperationCardProps) {
   return (
     <div className="operation-entry">
-      <div className="operation-entry__toolbar">
-        <input
-          type="text"
-          className="operation-entry__name-input"
-          value={name}
-          placeholder="Nome da operação"
-          onChange={(event) => onNameChange(event.target.value)}
-        />
-        <button type="button" className="operation-entry__remove" onClick={onCancel} aria-label="Cancelar">
-          ×
-        </button>
-      </div>
+      <input
+        type="text"
+        className="operation-entry__name-input"
+        value={name}
+        placeholder="Nome da operação"
+        onChange={(event) => onNameChange(event.target.value)}
+      />
 
       {children}
 
@@ -122,27 +117,29 @@ function EditButton({ onEdit, disabled }: EditButtonProps) {
   );
 }
 
-interface InfoButtonProps {
-  open: boolean;
-  onToggle: () => void;
+interface RevealButtonProps {
+  onReveal: () => void;
 }
 
 /**
- * Toggles the confirmed card's summary (the type-specific detail line — which table/columns/
- * range it's set up against). Collapsed by default so a confirmed card shows only its name and
- * input/output, matching the (usually longer) draft-config detail it was built from.
+ * Opens (or brings to front) the off-canvas sheet panel showing this operation's table, with its
+ * columns/range tinted — the config/edit panel already shows every other detail (which table,
+ * which columns, the range), so this is just a shortcut to actually see the affected cells
+ * instead of duplicating that detail on the card itself.
  */
-function InfoButton({ open, onToggle }: InfoButtonProps) {
+function RevealButton({ onReveal }: RevealButtonProps) {
   return (
-    <button
-      type="button"
-      className={open ? 'operation-card__info operation-card__info--active' : 'operation-card__info'}
-      onClick={onToggle}
-      aria-pressed={open}
-      aria-label={open ? 'Ocultar detalhes' : 'Ver detalhes'}
-      title={open ? 'Ocultar detalhes' : 'Ver detalhes'}
-    >
-      i
+    <button type="button" className="operation-card__reveal" onClick={onReveal} aria-label="Ver na folha de dados" title="Ver na folha de dados">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path
+          d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12Z"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <circle cx="12" cy="12" r="2.5" stroke="currentColor" strokeWidth="1.5" />
+      </svg>
     </button>
   );
 }
@@ -170,11 +167,16 @@ function IoToggle({ label, active, onToggle }: IoToggleProps) {
 
 interface ConfirmedOperationCardProps {
   name: string;
+  /** e.g. "Pesquisa aninhada"/"Somar" — shown in the footer, under the live input/result. */
+  kindLabel: string;
+  /** The "which table/columns/range" detail (see operationKind.ts's renderSummary) — shown next
+   * to kindLabel in the footer. */
+  summary: ReactNode;
   onEdit: () => void;
   editDisabled: boolean;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
-  summary: ReactNode;
+  onReveal: () => void;
   children: ReactNode;
   isModelInput: boolean;
   isModelInputEligible: boolean;
@@ -184,18 +186,22 @@ interface ConfirmedOperationCardProps {
 }
 
 /**
- * A confirmed operation node: name + model input/output toggles + info + edit (pencil, reopens
- * it as a draft), a type-specific one-line summary (collapsed behind the info toggle), then
- * whatever type-specific input/result the kind renders as `children`. Hover drives that kind's
- * sheet highlight while the card is under the mouse.
+ * A confirmed operation node: name + model input/output toggles + reveal-in-sheet + edit
+ * (pencil, reopens it as a draft), then whatever type-specific input/result the kind renders as
+ * `children`, then a footer naming its type and which table/columns/range it's set up against.
+ * Hover drives that kind's sheet highlight while the card is under the mouse; clicking the reveal
+ * button pins that same highlight and opens the sheet panel to actually show it (see
+ * OperationPanel's onRevealInSheet).
  */
 function ConfirmedOperationCard({
   name,
+  kindLabel,
+  summary,
   onEdit,
   editDisabled,
   onMouseEnter,
   onMouseLeave,
-  summary,
+  onReveal,
   children,
   isModelInput,
   isModelInputEligible,
@@ -203,7 +209,6 @@ function ConfirmedOperationCard({
   isModelOutput,
   onToggleModelOutput,
 }: ConfirmedOperationCardProps) {
-  const [isInfoOpen, setIsInfoOpen] = useState(false);
   return (
     <div className="operation-card" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
       <div className="operation-card__header">
@@ -211,14 +216,17 @@ function ConfirmedOperationCard({
         <div className="operation-card__actions">
           {isModelInputEligible && <IoToggle label="Input" active={isModelInput} onToggle={onToggleModelInput} />}
           <IoToggle label="Output" active={isModelOutput} onToggle={onToggleModelOutput} />
-          <InfoButton open={isInfoOpen} onToggle={() => setIsInfoOpen((current) => !current)} />
+          <RevealButton onReveal={onReveal} />
           <EditButton onEdit={onEdit} disabled={editDisabled} />
         </div>
       </div>
 
-      {isInfoOpen && <div className="operation-card__summary">{summary}</div>}
-
       {children}
+
+      <div className="operation-card__footer">
+        <span className="operation-card__kind">{kindLabel}</span>
+        <span className="operation-card__summary">{summary}</span>
+      </div>
     </div>
   );
 }
@@ -249,9 +257,9 @@ function generateEntryId(): string {
  * Pure by design: React 18 StrictMode invokes functional setState updaters twice in
  * development to catch impure ones, so this must not rely on shared mutable state.
  */
-function createEntry(kindId: string, name: string, dataset: DatasetImportResponse, placementIndex: number): OperationEntryState {
+function createEntry(id: string, kindId: string, name: string, dataset: DatasetImportResponse, placementIndex: number): OperationEntryState {
   return {
-    id: generateEntryId(),
+    id,
     name,
     kindId,
     confirmed: false,
@@ -275,6 +283,18 @@ interface OperationPanelProps {
   onColumnHighlightsChange: (highlights: ColumnHighlight[]) => void;
   onRangeHighlightsChange: (highlights: RangeHighlight[]) => void;
   onCellHighlightChange: (highlight: OperationHighlight | null) => void;
+  /** Opens the off-canvas sheet panel to the given sheet (see RevealButton/App.tsx) — the click
+   * counterpart to hovering a card, which only tints the sheet if the panel already happens to
+   * be open. */
+  onRevealInSheet: (sheetIndex: number) => void;
+  /** Closes that sheet panel — called once an operation is confirmed (see renderDraftCard's
+   * onConfirm), since picking a column/range keeps it open for exactly as long as it's needed to
+   * build/edit that operation, and there's nothing left to do with it once that's done. */
+  onOperationConfirmed: () => void;
+  /** Whether that sheet panel is currently open — used only to clear the "revealed" operation
+   * once it closes (see the effect below), so reopening it later some other way (e.g. "Ver
+   * dados") doesn't show a stale highlight left over from whatever was last revealed. */
+  isSheetPanelOpen: boolean;
   /** Reports the current entry list up so App.tsx can export it (see the "Guardar modelo" flow). */
   onEntriesChange: (entries: SerializableEntry[]) => void;
   /** The model's designated input/output operation — picked directly on a node's toggles below
@@ -315,11 +335,13 @@ function edgePath({ from, to }: Edge): string {
 }
 
 /**
- * Operation canvas. "+ Adicionar operação" opens a modal to pick a type (see useOperationTypes
- * for the kinds the API supports) instead of an inline menu — picking one creates a draft node
- * on the canvas, configured in place exactly as before. From there each kind renders its own
- * config, summary, and input/result, but the surrounding node chrome — name/cancel/edit/
- * confirm/delete, model input/output toggles, and hover behavior — is all shared.
+ * Operation canvas. Both adding a new operation and editing an existing one are configured in
+ * the left-docked panel (see renderConfigPanel), not on the canvas itself — a confirmed node on
+ * the canvas only shows its name, model input/output toggles, and its live input/result;
+ * whatever table/columns/range it's set up against is visible in that panel (see the pencil) or
+ * by revealing it in the sheet (see RevealButton), not on the card. From there each kind renders
+ * its own config and input/result, but the surrounding node chrome — name/cancel/edit/confirm/
+ * delete, model input/output toggles, and hover behavior — is all shared.
  */
 export function OperationPanel({
   dataset,
@@ -333,6 +355,9 @@ export function OperationPanel({
   onColumnHighlightsChange,
   onRangeHighlightsChange,
   onCellHighlightChange,
+  onRevealInSheet,
+  onOperationConfirmed,
+  isSheetPanelOpen,
   onEntriesChange,
   modelInputId,
   modelOutputId,
@@ -348,10 +373,36 @@ export function OperationPanel({
   const [editSnapshots, setEditSnapshots] = useState<Record<string, OperationEntryState>>({});
   // The confirmed operation card currently under the mouse, if any.
   const [hoveredOperationId, setHoveredOperationId] = useState<string | null>(null);
+  // The confirmed operation last "revealed" (see RevealButton) — unlike hover, this sticks
+  // around after the mouse leaves the card, so its sheet highlight stays visible while looking
+  // at the panel that was just opened for it. Hovering a different card still shows that one's
+  // highlight in the meantime (see activeHighlightId below); leaving it falls back to this one.
+  const [selectedOperationId, setSelectedOperationId] = useState<string | null>(null);
+  const activeHighlightId = hoveredOperationId ?? selectedOperationId;
+
+  // Clears the pinned highlight once the sheet panel it was shown in closes — otherwise
+  // reopening the panel later some other way (e.g. "Ver dados", unrelated to any particular
+  // operation) would still show whatever was last revealed, which by then may no longer match
+  // what's being worked on.
+  useEffect(() => {
+    if (!isSheetPanelOpen) {
+      setSelectedOperationId(null);
+    }
+  }, [isSheetPanelOpen]);
   // The row each operation's query currently matches (if any) — only meaningful for kinds
   // that implement getCellHighlight (currently just lookup).
   const [matchedRows, setMatchedRows] = useState<Record<string, number | null>>({});
+  // Bumped by "Testar modelo" (see the toolbar below) — passed through to every kind's
+  // renderBody (see operationKind.ts) as the one signal that should make it actually call its
+  // endpoint, instead of every result live-fetching as soon as its inputs are ready.
+  const [testSignal, setTestSignal] = useState(0);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  // The entry currently being built or edited in the left-docked config panel (see
+  // renderConfigPanel) instead of on the canvas — set once a kind is picked ("+ Adicionar
+  // operação") or an existing node's edit (pencil) is opened, cleared once the entry is
+  // confirmed or removed (see the effect below). Both flows share the same panel and the same
+  // DraftOperationCard.
+  const [configuringEntryId, setConfiguringEntryId] = useState<string | null>(null);
   // Each confirmed operation's latest computed result (as a string), keyed by entry id — the
   // frontend-only stand-in for a chain: another operation's "input" field can reference an id
   // here instead of a typed value. Null means "no value yet" (loading, error, or not found).
@@ -369,36 +420,53 @@ export function OperationPanel({
     onEntriesChange(entries);
   }, [entries, onEntriesChange]);
 
+  // Closes the config panel once the entry it was building/editing resolves — confirmed (it now
+  // shows, or goes back to showing, on the canvas at its already-assigned position) or removed
+  // (× cancels a fresh draft by deleting it, or reverts an edit back to its confirmed snapshot —
+  // see cancelEntry — either way `confirmed` ends up true again; "Remover operação" deletes it
+  // outright). Driven by `entries` rather than the panel's own buttons so every way that entry
+  // can resolve is covered by one place.
+  useEffect(() => {
+    if (!configuringEntryId) return;
+    const entry = entries.find((item) => item.id === configuringEntryId);
+    if (!entry || entry.confirmed) {
+      setConfiguringEntryId(null);
+      setIsAddModalOpen(false);
+    }
+  }, [entries, configuringEntryId]);
+
   // Sheet column/range tints: every operation being built/edited shows what it's picked, and so
-  // does a confirmed operation under the mouse if its kind has no exact-cell highlight to show
-  // instead (e.g. sum, whose result isn't a single cell).
+  // does the active (hovered, or last revealed — see activeHighlightId) confirmed operation —
+  // regardless of whether its kind also has an exact-cell highlight to show (e.g. lookup, once
+  // it has a match): that's a separate, more precise overlay drawn on top (see the effect below),
+  // not a replacement, since a lookup with no match yet (or not typed into) would otherwise show
+  // no highlight at all despite still having a definite search/result column.
   useEffect(() => {
     const columns: ColumnHighlight[] = [];
     const ranges: RangeHighlight[] = [];
     for (const entry of entries) {
       const kind = KINDS_BY_ID[entry.kindId];
-      const isDraft = !entry.confirmed;
-      const isHoveredWithoutCellPrecision = entry.confirmed && entry.id === hoveredOperationId && !kind.getCellHighlight;
-      if (isDraft || isHoveredWithoutCellPrecision) {
+      const isActive = entry.confirmed ? entry.id === activeHighlightId : true;
+      if (isActive) {
         columns.push(...kind.getColumnHighlights(entry.fields));
         ranges.push(...(kind.getRangeHighlights?.(entry.fields) ?? []));
       }
     }
     onColumnHighlightsChange(columns);
     onRangeHighlightsChange(ranges);
-  }, [entries, hoveredOperationId, onColumnHighlightsChange, onRangeHighlightsChange]);
+  }, [entries, activeHighlightId, onColumnHighlightsChange, onRangeHighlightsChange]);
 
-  // Exact input/output cell highlight: only for a hovered confirmed operation whose kind
+  // Exact input/output cell highlight: only for the active confirmed operation whose kind
   // supports that precision, and only once it actually has a match.
   useEffect(() => {
-    const entry = entries.find((item) => item.id === hoveredOperationId && item.confirmed);
+    const entry = entries.find((item) => item.id === activeHighlightId && item.confirmed);
     const kind = entry ? KINDS_BY_ID[entry.kindId] : null;
     if (!entry || !kind?.getCellHighlight) {
       onCellHighlightChange(null);
       return;
     }
     onCellHighlightChange(kind.getCellHighlight(entry.fields, matchedRows[entry.id] ?? null));
-  }, [entries, hoveredOperationId, matchedRows, onCellHighlightChange]);
+  }, [entries, activeHighlightId, matchedRows, onCellHighlightChange]);
 
   // Drives both canvas panning and node dragging: a single pointer-move/up listener registered
   // only while one of the two is active (mirrors SheetViewer's range-drag-select pattern), so a
@@ -446,6 +514,16 @@ export function OperationPanel({
 
   function startNodeDrag(entry: OperationEntryState) {
     return (event: ReactMouseEvent<HTMLDivElement>) => {
+      // Let a form control inside the node (the lookup query input, a select, a button, ...)
+      // handle its own click/focus instead of hijacking it into a node drag — preventDefault on
+      // mousedown suppresses the browser's default "focus this element" behavior, which made it
+      // impossible to click into a text field and type. Still stopPropagation so the click
+      // doesn't also bubble up and start a canvas pan.
+      const target = event.target as HTMLElement;
+      if (target.closest('input, textarea, select, button')) {
+        event.stopPropagation();
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       setDragNode({ id: entry.id, startX: event.clientX, startY: event.clientY, originX: entry.position.x, originY: entry.position.y });
@@ -497,6 +575,9 @@ export function OperationPanel({
       setEditSnapshots((current) => ({ ...current, [id]: entry }));
     }
     updateEntry(id, { confirmed: false });
+    // Opens the same left-docked config panel used for adding a new operation — the node
+    // disappears from the canvas while it's being edited (see the entries.map filter below).
+    setConfiguringEntryId(id);
   }
 
   // × in the draft toolbar: for a brand-new operation (no snapshot) this deletes it. For one
@@ -520,13 +601,18 @@ export function OperationPanel({
     return KIND_LABELS[kindId] ?? operationTypes.find((type) => type.id === kindId)?.label ?? kindId;
   }
 
+  // Picking a kind in the add modal (see renderConfigPanel) creates the draft entry and opens
+  // the config panel for it — the entry doesn't appear on the canvas until confirmed (see the
+  // entries.map below, which skips whatever id is currently being configured).
   function addOperationOfKind(kindId: string) {
     const label = labelForKind(kindId);
+    const id = generateEntryId();
     setEntries((current) => {
       if (current.some((entry) => !entry.confirmed)) return current;
       const order = current.filter((entry) => entry.kindId === kindId).length + 1;
-      return [...current, createEntry(kindId, `${label} ${order}`, dataset, current.length)];
+      return [...current, createEntry(id, kindId, `${label} ${order}`, dataset, current.length)];
     });
+    setConfiguringEntryId(id);
   }
 
   const hasDraftInProgress = entries.some((entry) => !entry.confirmed);
@@ -551,9 +637,16 @@ export function OperationPanel({
       <DraftOperationCard
         name={entry.name}
         onNameChange={(name) => updateEntry(entry.id, { name })}
-        onCancel={() => cancelEntry(entry.id)}
         canConfirm={kind.canConfirm(entry.fields)}
-        onConfirm={() => updateEntry(entry.id, { confirmed: true })}
+        onConfirm={() => {
+          updateEntry(entry.id, { confirmed: true });
+          // Pins its highlight so it's what shows next time the sheet panel opens (a reveal
+          // click, or "Ver dados") without needing to hover first — the panel itself closes
+          // right away below, since picking a column/range is done keeping it open once the
+          // operation it was for is actually finished.
+          setSelectedOperationId(entry.id);
+          onOperationConfirmed();
+        }}
         onDelete={() => removeEntry(entry.id)}
       >
         {kind.renderDraftConfig({
@@ -572,6 +665,26 @@ export function OperationPanel({
     );
   }
 
+  // Which sheet a confirmed entry's own highlight lives on — read off whichever highlight kind
+  // it actually produces, since kinds don't expose a "sheetIndex" field directly (see
+  // operationKind.ts). Always defined once an entry can be confirmed at all (both kinds require
+  // a table to be picked before a column/range can be).
+  function sheetIndexForEntry(entry: OperationEntryState): number | null {
+    const kind = KINDS_BY_ID[entry.kindId];
+    const [firstColumn] = kind.getColumnHighlights(entry.fields);
+    if (firstColumn) return firstColumn.sheetIndex;
+    const [firstRange] = kind.getRangeHighlights?.(entry.fields) ?? [];
+    return firstRange ? firstRange.sheetIndex : null;
+  }
+
+  function revealEntry(entry: OperationEntryState) {
+    setSelectedOperationId(entry.id);
+    const sheetIndex = sheetIndexForEntry(entry);
+    if (sheetIndex !== null) {
+      onRevealInSheet(sheetIndex);
+    }
+  }
+
   function renderConfirmedCard(entry: OperationEntryState) {
     const kind = KINDS_BY_ID[entry.kindId];
     const isModelInputEligible = Boolean(kind.renderInputEditor) && getInputSource(entry.fields).type === 'literal';
@@ -579,11 +692,13 @@ export function OperationPanel({
     return (
       <ConfirmedOperationCard
         name={entry.name}
+        kindLabel={labelForKind(entry.kindId)}
+        summary={kind.renderSummary(entry.fields, dataset)}
         onEdit={() => editEntry(entry.id)}
         editDisabled={hasDraftInProgress}
         onMouseEnter={() => setHoveredOperationId(entry.id)}
         onMouseLeave={() => setHoveredOperationId((current) => (current === entry.id ? null : current))}
-        summary={kind.renderSummary(entry.fields, dataset)}
+        onReveal={() => revealEntry(entry)}
         isModelInput={modelInputId === entry.id}
         isModelInputEligible={isModelInputEligible}
         onToggleModelInput={() => onModelInputChange(modelInputId === entry.id ? null : entry.id)}
@@ -598,8 +713,53 @@ export function OperationPanel({
           resolvedInput: resolvedInputs[entry.id],
           referenceOptions: referenceOptionsFor(entry.id),
           onResultChange: (value) => setResults((current) => ({ ...current, [entry.id]: value })),
+          testSignal,
         })}
       </ConfirmedOperationCard>
+    );
+  }
+
+  // Building a new operation ("+ Adicionar operação") and editing an existing one (the pencil on
+  // a confirmed node) both go through the same two steps: for a new operation, pick a kind first
+  // (a small centered modal, see AddOperationModal); either way, the draft config itself (name,
+  // table, columns/range, confirm/delete/cancel — the same DraftOperationCard rendered on the
+  // canvas before this change) is hosted in a panel docked to the left, not on the canvas and not
+  // a centered/blocking dialog — picking a column/range auto-opens the off-canvas sheet panel on
+  // the right (see App.tsx), and a full-screen backdrop would sit on top of it, making the sheet
+  // unreachable.
+  function renderConfigPanel(): ReactNode {
+    if (!configuringEntryId) {
+      return (
+        <AddOperationModal
+          open={isAddModalOpen}
+          onClose={() => setIsAddModalOpen(false)}
+          kinds={KINDS.map((kind) => ({ id: kind.id, label: labelForKind(kind.id) }))}
+          onPick={addOperationOfKind}
+        />
+      );
+    }
+
+    const configuringEntry = entries.find((entry) => entry.id === configuringEntryId);
+    if (!configuringEntry) return null;
+    const isEditingExisting = configuringEntryId in editSnapshots;
+
+    return (
+      <div className="add-operation-panel" role="dialog" aria-modal="true" aria-labelledby="add-operation-panel-title">
+        <div className="add-operation-panel__header">
+          <h2 id="add-operation-panel-title" className="add-operation-panel__title">
+            {isEditingExisting ? 'Editar operação' : 'Nova operação'}
+          </h2>
+          <button
+            type="button"
+            className="add-operation-panel__close"
+            onClick={() => cancelEntry(configuringEntry.id)}
+            aria-label="Cancelar"
+          >
+            ×
+          </button>
+        </div>
+        <div className="add-operation-panel__body">{renderDraftCard(configuringEntry)}</div>
+      </div>
     );
   }
 
@@ -614,6 +774,15 @@ export function OperationPanel({
           title={hasDraftInProgress ? 'Termine a operação em curso antes de criar outra.' : undefined}
         >
           + Adicionar operação
+        </button>
+        <button
+          type="button"
+          className="operation-canvas__test-button"
+          onClick={() => setTestSignal((current) => current + 1)}
+          disabled={confirmedCount === 0}
+          title={confirmedCount === 0 ? 'Conclua pelo menos uma operação para a poder testar.' : 'Calcula cada operação com os valores atuais.'}
+        >
+          Testar modelo
         </button>
         <span className="operation-canvas__count">
           Operações <span className="operation-panel__count">{confirmedCount}</span>
@@ -634,25 +803,26 @@ export function OperationPanel({
             ))}
           </svg>
 
-          {entries.map((entry) => (
-            <div
-              key={entry.id}
-              className="operation-canvas__node"
-              style={{ left: entry.position.x, top: entry.position.y, width: NODE_WIDTH }}
-              onMouseDown={startNodeDrag(entry)}
-            >
-              {entry.confirmed ? renderConfirmedCard(entry) : renderDraftCard(entry)}
-            </div>
-          ))}
+          {entries.map((entry) => {
+            // Being built or edited in the config panel right now (see renderConfigPanel) —
+            // hidden from the canvas until it's confirmed there.
+            if (entry.id === configuringEntryId) return null;
+
+            return (
+              <div
+                key={entry.id}
+                className="operation-canvas__node"
+                style={{ left: entry.position.x, top: entry.position.y, width: NODE_WIDTH }}
+                onMouseDown={startNodeDrag(entry)}
+              >
+                {entry.confirmed ? renderConfirmedCard(entry) : renderDraftCard(entry)}
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      <AddOperationModal
-        open={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        kinds={KINDS.map((kind) => ({ id: kind.id, label: labelForKind(kind.id) }))}
-        onPick={addOperationOfKind}
-      />
+      {renderConfigPanel()}
     </div>
   );
 }

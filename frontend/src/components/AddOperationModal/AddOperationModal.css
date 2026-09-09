@@ -17,6 +17,8 @@
   border-radius: var(--radius-md);
   background: var(--color-surface);
   box-shadow: var(--shadow-md);
+  max-height: 85vh;
+  overflow-y: auto;
 }
 
 .add-operation-modal__title {
@@ -80,4 +82,69 @@
   border-color: var(--color-border);
   color: var(--color-text);
   background: var(--color-surface-hover);
+}
+
+/* The draft-config step (see OperationPanel's renderAddModal) needs to stay open at the same
+   time as the off-canvas sheet panel on the right — picking a column/range auto-opens it — so
+   unlike the type-picker step above, it's a left-docked panel with no full-screen backdrop,
+   instead of a centered dialog that would sit on top of and block the sheet. */
+.add-operation-panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100svh;
+  width: min(440px, 92vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+  border-right: 1px solid var(--color-border);
+  box-shadow: 12px 0 32px rgb(0 0 0 / 18%);
+  /* Above the sheet panel (21) and its backdrop (20, see App.css) so that backdrop's dimming
+     never covers this panel once picking a column/range opens it. */
+  z-index: 22;
+}
+
+.add-operation-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.add-operation-panel__title {
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--color-text);
+}
+
+.add-operation-panel__close {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.add-operation-panel__close:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.add-operation-panel__body {
+  flex: 1;
+  min-height: 0;
+  padding: 1.25rem 1.5rem 1.5rem;
+  overflow-y: auto;
 }

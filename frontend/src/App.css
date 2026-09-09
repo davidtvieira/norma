@@ -330,7 +330,7 @@
 }
 
 .app__save-button {
-  width: 100%;
+  align-self: flex-end;
   padding: 0.65rem 1.4rem;
   border: 1px solid var(--color-primary);
   border-radius: 999px;
@@ -441,6 +441,11 @@
 
   .app__main-content {
     overflow: visible;
+  }
+
+  .app__save-button {
+    align-self: stretch;
+    width: 100%;
   }
 
   .sheet-panel {

@@ -131,6 +131,29 @@ export function SheetViewer({
     cellHighlight && cellHighlight.resultSheetIndex === activeSheetIndex ? cellHighlight.resultColumn : null;
   const cellHighlightRowIndex = cellHighlight?.rowIndex ?? null;
 
+  // Drives the legend below — only shown for roles actually tinted on the currently displayed
+  // sheet (e.g. sum never has a "result" highlight, its output isn't a single column/cell), with
+  // whichever highlight's own label (see ColumnHighlight/RangeHighlight) — e.g. sum's "Onde
+  // soma" instead of the "search" role's default "Onde procura" — taking priority over that
+  // default when one is set.
+  const activeColumnHighlights = columnHighlights.filter((highlight) => highlight.sheetIndex === activeSheetIndex);
+  const searchLabel =
+    activeColumnHighlights.find((highlight) => highlight.role === 'search' && highlight.label)?.label ??
+    activeRangeHighlights.find((highlight) => highlight.role === 'search' && highlight.label)?.label ??
+    'Onde procura';
+  const resultLabel =
+    activeColumnHighlights.find((highlight) => highlight.role === 'result' && highlight.label)?.label ??
+    activeRangeHighlights.find((highlight) => highlight.role === 'result' && highlight.label)?.label ??
+    'O que devolve';
+  const hasSearchHighlight =
+    cellHighlightSearchColumn !== null ||
+    activeColumnHighlights.some((highlight) => highlight.role === 'search') ||
+    activeRangeHighlights.some((highlight) => highlight.role === 'search');
+  const hasResultHighlight =
+    cellHighlightResultColumn !== null ||
+    activeColumnHighlights.some((highlight) => highlight.role === 'result') ||
+    activeRangeHighlights.some((highlight) => highlight.role === 'result');
+
   return (
     <div className="sheet-viewer">
       {columnPicker && (
@@ -157,6 +180,23 @@ export function SheetViewer({
               {sheet.sheetName}
             </button>
           ))}
+        </div>
+      )}
+
+      {(hasSearchHighlight || hasResultHighlight) && (
+        <div className="sheet-viewer__legend">
+          {hasSearchHighlight && (
+            <span className="sheet-viewer__legend-item">
+              <span className="sheet-viewer__legend-swatch sheet-viewer__legend-swatch--search" aria-hidden="true" />
+              {searchLabel}
+            </span>
+          )}
+          {hasResultHighlight && (
+            <span className="sheet-viewer__legend-item">
+              <span className="sheet-viewer__legend-swatch sheet-viewer__legend-swatch--result" aria-hidden="true" />
+              {resultLabel}
+            </span>
+          )}
         </div>
       )}
 
