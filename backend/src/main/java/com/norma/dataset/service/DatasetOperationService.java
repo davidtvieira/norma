@@ -57,10 +57,11 @@ public class DatasetOperationService {
         SheetData resultSheet = sheetAt(dataset, request.resultSheetIndex(), "a devolver");
 
         String normalizedQuery = request.query() == null ? "" : request.query().trim();
+        MatchMode matchMode = MatchMode.from(request.matchMode());
 
         Optional<RowData> matchRow = searchSheet.rows().stream()
                 .filter(row -> row.rowIndex() >= request.startRow())
-                .filter(row -> matches(cellValue(row, request.searchColumn()), normalizedQuery))
+                .filter(row -> matches(cellValue(row, request.searchColumn()), normalizedQuery, matchMode))
                 .findFirst();
 
         if (matchRow.isEmpty()) {
@@ -382,13 +383,14 @@ public class DatasetOperationService {
         int startRow = parseRowIndex(
                 resolveChainableField(fields, "startRow", dataset, byId, cyclicIds, resolved), "startRow");
         int resultColumn = intField(fields, "resultColumn");
+        MatchMode matchMode = MatchMode.from(stringField(fields, "matchMode"));
 
         SheetData sheet = sheetAt(dataset, sheetIndex, "onde procurar");
         String normalizedQuery = query == null ? "" : query.trim();
 
         Optional<RowData> matchRow = sheet.rows().stream()
                 .filter(row -> row.rowIndex() >= startRow)
-                .filter(row -> matches(cellValue(row, searchColumn), normalizedQuery))
+                .filter(row -> matches(cellValue(row, searchColumn), normalizedQuery, matchMode))
                 .findFirst();
 
         if (matchRow.isEmpty()) {
@@ -769,6 +771,12 @@ public class DatasetOperationService {
         return (Map<String, Object>) value;
     }
 
+    /** Unlike {@link #intField}/{@link #mapField}, an optional field — absent (e.g. a model
+     * registered before {@code matchMode} existed) is a valid, meaningful null, not an error. */
+    private String stringField(Map<String, Object> fields, String key) {
+        return fields.get(key) instanceof String value ? value : null;
+    }
+
     private void validateRange(int startRow, int endRow, int startColumn, int endColumn) {
         if (startRow < 0 || startColumn < 0) {
             throw new IllegalArgumentException("O intervalo não pode começar numa linha ou coluna negativa.");
@@ -797,7 +805,38 @@ public class DatasetOperationService {
                 .orElse(null);
     }
 
+    /** find/translator's own matching — always exact, same as lookup's own default (see the
+     * {@link MatchMode}-aware overload below, which only lookup's two entry points call). */
     private boolean matches(Object cellValue, String normalizedQuery) {
-        return cellValue != null && String.valueOf(cellValue).trim().equalsIgnoreCase(normalizedQuery);
+        return matches(cellValue, normalizedQuery, MatchMode.EQUALS);
+    }
+
+    private boolean matches(Object cellValue, String normalizedQuery, MatchMode matchMode) {
+        if (cellValue == null) {
+            return false;
+        }
+        String normalizedCell = String.valueOf(cellValue).trim();
+        return switch (matchMode) {
+            case EQUALS -> normalizedCell.equalsIgnoreCase(normalizedQuery);
+            case CONTAINS -> normalizedCell.toLowerCase().contains(normalizedQuery.toLowerCase());
+        };
+    }
+
+    /** Lookup's search-column comparison: the whole cell must match the query exactly (EQUALS,
+     * the original behavior), or just contain it somewhere (CONTAINS) — see {@link #matches}. */
+    private enum MatchMode {
+        EQUALS, CONTAINS;
+
+        /** Null/blank (a model saved before this field existed, or an omitted request field) is
+         * treated as EQUALS, so nothing already built or saved changes behavior. */
+        static MatchMode from(String raw) {
+            if (raw == null || raw.isBlank() || "equals".equalsIgnoreCase(raw)) {
+                return EQUALS;
+            }
+            if ("contains".equalsIgnoreCase(raw)) {
+                return CONTAINS;
+            }
+            throw new IllegalArgumentException("Tipo de comparação inválido: " + raw);
+        }
     }
 }

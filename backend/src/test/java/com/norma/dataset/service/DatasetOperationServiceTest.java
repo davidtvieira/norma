@@ -82,7 +82,7 @@ class DatasetOperationServiceTest {
 
     @Test
     void returnsValueFromCorrespondingRowAcrossSheets() {
-        LookupRequest request = new LookupRequest(twoSheetDataset(), 0, 0, 1, 1, "2", 0);
+        LookupRequest request = new LookupRequest(twoSheetDataset(), 0, 0, 1, 1, "2", 0, null);
 
         LookupResponse response = datasetOperationService.lookup(request);
 
@@ -93,7 +93,7 @@ class DatasetOperationServiceTest {
 
     @Test
     void looksUpWithinTheSameSheetWhenSearchAndResultSheetMatch() {
-        LookupRequest request = new LookupRequest(twoSheetDataset(), 0, 0, 0, 1, "3", 0);
+        LookupRequest request = new LookupRequest(twoSheetDataset(), 0, 0, 0, 1, "3", 0, null);
 
         LookupResponse response = datasetOperationService.lookup(request);
 
@@ -103,7 +103,7 @@ class DatasetOperationServiceTest {
 
     @Test
     void isCaseAndWhitespaceInsensitiveWhenMatching() {
-        LookupRequest request = new LookupRequest(twoSheetDataset(), 0, 1, 0, 0, "  ana ", 0);
+        LookupRequest request = new LookupRequest(twoSheetDataset(), 0, 1, 0, 0, "  ana ", 0, null);
 
         LookupResponse response = datasetOperationService.lookup(request);
 
@@ -113,7 +113,7 @@ class DatasetOperationServiceTest {
 
     @Test
     void returnsNotFoundWhenNoRowMatchesTheQuery() {
-        LookupRequest request = new LookupRequest(twoSheetDataset(), 0, 0, 1, 1, "does-not-exist", 0);
+        LookupRequest request = new LookupRequest(twoSheetDataset(), 0, 0, 1, 1, "does-not-exist", 0, null);
 
         LookupResponse response = datasetOperationService.lookup(request);
 
@@ -130,7 +130,7 @@ class DatasetOperationServiceTest {
         SheetData orders = new SheetData("Encomendas", 0, List.of());
         String datasetId = storeDataset(new DatasetImportResponse("dataset-2", "test.xlsx", Instant.now(), List.of(clients, orders)));
 
-        LookupRequest request = new LookupRequest(datasetId, 0, 0, 1, 0, "1", 0);
+        LookupRequest request = new LookupRequest(datasetId, 0, 0, 1, 0, "1", 0, null);
 
         LookupResponse response = datasetOperationService.lookup(request);
 
@@ -139,7 +139,7 @@ class DatasetOperationServiceTest {
 
     @Test
     void rejectsAnOutOfRangeSheetIndex() {
-        LookupRequest request = new LookupRequest(twoSheetDataset(), 0, 0, 5, 1, "1", 0);
+        LookupRequest request = new LookupRequest(twoSheetDataset(), 0, 0, 5, 1, "1", 0, null);
 
         assertThatThrownBy(() -> datasetOperationService.lookup(request))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -152,7 +152,7 @@ class DatasetOperationServiceTest {
         ));
         String datasetId = storeDataset(new DatasetImportResponse("dataset-3", "test.xlsx", Instant.now(), List.of(clients)));
 
-        LookupRequest request = new LookupRequest(datasetId, 0, 0, 0, 1, "1", 0);
+        LookupRequest request = new LookupRequest(datasetId, 0, 0, 0, 1, "1", 0, null);
 
         LookupResponse response = datasetOperationService.lookup(request);
 
@@ -162,7 +162,34 @@ class DatasetOperationServiceTest {
 
     @Test
     void rejectsAnUnknownDatasetId() {
-        LookupRequest request = new LookupRequest("missing-dataset", 0, 0, 0, 1, "1", 0);
+        LookupRequest request = new LookupRequest("missing-dataset", 0, 0, 0, 1, "1", 0, null);
+
+        assertThatThrownBy(() -> datasetOperationService.lookup(request))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void containsModeMatchesASubstringOfTheCell() {
+        LookupRequest request = new LookupRequest(twoSheetDataset(), 0, 1, 0, 0, "an", 0, "contains");
+
+        LookupResponse response = datasetOperationService.lookup(request);
+
+        assertThat(response.found()).isTrue();
+        assertThat(response.value()).isEqualTo("1");
+    }
+
+    @Test
+    void equalsModeDoesNotMatchAPartialSubstring() {
+        LookupRequest request = new LookupRequest(twoSheetDataset(), 0, 1, 0, 0, "an", 0, "equals");
+
+        LookupResponse response = datasetOperationService.lookup(request);
+
+        assertThat(response.found()).isFalse();
+    }
+
+    @Test
+    void rejectsAnUnknownMatchMode() {
+        LookupRequest request = new LookupRequest(twoSheetDataset(), 0, 1, 0, 0, "an", 0, "startsWith");
 
         assertThatThrownBy(() -> datasetOperationService.lookup(request))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -898,7 +925,7 @@ class DatasetOperationServiceTest {
     void theLiveLookupEndpointHonoursStartRowToo() {
         String datasetId = duplicateValueDataset();
 
-        LookupResponse response = datasetOperationService.lookup(new LookupRequest(datasetId, 0, 0, 0, 1, "X", 1));
+        LookupResponse response = datasetOperationService.lookup(new LookupRequest(datasetId, 0, 0, 0, 1, "X", 1, null));
 
         assertThat(response.found()).isTrue();
         assertThat(response.value()).isEqualTo("B");

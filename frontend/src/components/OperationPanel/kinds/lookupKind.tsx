@@ -3,6 +3,7 @@ import type { CellValue } from '../../../types/dataset';
 import { lookupValue } from '../../../services/datasetApi';
 import { formatCellValue } from '../../../utils/sheet';
 import { literalSource, type ValueSource } from '../../../types/valueSource';
+import type { LookupMatchMode } from '../../../types/lookup';
 import type { ResolvedInput } from '../../../utils/resolveOperationInputs';
 import { ColumnPickerField, TableSelect, ValueSourceField } from '../fields';
 import type { OperationFields, OperationKind } from '../operationKind';
@@ -24,6 +25,10 @@ interface LookupFields {
   // including from a find's combined result (its row half this time — see parseRowIndex). "0"
   // (the default) searches from the very first row, same as before this field existed.
   startRow: ValueSource;
+  // How the search column's cell is compared against the query — "equals" (the original,
+  // default behavior) or "contains". Not chainable (a plain fixed setting, same as
+  // resultColumn) — it changes how the match is computed, not what value feeds into it.
+  matchMode: LookupMatchMode;
 }
 
 function asLookupFields(fields: OperationFields): LookupFields {
@@ -68,6 +73,7 @@ export const lookupKind: OperationKind = {
     searchColumn: literalSource(''),
     resultColumn: '',
     startRow: literalSource('0'),
+    matchMode: 'equals',
   } satisfies LookupFields),
 
   canConfirm: (fields) => asLookupFields(fields).resultColumn !== '',
@@ -120,7 +126,7 @@ export const lookupKind: OperationKind = {
       <>
         <span>{dataset.sheets[sheetIndex].sheetName}</span>
         <span>
-          · {searchColumnLabel}
+          · {searchColumnLabel} ({f.matchMode === 'contains' ? 'contém' : 'igual'})
           <span className="lookup-summary__arrow">→</span>
           Coluna {f.resultColumn}
         </span>
@@ -188,6 +194,18 @@ export const lookupKind: OperationKind = {
           resolvedInput={searchColumnResolved}
         />
 
+        <div className="operation-entry__field">
+          <label className="operation-entry__label">Tipo de comparação</label>
+          <select
+            className="operation-entry__select"
+            value={f.matchMode}
+            onChange={(event) => updateFields({ matchMode: event.target.value as LookupMatchMode })}
+          >
+            <option value="equals">Igual (correspondência exata)</option>
+            <option value="contains">Contém</option>
+          </select>
+        </div>
+
         <ValueSourceField
           label="Valor a procurar"
           placeholder="Introduza um valor"
@@ -206,6 +224,7 @@ export const lookupKind: OperationKind = {
           searchColumn={searchColumn}
           resultColumn={f.resultColumn as number}
           startRow={startRow}
+          matchMode={f.matchMode}
           testSignal={testSignal}
           resetSignal={resetSignal}
           onMatchChange={onMatchChange}
@@ -261,6 +280,7 @@ interface LookupResultProps {
   /** Null while the (possibly chained) start row hasn't resolved to a valid index yet — same
    * "nothing to test" treatment as an empty query or unresolved search column. */
   startRow: number | null;
+  matchMode: LookupMatchMode;
   /** Incremented by "Testar modelo" (see OperationPanel) — the only thing that triggers a
    * request; editing the query/table/columns afterward doesn't, until tested again. */
   testSignal: number;
@@ -297,6 +317,7 @@ function LookupResult({
   searchColumn,
   resultColumn,
   startRow,
+  matchMode,
   testSignal,
   resetSignal,
   onMatchChange,
@@ -360,6 +381,7 @@ function LookupResult({
               resultSheetIndex: sheetIndex,
               resultColumn,
               startRow,
+              matchMode,
             });
             inFlightRef.current = { signal: testSignal, promise };
             return promise;
@@ -388,7 +410,7 @@ function LookupResult({
       onResultChange(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [testSignal, query, sheetIndex, searchColumn, resultColumn, startRow]);
+  }, [testSignal, query, sheetIndex, searchColumn, resultColumn, startRow, matchMode]);
 
   if (state.status === 'idle') {
     return null;
