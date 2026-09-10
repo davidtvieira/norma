@@ -1,7 +1,14 @@
 .app {
   /* A hard height (not just a floor) so .app__main's overflow:hidden/auto actually clip and
-     scroll instead of letting tall content (a big sheet, many operations) grow the whole page. */
+     scroll instead of letting tall content (a big sheet, many operations) grow the whole page.
+     Capped and centered so the whole platform stays a normal desktop-app width instead of
+     stretching edge to edge on an ultra-wide monitor or a zoomed-out browser — body shares this
+     same background color (see index.css), so the margin on either side beyond the cap reads as
+     empty space, not a visible boxed-in panel. */
   height: 100svh;
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   background: var(--color-bg);
