@@ -453,16 +453,21 @@
 
 .operation-entry__result {
   margin: 0;
-  padding: 0.75rem 0.9rem;
+  padding: 0.45rem 0.65rem;
   border-radius: var(--radius-sm);
   background: var(--color-surface-hover);
-  font-size: 1.05rem;
+  font-size: 0.85rem;
+  line-height: 1.4;
   color: var(--color-text);
 }
 
 .operation-entry__result-label {
+  font-size: 0.7rem;
   font-weight: 600;
-  margin-right: 0.35rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  margin-right: 0.4rem;
 }
 
 .operation-entry__result--empty {
@@ -780,6 +785,10 @@
   border-radius: var(--radius-md);
   background: var(--color-surface);
   box-shadow: var(--shadow-sm);
+  /* Clicking the card (a plain click, not a drag — see OperationPanel's handleMouseUp) opens its
+     detail modal in "pan" mode — cursor: pointer hints at that, same as the rest of the card's
+     controls, even though the click itself is handled well above this DOM node. */
+  cursor: pointer;
   transition: border-color 0.2s ease;
 }
 
@@ -884,18 +893,25 @@
   color: var(--color-surface);
 }
 
-/* Wraps a confirmed card's live value/result + footer (see ExpandToggleButton) — collapsed by
-   default via the modifier below. Stays in the layout flow either way rather than being unmounted
-   (display: none only, not a conditional render) so its content — in particular a kind's live
-   value/result component — keeps computing and reporting into the reference chain for "Testar
-   modelo" while collapsed, the same as while expanded. */
+/* Wraps a confirmed card's editable field(s) + live result (see ConfirmedOperationCard's
+   inlineSlot/modalSlot) — collapsed by default via the modifier below when hosting the compact,
+   inline view. Stays in the layout flow either way rather than being unmounted (its
+   children are just hidden with CSS, not conditionally rendered) so its content — in particular a
+   kind's live value/result component — keeps computing and reporting into the reference chain for
+   "Testar modelo" while collapsed, the same as while expanded. */
 .operation-card__details {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
 }
 
-.operation-card__details--collapsed {
+/* Collapsed hides every field a kind renders here EXCEPT its result (every kind ends this section
+   with one .operation-entry__result, by convention — see CLAUDE.md's operation kind plugin
+   pattern) — so the live value/result of an operation stays visible/readable at a glance even
+   with the card collapsed, instead of needing to expand every card just to read its output. A
+   kind whose result is still idle (nothing tested yet) renders nothing here regardless, so this
+   has no visual effect until there's actually something to show. */
+.operation-card__details--collapsed > *:not(.operation-entry__result) {
   display: none;
 }
 
@@ -929,35 +945,86 @@
   color: var(--color-primary);
 }
 
-/* Shows/hides a confirmed card's info (see .operation-card__details above) — centered at the
-   bottom of the card, below whichever of the two is currently showing, so it reads as "there's
-   more/less below" rather than living up in the header actions among the toggles. */
-.operation-card__expand-toggle {
-  align-self: center;
+/* The detail modal (see ConfirmedOperationCard) — portaled to document.body so it escapes the
+   canvas surface's own pan/zoom transform (a `position: fixed` descendant of a transformed
+   ancestor would otherwise be confined to, and scaled by, that ancestor instead of the real
+   viewport) and centers/sizes correctly regardless of the current zoom level. Same overlay +
+   dialog shape as SaveModal/AddOperationModal (see their own CSS), just scoped to this card. */
+.operation-card-modal__overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 100;
+}
+
+.operation-card-modal {
+  width: 100%;
+  max-width: 480px;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 1.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  cursor: default;
+}
+
+.operation-card-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.operation-card-modal__name {
+  margin: 0 0 0.4rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.operation-card-modal__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.operation-card-modal__close {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.6rem;
-  height: 1.1rem;
-  margin-top: -0.2rem;
   border: none;
+  border-radius: 999px;
   background: transparent;
   color: var(--color-text-muted);
+  font-size: 1.3rem;
+  line-height: 1;
   cursor: pointer;
-  padding: 0;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-.operation-card__expand-toggle svg {
-  width: 0.9rem;
-  height: 0.9rem;
-  transition: transform 0.2s ease;
+.operation-card-modal__close:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
 }
 
-.operation-card__expand-toggle--expanded svg {
-  transform: rotate(180deg);
-}
-
-.operation-card__expand-toggle:hover {
-  color: var(--color-primary);
+.operation-card-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
 }
 

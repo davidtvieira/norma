@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { MouseEvent as ReactMouseEvent, ReactNode, WheelEvent as ReactWheelEvent } from 'react';
 import type { DatasetImportResponse } from '../../types/dataset';
 import type { ColumnPickField, ColumnPickState, RangePickState } from '../../types/columnPick';
@@ -186,36 +187,6 @@ function IoToggle({ label, active, onToggle }: IoToggleProps) {
   );
 }
 
-interface ExpandToggleButtonProps {
-  expanded: boolean;
-  onToggle: () => void;
-}
-
-/**
- * The chevron at the bottom of a confirmed card that shows/hides its type-specific live
- * value/result (see ConfirmedOperationCard's `children`) — kept collapsed by default so a canvas
- * full of operations reads as just names, model input/output, kind/affected-fields, and reveal,
- * without every card's live value field and result competing for attention at once. That content
- * stays mounted either way (see renderConfirmedCard's own note) — this only ever toggles whether
- * it's shown, never whether it's there for "Testar modelo" to compute.
- */
-function ExpandToggleButton({ expanded, onToggle }: ExpandToggleButtonProps) {
-  return (
-    <button
-      type="button"
-      className={expanded ? 'operation-card__expand-toggle operation-card__expand-toggle--expanded' : 'operation-card__expand-toggle'}
-      onClick={onToggle}
-      aria-expanded={expanded}
-      aria-label={expanded ? 'Ocultar informação da operação' : 'Mostrar informação da operação'}
-      title={expanded ? 'Ocultar informação' : 'Mostrar informação'}
-    >
-      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </button>
-  );
-}
-
 interface ConfirmedOperationCardProps {
   name: string;
   /** e.g. "Pesquisa aninhada"/"Somar" — shown in the footer, always visible (see
@@ -239,24 +210,41 @@ interface ConfirmedOperationCardProps {
   onToggleModelInput: () => void;
   isModelOutput: boolean;
   onToggleModelOutput: () => void;
-  /** Whether `children` (the live value/result) is currently shown — see ExpandToggleButton.
-   * Owned by OperationPanel (expandedIds) rather than local state so it isn't lost if this card
-   * unmounts and remounts (e.g. entries reordering). */
-  isExpanded: boolean;
-  onToggleExpanded: () => void;
+  /** Whether this card's detail modal (its editable field(s) + live result — see `children`) is
+   * currently open. Owned by OperationPanel (modalEntryId) rather than local state so it isn't
+   * lost if this card unmounts and remounts (e.g. entries reordering), and so opening one card's
+   * modal can close whichever other one was open. */
+  /** Opening is triggered by OperationPanel itself, not by an onClick here — a plain click (not a
+   * drag) on the node already has to be distinguished from an actual reposition drag in its own
+   * mousedown/mouseup handling (see startNodeDrag/handleMouseUp), so that's also where it decides
+   * a click should open this card's modal instead. */
+  isModalOpen: boolean;
+  onCloseModal: () => void;
 }
 
 /**
  * A confirmed operation node: name + model input/output toggles + reveal-in-sheet + edit
  * (pencil, reopens it as a draft) in the header, then a footer naming its kind and which
  * table/columns/range it's set up against ("the affected fields") — both always visible, enough
- * on their own to identify which operation a card is at a glance. Only the type-specific live
- * value/result the kind renders as `children` collapses behind ExpandToggleButton, hidden by
- * default — that's the one part that needs an actual click to interact with (type a test value,
- * pick a dynamic reference, read a result), unlike the name/kind/fields, which are just read at a
- * glance. Hover drives that kind's sheet highlight while the card is under the mouse; clicking the
- * reveal button pins that same highlight and opens the sheet panel to actually show it (see
- * OperationPanel's onRevealInSheet).
+ * on their own to identify which operation a card is at a glance. Only its live result (always
+ * visible, see below) and its type-specific editable field(s) need an actual click to reach —
+ * clicking the card opens `children` (the kind's editable fields + live result, i.e.
+ * kind.renderBody's output) in a modal instead of expanding it inline, since the canvas can be
+ * panned/zoomed (via a CSS transform on an ancestor — see the surface's own transform in this
+ * file) and a `position: fixed` dialog would otherwise inherit that transform instead of actually
+ * centering on the real viewport.
+ *
+ * `children` is portaled into one of two places — never rendered twice, so a kind's live result
+ * component (its own fetch-dedup/in-flight state — see e.g. LookupResult's notes) is never
+ * duplicated or remounted (which would both re-fire its request and, worse, wipe the result this
+ * card reports into the reference chain for "Testar modelo") just from opening/closing the modal:
+ * `inlineSlot` sits inside this card itself, showing only the live result (every kind ends
+ * `children` with one .operation-entry__result, by convention — see .operation-card__details in
+ * OperationPanel.css) while the modal's closed; `modalSlot` sits inside the modal, showing
+ * everything, while it's open. Both are plain DOM nodes created once up front (not discovered via
+ * a ref callback on rendered JSX) specifically so the portal always has a valid target to move
+ * `children` into — if there were ever a render with nowhere to put it, React would unmount it
+ * instead of relocating it, which is exactly the state loss/duplicate-fetch problem this avoids.
  */
 function ConfirmedOperationCard({
   name,
@@ -274,11 +262,56 @@ function ConfirmedOperationCard({
   onToggleModelInput,
   isModelOutput,
   onToggleModelOutput,
-  isExpanded,
-  onToggleExpanded,
+  isModalOpen,
+  onCloseModal,
 }: ConfirmedOperationCardProps) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const modalPlaceholderRef = useRef<HTMLDivElement>(null);
+  const [inlineSlot] = useState(() => {
+    const node = document.createElement('div');
+    node.className = 'operation-card__details operation-card__details--collapsed';
+    return node;
+  });
+  const [modalSlot] = useState(() => {
+    const node = document.createElement('div');
+    node.className = 'operation-card-modal__body';
+    return node;
+  });
+
+  // Attaches inlineSlot right after the footer, once, for this card's whole lifetime — its own
+  // position never changes; only whether it currently *hosts* `children` (vs. the modal doing so
+  // instead) does, via the portal below.
+  useLayoutEffect(() => {
+    cardRef.current?.appendChild(inlineSlot);
+    return () => {
+      inlineSlot.remove();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Attaches modalSlot inside the modal's own DOM (portaled to document.body below) only while
+  // it's open — the modal chrome itself (backdrop, title, close button) is plain JSX and free to
+  // remount on every open/close; it holds no state worth preserving, unlike `children`.
+  useLayoutEffect(() => {
+    if (!isModalOpen) return;
+    modalPlaceholderRef.current?.appendChild(modalSlot);
+    return () => {
+      modalSlot.remove();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isModalOpen]);
+
+  useEffect(() => {
+    if (!isModalOpen) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') onCloseModal();
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isModalOpen, onCloseModal]);
+
   return (
-    <div className="operation-card" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
+    <div className="operation-card" ref={cardRef} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
       <div className="operation-card__header">
         <h3 className="operation-card__name">{name || 'Operação sem nome'}</h3>
         <div className="operation-card__actions">
@@ -294,14 +327,36 @@ function ConfirmedOperationCard({
         <span className="operation-card__summary">{summary}</span>
       </div>
 
-      {/* children stays mounted regardless of isExpanded — only its visibility (via this CSS
-          modifier) toggles — so a collapsed card's live value/result still computes and reports
-          into the reference chain when "Testar modelo" runs, same as an expanded one's. */}
-      <div className={isExpanded ? 'operation-card__details' : 'operation-card__details operation-card__details--collapsed'}>
-        {children}
-      </div>
+      {createPortal(children, isModalOpen ? modalSlot : inlineSlot)}
 
-      <ExpandToggleButton expanded={isExpanded} onToggle={onToggleExpanded} />
+      {isModalOpen &&
+        createPortal(
+          <div className="operation-card-modal__overlay" onClick={onCloseModal}>
+            <div
+              className="operation-card-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-label={name || 'Operação sem nome'}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="operation-card-modal__header">
+                <div>
+                  <h3 className="operation-card-modal__name">{name || 'Operação sem nome'}</h3>
+                  <div className="operation-card-modal__meta">
+                    <span className="operation-card__kind">{kindLabel}</span>
+                    <span className="operation-card__summary">{summary}</span>
+                  </div>
+                </div>
+                <button type="button" className="operation-card-modal__close" onClick={onCloseModal} aria-label="Fechar">
+                  ×
+                </button>
+              </div>
+
+              <div ref={modalPlaceholderRef} />
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
@@ -482,23 +537,10 @@ export function OperationPanel({
   // highlight in the meantime (see activeHighlightId below); leaving it falls back to this one.
   const [selectedOperationId, setSelectedOperationId] = useState<string | null>(null);
   const activeHighlightId = hoveredOperationId ?? selectedOperationId;
-  // Which confirmed cards currently have their info (live value/result + kind/summary footer)
-  // shown — see ExpandToggleButton. Empty by default: every card starts collapsed, so a canvas
-  // full of operations reads as just names + model input/output + reveal until expanded one by
-  // one.
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
-
-  function toggleExpanded(id: string) {
-    setExpandedIds((current) => {
-      const next = new Set(current);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  }
+  // Which confirmed card, if any, currently has its detail modal open (its editable fields +
+  // live result — see ConfirmedOperationCard) — at most one at a time, so opening a different
+  // card's modal replaces whichever was open rather than stacking.
+  const [modalEntryId, setModalEntryId] = useState<string | null>(null);
 
   // Clears the pinned highlight once the sheet panel it was shown in closes — otherwise
   // reopening the panel later some other way (e.g. "Ver dados", unrelated to any particular
@@ -667,14 +709,21 @@ export function OperationPanel({
     }
 
     function handleMouseUp(event: globalThis.MouseEvent) {
-      // In "select" mode, a node drag that barely moved is really a click — toggle that node's
-      // selection instead of (or as well as) "moving" it a couple of pixels. A real pan/drag
-      // (movement past the threshold) never touches the selection.
-      if (dragNode?.id && tool === 'select') {
+      // A node "drag" that barely moved is really a click — in "select" mode that toggles the
+      // node's selection; otherwise (plain "pan" mode) it opens that node's detail modal (see
+      // ConfirmedOperationCard) instead. A real pan/drag (movement past the threshold) never
+      // triggers either — only startNodeDrag's own form-control bypass (mousedown on a button/
+      // input inside the card) leaves dragNode unset here, so a click on those still reaches the
+      // control itself rather than opening the modal.
+      if (dragNode?.id) {
         const movedDistance = Math.hypot(event.clientX - dragNode.startX, event.clientY - dragNode.startY);
         if (movedDistance < 4) {
           const nodeId = dragNode.id;
-          setSelectedIds((current) => (current.includes(nodeId) ? current.filter((id) => id !== nodeId) : [...current, nodeId]));
+          if (tool === 'select') {
+            setSelectedIds((current) => (current.includes(nodeId) ? current.filter((id) => id !== nodeId) : [...current, nodeId]));
+          } else {
+            setModalEntryId(nodeId);
+          }
         }
       }
       setPan(null);
@@ -863,12 +912,7 @@ export function OperationPanel({
       const { [id]: _discarded, ...rest } = current;
       return rest;
     });
-    setExpandedIds((current) => {
-      if (!current.has(id)) return current;
-      const next = new Set(current);
-      next.delete(id);
-      return next;
-    });
+    setModalEntryId((current) => (current === id ? null : current));
     delete nodeRefs.current[id];
   }
 
@@ -949,7 +993,9 @@ export function OperationPanel({
     }
     updateEntry(id, { confirmed: false });
     // Opens the same left-docked config panel used for adding a new operation — the node
-    // disappears from the canvas while it's being edited (see the entries.map filter below).
+    // disappears from the canvas while it's being edited (see the entries.map filter below), so
+    // its detail modal (if open) wouldn't have anything left to show either.
+    setModalEntryId((current) => (current === id ? null : current));
     setEditingEntryId(id);
   }
 
@@ -1135,8 +1181,8 @@ export function OperationPanel({
             modelOutputIds.includes(entry.id) ? modelOutputIds.filter((id) => id !== entry.id) : [...modelOutputIds, entry.id],
           )
         }
-        isExpanded={expandedIds.has(entry.id)}
-        onToggleExpanded={() => toggleExpanded(entry.id)}
+        isModalOpen={modalEntryId === entry.id}
+        onCloseModal={() => setModalEntryId((current) => (current === entry.id ? null : current))}
       >
         {kind.renderBody({
           fields: entry.fields,

@@ -105,6 +105,14 @@ export function ModelCard({ dataset, modelName, entries, inputOperationIds, outp
   const liveEntries = entries.map((entry) => ({ id: entry.id, confirmed: entry.confirmed, fields: fields[entry.id] }));
   const resolvedInputs = resolveOperationInputs(liveEntries, {});
 
+  // Every designated input is always a literal (see App.tsx's modelInputOptions) — "filled" just
+  // means that literal isn't blank. Run stays disabled until every one of them has something
+  // typed in, not just until the model has finished registering.
+  const allInputsFilled = inputOperationIds.every((id) => {
+    const source = getInputSource(fields[id]);
+    return source.type === 'literal' && source.value.trim() !== '';
+  });
+
   function run() {
     if (!modelId) return;
     const runId = ++runIdRef.current;
@@ -178,20 +186,22 @@ export function ModelCard({ dataset, modelName, entries, inputOperationIds, outp
           <div className="model-card__io-panel">
             <div className="model-card__io-panel-content">
               <h3 className="model-card__io-panel-title">Input</h3>
-              {inputEntries.map((inputEntry) => {
-                const inputKind = KINDS_BY_ID[inputEntry.kindId];
-                if (!inputKind.renderInputEditor) return null;
-                return (
-                  <div key={inputEntry.id} className="model-card__field">
-                    <h3 className="model-card__field-name">{inputEntry.name || 'Input'}</h3>
-                    {inputKind.renderInputEditor({
-                      fields: fields[inputEntry.id],
-                      updateFields: (patch) => updateEntryFields(inputEntry.id, patch),
-                      resolvedInput: resolvedInputs[inputEntry.id][0],
-                    })}
-                  </div>
-                );
-              })}
+              <div className="model-card__field-grid">
+                {inputEntries.map((inputEntry) => {
+                  const inputKind = KINDS_BY_ID[inputEntry.kindId];
+                  if (!inputKind.renderInputEditor) return null;
+                  return (
+                    <div key={inputEntry.id} className="model-card__field">
+                      <h3 className="model-card__field-name">{inputEntry.name || 'Input'}</h3>
+                      {inputKind.renderInputEditor({
+                        fields: fields[inputEntry.id],
+                        updateFields: (patch) => updateEntryFields(inputEntry.id, patch),
+                        resolvedInput: resolvedInputs[inputEntry.id][0],
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}
@@ -199,20 +209,22 @@ export function ModelCard({ dataset, modelName, entries, inputOperationIds, outp
         <div className="model-card__io-panel">
           <div className="model-card__io-panel-content">
             <h3 className="model-card__io-panel-title">Output</h3>
-            {outputEntries.map((outputEntry) => {
-              const outputResult = results?.find((candidate) => candidate.id === outputEntry.id) ?? null;
-              return (
-                <div key={outputEntry.id} className="model-card__field">
-                  <h3 className="model-card__field-name">{outputEntry.name || 'Output'}</h3>
-                  <ModelOperationResultView
-                    hasRun={hasRun}
-                    isCalculating={isRunning}
-                    value={outputResult && outputResult.success && outputResult.value != null ? String(outputResult.value) : null}
-                    error={runError ?? (outputResult && !outputResult.success ? outputResult.error : null)}
-                  />
-                </div>
-              );
-            })}
+            <div className="model-card__field-grid">
+              {outputEntries.map((outputEntry) => {
+                const outputResult = results?.find((candidate) => candidate.id === outputEntry.id) ?? null;
+                return (
+                  <div key={outputEntry.id} className="model-card__field">
+                    <h3 className="model-card__field-name">{outputEntry.name || 'Output'}</h3>
+                    <ModelOperationResultView
+                      hasRun={hasRun}
+                      isCalculating={isRunning}
+                      value={outputResult && outputResult.success && outputResult.value != null ? String(outputResult.value) : null}
+                      error={runError ?? (outputResult && !outputResult.success ? outputResult.error : null)}
+                    />
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -223,7 +235,12 @@ export function ModelCard({ dataset, modelName, entries, inputOperationIds, outp
           <button type="button" className="app__create-model-button app__create-model-button--back" onClick={onBack}>
             ← Voltar
           </button>
-          <button type="button" className="model-card__run-button" onClick={run} disabled={isRunning || !modelId}>
+          <button
+            type="button"
+            className="model-card__run-button"
+            onClick={run}
+            disabled={isRunning || !modelId || !allInputsFilled}
+          >
             {isRunning ? 'A calcular…' : 'Correr modelo'}
           </button>
         </div>
