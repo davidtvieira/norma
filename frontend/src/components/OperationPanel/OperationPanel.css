@@ -307,13 +307,12 @@
   background: transparent;
 }
 
-/* Base pill chrome, shared by two different pills: a picked column/range (a real <button> — see
-   the --pickable modifier below) and ValueSourceField's confirmed-reference pill (a <div> with
-   its own nested .operation-entry__reset-button), which still needs the space-between layout. */
+/* Base pill chrome, shared by every picked-value pill: a picked column/range, and
+   ValueSourceField's confirmed-reference pill — always the --pickable modifier below (a real
+   <button>, clicking it re-picks/removes the value), never shown any other way. */
 .operation-column-pill {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 0.5rem;
   width: 100%;
   padding: 0.4rem 0.6rem;
@@ -515,32 +514,6 @@
   min-width: 0;
 }
 
-.operation-entry__value-confirm-button {
-  flex-shrink: 0;
-  width: 1.6rem;
-  height: 1.6rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--color-primary);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--color-primary);
-  cursor: pointer;
-  padding: 0;
-  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
-}
-
-.operation-entry__value-confirm-button svg {
-  width: 0.85rem;
-  height: 0.85rem;
-}
-
-.operation-entry__value-confirm-button:hover {
-  background: var(--color-primary);
-  color: var(--color-surface);
-}
-
 .operation-entry__reset-button {
   flex-shrink: 0;
   width: 1.6rem;
@@ -600,8 +573,9 @@
   color: var(--color-surface);
 }
 
-/* counterKind: one row per input, each a full ValueSourceField plus a × to remove it (hidden
-   while only one input remains — a counter always keeps at least one). */
+/* counterKind: one row per input, each a full ValueSourceField. The × to cancel the row only
+   shows before a reference is picked — once picked, clicking the field's own pill removes the row
+   instead (see onRemove in fields.tsx). */
 .counter-entry__input-row {
   display: flex;
   align-items: flex-start;

@@ -11,28 +11,6 @@ import type { ResolvedInput } from '../../utils/resolveOperationInputs';
  * circular import with the orchestrator that imports the kinds.
  */
 
-/** Confirms a typed static value or a picked dynamic reference (see ValueSourceField below). */
-function ConfirmValueButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button type="button" className="operation-entry__value-confirm-button" onClick={onClick} aria-label="Confirmar valor">
-      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <path d="M5 12.5 10 17.5 19 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </button>
-  );
-}
-
-/** Backs a confirmed static/dynamic value out to nothing picked (see ValueSourceField below). */
-function ResetSourceButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button type="button" className="operation-entry__reset-button" onClick={onClick} aria-label="Alterar">
-      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <path d="M6 6 18 18M6 18 18 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </button>
-  );
-}
-
 interface TableSelectProps {
   label: string;
   dataset: DatasetImportResponse;
@@ -188,13 +166,14 @@ interface ValueSourceFieldProps {
    */
   referenceOnly?: boolean;
   /**
-   * Hides the confirmed pill's own × (which just backs out to picking a different reference)
-   * — for a caller that already offers its own way to get rid of the field entirely (e.g.
-   * counter's per-row remove button, right next to this one), showing both would be two ×
-   * buttons doing two subtly different things one field apart. Only meaningful alongside
-   * referenceOnly, whose caller owns that removal instead.
+   * Overrides what clicking a confirmed *dynamic* pill does: instead of backing out to the
+   * reference list (the default — see `reset`), it removes this field/row entirely. Used by
+   * counter, where each input is its own removable row rather than a single fixed field — once a
+   * row's reference is picked, clicking its pill deletes that row outright (the same way a fresh,
+   * not-yet-picked row is cancelled — see CounterInputs' own row-remove button) instead of just
+   * clearing back to "pick again".
    */
-  hideConfirmedReset?: boolean;
+  onRemove?: () => void;
   /**
    * True once this field's operation has been marked as the model's designated input (see
    * OperationPanel's "Input" toggle) — that value is supplied by whoever utilizes the model
@@ -212,12 +191,20 @@ interface ValueSourceFieldProps {
  * one selects and confirms it immediately, collapsing to a pill naming the chosen operation (the
  * value it feeds in, and this operation's own result computed from it, both render separately —
  * see the kind's renderBody, e.g. LookupResult in lookupKind.tsx). Confirming either way hides
- * the toggle (and, for dynamic, the option list) down to just the confirmed value, with a × to
- * back out and pick again. The "Input dinâmico" side of the toggle only appears once there's
- * something to chain to; with nothing to chain to yet, "Input estático" is the only button and
- * stays pre-selected, so the toggle still renders (for a consistent look across every operation)
- * without asking for an extra click to reveal the field — unless referenceOnly is set, in which
- * case there's no static fallback to fall back to at all (see the warning branch below).
+ * the toggle (and, for dynamic, the option list) down to just the confirmed value — for dynamic,
+ * the pill itself is the way back (clicking it resets, same "click the picked value to change it"
+ * pattern as ColumnPickerField/RangePickerField's own pill — or, if `onRemove` is given, removes
+ * the field/row entirely instead), not a separate × next to it. Static works the same way but
+ * needs no click at all: "committed" (see below) is derived straight from the typed value rather
+ * than a separate confirm step, so the toggle just hides itself once something's typed and comes
+ * back the moment the field's cleared back to empty — nothing to click to "confirm" or "remove"
+ * either side of that. The "Input dinâmico" side of the toggle only appears once there's something
+ * to chain to; with nothing to chain to yet, static is the only possible source, so the toggle
+ * itself is skipped entirely and the field just shows straight away — no pointless single-button
+ * choice standing in front of it. That's always the case for renderInputEditor (referenceOptions
+ * is always `[]` there — a model's designated input is filled in by whoever utilizes it, never
+ * chained), and also whenever there's nothing yet to reference mid-build. referenceOnly is the
+ * mirror case: no static fallback at all (see the warning branch below).
  */
 export function ValueSourceField({
   label,
@@ -228,7 +215,7 @@ export function ValueSourceField({
   referenceOptions,
   resolvedInput,
   referenceOnly = false,
-  hideConfirmedReset = false,
+  onRemove,
   disabled = false,
 }: ValueSourceFieldProps) {
   // Which side of the toggle the user has actually picked — null until they click one, so
@@ -245,9 +232,12 @@ export function ValueSourceField({
     if (source.value !== '' || referenceOptions.length === 0) return 'static';
     return null;
   });
-  // Once confirmed, the toggle (and the dynamic option list) stays out of the way — an existing
-  // reference or a real typed value counts as already confirmed, same as chosen above.
-  const [confirmed, setConfirmed] = useState<boolean>(() => source.type === 'reference' || (!referenceOnly && source.value !== ''));
+  // Whether there's an actual value in hand — a picked reference, or (for a plain typed field) any
+  // non-empty text — derived straight from `source` rather than its own tracked state, so the
+  // toggle/dynamic-menu below hide and reappear purely as a side effect of typing/clearing the
+  // field or picking/removing a reference, with no separate confirm or reset click needed either
+  // way.
+  const committed = source.type === 'reference' || (!referenceOnly && source.value !== '');
 
   // The toggle buttons act as real on/off switches: clicking the side that's already selected
   // turns it back off instead of re-selecting it, so both can end up deselected again, same as
@@ -267,11 +257,11 @@ export function ValueSourceField({
     setChosen((current) => (current === 'dynamic' ? null : 'dynamic'));
   }
 
-  // Backs all the way out to nothing picked, bringing the toggle back — the one way back once a
-  // value's been confirmed.
+  // Backs a confirmed dynamic reference out to the reference list (or the toggle, for a
+  // non-referenceOnly field) — the static side needs no equivalent since clearing the field's own
+  // text already does the same thing (see `committed` above).
   function reset() {
     setChosen(referenceOnly && referenceOptions.length > 0 ? 'dynamic' : null);
-    setConfirmed(false);
     onChange(literalSource(''));
   }
 
@@ -290,7 +280,14 @@ export function ValueSourceField({
     <div className="operation-entry__field">
       <label className="operation-entry__label">{label}</label>
 
-      {!confirmed && !referenceOnly && (
+      {/* With no referenceOptions there's no real choice to present — "static" is the only
+          possible source (see chosen's own initializer above), so the toggle would just be a
+          single "Input estático" button standing between the user and the field it already always
+          resolves to. Skip straight to the field instead — used as-is by renderInputEditor
+          (always referenceOptions={[]}: a model's designated input is always typed in by whoever
+          utilizes it, never a reference), and also naturally applies mid-build whenever there's
+          nothing yet to reference. */}
+      {!committed && !referenceOnly && referenceOptions.length > 0 && (
         <div className="operation-entry__source-toggle">
           <button
             type="button"
@@ -299,19 +296,17 @@ export function ValueSourceField({
           >
             Input estático
           </button>
-          {referenceOptions.length > 0 && (
-            <button
-              type="button"
-              className={`operation-entry__source-toggle-button${chosen === 'dynamic' ? ' operation-entry__source-toggle-button--active' : ''}`}
-              onClick={goDynamic}
-            >
-              Input dinâmico
-            </button>
-          )}
+          <button
+            type="button"
+            className={`operation-entry__source-toggle-button${chosen === 'dynamic' ? ' operation-entry__source-toggle-button--active' : ''}`}
+            onClick={goDynamic}
+          >
+            Input dinâmico
+          </button>
         </div>
       )}
 
-      {!confirmed && referenceOnly && referenceOptions.length === 0 && (
+      {!committed && referenceOnly && referenceOptions.length === 0 && (
         <p className="operation-entry__chain-status">Não há nenhuma outra operação para referenciar ainda.</p>
       )}
 
@@ -325,21 +320,17 @@ export function ValueSourceField({
             value={source.value}
             onChange={(event) => onChange(literalSource(event.target.value))}
           />
-          {confirmed ? <ResetSourceButton onClick={reset} /> : <ConfirmValueButton onClick={() => setConfirmed(true)} />}
         </div>
       )}
 
-      {chosen === 'dynamic' && !confirmed && referenceOptions.length > 0 && (
+      {chosen === 'dynamic' && !committed && referenceOptions.length > 0 && (
         <div className="operation-entry__dynamic-input-menu">
           {referenceOptions.map((option) => (
             <button
               key={option.operationId}
               type="button"
               className="operation-entry__dynamic-input-option"
-              onClick={() => {
-                onChange({ type: 'reference', operationId: option.operationId });
-                setConfirmed(true);
-              }}
+              onClick={() => onChange({ type: 'reference', operationId: option.operationId })}
             >
               {option.label}
             </button>
@@ -349,12 +340,15 @@ export function ValueSourceField({
 
       {chosen === 'dynamic' && source.type === 'reference' && (
         <>
-          <div className="operation-column-pill">
+          {/* Clicking the pill itself backs out to the static/dynamic toggle (or, for
+              referenceOnly, straight back to the reference list) — same "click the picked value
+              to change it" pattern as ColumnPickerField/RangePickerField's own pill (see
+              --pickable in OperationPanel.css) — instead of a separate × sitting next to it. */}
+          <button type="button" className="operation-column-pill operation-column-pill--pickable" onClick={onRemove ?? reset}>
             <span className="operation-column-pill__value">
               {referenceOptions.find((option) => option.operationId === source.operationId)?.label ?? '?'}
             </span>
-            {!hideConfirmedReset && <ResetSourceButton onClick={reset} />}
-          </div>
+          </button>
 
           {(resolvedInput.status === 'missing' || resolvedInput.status === 'cycle') && (
             <p className="operation-entry__chain-status">

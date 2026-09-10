@@ -169,16 +169,6 @@ export const lookupKind: OperationKind = {
     return (
       <>
         <ValueSourceField
-          label="Coluna onde procurar"
-          placeholder="Índice da coluna"
-          inputType="number"
-          source={f.searchColumn}
-          onChange={(searchColumn) => updateFields({ searchColumn })}
-          referenceOptions={referenceOptions}
-          resolvedInput={searchColumnResolved}
-        />
-
-        <ValueSourceField
           label="Linha inicial"
           placeholder="Índice da linha"
           inputType="number"
@@ -186,6 +176,16 @@ export const lookupKind: OperationKind = {
           onChange={(startRow) => updateFields({ startRow })}
           referenceOptions={referenceOptions}
           resolvedInput={startRowResolved}
+        />
+
+        <ValueSourceField
+          label="Coluna onde procurar"
+          placeholder="Índice da coluna"
+          inputType="number"
+          source={f.searchColumn}
+          onChange={(searchColumn) => updateFields({ searchColumn })}
+          referenceOptions={referenceOptions}
+          resolvedInput={searchColumnResolved}
         />
 
         <ValueSourceField

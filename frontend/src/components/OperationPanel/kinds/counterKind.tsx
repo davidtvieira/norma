@@ -108,35 +108,42 @@ function CounterInputs({ inputs, onChange, referenceOptions, resolvedInputs, tes
 
   return (
     <>
-      {rows.map((row, index) => (
-        <div key={row.id} className="counter-entry__input-row">
-          <div className="counter-entry__input-field">
-            <ValueSourceField
-              label={`Entrada ${index + 1}`}
-              placeholder="Introduza um valor"
-              inputType="number"
-              source={row.source}
-              onChange={(source) => commit(rows.map((current) => (current.id === row.id ? { ...current, source } : current)))}
-              referenceOptions={referenceOptions}
-              resolvedInput={resolvedInputs[index] ?? { status: 'missing' }}
-              referenceOnly
-              // The row's own × (below) already removes it outright — showing the field's own
-              // "unpick" × too would be two ×s doing two subtly different things side by side.
-              hideConfirmedReset
-            />
+      {rows.map((row, index) => {
+        const removeRow = () => commit(rows.filter((current) => current.id !== row.id));
+        return (
+          <div key={row.id} className="counter-entry__input-row">
+            <div className="counter-entry__input-field">
+              <ValueSourceField
+                label={`Entrada ${index + 1}`}
+                placeholder="Introduza um valor"
+                inputType="number"
+                source={row.source}
+                onChange={(source) => commit(rows.map((current) => (current.id === row.id ? { ...current, source } : current)))}
+                referenceOptions={referenceOptions}
+                resolvedInput={resolvedInputs[index] ?? { status: 'missing' }}
+                referenceOnly
+                // Once a reference is picked, clicking its pill removes the row outright (see
+                // onRemove in fields.tsx) — so the standalone × below is only needed to cancel a
+                // row that hasn't had a reference picked yet (still showing the reference list,
+                // nothing to click on to remove it otherwise).
+                onRemove={removeRow}
+              />
+            </div>
+            {row.source.type !== 'reference' && (
+              <button
+                type="button"
+                className="operation-entry__reset-button counter-entry__remove-input"
+                onClick={removeRow}
+                aria-label="Remover entrada"
+              >
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <path d="M6 6 18 18M6 18 18 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            )}
           </div>
-          <button
-            type="button"
-            className="operation-entry__reset-button counter-entry__remove-input"
-            onClick={() => commit(rows.filter((current) => current.id !== row.id))}
-            aria-label="Remover entrada"
-          >
-            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <path d="M6 6 18 18M6 18 18 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-        </div>
-      ))}
+        );
+      })}
 
       {rows.length === 0 && !canAddInput && (
         <p className="operation-entry__chain-status">

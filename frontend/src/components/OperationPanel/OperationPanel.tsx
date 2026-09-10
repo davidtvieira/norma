@@ -229,6 +229,10 @@ interface ConfirmedOperationCardProps {
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
   onReveal: () => void;
+  /** Whether this operation actually has a sheet location to reveal — false for kinds that never
+   * highlight any column/range (see sheetIndexForEntry) — so the reveal button doesn't sit there
+   * as a dead click. */
+  isRevealEligible: boolean;
   children: ReactNode;
   isModelInput: boolean;
   isModelInputEligible: boolean;
@@ -263,6 +267,7 @@ function ConfirmedOperationCard({
   onMouseEnter,
   onMouseLeave,
   onReveal,
+  isRevealEligible,
   children,
   isModelInput,
   isModelInputEligible,
@@ -279,7 +284,7 @@ function ConfirmedOperationCard({
         <div className="operation-card__actions">
           {isModelInputEligible && <IoToggle label="Input" active={isModelInput} onToggle={onToggleModelInput} />}
           <IoToggle label="Output" active={isModelOutput} onToggle={onToggleModelOutput} />
-          <RevealButton onReveal={onReveal} />
+          {isRevealEligible && <RevealButton onReveal={onReveal} />}
           <EditButton onEdit={onEdit} disabled={editDisabled} />
         </div>
       </div>
@@ -568,6 +573,18 @@ export function OperationPanel({
   // the marquee rectangle. A stale entry for a since-deleted id is harmless (see removeEntry, which
   // still deletes it for tidiness) since nothing ever looks it up again.
   const nodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  // Each node's stacking order, keyed by entry id — bumped (see bringToFront) whenever a node is
+  // dragged, clicked into, or expanded, so it renders above every other node instead of staying
+  // stuck under whichever ones happen to come later in `entries` (plain DOM order otherwise, since
+  // .operation-canvas__node itself sets no z-index). Absent entries fall back to CSS's implicit
+  // stacking (DOM order), so a node never needs touching here until it's actually interacted with.
+  const [nodeZIndex, setNodeZIndex] = useState<Record<string, number>>({});
+  const nodeZIndexCounter = useRef(0);
+
+  function bringToFront(id: string) {
+    nodeZIndexCounter.current += 1;
+    setNodeZIndex((current) => ({ ...current, [id]: nodeZIndexCounter.current }));
+  }
 
   // Lets App.tsx export the model (see the "Guardar modelo" flow) without entries living there.
   useEffect(() => {
@@ -804,6 +821,10 @@ export function OperationPanel({
 
   function startNodeDrag(entry: OperationEntryState) {
     return (event: ReactMouseEvent<HTMLDivElement>) => {
+      // Bring the node to front on any interaction with it — dragging, clicking a control inside
+      // it, or selecting it — so it's never left rendered underneath other nodes it overlaps
+      // (plain DOM/entries order otherwise, since .operation-canvas__node itself sets no z-index).
+      bringToFront(entry.id);
       // Let a form control inside the node (the lookup query input, a select, a button, ...)
       // handle its own click/focus instead of hijacking it into a node drag — preventDefault on
       // mousedown suppresses the browser's default "focus this element" behavior, which made it
@@ -1092,6 +1113,7 @@ export function OperationPanel({
         onMouseEnter={() => setHoveredOperationId(entry.id)}
         onMouseLeave={() => setHoveredOperationId((current) => (current === entry.id ? null : current))}
         onReveal={() => revealEntry(entry)}
+        isRevealEligible={sheetIndexForEntry(entry) !== null}
         isModelInput={modelInputIds.includes(entry.id)}
         isModelInputEligible={isModelInputEligible}
         onToggleModelInput={() => {
@@ -1425,7 +1447,7 @@ export function OperationPanel({
                 className={
                   selectedIds.includes(entry.id) ? 'operation-canvas__node operation-canvas__node--selected' : 'operation-canvas__node'
                 }
-                style={{ left: entry.position.x, top: entry.position.y, width: NODE_WIDTH }}
+                style={{ left: entry.position.x, top: entry.position.y, width: NODE_WIDTH, zIndex: nodeZIndex[entry.id] }}
                 onMouseDown={startNodeDrag(entry)}
               >
                 {/* Unreachable in practice: an unconfirmed entry is always either the one being

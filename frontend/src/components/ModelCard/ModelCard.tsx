@@ -10,6 +10,13 @@ import type { ModelOperationResultPayload } from '../../types/modelCalculation';
 import { formatCellValue } from '../../utils/sheet';
 import './ModelCard.css';
 
+/** Alphabetical, with embedded numbers compared numerically (so "Input 2" sorts before
+ * "Input 10") — the model author's own input/output toggle order (inputOperationIds/
+ * outputOperationIds) isn't a meaningful reading order for whoever is utilizing the model. */
+function sortByName(entries: SerializableEntry[]): SerializableEntry[] {
+  return [...entries].sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' }));
+}
+
 interface ModelCardProps {
   dataset: DatasetImportResponse;
   modelName: string;
@@ -138,12 +145,16 @@ export function ModelCard({ dataset, modelName, entries, inputOperationIds, outp
   // model can be exported at all) outputOperationIds are legitimate, permanent states — a model
   // built with no operation eligible to be an input (e.g. only a sum, which has no literal
   // chainable field at all) is a fixed model with nothing dynamic for a caller to fill in.
-  const inputEntries = inputOperationIds
-    .map((id) => entries.find((entry) => entry.id === id))
-    .filter((entry): entry is SerializableEntry => entry !== undefined);
-  const outputEntries = outputOperationIds
-    .map((id) => entries.find((entry) => entry.id === id))
-    .filter((entry): entry is SerializableEntry => entry !== undefined);
+  const inputEntries = sortByName(
+    inputOperationIds
+      .map((id) => entries.find((entry) => entry.id === id))
+      .filter((entry): entry is SerializableEntry => entry !== undefined),
+  );
+  const outputEntries = sortByName(
+    outputOperationIds
+      .map((id) => entries.find((entry) => entry.id === id))
+      .filter((entry): entry is SerializableEntry => entry !== undefined),
+  );
 
   if (outputEntries.length === 0) {
     return (
