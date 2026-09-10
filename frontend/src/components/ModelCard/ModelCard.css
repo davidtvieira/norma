@@ -20,7 +20,9 @@
 .model-card__io {
   flex: 1;
   display: flex;
+  gap: 1rem;
   min-height: 0;
+  margin-bottom: 1.5rem;
 }
 
 /* Each half centers its own content vertically *and* horizontally within its 50% of the screen —
@@ -30,7 +32,12 @@
    instead of growing taller than the screen and stretching the whole page (and dragging the
    other half's scroll position along with it); "safe center" keeps the centering above but
    falls back to top-aligned once there's more content than fits, so an overflowing half never
-   clips its own top edge out of scroll reach. */
+   clips its own top edge out of scroll reach. Its own background/border reads as one panel per
+   side (input vs. output), distinct from the individual field cards inside it. Light mode reuses
+   --color-surface-hover (warm, matching that theme's own amber palette); dark mode overrides it
+   below to plain --color-bg instead — --color-surface-hover carries a warm brownish tint even in
+   dark mode (a leftover of it being designed as a "hover" tint, not a neutral panel fill), which
+   read as an unwanted orange cast against dark mode's otherwise monochrome gray palette. */
 .model-card__io-panel {
   flex: 1 1 50%;
   min-width: 0;
@@ -38,14 +45,27 @@
   display: flex;
   align-items: safe center;
   justify-content: center;
-  padding: 1.5rem;
   overflow-y: auto;
+  background: var(--color-surface-hover);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .model-card__io-panel {
+    background: var(--color-bg);
+  }
+}
+
+:root[data-theme='dark'] .model-card__io-panel {
+  background: var(--color-bg);
 }
 
 /* No card around the half itself anymore — just a title over a grid of the individual
    input/output field cards (.model-card__field is the only remaining "card" on this screen). */
 .model-card__io-panel-content {
   width: 100%;
+  padding: 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -87,6 +107,8 @@
   }
 }
 
+/* --color-surface (one step lighter than the panel's own --color-surface-hover background above)
+   so each field card still reads as its own raised card instead of blending into the panel. */
 .model-card__field {
   display: flex;
   flex-direction: column;
@@ -94,7 +116,7 @@
   padding: 1rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  background: var(--color-surface-hover);
+  background: var(--color-surface);
 }
 
 .model-card__field-name {
@@ -118,14 +140,30 @@
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 0.6rem;
+  gap: 1rem;
 }
 
+/* align-self: stretch overrides .model-card__actions's own flex-end (meant for the error
+   paragraphs above, right-aligned like the buttons used to be) just for this row, so it spans the
+   full width and space-between actually has room to push the two groups below apart. */
 .model-card__actions-row {
+  align-self: stretch;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
-  gap: 0.75rem;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.model-card__actions-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+}
+
+.model-card__test-file-input {
+  display: none;
 }
 
 /* Overrides .app__create-model-button--back's own margin-top (meant for stacking below content

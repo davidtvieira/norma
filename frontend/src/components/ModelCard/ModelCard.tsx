@@ -3,10 +3,11 @@ import type { DatasetImportResponse } from '../../types/dataset';
 import type { OperationFields } from '../OperationPanel/operationKind';
 import { KINDS_BY_ID } from '../OperationPanel/kinds/registry';
 import { resolveOperationInputs } from '../../utils/resolveOperationInputs';
-import { getInputSource } from '../../types/valueSource';
+import { getInputSource, literalSource } from '../../types/valueSource';
 import type { SerializableEntry } from '../../utils/modelSerialization';
 import { registerModel, runModel } from '../../services/datasetApi';
 import type { ModelOperationResultPayload } from '../../types/modelCalculation';
+import { downloadTestCase, parseTestCaseFile } from '../../utils/testCaseSerialization';
 import { formatCellValue } from '../../utils/sheet';
 import './ModelCard.css';
 
@@ -96,6 +97,7 @@ export function ModelCard({ dataset, modelName, entries, inputOperationIds, outp
   // Ignores a stale response from an earlier click that resolves after a later one, if the user
   // clicks "Correr modelo" again before the first request finishes.
   const runIdRef = useRef(0);
+  const testFileInputRef = useRef<HTMLInputElement>(null);
 
   // The output's status only ever comes from a run's own response now — a run returns just the
   // designated output, not every operation's result — so there's nothing meaningful to resolve
@@ -113,20 +115,14 @@ export function ModelCard({ dataset, modelName, entries, inputOperationIds, outp
     return source.type === 'literal' && source.value.trim() !== '';
   });
 
-  function run() {
+  // Shared by run() (whatever's currently in `fields`) and loadTestCase (values just loaded from
+  // a file, sent straight through instead of round-tripping via `fields` state first — reading
+  // `fields` back out synchronously right after a setFields call would still see the *old*
+  // values, since the update hasn't committed yet).
+  function runWithInputValues(inputValues: Record<string, string>) {
     if (!modelId) return;
     const runId = ++runIdRef.current;
     setIsRunning(true);
-
-    // Always a literal in practice — only a literal-input operation is eligible to be one of a
-    // model's designated inputs (see App.tsx's modelInputOptions) — but ValueSource is a union,
-    // so this still needs to narrow before reading .value.
-    const inputValues = Object.fromEntries(
-      inputOperationIds.map((id) => {
-        const source = getInputSource(fields[id]);
-        return [id, source.type === 'literal' ? source.value : ''];
-      }),
-    );
 
     runModel(dataset.datasetId, modelId, inputValues)
       .then((response) => {
@@ -145,8 +141,61 @@ export function ModelCard({ dataset, modelName, entries, inputOperationIds, outp
       });
   }
 
+  function run() {
+    // Always a literal in practice — only a literal-input operation is eligible to be one of a
+    // model's designated inputs (see App.tsx's modelInputOptions) — but ValueSource is a union,
+    // so this still needs to narrow before reading .value.
+    const inputValues = Object.fromEntries(
+      inputOperationIds.map((id) => {
+        const source = getInputSource(fields[id]);
+        return [id, source.type === 'literal' ? source.value : ''];
+      }),
+    );
+    runWithInputValues(inputValues);
+  }
+
   function updateEntryFields(id: string, patch: OperationFields) {
     setFields((current) => ({ ...current, [id]: { ...current[id], ...patch } }));
+  }
+
+  const [testLoadError, setTestLoadError] = useState<string | null>(null);
+
+  function saveTestCase() {
+    downloadTestCase(
+      modelName,
+      inputEntries.map((entry) => {
+        const source = getInputSource(fields[entry.id]);
+        return { name: entry.name, value: source.type === 'literal' ? source.value : '' };
+      }),
+    );
+  }
+
+  // Matches each saved value against a currently-present input by exact name (ids regenerate on
+  // every import — see OperationPanel's testCaseSerialization notes) and runs immediately with
+  // the loaded values themselves (see runWithInputValues) rather than the (not yet updated)
+  // `fields` state, while also writing them into `fields` so the input boxes reflect what was
+  // loaded.
+  function loadTestCase(file: File) {
+    parseTestCaseFile(file)
+      .then((parsed) => {
+        setTestLoadError(null);
+        const valueByName = new Map(parsed.inputs.map((input) => [input.name, input.value]));
+        const nextFields = { ...fields };
+        const inputValues: Record<string, string> = {};
+        for (const entry of inputEntries) {
+          const loadedValue = valueByName.get(entry.name);
+          if (loadedValue !== undefined) {
+            nextFields[entry.id] = { ...nextFields[entry.id], input: literalSource(loadedValue) };
+          }
+          const source = getInputSource(nextFields[entry.id]);
+          inputValues[entry.id] = source.type === 'literal' ? source.value : '';
+        }
+        setFields(nextFields);
+        runWithInputValues(inputValues);
+      })
+      .catch((error) => {
+        setTestLoadError(error instanceof Error ? error.message : 'Falha ao carregar o teste.');
+      });
   }
 
   // Both an empty inputOperationIds and (validated at registration, never actually empty once a
@@ -231,18 +280,48 @@ export function ModelCard({ dataset, modelName, entries, inputOperationIds, outp
 
       <div className="model-card__actions">
         {registerError && <p className="model-card__missing-io">{registerError}</p>}
+        {testLoadError && <p className="model-card__missing-io">{testLoadError}</p>}
         <div className="model-card__actions-row">
-          <button type="button" className="app__create-model-button app__create-model-button--back" onClick={onBack}>
-            ← Voltar
-          </button>
-          <button
-            type="button"
-            className="model-card__run-button"
-            onClick={run}
-            disabled={isRunning || !modelId || !allInputsFilled}
-          >
-            {isRunning ? 'A calcular…' : 'Correr modelo'}
-          </button>
+          <div className="model-card__actions-group">
+            {inputEntries.length > 0 && (
+              <>
+                <input
+                  ref={testFileInputRef}
+                  type="file"
+                  accept="application/json"
+                  className="model-card__test-file-input"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = ''; // so re-loading the same file path fires onChange again
+                    if (file) loadTestCase(file);
+                  }}
+                />
+                <button
+                  type="button"
+                  className="app__create-model-button app__create-model-button--secondary"
+                  onClick={() => testFileInputRef.current?.click()}
+                >
+                  Carregar teste (JSON)
+                </button>
+                <button type="button" className="app__create-model-button app__create-model-button--secondary" onClick={saveTestCase}>
+                  Guardar teste (JSON)
+                </button>
+              </>
+            )}
+          </div>
+          <div className="model-card__actions-group">
+            <button type="button" className="app__create-model-button app__create-model-button--back" onClick={onBack}>
+              ← Voltar
+            </button>
+            <button
+              type="button"
+              className="model-card__run-button"
+              onClick={run}
+              disabled={isRunning || !modelId || !allInputsFilled}
+            >
+              {isRunning ? 'A calcular…' : 'Correr modelo'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
