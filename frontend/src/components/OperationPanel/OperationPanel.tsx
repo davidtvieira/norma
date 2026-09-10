@@ -8,9 +8,11 @@ import { useOperationTypes } from '../../hooks/useOperationTypes';
 import { getDependents, resolveOperationInputs } from '../../utils/resolveOperationInputs';
 import { getInputSource, getInputSources, literalSource, remapValueSourceReferences } from '../../types/valueSource';
 import type { SerializableEntry } from '../../utils/modelSerialization';
+import { downloadTestCase, parseTestCaseFile } from '../../utils/testCaseSerialization';
 import type { OperationFields, ReferenceOption } from './operationKind';
 import { KINDS, KINDS_BY_ID } from './kinds/registry';
 import { AddOperationModal } from '../AddOperationModal/AddOperationModal';
+import { TestValuesModal } from '../TestValuesModal/TestValuesModal';
 import './OperationPanel.css';
 
 /**
@@ -461,6 +463,9 @@ interface OperationPanelProps {
   modelOutputIds: string[];
   onModelInputIdsChange: (ids: string[]) => void;
   onModelOutputIdsChange: (ids: string[]) => void;
+  /** Only used for the downloaded test-case file's name/contents (see TestValuesModal) — the
+   * model doesn't otherwise need its own name while just being edited/tested. */
+  modelName: string;
 }
 
 /** An in-progress canvas pan (dragging empty canvas background) or node drag: the pointer
@@ -539,6 +544,7 @@ export function OperationPanel({
   modelOutputIds,
   onModelInputIdsChange,
   onModelOutputIdsChange,
+  modelName,
 }: OperationPanelProps) {
   const [entries, setEntries] = useState<OperationEntryState[]>(() =>
     (initialEntries ?? []).map((entry, index) => ({ ...entry, position: entry.position ?? placementFor(index) })),
@@ -579,6 +585,13 @@ export function OperationPanel({
   // Bumped by "Limpar teste" — the counterpart to testSignal: clears every kind's shown result
   // back to not-tested without needing to change any of its fields first.
   const [resetSignal, setResetSignal] = useState(0);
+  // Whether the test-values modal (see TestValuesModal) is open — only reachable when the model
+  // has at least one designated input (see the "Testar modelo" button below); with none, there's
+  // nothing to prompt for and it runs immediately, same as before this modal existed.
+  const [isTestModalOpen, setIsTestModalOpen] = useState(false);
+  // Set when "Carregar teste" fails to parse a file — shown in the modal, cleared on the next
+  // successful load or the next time the modal is opened.
+  const [testLoadError, setTestLoadError] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   // The existing (already-confirmed) operation currently reopened for editing in the left-docked
   // config panel (see renderConfigPanel and editEntry) — mutually exclusive with stagingEntryIds
@@ -1038,6 +1051,66 @@ export function OperationPanel({
     return KIND_LABELS[kindId] ?? operationTypes.find((type) => type.id === kindId)?.label ?? kindId;
   }
 
+  // One row per designated input (see TestValuesModal) — alphabetical, same reasoning as
+  // ModelCard's own sortByName: the author's input/output toggle order isn't a meaningful reading
+  // order for whoever's typing test values in. Always a literal (see isModelInputEligible below),
+  // same invariant ModelCard's own input fields rely on.
+  const testInputEntries = modelInputIds
+    .map((id) => entries.find((entry) => entry.id === id && entry.confirmed))
+    .filter((entry): entry is OperationEntryState => entry !== undefined)
+    .map((entry) => {
+      const source = getInputSource(entry.fields);
+      return { id: entry.id, name: entry.name, value: source.type === 'literal' ? source.value : '' };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+
+  // "Testar modelo" itself when the model has no designated input (nothing to prompt for —
+  // unchanged from before this modal existed); otherwise opens the modal instead of running
+  // immediately.
+  function openTestModal() {
+    setTestLoadError(null);
+    setIsTestModalOpen(true);
+  }
+
+  function updateTestValue(id: string, value: string) {
+    updateEntryFields(id, { input: literalSource(value) });
+  }
+
+  function runTestFromModal() {
+    setIsTestModalOpen(false);
+    setTestSignal((current) => current + 1);
+  }
+
+  function saveTestCase() {
+    downloadTestCase(
+      modelName,
+      testInputEntries.map((entry) => ({ name: entry.name, value: entry.value })),
+    );
+  }
+
+  // Matches each saved value against a currently-present input by exact name (see
+  // testCaseSerialization.ts for why name, not id) — a name from the file with no match on the
+  // canvas today is silently skipped, and a current input not mentioned in the file is left
+  // exactly as it was. Runs immediately afterward, same as clicking "Correr teste" — that's the
+  // whole point of loading a saved test back in.
+  function loadTestCase(file: File) {
+    parseTestCaseFile(file)
+      .then((parsed) => {
+        setTestLoadError(null);
+        for (const input of parsed.inputs) {
+          const matched = testInputEntries.find((entry) => entry.name === input.name);
+          if (matched) {
+            updateTestValue(matched.id, input.value);
+          }
+        }
+        setIsTestModalOpen(false);
+        setTestSignal((current) => current + 1);
+      })
+      .catch((error) => {
+        setTestLoadError(error instanceof Error ? error.message : 'Falha ao carregar o teste.');
+      });
+  }
+
   // Picking a kind in the add modal (starting a fresh batch) or clicking a staged card's own "+"
   // (see DraftOperationCard's onAddAnotherOfSameKind, adding another of the same kind to the
   // current one) both add to the same staging batch — the new draft doesn't appear on the canvas
@@ -1435,9 +1508,15 @@ export function OperationPanel({
           <button
             type="button"
             className="operation-canvas__test-button"
-            onClick={() => setTestSignal((current) => current + 1)}
+            onClick={() => (testInputEntries.length > 0 ? openTestModal() : setTestSignal((current) => current + 1))}
             disabled={confirmedCount === 0}
-            title={confirmedCount === 0 ? 'Conclua pelo menos uma operação para a poder testar.' : 'Calcula cada operação com os valores atuais.'}
+            title={
+              confirmedCount === 0
+                ? 'Conclua pelo menos uma operação para a poder testar.'
+                : testInputEntries.length > 0
+                  ? 'Introduza um valor para cada input antes de correr o teste.'
+                  : 'Calcula cada operação com os valores atuais.'
+            }
           >
             Testar modelo
           </button>
@@ -1545,6 +1624,17 @@ export function OperationPanel({
       )}
 
       {renderConfigPanel()}
+
+      <TestValuesModal
+        open={isTestModalOpen}
+        onClose={() => setIsTestModalOpen(false)}
+        inputs={testInputEntries}
+        onChangeValue={updateTestValue}
+        onRun={runTestFromModal}
+        onSave={saveTestCase}
+        onLoad={loadTestCase}
+        loadError={testLoadError}
+      />
     </div>
   );
 }

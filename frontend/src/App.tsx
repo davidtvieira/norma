@@ -433,6 +433,7 @@ function App() {
             modelOutputIds={modelOutputIds}
             onModelInputIdsChange={setModelInputIds}
             onModelOutputIdsChange={setModelOutputIds}
+            modelName={modelName}
           />
           <button type="button" className="app__save-button" onClick={() => setIsSaveModalOpen(true)}>
             Guardar modelo
