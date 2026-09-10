@@ -54,12 +54,30 @@ const MIN_ZOOM = 0.4;
 const MAX_ZOOM = 2;
 const ZOOM_STEP = 1.2;
 
-/** Simple cascading grid placement for a newly created/imported node — nothing persisted, just
- * a reasonable starting point; the user drags nodes wherever they actually want them. */
+/** Simple cascading grid placement for a node restored without a saved position (see
+ * initialEntries) — anchored at a fixed canvas-local origin regardless of the current pan/zoom,
+ * since there's no "current viewport" the entries being restored are meaningfully tied to (they
+ * arrive all at once, before the user has looked at the canvas at all). A freshly added operation
+ * uses viewportPlacementFor below instead, which *is* anchored to what's currently on screen. */
 function placementFor(index: number): NodePosition {
   const column = index % NODES_PER_ROW;
   const row = Math.floor(index / NODES_PER_ROW);
   return { x: 40 + column * NODE_COLUMN_GAP, y: 40 + row * NODE_ROW_GAP };
+}
+
+/** Same cascading grid as placementFor, but anchored just inside the top-left corner of whatever
+ * part of the canvas is currently visible (converting a fixed screen-space padding back to
+ * canvas-local coordinates via the surface's own pan/zoom — the inverse of the transform applied
+ * in the JSX below) instead of a fixed canvas-local origin — so a newly added operation lands
+ * right where the user's already looking and can be dragged immediately, instead of needing to be
+ * hunted down after panning/zooming away from wherever entries.length happened to place it. */
+function viewportPlacementFor(viewOffset: NodePosition, zoom: number, index: number): NodePosition {
+  const screenPadding = 40;
+  const anchorX = (screenPadding - viewOffset.x) / zoom;
+  const anchorY = (screenPadding - viewOffset.y) / zoom;
+  const column = index % NODES_PER_ROW;
+  const row = Math.floor(index / NODES_PER_ROW);
+  return { x: anchorX + column * NODE_COLUMN_GAP, y: anchorY + row * NODE_ROW_GAP };
 }
 
 interface DraftOperationCardProps {
@@ -394,14 +412,14 @@ function generateEntryId(): string {
  * Pure by design: React 18 StrictMode invokes functional setState updaters twice in
  * development to catch impure ones, so this must not rely on shared mutable state.
  */
-function createEntry(id: string, kindId: string, name: string, dataset: DatasetImportResponse, placementIndex: number): OperationEntryState {
+function createEntry(id: string, kindId: string, name: string, dataset: DatasetImportResponse, position: NodePosition): OperationEntryState {
   return {
     id,
     name,
     kindId,
     confirmed: false,
     fields: KINDS_BY_ID[kindId].createFields(dataset),
-    position: placementFor(placementIndex),
+    position,
   };
 }
 
@@ -1028,9 +1046,14 @@ export function OperationPanel({
   function addToStaging(kindId: string) {
     const label = labelForKind(kindId);
     const id = generateEntryId();
+    // Cascades by how many are already in *this* staging batch, not by the canvas' total entry
+    // count — anchored to wherever the viewport currently is (see viewportPlacementFor), so a
+    // batch of several added at once fans out near each other and near the user, regardless of
+    // how many other operations already exist elsewhere on the canvas.
+    const position = viewportPlacementFor(viewOffset, zoom, stagingEntryIds.length);
     setEntries((current) => {
       const order = current.filter((entry) => entry.kindId === kindId).length + 1;
-      return [...current, createEntry(id, kindId, `${label} ${order}`, dataset, current.length)];
+      return [...current, createEntry(id, kindId, `${label} ${order}`, dataset, position)];
     });
     setStagingEntryIds((current) => [...current, id]);
   }

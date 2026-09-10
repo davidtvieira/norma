@@ -479,22 +479,20 @@ function App() {
         onExport={exportModel}
         canExport={canExportModel}
         exportHint={exportHint}
-        inputLabel={
+        inputLabels={
           modelInputIds.length > 0
             ? modelInputIds
                 .map((id) => modelInputOptions.find((option) => option.id === id)?.label)
                 .filter((label): label is string => Boolean(label))
-                .join(', ')
             : isModelInputRequired
               ? null
-              : 'nenhum (modelo fixo)'
+              : ['nenhum (modelo fixo)']
         }
-        outputLabel={
+        outputLabels={
           modelOutputIds.length > 0
             ? modelOutputIds
                 .map((id) => modelOutputOptions.find((option) => option.id === id)?.label)
                 .filter((label): label is string => Boolean(label))
-                .join(', ')
             : null
         }
       />
