@@ -195,6 +195,13 @@ interface ValueSourceFieldProps {
    * referenceOnly, whose caller owns that removal instead.
    */
   hideConfirmedReset?: boolean;
+  /**
+   * True once this field's operation has been marked as the model's designated input (see
+   * OperationPanel's "Input" toggle) — that value is supplied by whoever utilizes the model
+   * (ModelCard), not typed in here while building it, so the toggle/typed-value/reference UI is
+   * replaced with an explanatory note instead of an editable field.
+   */
+  disabled?: boolean;
 }
 
 /**
@@ -222,6 +229,7 @@ export function ValueSourceField({
   resolvedInput,
   referenceOnly = false,
   hideConfirmedReset = false,
+  disabled = false,
 }: ValueSourceFieldProps) {
   // Which side of the toggle the user has actually picked — null until they click one, so
   // neither button starts highlighted and nothing shows below the toggle on a fresh field.
@@ -265,6 +273,17 @@ export function ValueSourceField({
     setChosen(referenceOnly && referenceOptions.length > 0 ? 'dynamic' : null);
     setConfirmed(false);
     onChange(literalSource(''));
+  }
+
+  if (disabled) {
+    return (
+      <div className="operation-entry__field">
+        <label className="operation-entry__label">{label}</label>
+        <p className="operation-entry__chain-status">
+          Definido como input do modelo — o valor é introduzido ao utilizar o modelo.
+        </p>
+      </div>
+    );
   }
 
   return (

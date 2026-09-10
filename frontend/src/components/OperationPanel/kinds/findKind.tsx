@@ -91,7 +91,18 @@ export const findKind: OperationKind = {
     );
   },
 
-  renderBody: ({ fields, updateFields, datasetId, testSignal, resetSignal, onMatchChange, resolvedInput, referenceOptions, onResultChange }) => {
+  renderBody: ({
+    fields,
+    updateFields,
+    datasetId,
+    testSignal,
+    resetSignal,
+    onMatchChange,
+    resolvedInput,
+    referenceOptions,
+    onResultChange,
+    isModelInput,
+  }) => {
     const f = asFindFields(fields);
     const query = resolvedInput.status === 'ready' ? resolvedInput.value : '';
     return (
@@ -104,6 +115,7 @@ export const findKind: OperationKind = {
           onChange={(input) => updateFields({ input })}
           referenceOptions={referenceOptions}
           resolvedInput={resolvedInput}
+          disabled={isModelInput}
         />
 
         <FindResult

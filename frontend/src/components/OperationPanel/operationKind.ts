@@ -49,6 +49,14 @@ export interface OperationBodyContext {
   /** Reports this operation's own result so a later operation can reference it; null clears it. */
   onResultChange: (value: string | null) => void;
   /**
+   * True once this operation has been marked as the model's designated input (see
+   * OperationPanel's "Input" toggle). A kind whose chainable field is model-input-eligible (see
+   * isModelInputEligible in OperationPanel) must pass this through to that field's
+   * ValueSourceField as `disabled` — the value is supplied at model-utilization time (ModelCard),
+   * not typed in here.
+   */
+  isModelInput: boolean;
+  /**
    * Incremented by "Testar modelo" (see OperationPanel) — the one thing that should make a kind's
    * result component actually call its endpoint. Configuring the operation further (typing a
    * literal value, picking a different column/range, ...) must not call it on its own; only

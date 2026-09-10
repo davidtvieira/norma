@@ -283,12 +283,8 @@ function CounterResult({ resolvedInputs, hasUnsetInput, testSignal, resetSignal,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [testSignal, resolvedKey, hasUnsetInput]);
 
-  if (state.status === 'idle') {
+  if (state.status === 'idle' || state.status === 'waiting') {
     return null;
-  }
-
-  if (state.status === 'waiting') {
-    return <p className="operation-entry__result operation-entry__result--empty">A aguardar pelas entradas…</p>;
   }
 
   if (state.status === 'loading') {

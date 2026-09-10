@@ -143,7 +143,18 @@ export const lookupKind: OperationKind = {
     );
   },
 
-  renderBody: ({ fields, updateFields, datasetId, testSignal, resetSignal, onMatchChange, resolvedInputs, referenceOptions, onResultChange }) => {
+  renderBody: ({
+    fields,
+    updateFields,
+    datasetId,
+    testSignal,
+    resetSignal,
+    onMatchChange,
+    resolvedInputs,
+    referenceOptions,
+    onResultChange,
+    isModelInput,
+  }) => {
     const f = asLookupFields(fields);
     // "input" (the query), "searchColumn" and "startRow" are all chainable fields on this kind,
     // declared in this order in createFields — resolvedInputs mirrors that order (see
@@ -185,6 +196,7 @@ export const lookupKind: OperationKind = {
           onChange={(input) => updateFields({ input })}
           referenceOptions={referenceOptions}
           resolvedInput={queryResolved}
+          disabled={isModelInput}
         />
 
         <LookupResult

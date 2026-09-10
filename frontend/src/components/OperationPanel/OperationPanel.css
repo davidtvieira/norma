@@ -86,6 +86,143 @@
   opacity: 0.5;
 }
 
+.operation-canvas__zoom-controls {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.operation-canvas__zoom-button,
+.operation-canvas__zoom-level {
+  border: none;
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  font: inherit;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.operation-canvas__zoom-button {
+  width: 2.1rem;
+  height: 2.1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.operation-canvas__zoom-level {
+  padding: 0 0.6rem;
+  height: 2.1rem;
+  min-width: 3.2rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  border-left: 1px solid var(--color-border);
+  border-right: 1px solid var(--color-border);
+}
+
+.operation-canvas__zoom-button:hover:not(:disabled),
+.operation-canvas__zoom-level:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  color: var(--color-primary);
+}
+
+.operation-canvas__zoom-button:disabled,
+.operation-canvas__zoom-level:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.operation-canvas__tool-button,
+.operation-canvas__paste-button {
+  padding: 0.55rem 1.1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
+}
+
+.operation-canvas__tool-button:hover,
+.operation-canvas__paste-button:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  background: var(--color-surface-hover);
+}
+
+.operation-canvas__tool-button--active,
+.operation-canvas__paste-button--active {
+  border-color: var(--color-secondary);
+  background: var(--color-secondary);
+  color: var(--color-surface);
+}
+
+.operation-canvas__paste-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.operation-canvas__paste-button:disabled:hover {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+}
+
+/* A second toolbar strip, only shown while the select tool has something selected — bulk actions
+   for whatever's currently selected instead of cluttering the main toolbar with them at all
+   times. */
+.operation-canvas__selection-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.9rem;
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--color-secondary);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-secondary) 10%, var(--color-surface));
+}
+
+.operation-canvas__selection-count {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.operation-canvas__selection-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.operation-canvas__selection-button {
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
+}
+
+.operation-canvas__selection-button:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.operation-canvas__selection-button--danger:hover {
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
 .operation-canvas__count {
   font-size: 0.8rem;
   font-weight: 600;
@@ -258,25 +395,6 @@
 .operation-entry__confirm-button:hover {
   background: var(--color-primary-hover);
   border-color: var(--color-primary-hover);
-}
-
-.operation-entry__delete-button {
-  flex: 1;
-  padding: 0.55rem 1.1rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.875rem;
-  font-weight: 500;
-  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
-}
-
-.operation-entry__delete-button:hover {
-  border-color: var(--color-error);
-  color: var(--color-error);
 }
 
 .operation-entry__field {
@@ -531,10 +649,39 @@
   cursor: grabbing;
 }
 
+/* A visible tint + border while the select tool is active — otherwise the only cue that node
+   controls have gone inert (see .operation-canvas__node-overlay) and dragging the background now
+   marquee-selects instead of panning is the toolbar's own toggle state, easy to miss once
+   attention's on the canvas itself. */
+.operation-canvas__viewport--select {
+  cursor: crosshair;
+  background-color: color-mix(in srgb, var(--color-secondary) 8%, color-mix(in srgb, #000 2%, var(--color-surface)));
+  border-color: var(--color-secondary);
+}
+
+.operation-canvas__viewport--placing {
+  cursor: crosshair;
+}
+
+/* The in-progress marquee rectangle (see the marquee-drag effect in OperationPanel.tsx) — drawn
+   in raw screen coordinates (position: fixed), so it needs no adjustment for the canvas' own pan
+   offset or scroll position; it only ever exists for the duration of the drag that produced it. */
+.operation-canvas__marquee {
+  position: fixed;
+  z-index: 20;
+  border: 1px solid var(--color-secondary);
+  background: color-mix(in srgb, var(--color-secondary) 15%, transparent);
+  pointer-events: none;
+}
+
 .operation-canvas__surface {
   position: relative;
   width: 100%;
   height: 100%;
+  /* Scaling (see the zoom in OperationPanel.tsx's inline transform) happens around this corner,
+     not the element's center — keeps zoomBy's "keep this screen point still" math a plain
+     translate/scale composition, with no extra offset for a non-zero transform-origin to fold in. */
+  transform-origin: 0 0;
 }
 
 .operation-canvas__edges {
@@ -562,6 +709,27 @@
 }
 
 .operation-canvas__node:active {
+  cursor: grabbing;
+}
+
+/* Marks a node as part of the current selection (see OperationPanel.tsx's select tool) — a
+   colored ring around its card rather than changing the card's own border, so it stays visible
+   underneath the card's own :hover border-color change. */
+.operation-canvas__node--selected .operation-card {
+  border-color: var(--color-secondary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-secondary) 40%, transparent);
+}
+
+/* The select-mode-only overlay (see OperationPanel.tsx) that sits in front of a node's whole
+   card, capturing every click itself instead of letting it reach the card's own buttons/fields
+   underneath — the select tool is for selecting/moving nodes, not editing them. */
+.operation-canvas__node-overlay {
+  position: absolute;
+  inset: 0;
+  cursor: grab;
+}
+
+.operation-canvas__node-overlay:active {
   cursor: grabbing;
 }
 

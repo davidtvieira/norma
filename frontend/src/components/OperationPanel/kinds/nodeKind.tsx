@@ -57,7 +57,7 @@ export const nodeKind: OperationKind = {
     );
   },
 
-  renderBody: ({ fields, updateFields, testSignal, resetSignal, resolvedInput, referenceOptions, onResultChange }) => {
+  renderBody: ({ fields, updateFields, testSignal, resetSignal, resolvedInput, referenceOptions, onResultChange, isModelInput }) => {
     const f = asNodeFields(fields);
     return (
       <>
@@ -69,6 +69,7 @@ export const nodeKind: OperationKind = {
           onChange={(input) => updateFields({ input })}
           referenceOptions={referenceOptions}
           resolvedInput={resolvedInput}
+          disabled={isModelInput}
         />
 
         <NodeResult resolvedInput={resolvedInput} testSignal={testSignal} resetSignal={resetSignal} onResultChange={onResultChange} />

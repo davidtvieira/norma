@@ -69,3 +69,31 @@ export function getInputSources(fields: object): ValueSource[] {
   }
   return sources.length > 0 ? sources : [literalSource('')];
 }
+
+/**
+ * Rewrites every reference-type value source in `fields` whose operationId is a key of `idMap` to
+ * point at the mapped id instead, leaving every other field (literals, and references to an
+ * operation outside idMap) untouched. Used when duplicating a group of operations (see
+ * OperationPanel's canvas copy/paste) so a reference between two operations that were copied
+ * together still points at its own copy rather than the original; a reference to an operation
+ * that wasn't part of the copied group is left pointing at that original, since it still exists.
+ */
+export function remapValueSourceReferences<T extends object>(fields: T, idMap: Record<string, string>): T {
+  function remapOne(value: unknown): unknown {
+    if (isValueSource(value) && value.type === 'reference' && value.operationId in idMap) {
+      return { type: 'reference', operationId: idMap[value.operationId] };
+    }
+    return value;
+  }
+
+  const f = fields as Record<string, unknown>;
+  const next: Record<string, unknown> = { ...f };
+  for (const [key, value] of Object.entries(f)) {
+    if (Array.isArray(value)) {
+      next[key] = value.map(remapOne);
+    } else if (isValueSource(value)) {
+      next[key] = remapOne(value);
+    }
+  }
+  return next as T;
+}

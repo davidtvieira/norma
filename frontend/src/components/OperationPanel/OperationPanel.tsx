@@ -1,11 +1,11 @@
-import { useEffect, useLayoutEffect, useState } from 'react';
-import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { MouseEvent as ReactMouseEvent, ReactNode, WheelEvent as ReactWheelEvent } from 'react';
 import type { DatasetImportResponse } from '../../types/dataset';
 import type { ColumnPickField, ColumnPickState, RangePickState } from '../../types/columnPick';
 import type { ColumnHighlight, OperationHighlight, RangeHighlight } from '../../types/highlight';
 import { useOperationTypes } from '../../hooks/useOperationTypes';
 import { getDependents, resolveOperationInputs } from '../../utils/resolveOperationInputs';
-import { getInputSource, getInputSources } from '../../types/valueSource';
+import { getInputSource, getInputSources, literalSource, remapValueSourceReferences } from '../../types/valueSource';
 import type { SerializableEntry } from '../../utils/modelSerialization';
 import type { OperationFields, ReferenceOption } from './operationKind';
 import { KINDS, KINDS_BY_ID } from './kinds/registry';
@@ -32,12 +32,26 @@ interface NodePosition {
 
 /** Fixed node width used both for layout (inline style) and edge-anchor math. */
 const NODE_WIDTH = 300;
+/** The dotted background grid's dot spacing at 100% zoom, in screen pixels — see the viewport's
+ * inline backgroundSize style, which scales this by the current zoom to match. Must match the
+ * 22px baked into OperationPanel.css's own background-size (kept there as the un-zoomed default,
+ * so the grid still looks right for the split second before the first render's inline style
+ * applies). */
+const GRID_SIZE = 22;
 /** Vertical offset from a node's top to its header's center — where edges attach — constant
  * regardless of how tall the node's body grows (result text, expanded info, ...). */
 const NODE_HEADER_ANCHOR_Y = 28;
 const NODES_PER_ROW = 3;
 const NODE_COLUMN_GAP = 340;
 const NODE_ROW_GAP = 240;
+
+/** How far the canvas can be zoomed out/in, and the multiplicative step each zoom-in/zoom-out
+ * click (or wheel notch — see handleViewportWheel) applies. Multiplicative rather than additive so
+ * repeated clicks feel like a consistent proportional change at any zoom level, not a fixed pixel
+ * amount that feels huge when zoomed out and tiny when zoomed in. */
+const MIN_ZOOM = 0.4;
+const MAX_ZOOM = 2;
+const ZOOM_STEP = 1.2;
 
 /** Simple cascading grid placement for a newly created/imported node — nothing persisted, just
  * a reasonable starting point; the user drags nodes wherever they actually want them. */
@@ -51,18 +65,23 @@ interface DraftOperationCardProps {
   name: string;
   onNameChange: (name: string) => void;
   canConfirm: boolean;
+  /** "Adicionar operação" for a brand-new draft, "Atualizar operação" for one reopened via
+   * "Editar" — see renderDraftCard, which tells the two apart the same way renderConfigPanel's
+   * own title does (whether this entry has a snapshot in editSnapshots). */
+  confirmLabel: string;
   onConfirm: () => void;
-  onDelete: () => void;
   children: ReactNode;
 }
 
 /**
  * An operation being built or edited: name, then whatever type-specific config the kind renders
- * as `children`, then confirm/delete once ready. Always shown inside the config panel (see
+ * as `children`, then confirm once ready. Always shown inside the config panel (see
  * OperationPanel's renderConfigPanel), whose own × already cancels — reverting an edit back to
- * its confirmed state, or deleting a never-confirmed draft — so there's no second one here.
+ * its confirmed state, or deleting a never-confirmed draft — so there's no separate delete button
+ * here; deleting an already-confirmed operation outright is the canvas selection bar's job now
+ * (select it, then "Eliminar" — see the select tool), not something the edit panel offers too.
  */
-function DraftOperationCard({ name, onNameChange, canConfirm, onConfirm, onDelete, children }: DraftOperationCardProps) {
+function DraftOperationCard({ name, onNameChange, canConfirm, confirmLabel, onConfirm, children }: DraftOperationCardProps) {
   return (
     <div className="operation-entry">
       <input
@@ -78,10 +97,7 @@ function DraftOperationCard({ name, onNameChange, canConfirm, onConfirm, onDelet
       {canConfirm && (
         <div className="operation-entry__confirm-row">
           <button type="button" className="operation-entry__confirm-button" onClick={onConfirm}>
-            Concluir operação
-          </button>
-          <button type="button" className="operation-entry__delete-button" onClick={onDelete}>
-            Remover operação
+            {confirmLabel}
           </button>
         </div>
       )}
@@ -323,6 +339,25 @@ interface DragState {
   originY: number;
 }
 
+/** The pointer position (in screen/client pixels, not canvas-local ones — see the marquee-drag
+ * effect below) a select-mode marquee drag started at — stable for the whole drag, same as
+ * DragState above; only its endpoint moves, tracked separately in MarqueeRect so the drag's own
+ * effect doesn't need to re-subscribe on every pointer move. */
+interface MarqueeStart {
+  x: number;
+  y: number;
+}
+
+/** The marquee's current on-screen box, recomputed from MarqueeStart and the latest pointer
+ * position on every move — purely for drawing the selection rectangle; the hit-test against nodes
+ * only happens once, on mouseup (see the effect below). */
+interface MarqueeRect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
 interface Edge {
   fromId: string;
   toId: string;
@@ -424,6 +459,34 @@ export function OperationPanel({
   const [viewOffset, setViewOffset] = useState<NodePosition>({ x: 0, y: 0 });
   const [pan, setPan] = useState<DragState | null>(null);
   const [dragNode, setDragNode] = useState<DragState | null>(null);
+  // The canvas' zoom level, 1 = 100% — applied to the same surface viewOffset already pans (see
+  // zoomBy and the transform in the JSX below), so panning and zooming compose naturally instead
+  // of needing two separate transformed layers.
+  const [zoom, setZoom] = useState(1);
+
+  // Which canvas tool is active: "pan" (default) drags the background to scroll the canvas,
+  // "select" instead drags a marquee to bulk-select nodes (see the toolbar toggle and the marquee
+  // effect below). Switching away from "select" drops whatever was selected — a leftover
+  // selection would otherwise linger, invisible, back in "pan" mode.
+  const [tool, setTool] = useState<'pan' | 'select'>('pan');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [marqueeStart, setMarqueeStart] = useState<MarqueeStart | null>(null);
+  const [marqueeRect, setMarqueeRect] = useState<MarqueeRect | null>(null);
+  // Copied operations, kept purely in memory (nothing persisted, same as everything else on this
+  // canvas) — see copySelection/pasteClipboardAt. Cleared only by copying again, never by pasting,
+  // so the same copy can be pasted more than once.
+  const [clipboard, setClipboard] = useState<OperationEntryState[] | null>(null);
+  // True once "Colar" has been clicked and is waiting for the placement click on the canvas (see
+  // handleViewportClick) — lets the user choose where the pasted copy lands instead of it always
+  // dropping on top of the original, which would bury it under (or overlapping) the rest of the
+  // model.
+  const [pendingPaste, setPendingPaste] = useState(false);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  // Each rendered node's DOM element, keyed by entry id — read only on marquee mouseup, to hit-test
+  // its actual on-screen box (including however tall its live result/body currently renders) against
+  // the marquee rectangle. A stale entry for a since-deleted id is harmless (see removeEntry, which
+  // still deletes it for tidiness) since nothing ever looks it up again.
+  const nodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Lets App.tsx export the model (see the "Guardar modelo" flow) without entries living there.
   useEffect(() => {
@@ -431,11 +494,11 @@ export function OperationPanel({
   }, [entries, onEntriesChange]);
 
   // Closes the config panel once the entry it was building/editing resolves — confirmed (it now
-  // shows, or goes back to showing, on the canvas at its already-assigned position) or removed
-  // (× cancels a fresh draft by deleting it, or reverts an edit back to its confirmed snapshot —
-  // see cancelEntry — either way `confirmed` ends up true again; "Remover operação" deletes it
-  // outright). Driven by `entries` rather than the panel's own buttons so every way that entry
-  // can resolve is covered by one place.
+  // shows, or goes back to showing, on the canvas at its already-assigned position) or removed (×
+  // cancels a fresh, never-confirmed draft by deleting it outright; editing an already-confirmed
+  // operation has no delete of its own — see cancelEntry — so × there only ever reverts to its
+  // confirmed snapshot, never removes it). Driven by `entries` rather than the panel's own buttons
+  // so every way that entry can resolve is covered by one place.
   useEffect(() => {
     if (!configuringEntryId) return;
     const entry = entries.find((item) => item.id === configuringEntryId);
@@ -489,9 +552,15 @@ export function OperationPanel({
         setViewOffset({ x: pan.originX + (event.clientX - pan.startX), y: pan.originY + (event.clientY - pan.startY) });
       }
       if (dragNode) {
+        // Node positions live in the surface's own pre-zoom coordinate space (see the transform
+        // in the JSX below) while the pointer delta is measured in real screen pixels — dividing
+        // by zoom converts the latter into the former, so a node tracks the cursor 1:1 on screen
+        // at any zoom level instead of drifting faster than the cursor while zoomed in (or slower
+        // while zoomed out). Uses whatever zoom was active when this drag started (see the
+        // dep-array note below) — changing zoom mid-drag (e.g. via the wheel) isn't accounted for.
         const nextPosition = {
-          x: dragNode.originX + (event.clientX - dragNode.startX),
-          y: dragNode.originY + (event.clientY - dragNode.startY),
+          x: dragNode.originX + (event.clientX - dragNode.startX) / zoom,
+          y: dragNode.originY + (event.clientY - dragNode.startY) / zoom,
         };
         setEntries((current) =>
           current.map((entry) => (entry.id === dragNode.id ? { ...entry, position: nextPosition } : entry)),
@@ -499,7 +568,17 @@ export function OperationPanel({
       }
     }
 
-    function handleMouseUp() {
+    function handleMouseUp(event: globalThis.MouseEvent) {
+      // In "select" mode, a node drag that barely moved is really a click — toggle that node's
+      // selection instead of (or as well as) "moving" it a couple of pixels. A real pan/drag
+      // (movement past the threshold) never touches the selection.
+      if (dragNode?.id && tool === 'select') {
+        const movedDistance = Math.hypot(event.clientX - dragNode.startX, event.clientY - dragNode.startY);
+        if (movedDistance < 4) {
+          const nodeId = dragNode.id;
+          setSelectedIds((current) => (current.includes(nodeId) ? current.filter((id) => id !== nodeId) : [...current, nodeId]));
+        }
+      }
       setPan(null);
       setDragNode(null);
     }
@@ -515,11 +594,131 @@ export function OperationPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pan, dragNode]);
 
+  // The marquee-select counterpart of the pan/node-drag effect above, kept separate since it
+  // drives its own bit of state (the selection) instead of viewOffset/entries — same shape
+  // otherwise: marqueeStart is set once on mousedown and cleared on mouseup, never touched
+  // mid-drag, so depending on just it (not the constantly-updating marqueeRect) is safe, same
+  // reasoning as pan/dragNode above.
+  useLayoutEffect(() => {
+    if (!marqueeStart) return;
+
+    function handleMouseMove(event: globalThis.MouseEvent) {
+      setMarqueeRect({
+        left: Math.min(marqueeStart!.x, event.clientX),
+        top: Math.min(marqueeStart!.y, event.clientY),
+        width: Math.abs(event.clientX - marqueeStart!.x),
+        height: Math.abs(event.clientY - marqueeStart!.y),
+      });
+    }
+
+    function handleMouseUp(event: globalThis.MouseEvent) {
+      const left = Math.min(marqueeStart!.x, event.clientX);
+      const right = Math.max(marqueeStart!.x, event.clientX);
+      const top = Math.min(marqueeStart!.y, event.clientY);
+      const bottom = Math.max(marqueeStart!.y, event.clientY);
+
+      // Any confirmed node whose on-screen box (read straight off the DOM, so it reflects
+      // whatever it's actually rendering right now — a longer result, an expanded field, ...)
+      // overlaps the dragged rectangle at all becomes the new selection, replacing whatever was
+      // selected before. A plain click (no real drag) hits nothing and clears the selection.
+      const hits = entries
+        .filter((entry) => entry.confirmed)
+        .filter((entry) => {
+          const el = nodeRefs.current[entry.id];
+          if (!el) return false;
+          const box = el.getBoundingClientRect();
+          return box.left < right && box.right > left && box.top < bottom && box.bottom > top;
+        })
+        .map((entry) => entry.id);
+      setSelectedIds(hits);
+      setMarqueeStart(null);
+      setMarqueeRect(null);
+    }
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [marqueeStart]);
+
   function startPan(event: ReactMouseEvent<HTMLDivElement>) {
     // Only ever reaches here for a mousedown on empty canvas background — a node's own
     // mousedown handler (see startNodeDrag) stops propagation before it would bubble up here.
     event.preventDefault();
     setPan({ id: null, startX: event.clientX, startY: event.clientY, originX: viewOffset.x, originY: viewOffset.y });
+  }
+
+  function startMarquee(event: ReactMouseEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setMarqueeStart({ x: event.clientX, y: event.clientY });
+    setMarqueeRect({ left: event.clientX, top: event.clientY, width: 0, height: 0 });
+  }
+
+  // Mousedown on empty canvas background: places a pending paste (see handleViewportClick, which
+  // does the actual placing on the following click), starts a marquee drag in "select" mode, or
+  // pans the canvas otherwise — whichever's active, never more than one at a time.
+  function handleViewportMouseDown(event: ReactMouseEvent<HTMLDivElement>) {
+    if (pendingPaste) return;
+    if (tool === 'select') {
+      startMarquee(event);
+      return;
+    }
+    startPan(event);
+  }
+
+  // The companion click handler for a pending paste (see "Colar" in the toolbar) — fires after
+  // handleViewportMouseDown above declines to pan/marquee-select while one's pending, so this is
+  // the only thing a click on the canvas does in that state: place the clipboard at wherever was
+  // clicked, converting the click's screen position back to the same canvas-local coordinate
+  // space node positions already live in (undoing the viewport's own offset and the surface's pan
+  // transform — see the JSX below).
+  function handleViewportClick(event: ReactMouseEvent<HTMLDivElement>) {
+    if (!pendingPaste) return;
+    // Ignore a click that landed on an existing node (it still bubbles up here) — pasting
+    // straight on top of it is exactly the overlap this whole placement step exists to avoid;
+    // pendingPaste stays on so the very next click on actual empty canvas still places it.
+    if ((event.target as HTMLElement).closest('.operation-canvas__node')) return;
+    const viewportBox = viewportRef.current?.getBoundingClientRect();
+    if (!viewportBox) return;
+    pasteClipboardAt({
+      x: (event.clientX - viewportBox.left - viewOffset.x) / zoom,
+      y: (event.clientY - viewportBox.top - viewOffset.y) / zoom,
+    });
+  }
+
+  // Zooms toward/away from a focal point (in screen coordinates — the cursor for a wheel notch,
+  // or the viewport's own center for a toolbar +/− click, which has no cursor position of its own
+  // to zoom around) while keeping whatever's currently under that point visually still, the same
+  // way most other canvas/map tools zoom: solved by picking a new viewOffset such that the
+  // surface-local point the focal point currently maps to (given the old zoom/viewOffset) still
+  // maps to that exact same screen position under the new zoom.
+  function zoomBy(factor: number, focal?: { clientX: number; clientY: number }) {
+    const nextZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom * factor));
+    if (nextZoom === zoom) return;
+
+    const viewportBox = viewportRef.current?.getBoundingClientRect();
+    if (viewportBox) {
+      const focalX = (focal?.clientX ?? viewportBox.left + viewportBox.width / 2) - viewportBox.left;
+      const focalY = (focal?.clientY ?? viewportBox.top + viewportBox.height / 2) - viewportBox.top;
+      setViewOffset({
+        x: focalX - (nextZoom / zoom) * (focalX - viewOffset.x),
+        y: focalY - (nextZoom / zoom) * (focalY - viewOffset.y),
+      });
+    }
+    setZoom(nextZoom);
+  }
+
+  // Ctrl/Cmd+wheel (a trackpad pinch is reported as this by the browser) zooms the canvas around
+  // the cursor; a plain wheel is left alone (does nothing — the viewport has nothing to scroll,
+  // and reserving plain wheel for zoom too would make it too easy to zoom by accident while just
+  // moving the mouse across the canvas with a scroll wheel resting under the cursor).
+  function handleViewportWheel(event: ReactWheelEvent<HTMLDivElement>) {
+    if (!event.ctrlKey && !event.metaKey) return;
+    event.preventDefault();
+    zoomBy(event.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP, { clientX: event.clientX, clientY: event.clientY });
   }
 
   function startNodeDrag(entry: OperationEntryState) {
@@ -562,6 +761,62 @@ export function OperationPanel({
       const { [id]: _discarded, ...rest } = current;
       return rest;
     });
+    delete nodeRefs.current[id];
+  }
+
+  // "Copiar" in the selection bar (see the toolbar below) — snapshots the selected entries as
+  // plain data (structuredClone, so later edits to the originals can't leak into the clipboard or
+  // vice versa) without touching the canvas. Kept until the next copy, not the next paste — the
+  // same clipboard can seed more than one paste.
+  function copySelection() {
+    if (selectedIds.length === 0) return;
+    const selectedSet = new Set(selectedIds);
+    setClipboard(entries.filter((entry) => selectedSet.has(entry.id)).map((entry) => structuredClone(entry)));
+  }
+
+  // "Eliminar" in the selection bar — same per-entry cleanup as a single removeEntry, just for
+  // every selected id at once.
+  function deleteSelection() {
+    if (selectedIds.length === 0) return;
+    for (const id of selectedIds) {
+      removeEntry(id);
+    }
+    setSelectedIds([]);
+  }
+
+  // Places whatever's in the clipboard at `position` (already converted to the same canvas-local
+  // coordinate space node positions live in — see handleViewportClick), preserving the copied
+  // group's own relative layout: its bounding box's top-left lands exactly at `position`, and
+  // every other copied node keeps its original offset from that corner. Every copied id gets a
+  // fresh one, and any reference between two operations that were copied together is rewritten to
+  // point at its own new copy (see remapValueSourceReferences) rather than the original — a
+  // reference to an operation outside the copied group is left pointing at that original, since
+  // it's still there on the canvas. The pasted copy becomes the new selection, mirroring what
+  // copying-then-pasting does in most other canvas tools.
+  function pasteClipboardAt(position: NodePosition) {
+    if (!clipboard || clipboard.length === 0) {
+      setPendingPaste(false);
+      return;
+    }
+
+    const idMap: Record<string, string> = {};
+    for (const entry of clipboard) {
+      idMap[entry.id] = generateEntryId();
+    }
+    const minX = Math.min(...clipboard.map((entry) => entry.position.x));
+    const minY = Math.min(...clipboard.map((entry) => entry.position.y));
+
+    const pasted = clipboard.map((entry) => ({
+      ...entry,
+      id: idMap[entry.id],
+      name: entry.name ? `${entry.name} (cópia)` : entry.name,
+      fields: remapValueSourceReferences(entry.fields, idMap),
+      position: { x: position.x + (entry.position.x - minX), y: position.y + (entry.position.y - minY) },
+    }));
+
+    setEntries((current) => [...current, ...pasted]);
+    setSelectedIds(pasted.map((entry) => entry.id));
+    setPendingPaste(false);
   }
 
   function labelForEntry(id: string): string {
@@ -649,6 +904,7 @@ export function OperationPanel({
         name={entry.name}
         onNameChange={(name) => updateEntry(entry.id, { name })}
         canConfirm={kind.canConfirm(entry.fields)}
+        confirmLabel={entry.id in editSnapshots ? 'Atualizar operação' : 'Adicionar operação'}
         onConfirm={() => {
           updateEntry(entry.id, { confirmed: true });
           // Pins its highlight so it's what shows next time the sheet panel opens (a reveal
@@ -658,7 +914,6 @@ export function OperationPanel({
           setSelectedOperationId(entry.id);
           onOperationConfirmed();
         }}
-        onDelete={() => removeEntry(entry.id)}
       >
         {kind.renderDraftConfig({
           dataset,
@@ -712,11 +967,19 @@ export function OperationPanel({
         onReveal={() => revealEntry(entry)}
         isModelInput={modelInputIds.includes(entry.id)}
         isModelInputEligible={isModelInputEligible}
-        onToggleModelInput={() =>
+        onToggleModelInput={() => {
+          const turningOn = !modelInputIds.includes(entry.id);
           onModelInputIdsChange(
-            modelInputIds.includes(entry.id) ? modelInputIds.filter((id) => id !== entry.id) : [...modelInputIds, entry.id],
-          )
-        }
+            turningOn ? [...modelInputIds, entry.id] : modelInputIds.filter((id) => id !== entry.id),
+          );
+          // Clears whatever literal value was typed in while just testing this operation locally
+          // (see ValueSourceField's disabled note) — otherwise that leftover value would still be
+          // exported with the model and show up pre-filled the next time it's utilized, instead
+          // of the blank field a caller is meant to fill in themselves (see ModelCard).
+          if (turningOn) {
+            updateEntryFields(entry.id, { input: literalSource('') });
+          }
+        }}
         isModelOutput={modelOutputIds.includes(entry.id)}
         onToggleModelOutput={() =>
           onModelOutputIdsChange(
@@ -735,6 +998,7 @@ export function OperationPanel({
           onResultChange: (value) => setResults((current) => ({ ...current, [entry.id]: value })),
           testSignal,
           resetSignal,
+          isModelInput: modelInputIds.includes(entry.id),
         })}
       </ConfirmedOperationCard>
     );
@@ -800,6 +1064,72 @@ export function OperationPanel({
           Operações <span className="operation-panel__count">{confirmedCount}</span>
         </span>
         <div className="operation-canvas__toolbar-actions">
+          <div className="operation-canvas__zoom-controls">
+            <button
+              type="button"
+              className="operation-canvas__zoom-button"
+              onClick={() => zoomBy(1 / ZOOM_STEP)}
+              disabled={zoom <= MIN_ZOOM}
+              title="Diminuir zoom"
+              aria-label="Diminuir zoom"
+            >
+              −
+            </button>
+            <button
+              type="button"
+              className="operation-canvas__zoom-level"
+              onClick={() => zoomBy(1 / zoom)}
+              disabled={zoom === 1}
+              title="Repor zoom para 100%"
+            >
+              {Math.round(zoom * 100)}%
+            </button>
+            <button
+              type="button"
+              className="operation-canvas__zoom-button"
+              onClick={() => zoomBy(ZOOM_STEP)}
+              disabled={zoom >= MAX_ZOOM}
+              title="Aumentar zoom"
+              aria-label="Aumentar zoom"
+            >
+              +
+            </button>
+          </div>
+          <button
+            type="button"
+            className={
+              tool === 'select'
+                ? 'operation-canvas__tool-button operation-canvas__tool-button--active'
+                : 'operation-canvas__tool-button'
+            }
+            onClick={() => {
+              setTool((current) => {
+                const next = current === 'select' ? 'pan' : 'select';
+                if (next !== 'select') setSelectedIds([]);
+                return next;
+              });
+            }}
+            title={tool === 'select' ? 'Voltar a arrastar o fundo para mover a vista.' : 'Arrastar sobre o fundo para selecionar várias operações.'}
+          >
+            Selecionar
+          </button>
+          <button
+            type="button"
+            className={
+              pendingPaste ? 'operation-canvas__paste-button operation-canvas__paste-button--active' : 'operation-canvas__paste-button'
+            }
+            onClick={() => setPendingPaste((current) => !current)}
+            disabled={!clipboard || clipboard.length === 0}
+            title={
+              !clipboard || clipboard.length === 0
+                ? 'Copie uma ou mais operações primeiro.'
+                : pendingPaste
+                  ? 'Clique no canvas para colar aqui — ou clique de novo aqui para cancelar.'
+                  : 'Cola as operações copiadas onde clicar no canvas.'
+            }
+          >
+            {pendingPaste ? 'Clique no canvas para colar…' : 'Colar'}
+          </button>
           <button
             type="button"
             className="operation-canvas__reset-button"
@@ -821,14 +1151,58 @@ export function OperationPanel({
         </div>
       </div>
 
+      {tool === 'select' && selectedIds.length > 0 && (
+        <div className="operation-canvas__selection-bar">
+          <span className="operation-canvas__selection-count">
+            {selectedIds.length} {selectedIds.length === 1 ? 'operação selecionada' : 'operações selecionadas'}
+          </span>
+          <div className="operation-canvas__selection-actions">
+            <button type="button" className="operation-canvas__selection-button" onClick={copySelection}>
+              Copiar
+            </button>
+            <button
+              type="button"
+              className="operation-canvas__selection-button operation-canvas__selection-button--danger"
+              onClick={deleteSelection}
+            >
+              Eliminar
+            </button>
+            <button type="button" className="operation-canvas__selection-button" onClick={() => setSelectedIds([])}>
+              Cancelar seleção
+            </button>
+          </div>
+        </div>
+      )}
+
       <div
-        className={pan ? 'operation-canvas__viewport operation-canvas__viewport--panning' : 'operation-canvas__viewport'}
-        onMouseDown={startPan}
-        // Keeps the dotted grid (see OperationPanel.css) moving together with the surface below,
-        // instead of staying fixed to the viewport while the nodes on it pan past.
-        style={{ backgroundPosition: `${viewOffset.x}px ${viewOffset.y}px` }}
+        ref={viewportRef}
+        className={[
+          'operation-canvas__viewport',
+          pan ? 'operation-canvas__viewport--panning' : '',
+          tool === 'select' ? 'operation-canvas__viewport--select' : '',
+          pendingPaste ? 'operation-canvas__viewport--placing' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+        onMouseDown={handleViewportMouseDown}
+        onClick={handleViewportClick}
+        onWheel={handleViewportWheel}
+        // Keeps the dotted grid (see OperationPanel.css) moving and scaling together with the
+        // surface below, instead of staying fixed to the viewport while the nodes on it pan/zoom
+        // past — its phase follows the same unscaled viewOffset the surface's own translate uses
+        // (see the surface's transform below), and its dot spacing scales by the same zoom.
+        style={{
+          backgroundPosition: `${viewOffset.x}px ${viewOffset.y}px`,
+          backgroundSize: `${GRID_SIZE * zoom}px ${GRID_SIZE * zoom}px`,
+        }}
       >
-        <div className="operation-canvas__surface" style={{ transform: `translate(${viewOffset.x}px, ${viewOffset.y}px)` }}>
+        <div
+          className="operation-canvas__surface"
+          // translate() is applied in real screen pixels, outside the scale — panning always
+          // tracks the cursor 1:1 regardless of zoom (see zoomBy's own comment for why scale
+          // needs a transform-origin of 0 0, set in CSS, to keep its math this simple).
+          style={{ transform: `translate(${viewOffset.x}px, ${viewOffset.y}px) scale(${zoom})` }}
+        >
           <svg className="operation-canvas__edges">
             {edges.map((edge, index) => (
               <path key={`${edge.fromId}-${edge.toId}-${index}`} d={edgePath(edge)} />
@@ -843,16 +1217,36 @@ export function OperationPanel({
             return (
               <div
                 key={entry.id}
-                className="operation-canvas__node"
+                ref={(el) => {
+                  nodeRefs.current[entry.id] = el;
+                }}
+                className={
+                  selectedIds.includes(entry.id) ? 'operation-canvas__node operation-canvas__node--selected' : 'operation-canvas__node'
+                }
                 style={{ left: entry.position.x, top: entry.position.y, width: NODE_WIDTH }}
                 onMouseDown={startNodeDrag(entry)}
               >
                 {entry.confirmed ? renderConfirmedCard(entry) : renderDraftCard(entry)}
+                {/* In "select" mode, a transparent overlay sits in front of the whole card,
+                    intercepting every click before it reaches the card's own controls (Input/
+                    Output toggles, edit, reveal, the live value field, ...) — selecting or moving
+                    a node is all that's meant to be possible here; editing it is what "pan" mode
+                    (and the pencil, once back there) is for. startNodeDrag's own form-control
+                    bypass (see below) never needs to trigger here since the overlay itself, not
+                    any inner control, is always what's actually clicked. */}
+                {tool === 'select' && <div className="operation-canvas__node-overlay" onMouseDown={startNodeDrag(entry)} />}
               </div>
             );
           })}
         </div>
       </div>
+
+      {marqueeRect && (
+        <div
+          className="operation-canvas__marquee"
+          style={{ left: marqueeRect.left, top: marqueeRect.top, width: marqueeRect.width, height: marqueeRect.height }}
+        />
+      )}
 
       {renderConfigPanel()}
     </div>
