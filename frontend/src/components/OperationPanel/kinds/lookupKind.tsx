@@ -26,9 +26,12 @@ interface LookupFields {
   // (the default) searches from the very first row, same as before this field existed.
   startRow: ValueSource;
   // How the search column's cell is compared against the query — "equals" (the original,
-  // default behavior) or "contains". Not chainable (a plain fixed setting, same as
-  // resultColumn) — it changes how the match is computed, not what value feeds into it.
+  // default behavior), "contains", or "tokenEquals". Not chainable (a plain fixed setting, same
+  // as resultColumn) — it changes how the match is computed, not what value feeds into it.
   matchMode: LookupMatchMode;
+  // Only meaningful for matchMode "tokenEquals" — see LookupMatchMode's own doc.
+  tokenIgnoreSpaces: boolean;
+  tokenIgnoreDashes: boolean;
 }
 
 function asLookupFields(fields: OperationFields): LookupFields {
@@ -74,6 +77,8 @@ export const lookupKind: OperationKind = {
     resultColumn: '',
     startRow: literalSource('0'),
     matchMode: 'equals',
+    tokenIgnoreSpaces: false,
+    tokenIgnoreDashes: false,
   } satisfies LookupFields),
 
   canConfirm: (fields) => asLookupFields(fields).resultColumn !== '',
@@ -122,11 +127,12 @@ export const lookupKind: OperationKind = {
           ? `Coluna ${f.searchColumn.value}`
           : 'Coluna por definir'
         : 'Coluna dinâmica';
+    const matchModeLabel = f.matchMode === 'contains' ? 'contém' : f.matchMode === 'tokenEquals' ? 'segmento' : 'igual';
     return (
       <>
         <span>{dataset.sheets[sheetIndex].sheetName}</span>
         <span>
-          · {searchColumnLabel} ({f.matchMode === 'contains' ? 'contém' : 'igual'})
+          · {searchColumnLabel} ({matchModeLabel})
           <span className="lookup-summary__arrow">→</span>
           Coluna {f.resultColumn}
         </span>
@@ -194,18 +200,6 @@ export const lookupKind: OperationKind = {
           resolvedInput={searchColumnResolved}
         />
 
-        <div className="operation-entry__field">
-          <label className="operation-entry__label">Tipo de comparação</label>
-          <select
-            className="operation-entry__select"
-            value={f.matchMode}
-            onChange={(event) => updateFields({ matchMode: event.target.value as LookupMatchMode })}
-          >
-            <option value="equals">Igual (correspondência exata)</option>
-            <option value="contains">Contém</option>
-          </select>
-        </div>
-
         <ValueSourceField
           label="Valor a procurar"
           placeholder="Introduza um valor"
@@ -217,6 +211,39 @@ export const lookupKind: OperationKind = {
           disabled={isModelInput}
         />
 
+        <div className="operation-entry__field">
+          <label className="operation-entry__label">Tipo de comparação</label>
+          <select
+            className="operation-entry__select"
+            value={f.matchMode}
+            onChange={(event) => updateFields({ matchMode: event.target.value as LookupMatchMode })}
+          >
+            <option value="equals">Igual (correspondência exata)</option>
+            <option value="contains">Contém</option>
+            <option value="tokenEquals">Igual (segmento exato)</option>
+          </select>
+          {f.matchMode === 'tokenEquals' && (
+            <div className="operation-entry__checkbox-group">
+              <label className="operation-entry__checkbox">
+                <input
+                  type="checkbox"
+                  checked={f.tokenIgnoreSpaces}
+                  onChange={(event) => updateFields({ tokenIgnoreSpaces: event.target.checked })}
+                />
+                Ignorar espaços
+              </label>
+              <label className="operation-entry__checkbox">
+                <input
+                  type="checkbox"
+                  checked={f.tokenIgnoreDashes}
+                  onChange={(event) => updateFields({ tokenIgnoreDashes: event.target.checked })}
+                />
+                Ignorar "-"
+              </label>
+            </div>
+          )}
+        </div>
+
         <LookupResult
           datasetId={datasetId}
           query={query}
@@ -225,6 +252,8 @@ export const lookupKind: OperationKind = {
           resultColumn={f.resultColumn as number}
           startRow={startRow}
           matchMode={f.matchMode}
+          tokenIgnoreSpaces={f.tokenIgnoreSpaces}
+          tokenIgnoreDashes={f.tokenIgnoreDashes}
           testSignal={testSignal}
           resetSignal={resetSignal}
           onMatchChange={onMatchChange}
@@ -281,6 +310,9 @@ interface LookupResultProps {
    * "nothing to test" treatment as an empty query or unresolved search column. */
   startRow: number | null;
   matchMode: LookupMatchMode;
+  /** Only meaningful when matchMode is "tokenEquals" — see LookupMatchMode's own doc. */
+  tokenIgnoreSpaces: boolean;
+  tokenIgnoreDashes: boolean;
   /** Incremented by "Testar modelo" (see OperationPanel) — the only thing that triggers a
    * request; editing the query/table/columns afterward doesn't, until tested again. */
   testSignal: number;
@@ -318,6 +350,8 @@ function LookupResult({
   resultColumn,
   startRow,
   matchMode,
+  tokenIgnoreSpaces,
+  tokenIgnoreDashes,
   testSignal,
   resetSignal,
   onMatchChange,
@@ -382,6 +416,8 @@ function LookupResult({
               resultColumn,
               startRow,
               matchMode,
+              tokenIgnoreSpaces,
+              tokenIgnoreDashes,
             });
             inFlightRef.current = { signal: testSignal, promise };
             return promise;
@@ -410,7 +446,7 @@ function LookupResult({
       onResultChange(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [testSignal, query, sheetIndex, searchColumn, resultColumn, startRow, matchMode]);
+  }, [testSignal, query, sheetIndex, searchColumn, resultColumn, startRow, matchMode, tokenIgnoreSpaces, tokenIgnoreDashes]);
 
   if (state.status === 'idle') {
     return null;

@@ -61,7 +61,8 @@ public class DatasetOperationService {
 
         Optional<RowData> matchRow = searchSheet.rows().stream()
                 .filter(row -> row.rowIndex() >= request.startRow())
-                .filter(row -> matches(cellValue(row, request.searchColumn()), normalizedQuery, matchMode))
+                .filter(row -> matches(cellValue(row, request.searchColumn()), normalizedQuery, matchMode,
+                        request.tokenIgnoreSpaces(), request.tokenIgnoreDashes()))
                 .findFirst();
 
         if (matchRow.isEmpty()) {
@@ -384,13 +385,15 @@ public class DatasetOperationService {
                 resolveChainableField(fields, "startRow", dataset, byId, cyclicIds, resolved), "startRow");
         int resultColumn = intField(fields, "resultColumn");
         MatchMode matchMode = MatchMode.from(stringField(fields, "matchMode"));
+        boolean tokenIgnoreSpaces = boolField(fields, "tokenIgnoreSpaces");
+        boolean tokenIgnoreDashes = boolField(fields, "tokenIgnoreDashes");
 
         SheetData sheet = sheetAt(dataset, sheetIndex, "onde procurar");
         String normalizedQuery = query == null ? "" : query.trim();
 
         Optional<RowData> matchRow = sheet.rows().stream()
                 .filter(row -> row.rowIndex() >= startRow)
-                .filter(row -> matches(cellValue(row, searchColumn), normalizedQuery, matchMode))
+                .filter(row -> matches(cellValue(row, searchColumn), normalizedQuery, matchMode, tokenIgnoreSpaces, tokenIgnoreDashes))
                 .findFirst();
 
         if (matchRow.isEmpty()) {
@@ -777,6 +780,13 @@ public class DatasetOperationService {
         return fields.get(key) instanceof String value ? value : null;
     }
 
+    /** Same as {@link #stringField}, but for an optional boolean field (e.g. lookup's
+     * tokenIgnoreSpaces/tokenIgnoreDashes) — absent (a model saved before it existed, or simply
+     * unset) defaults to false rather than erroring. */
+    private boolean boolField(Map<String, Object> fields, String key) {
+        return fields.get(key) instanceof Boolean value && value;
+    }
+
     private void validateRange(int startRow, int endRow, int startColumn, int endColumn) {
         if (startRow < 0 || startColumn < 0) {
             throw new IllegalArgumentException("O intervalo não pode começar numa linha ou coluna negativa.");
@@ -808,10 +818,10 @@ public class DatasetOperationService {
     /** find/translator's own matching — always exact, same as lookup's own default (see the
      * {@link MatchMode}-aware overload below, which only lookup's two entry points call). */
     private boolean matches(Object cellValue, String normalizedQuery) {
-        return matches(cellValue, normalizedQuery, MatchMode.EQUALS);
+        return matches(cellValue, normalizedQuery, MatchMode.EQUALS, false, false);
     }
 
-    private boolean matches(Object cellValue, String normalizedQuery, MatchMode matchMode) {
+    private boolean matches(Object cellValue, String normalizedQuery, MatchMode matchMode, boolean tokenIgnoreSpaces, boolean tokenIgnoreDashes) {
         if (cellValue == null) {
             return false;
         }
@@ -819,13 +829,37 @@ public class DatasetOperationService {
         return switch (matchMode) {
             case EQUALS -> normalizedCell.equalsIgnoreCase(normalizedQuery);
             case CONTAINS -> normalizedCell.toLowerCase().contains(normalizedQuery.toLowerCase());
+            case TOKEN_EQUALS -> matchesTokenEquals(normalizedCell, normalizedQuery, tokenIgnoreSpaces, tokenIgnoreDashes);
         };
     }
 
+    /**
+     * TOKEN_EQUALS: splits the cell on runs of whichever separator characters are enabled (space,
+     * "-", or both) and checks whether any resulting piece exactly (case-insensitively) equals
+     * the query — unlike CONTAINS, a query of "0" never matches a cell of "10" (no separator
+     * between them makes it one piece, "10"), but does match a cell of "1 -0" (splits into "1"
+     * and "0"). Neither separator enabled degenerates to plain EQUALS (the whole cell as one
+     * piece), which is a reasonable, harmless default rather than an error.
+     */
+    private boolean matchesTokenEquals(String normalizedCell, String normalizedQuery, boolean tokenIgnoreSpaces, boolean tokenIgnoreDashes) {
+        if (!tokenIgnoreSpaces && !tokenIgnoreDashes) {
+            return normalizedCell.equalsIgnoreCase(normalizedQuery);
+        }
+        String separatorClass = (tokenIgnoreSpaces ? "\\s" : "") + (tokenIgnoreDashes ? "\\-" : "");
+        for (String token : normalizedCell.split("[" + separatorClass + "]+")) {
+            String trimmedToken = token.trim();
+            if (!trimmedToken.isEmpty() && trimmedToken.equalsIgnoreCase(normalizedQuery)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** Lookup's search-column comparison: the whole cell must match the query exactly (EQUALS,
-     * the original behavior), or just contain it somewhere (CONTAINS) — see {@link #matches}. */
+     * the original behavior), just contain it somewhere (CONTAINS), or exactly match one of the
+     * cell's separator-split pieces (TOKEN_EQUALS) — see {@link #matches}. */
     private enum MatchMode {
-        EQUALS, CONTAINS;
+        EQUALS, CONTAINS, TOKEN_EQUALS;
 
         /** Null/blank (a model saved before this field existed, or an omitted request field) is
          * treated as EQUALS, so nothing already built or saved changes behavior. */
@@ -835,6 +869,9 @@ public class DatasetOperationService {
             }
             if ("contains".equalsIgnoreCase(raw)) {
                 return CONTAINS;
+            }
+            if ("tokenEquals".equalsIgnoreCase(raw)) {
+                return TOKEN_EQUALS;
             }
             throw new IllegalArgumentException("Tipo de comparação inválido: " + raw);
         }

@@ -435,6 +435,29 @@
   border-color: var(--color-primary);
 }
 
+/* The "Separar por" checkboxes shown under lookup's match mode select once "tokenEquals" is
+   picked (see lookupKind.tsx) — which characters split a cell into pieces before comparing each
+   one to the query. */
+.operation-entry__checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-top: 0.3rem;
+}
+
+.operation-entry__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.operation-entry__checkbox input[type='checkbox'] {
+  cursor: pointer;
+}
+
 .operation-entry__input {
   width: 100%;
   padding: 0.6rem 0.75rem;
