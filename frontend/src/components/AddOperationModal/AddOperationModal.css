@@ -63,6 +63,7 @@
 .add-operation-modal__actions {
   display: flex;
   justify-content: flex-end;
+  gap: 0.6rem;
 }
 
 .add-operation-modal__close-button {

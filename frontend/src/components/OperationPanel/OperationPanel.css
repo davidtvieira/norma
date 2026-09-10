@@ -436,6 +436,7 @@
 }
 
 .operation-entry__input {
+  width: 100%;
   padding: 0.6rem 0.75rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -477,6 +478,7 @@
 .operation-entry__source-toggle {
   display: flex;
   gap: 0.4rem;
+  margin-top: 0.75rem;
 }
 
 .operation-entry__source-toggle-button {
@@ -549,7 +551,11 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  margin-top: 0.75rem;
+  margin-bottom: 1rem;
   padding: 0.6rem;
+  max-height: 14rem;
+  overflow-y: auto;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: transparent;
@@ -571,6 +577,45 @@
 .operation-entry__dynamic-input-option:hover {
   background: var(--color-primary);
   color: var(--color-surface);
+}
+
+/* The option clicked in ValueSourcePickerModal's list, awaiting Confirmar — not yet committed
+   (see selectedOperationId in fields.tsx), just visually marked as the current pick. */
+.operation-entry__dynamic-input-option--active {
+  background: var(--color-primary);
+  color: var(--color-surface);
+}
+
+/* ValueSourcePickerModal's static tab (see fields.tsx) — reuses AddOperationModal's own overlay/
+   dialog chrome (already loaded globally via OperationPanel.tsx's import of it) plus this file's
+   existing toggle/input styles; only the input row and the Confirmar button (added to that same
+   overlay's own actions row alongside Cancelar) are new. */
+.value-source-modal__static {
+  margin-top: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.value-source-modal__confirm-button {
+  padding: 0.5rem 1.1rem;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary);
+  color: var(--color-surface);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.value-source-modal__confirm-button:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
+.value-source-modal__confirm-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 /* counterKind: one row per input, each a full ValueSourceField. The × to cancel the row only

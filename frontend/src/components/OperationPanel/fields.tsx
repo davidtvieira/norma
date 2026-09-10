@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { CellRange } from '../../types/cellRange';
 import type { DatasetImportResponse } from '../../types/dataset';
 import { literalSource, type ValueSource } from '../../types/valueSource';
@@ -183,28 +184,167 @@ interface ValueSourceFieldProps {
   disabled?: boolean;
 }
 
+interface ValueSourcePickerModalProps {
+  label: string;
+  placeholder: string;
+  inputType: 'text' | 'number';
+  referenceOnly: boolean;
+  referenceOptions: ReferenceOption[];
+  /** Which tab the modal opens on — 'dynamic' when reopening a field that already has (or last
+   * had) a reference picked, 'static' otherwise. Purely a starting point; the user can still
+   * switch tabs inside the modal unless referenceOnly hides the toggle entirely. */
+  initialTab: 'static' | 'dynamic';
+  onPickStatic: (value: string) => void;
+  onPickReference: (operationId: string) => void;
+  onClose: () => void;
+}
+
 /**
- * A chainable operation input (lookup's query, sum's start row): a static/dynamic toggle picks
- * between typing a plain value and pulling it from another confirmed operation instead. Either
- * side reveals its own control right there, in flow, once picked: "Input estático" a plain field
- * with a ✓ to confirm it, "Input dinâmico" a list of the other confirmed operations — clicking
- * one selects and confirms it immediately, collapsing to a pill naming the chosen operation (the
- * value it feeds in, and this operation's own result computed from it, both render separately —
- * see the kind's renderBody, e.g. LookupResult in lookupKind.tsx). Confirming either way hides
- * the toggle (and, for dynamic, the option list) down to just the confirmed value — for dynamic,
- * the pill itself is the way back (clicking it resets, same "click the picked value to change it"
- * pattern as ColumnPickerField/RangePickerField's own pill — or, if `onRemove` is given, removes
- * the field/row entirely instead), not a separate × next to it. Static works the same way but
- * needs no click at all: "committed" (see below) is derived straight from the typed value rather
- * than a separate confirm step, so the toggle just hides itself once something's typed and comes
- * back the moment the field's cleared back to empty — nothing to click to "confirm" or "remove"
- * either side of that. The "Input dinâmico" side of the toggle only appears once there's something
- * to chain to; with nothing to chain to yet, static is the only possible source, so the toggle
- * itself is skipped entirely and the field just shows straight away — no pointless single-button
- * choice standing in front of it. That's always the case for renderInputEditor (referenceOptions
- * is always `[]` there — a model's designated input is filled in by whoever utilizes it, never
- * chained), and also whenever there's nothing yet to reference mid-build. referenceOnly is the
- * mirror case: no static fallback at all (see the warning branch below).
+ * The static/dynamic picker for a chainable field (see ValueSourceField), moved into its own
+ * modal rather than expanding inline on the operation's card — a toggle plus either a text field
+ * or a full list of other operations to reference took up as much room as the rest of the card
+ * combined, especially once several cards are stacked on the canvas. Either side is a two-step
+ * pick-then-Confirmar, never committed the instant something's clicked/typed: clicking a
+ * reference in the list only selects it (see selectedOperationId), and typing into the static
+ * field obviously shouldn't close the modal on every keystroke either — one shared Confirmar
+ * button (disabled until there's actually something to confirm) applies whichever tab is active.
+ *
+ * Rendered through a portal straight onto `document.body` rather than in place: a confirmed
+ * operation's card (and therefore this modal, nested inside it via renderBody) lives inside the
+ * canvas' `.operation-canvas__surface`, which carries its own pan/zoom `transform` — and a
+ * `position: fixed` descendant of a transformed element is positioned relative to *that* element,
+ * not the real viewport, per the CSS spec. Without the portal the overlay would pan/zoom and clip
+ * along with the canvas instead of covering the whole screen.
+ */
+function ValueSourcePickerModal({
+  label,
+  placeholder,
+  inputType,
+  referenceOnly,
+  referenceOptions,
+  initialTab,
+  onPickStatic,
+  onPickReference,
+  onClose,
+}: ValueSourcePickerModalProps) {
+  const [tab, setTab] = useState<'static' | 'dynamic'>(initialTab);
+  const [draftValue, setDraftValue] = useState('');
+  // Which reference the user has clicked in the list below, if any — clicking only selects it
+  // (see the option buttons' own onClick); Confirmar is what actually commits it, same two-step
+  // flow as the static tab's text field + Confirmar, rather than committing the instant an option
+  // is clicked.
+  const [selectedOperationId, setSelectedOperationId] = useState<string | null>(null);
+  const isDynamicMode = referenceOnly || tab === 'dynamic';
+  const canConfirm = isDynamicMode ? selectedOperationId !== null : draftValue.trim() !== '';
+
+  function confirm() {
+    if (isDynamicMode) {
+      if (selectedOperationId) onPickReference(selectedOperationId);
+    } else if (draftValue.trim() !== '') {
+      onPickStatic(draftValue);
+    }
+  }
+
+  return createPortal(
+    <div className="add-operation-modal__overlay" onClick={onClose}>
+      <div
+        className="add-operation-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="value-source-modal-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <h2 id="value-source-modal-title" className="add-operation-modal__title">
+          {label}
+        </h2>
+
+        {!referenceOnly && (
+          <div className="operation-entry__source-toggle">
+            <button
+              type="button"
+              className={`operation-entry__source-toggle-button${tab === 'static' ? ' operation-entry__source-toggle-button--active' : ''}`}
+              onClick={() => setTab('static')}
+            >
+              Input estático
+            </button>
+            <button
+              type="button"
+              className={`operation-entry__source-toggle-button${tab === 'dynamic' ? ' operation-entry__source-toggle-button--active' : ''}`}
+              onClick={() => setTab('dynamic')}
+            >
+              Input dinâmico
+            </button>
+          </div>
+        )}
+
+        {!isDynamicMode && (
+          <div className="value-source-modal__static">
+            <input
+              type={inputType}
+              className="operation-entry__input"
+              placeholder={placeholder}
+              min={inputType === 'number' ? 0 : undefined}
+              value={draftValue}
+              onChange={(event) => setDraftValue(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') confirm();
+              }}
+              autoFocus
+            />
+          </div>
+        )}
+
+        {isDynamicMode && (
+          <div className="operation-entry__dynamic-input-menu">
+            {referenceOptions.map((option) => (
+              <button
+                key={option.operationId}
+                type="button"
+                className={`operation-entry__dynamic-input-option${
+                  selectedOperationId === option.operationId ? ' operation-entry__dynamic-input-option--active' : ''
+                }`}
+                onClick={() => setSelectedOperationId(option.operationId)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="add-operation-modal__actions">
+          <button type="button" className="add-operation-modal__close-button" onClick={onClose}>
+            Cancelar
+          </button>
+          <button type="button" className="value-source-modal__confirm-button" onClick={confirm} disabled={!canConfirm}>
+            Confirmar
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+/**
+ * A chainable operation input (lookup's query, sum's start row): typing a plain value or pulling
+ * it from another confirmed operation instead. Picking between the two, typing the value, and
+ * picking which operation to reference all happen in a modal (see ValueSourcePickerModal) —
+ * reached through a "Selecionar valor" button whenever there's nothing committed yet — rather
+ * than inline on the card, which got crowded fast once a toggle, a text field and a whole list of
+ * other operations all sat there alongside everything else the card already shows. Once
+ * committed, the card only ever shows the result as a plain pill (the typed value, or the name of
+ * the referenced operation) — never an editable field of its own, since typing only ever happens
+ * in the modal. Clicking that pill removes the value outright (or, if `onRemove` is given,
+ * removes the field/row entirely instead), bringing the "Selecionar valor" button back to add a
+ * new one — same "click the picked value to change it" spirit as ColumnPickerField/
+ * RangePickerField's own pill, just landing on removal here since re-adding is the modal's job.
+ * With no referenceOptions at all, static is the only possible source, so there's nothing to
+ * choose between and the field is a plain, directly-editable input straight away, modal and pill
+ * both skipped entirely — always the case for renderInputEditor (referenceOptions is always `[]`
+ * there — a model's designated input is filled in by whoever utilizes it, never chained), and
+ * also whenever there's nothing yet to reference mid-build. referenceOnly is the mirror case: no
+ * static tab in the modal at all, and with nothing yet to reference, a warning instead of a
+ * button (see the blocked branch below).
  */
 export function ValueSourceField({
   label,
@@ -218,51 +358,36 @@ export function ValueSourceField({
   onRemove,
   disabled = false,
 }: ValueSourceFieldProps) {
-  // Which side of the toggle the user has actually picked — null until they click one, so
-  // neither button starts highlighted and nothing shows below the toggle on a fresh field.
-  // Reopening an existing operation (source already a reference, or a literal with a real typed
-  // value) counts as an implicit pick, so the toggle reflects what's already configured. With no
-  // referenceOptions there's no "Input dinâmico" side to offer, so static is the only choice —
-  // it starts pre-selected rather than making the field look unset. referenceOnly has no static
-  // side at all, so it only ever starts as 'dynamic' (once there's something to reference) or
-  // unset (see the warning branch below).
-  const [chosen, setChosen] = useState<'static' | 'dynamic' | null>(() => {
-    if (source.type === 'reference') return 'dynamic';
-    if (referenceOnly) return referenceOptions.length > 0 ? 'dynamic' : null;
-    if (source.value !== '' || referenceOptions.length === 0) return 'static';
-    return null;
-  });
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
+
   // Whether there's an actual value in hand — a picked reference, or (for a plain typed field) any
   // non-empty text — derived straight from `source` rather than its own tracked state, so the
-  // toggle/dynamic-menu below hide and reappear purely as a side effect of typing/clearing the
-  // field or picking/removing a reference, with no separate confirm or reset click needed either
-  // way.
+  // "Selecionar valor" button and the committed display below swap purely as a side effect of
+  // typing/clearing the field or picking/removing a reference.
   const committed = source.type === 'reference' || (!referenceOnly && source.value !== '');
+  // Whether there's a genuine choice worth a modal for — at least one other operation to
+  // reference, whether alongside a static option or (referenceOnly) on its own as a list.
+  const needsPicker = referenceOptions.length > 0;
+  // The only possible source is a plain typed value — no picker needed at all, ever.
+  const alwaysStatic = !referenceOnly && !needsPicker;
+  // referenceOnly with nothing yet to reference — nothing to pick, so a warning instead of a
+  // button that would just open an empty modal.
+  const blocked = referenceOnly && !needsPicker;
 
-  // The toggle buttons act as real on/off switches: clicking the side that's already selected
-  // turns it back off instead of re-selecting it, so both can end up deselected again, same as
-  // before either was ever clicked.
-  function goStatic() {
-    if (chosen === 'static') {
-      setChosen(null);
-      return;
-    }
-    setChosen('static');
-    if (source.type === 'reference') {
-      onChange(literalSource(''));
-    }
-  }
-
-  function goDynamic() {
-    setChosen((current) => (current === 'dynamic' ? null : 'dynamic'));
-  }
-
-  // Backs a confirmed dynamic reference out to the reference list (or the toggle, for a
-  // non-referenceOnly field) — the static side needs no equivalent since clearing the field's own
-  // text already does the same thing (see `committed` above).
+  // Backs a confirmed dynamic reference out to nothing picked — the static side needs no
+  // equivalent since clearing the field's own text already does the same thing (see `committed`).
   function reset() {
-    setChosen(referenceOnly && referenceOptions.length > 0 ? 'dynamic' : null);
     onChange(literalSource(''));
+  }
+
+  function pickStatic(value: string) {
+    onChange(literalSource(value));
+    setIsPickerOpen(false);
+  }
+
+  function pickReference(operationId: string) {
+    onChange({ type: 'reference', operationId });
+    setIsPickerOpen(false);
   }
 
   if (disabled) {
@@ -280,70 +405,39 @@ export function ValueSourceField({
     <div className="operation-entry__field">
       <label className="operation-entry__label">{label}</label>
 
-      {/* With no referenceOptions there's no real choice to present — "static" is the only
-          possible source (see chosen's own initializer above), so the toggle would just be a
-          single "Input estático" button standing between the user and the field it already always
-          resolves to. Skip straight to the field instead — used as-is by renderInputEditor
-          (always referenceOptions={[]}: a model's designated input is always typed in by whoever
-          utilizes it, never a reference), and also naturally applies mid-build whenever there's
-          nothing yet to reference. */}
-      {!committed && !referenceOnly && referenceOptions.length > 0 && (
-        <div className="operation-entry__source-toggle">
-          <button
-            type="button"
-            className={`operation-entry__source-toggle-button${chosen === 'static' ? ' operation-entry__source-toggle-button--active' : ''}`}
-            onClick={goStatic}
-          >
-            Input estático
-          </button>
-          <button
-            type="button"
-            className={`operation-entry__source-toggle-button${chosen === 'dynamic' ? ' operation-entry__source-toggle-button--active' : ''}`}
-            onClick={goDynamic}
-          >
-            Input dinâmico
-          </button>
-        </div>
-      )}
+      {blocked && <p className="operation-entry__chain-status">Não há nenhuma outra operação para referenciar ainda.</p>}
 
-      {!committed && referenceOnly && referenceOptions.length === 0 && (
-        <p className="operation-entry__chain-status">Não há nenhuma outra operação para referenciar ainda.</p>
-      )}
-
-      {chosen === 'static' && !referenceOnly && source.type === 'literal' && (
+      {alwaysStatic && (
         <div className="operation-entry__static-input-row">
           <input
             type={inputType}
             className="operation-entry__input"
             placeholder={placeholder}
             min={inputType === 'number' ? 0 : undefined}
-            value={source.value}
+            value={source.type === 'literal' ? source.value : ''}
             onChange={(event) => onChange(literalSource(event.target.value))}
           />
         </div>
       )}
 
-      {chosen === 'dynamic' && !committed && referenceOptions.length > 0 && (
-        <div className="operation-entry__dynamic-input-menu">
-          {referenceOptions.map((option) => (
-            <button
-              key={option.operationId}
-              type="button"
-              className="operation-entry__dynamic-input-option"
-              onClick={() => onChange({ type: 'reference', operationId: option.operationId })}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
+      {needsPicker && !committed && (
+        <button type="button" className="operation-entry__pick-button" onClick={() => setIsPickerOpen(true)}>
+          {referenceOnly ? 'Selecionar operação' : 'Selecionar valor'}
+        </button>
       )}
 
-      {chosen === 'dynamic' && source.type === 'reference' && (
+      {/* A typed static value shows as a plain pill, not an editable field, once committed —
+          typing only ever happens in the modal itself (see ValueSourcePickerModal). Clicking it
+          removes the value outright (or, if `onRemove` is given, removes the field/row entirely
+          instead), bringing back "Selecionar valor" to add a new one. */}
+      {needsPicker && committed && source.type === 'literal' && (
+        <button type="button" className="operation-column-pill operation-column-pill--pickable" onClick={onRemove ?? reset}>
+          <span className="operation-column-pill__value">{source.value}</span>
+        </button>
+      )}
+
+      {source.type === 'reference' && (
         <>
-          {/* Clicking the pill itself backs out to the static/dynamic toggle (or, for
-              referenceOnly, straight back to the reference list) — same "click the picked value
-              to change it" pattern as ColumnPickerField/RangePickerField's own pill (see
-              --pickable in OperationPanel.css) — instead of a separate × sitting next to it. */}
           <button type="button" className="operation-column-pill operation-column-pill--pickable" onClick={onRemove ?? reset}>
             <span className="operation-column-pill__value">
               {referenceOptions.find((option) => option.operationId === source.operationId)?.label ?? '?'}
@@ -357,6 +451,20 @@ export function ValueSourceField({
             </p>
           )}
         </>
+      )}
+
+      {isPickerOpen && (
+        <ValueSourcePickerModal
+          label={label}
+          placeholder={placeholder}
+          inputType={inputType}
+          referenceOnly={referenceOnly}
+          referenceOptions={referenceOptions}
+          initialTab={source.type === 'reference' ? 'dynamic' : 'static'}
+          onPickStatic={pickStatic}
+          onPickReference={pickReference}
+          onClose={() => setIsPickerOpen(false)}
+        />
       )}
     </div>
   );
