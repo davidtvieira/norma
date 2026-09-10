@@ -147,4 +147,104 @@
   min-height: 0;
   padding: 1.25rem 1.5rem 1.5rem;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* One operation being prepared in the current staging batch (see OperationPanel's
+   stagingEntryIds) — each gets its own DraftOperationCard (which already has its own border/
+   shadow via .operation-entry, visually separating stacked cards on its own) plus a small × in
+   the corner to drop just that one from the batch (see removeFromStaging), independent of the
+   panel's own × above, which discards the whole batch at once. */
+.add-operation-panel__staged-card {
+  position: relative;
+}
+
+.add-operation-panel__staged-card-remove {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  z-index: 1;
+  width: 1.6rem;
+  height: 1.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-surface-hover);
+  color: var(--color-text-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.add-operation-panel__staged-card-remove:hover {
+  background: var(--color-error);
+  color: var(--color-surface);
+}
+
+.add-operation-panel__footer {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+/* "+ Adicionar operador" — the one place a staged batch grows from once it's already started
+   (see OperationPanel's addToStaging via the kind picker), shared across the whole batch instead
+   of duplicated on every staged card. */
+.add-operation-panel__add-more {
+  align-self: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 1.2rem;
+  line-height: 1;
+  transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
+}
+
+.add-operation-panel__add-more:hover {
+  border-color: var(--color-primary);
+  border-style: solid;
+  color: var(--color-primary);
+  background: var(--color-surface-hover);
+}
+
+/* The staging batch's confirm button ("Adicionar operador"/"Adicionar N operadores" — see
+   OperationPanel's confirmAllStaged), disabled until every staged card is individually valid. */
+.add-operation-panel__confirm-all {
+  width: 100%;
+  padding: 0.65rem 1.1rem;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary);
+  color: var(--color-surface);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.add-operation-panel__confirm-all:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
+.add-operation-panel__confirm-all:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
