@@ -10,6 +10,7 @@ import type {
 import type { NodeRequestPayload, NodeResponsePayload } from '../types/node';
 import type { OperationType } from '../types/operation';
 import type { SumRequestPayload, SumResponsePayload } from '../types/sum';
+import type { TranslatorRequestPayload, TranslatorResponsePayload } from '../types/translator';
 
 /**
  * Defaults to a same-origin relative path so the browser only ever talks to whatever
@@ -150,6 +151,29 @@ export async function nodeValue(payload: NodeRequestPayload): Promise<NodeRespon
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
     throw new Error(errorBody?.message ?? `Falha ao processar o valor (estado ${response.status})`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Translates a value against a user-defined source→target mapping table — the actual lookup (and
+ * its "no two rules can share a source" / "no rule for this value" validation) happens on the API,
+ * same as every other kind's own computation. No dataset dependency, same as counter/node: the
+ * rules are entirely user-defined, not read from any table. Unlike lookup/find, a value with no
+ * matching rule rejects (a non-ok response) rather than resolving to a calm "not found" result —
+ * see TranslatorResponsePayload's own note.
+ */
+export async function translateValue(payload: TranslatorRequestPayload): Promise<TranslatorResponsePayload> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/dataset/operation/translator`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    throw new Error(errorBody?.message ?? `Falha ao traduzir o valor (estado ${response.status})`);
   }
 
   return response.json();

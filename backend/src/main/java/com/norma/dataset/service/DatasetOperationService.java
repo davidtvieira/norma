@@ -17,6 +17,9 @@ import com.norma.dataset.dto.RowData;
 import com.norma.dataset.dto.SheetData;
 import com.norma.dataset.dto.SumRequest;
 import com.norma.dataset.dto.SumResponse;
+import com.norma.dataset.dto.TranslatorRequest;
+import com.norma.dataset.dto.TranslatorResponse;
+import com.norma.dataset.dto.TranslatorRule;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -131,6 +134,20 @@ public class DatasetOperationService {
      */
     public NodeResponse node(NodeRequest request) {
         return new NodeResponse(request.value() == null ? "" : request.value());
+    }
+
+    /**
+     * Translates a value against a user-defined source-to-target mapping table — the live-editor
+     * counterpart of {@link #computeTranslator}, called the same way every other kind's own live
+     * endpoint is while a model is being built. No dataset dependency, same as counter/node: the
+     * rules are entirely user-defined, not read from any table. A value with no matching rule is a
+     * request error (see {@link #translate}), not a quiet non-match — unlike lookup/find, which
+     * treat "nothing matched" as a legitimate, non-error result.
+     */
+    public TranslatorResponse translator(TranslatorRequest request) {
+        List<TranslatorRule> rules = validateTranslatorRules(request.rules());
+        String normalizedInput = request.input() == null ? "" : request.input().trim();
+        return new TranslatorResponse(translate(rules, normalizedInput));
     }
 
     /**
@@ -279,6 +296,7 @@ public class DatasetOperationService {
                 case "counter" -> computeCounter(operation, dataset, byId, cyclicIds, resolved);
                 case "node" -> new ModelOperationResult(id, true, inputValue, null);
                 case "find" -> computeFind(operation, dataset, inputValue);
+                case "translator" -> computeTranslator(operation, inputValue);
                 default -> new ModelOperationResult(id, false, null, "Tipo de operação desconhecido: " + operation.kind());
             };
         } catch (IllegalArgumentException ex) {
@@ -472,6 +490,84 @@ public class DatasetOperationService {
         FindOutcome outcome = findInRange(sheet, startRow, endRow, startColumn, endColumn, normalizedQuery);
         Object value = outcome.found() ? outcome.rowIndex() + "," + outcome.columnIndex() : null;
         return new ModelOperationResult(operation.id(), true, value, null);
+    }
+
+    /**
+     * A translator has no dataset dependency of its own (same as counter/node) — it just looks
+     * {@code input} up against its own user-defined "rules" field. Throwing (rather than returning
+     * a "not found" result the way computeLookup/computeFind do) for a value with no matching rule
+     * is deliberate here: a translator is meant to be a strict function over a known domain, not a
+     * best-effort search, so an out-of-domain value is treated the same as any other malformed
+     * operation — caught by computeOperation's own IllegalArgumentException handling, same as
+     * every other kind's validation failures.
+     */
+    private ModelOperationResult computeTranslator(ModelOperationInput operation, String input) {
+        List<TranslatorRule> rules = validateTranslatorRules(extractRules(fieldsOf(operation)));
+        String normalizedInput = input == null ? "" : input.trim();
+        return new ModelOperationResult(operation.id(), true, translate(rules, normalizedInput), null);
+    }
+
+    /**
+     * Reads a translator's "rules" field — a plain list of {@code {from, to}} objects, not a
+     * chainable value source, since a rule's source/target are always typed directly, never
+     * chained from another operation's result.
+     */
+    private List<TranslatorRule> extractRules(Map<String, Object> fields) {
+        if (!(fields.get("rules") instanceof List<?> rawRules)) {
+            throw new IllegalArgumentException("Campo obrigatório em falta ou inválido: rules");
+        }
+        List<TranslatorRule> rules = new ArrayList<>();
+        for (Object rawRule : rawRules) {
+            if (!(rawRule instanceof Map<?, ?> ruleMap)) {
+                throw new IllegalArgumentException("Uma das regras do tradutor está mal formada.");
+            }
+            Map<String, Object> asMap = asStringKeyedMap(ruleMap);
+            Object from = asMap.get("from");
+            Object to = asMap.get("to");
+            rules.add(new TranslatorRule(from == null ? null : String.valueOf(from), to == null ? null : String.valueOf(to)));
+        }
+        return rules;
+    }
+
+    /**
+     * Rejects an empty rule table, a rule with no source value, and — the rule this whole
+     * operation exists to enforce — two rules sharing the same (trimmed, case-insensitive) source
+     * value, which would leave the translation for that value ambiguous. Several rules sharing the
+     * same target is fine (many sources translating to one target is the normal case), only
+     * duplicate sources are rejected. Shared by both {@link #translator} (the live editor endpoint)
+     * and {@link #computeTranslator} (model run), same as {@link #matches}/{@link #sheetAt} are
+     * shared by lookup's own two entry points.
+     */
+    private List<TranslatorRule> validateTranslatorRules(List<TranslatorRule> rules) {
+        List<TranslatorRule> nonNullRules = rules == null ? List.of() : rules;
+        if (nonNullRules.isEmpty()) {
+            throw new IllegalArgumentException("O tradutor não tem nenhuma regra.");
+        }
+        Set<String> seenSources = new HashSet<>();
+        for (TranslatorRule rule : nonNullRules) {
+            String from = rule.from() == null ? "" : rule.from().trim();
+            if (from.isEmpty()) {
+                throw new IllegalArgumentException("Uma das regras do tradutor não tem valor de origem.");
+            }
+            if (!seenSources.add(from.toLowerCase())) {
+                throw new IllegalArgumentException("Duas regras do tradutor não podem ter o mesmo valor de origem: " + from);
+            }
+        }
+        return nonNullRules;
+    }
+
+    /**
+     * The actual source→target lookup, once {@code rules} is already known valid (see
+     * {@link #validateTranslatorRules}) — a plain linear scan for the (trimmed, case-insensitive)
+     * matching source, same match semantics as {@link #matches} (lookup/find's own). No matching
+     * rule is a request error, not a null result — see computeTranslator's own note on why.
+     */
+    private String translate(List<TranslatorRule> rules, String normalizedInput) {
+        return rules.stream()
+                .filter(rule -> rule.from() != null && rule.from().trim().equalsIgnoreCase(normalizedInput))
+                .findFirst()
+                .map(TranslatorRule::to)
+                .orElseThrow(() -> new IllegalArgumentException("Não existe nenhuma regra para o valor: " + normalizedInput));
     }
 
     /**

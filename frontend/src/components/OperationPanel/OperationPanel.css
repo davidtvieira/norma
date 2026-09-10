@@ -617,6 +617,25 @@
   margin-top: 1.55rem;
 }
 
+/* translatorKind's draft config: one row per rule (source → target, plus a × to remove it) — set
+   up once at draft time, the same way lookup's table/columns are, since the mapping table is this
+   kind's whole structural configuration. */
+.translator-entry__rule-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.translator-entry__rule-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.translator-entry__rule-arrow {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
 
 .operation-canvas {
   flex: 1;

@@ -11,6 +11,8 @@ import com.norma.dataset.dto.NodeResponse;
 import com.norma.dataset.dto.OperationType;
 import com.norma.dataset.dto.SumRequest;
 import com.norma.dataset.dto.SumResponse;
+import com.norma.dataset.dto.TranslatorRequest;
+import com.norma.dataset.dto.TranslatorResponse;
 import com.norma.dataset.service.DatasetOperationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -33,7 +35,8 @@ public class DatasetOperationController {
             new OperationType("sum", "Sum"),
             new OperationType("counter", "Counter"),
             new OperationType("node", "Node"),
-            new OperationType("find", "Find")
+            new OperationType("find", "Find"),
+            new OperationType("translator", "Translator")
     );
 
     private final DatasetOperationService datasetOperationService;
@@ -107,5 +110,18 @@ public class DatasetOperationController {
     @PostMapping("/api/v1/dataset/operation/node")
     public ResponseEntity<NodeResponse> node(@RequestBody NodeRequest request) {
         return ResponseEntity.ok(datasetOperationService.node(request));
+    }
+
+    @Operation(
+            summary = "Translate a value",
+            description = "Looks up the given value against a set of source-to-target rules and returns the "
+                    + "matching rule's target. Each rule's source must be unique — two rules can't share one, "
+                    + "since that would leave the translation ambiguous — and a value with no matching rule is a "
+                    + "request error, not a quiet non-match. No dataset dependency, same as counter/node: the "
+                    + "rules are entirely user-defined."
+    )
+    @PostMapping("/api/v1/dataset/operation/translator")
+    public ResponseEntity<TranslatorResponse> translator(@RequestBody TranslatorRequest request) {
+        return ResponseEntity.ok(datasetOperationService.translator(request));
     }
 }

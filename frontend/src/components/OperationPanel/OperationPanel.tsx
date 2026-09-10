@@ -304,6 +304,7 @@ const KIND_LABELS: Record<string, string> = {
   counter: 'Contador',
   node: 'Nó',
   find: 'Localizar',
+  translator: 'Tradutor',
 };
 
 interface OperationEntryState {

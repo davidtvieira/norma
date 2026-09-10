@@ -17,9 +17,13 @@ import com.norma.dataset.dto.RowData;
 import com.norma.dataset.dto.SheetData;
 import com.norma.dataset.dto.SumRequest;
 import com.norma.dataset.dto.SumResponse;
+import com.norma.dataset.dto.TranslatorRequest;
+import com.norma.dataset.dto.TranslatorResponse;
+import com.norma.dataset.dto.TranslatorRule;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -1057,5 +1061,102 @@ class DatasetOperationServiceTest {
 
         assertThatThrownBy(() -> datasetOperationService.runModel(otherDatasetId, modelId, null))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    private List<Map<String, Object>> translatorRules(String... fromTo) {
+        List<Map<String, Object>> rules = new ArrayList<>();
+        for (int i = 0; i < fromTo.length; i += 2) {
+            rules.add(Map.of("from", fromTo[i], "to", fromTo[i + 1]));
+        }
+        return rules;
+    }
+
+    @Test
+    void translatesAValueViaTheLiveEndpoint() {
+        TranslatorResponse response = datasetOperationService.translator(new TranslatorRequest("3", List.of(
+                new TranslatorRule("3", "1"),
+                new TranslatorRule("4", "1"),
+                new TranslatorRule("5", "1"),
+                new TranslatorRule("6", "2"))));
+
+        assertThat(response.value()).isEqualTo("1");
+    }
+
+    @Test
+    void rejectsALiveTranslatorCallWithNoMatchingRule() {
+        assertThatThrownBy(() -> datasetOperationService.translator(new TranslatorRequest("does-not-exist", List.of(
+                new TranslatorRule("3", "1")))))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsALiveTranslatorCallWithDuplicateSourceRules() {
+        assertThatThrownBy(() -> datasetOperationService.translator(new TranslatorRequest("3", List.of(
+                new TranslatorRule("3", "1"),
+                new TranslatorRule("3", "2")))))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsALiveTranslatorCallWithNoRules() {
+        assertThatThrownBy(() -> datasetOperationService.translator(new TranslatorRequest("3", List.of())))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void aTranslatorOperationTranslatesALiteralInputThroughItsRules() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationInput translator = new ModelOperationInput("op-1", "translator", Map.of(
+                "input", literalInput("6"),
+                "rules", translatorRules("3", "1", "4", "1", "5", "1", "6", "2")));
+
+        ModelOperationResult result = registerAndRun(datasetId, List.of(translator), null, "op-1", null);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.value()).isEqualTo("2");
+    }
+
+    @Test
+    void aTranslatorOperationCanTranslateAChainedInput() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationInput node = new ModelOperationInput("op-node", "node", Map.of("input", literalInput("3")));
+        ModelOperationInput translator = new ModelOperationInput("op-translator", "translator", Map.of(
+                "input", referenceInput("op-node"),
+                "rules", translatorRules("3", "1", "6", "2")));
+
+        ModelOperationResult result = registerAndRun(datasetId, List.of(node, translator), null, "op-translator", null);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.value()).isEqualTo("1");
+    }
+
+    @Test
+    void aTranslatorOperationWithNoMatchingRuleReportsAnError() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationInput translator = new ModelOperationInput("op-1", "translator", Map.of(
+                "input", literalInput("does-not-exist"),
+                "rules", translatorRules("3", "1")));
+
+        ModelOperationResult result = registerAndRun(datasetId, List.of(translator), null, "op-1", null);
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.error()).isNotBlank();
+    }
+
+    @Test
+    void aTranslatorOperationWithDuplicateSourceRulesReportsAnError() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationInput translator = new ModelOperationInput("op-1", "translator", Map.of(
+                "input", literalInput("3"),
+                "rules", translatorRules("3", "1", "3", "2")));
+
+        ModelOperationResult result = registerAndRun(datasetId, List.of(translator), null, "op-1", null);
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.error()).isNotBlank();
     }
 }
