@@ -1,5 +1,13 @@
 import { getInputSources } from '../types/valueSource';
 
+/** A node's position on the canvas surface — duplicated from OperationPanel's own NodePosition
+ * (rather than imported) so this module doesn't import from a component file (see the same note
+ * on utils/resolveOperationInputs.ts's ChainableEntry). */
+export interface EntryPosition {
+  x: number;
+  y: number;
+}
+
 /**
  * Any operation entry, reduced to what (de)serialization needs — kept separate from
  * OperationPanel's own OperationEntryState so this module doesn't import from a component file
@@ -11,6 +19,10 @@ export interface SerializableEntry {
   kindId: string;
   confirmed: boolean;
   fields: Record<string, unknown>;
+  /** Undefined only for an entry read back from a model exported before positions were saved —
+   * OperationPanel falls back to its usual cascading placement for those (see its initialEntries
+   * handling), same as it always has. */
+  position?: EntryPosition;
 }
 
 /**
@@ -24,6 +36,10 @@ export interface ExportedOperationNode {
   kind: string;
   name: string;
   fields: Record<string, unknown>;
+  /** Where this operation sat on the canvas when the model was saved — restored on import so
+   * reopening a model to edit it lands every operation back where its author left it, instead of
+   * cascading them all into OperationPanel's default new-entry grid. */
+  position: EntryPosition;
   operations: ExportedOperationNode[];
 }
 
@@ -76,6 +92,11 @@ function toNode(entry: SerializableEntry, confirmedEntries: SerializableEntry[])
     kind: entry.kindId,
     name: entry.name,
     fields: entry.fields,
+    // Falls back to the origin only for an entry that somehow has no position of its own — never
+    // actually true for one coming off the live canvas (OperationPanel always assigns one), just
+    // satisfies SerializableEntry's own optional position (see its own note on why that's
+    // optional) without a null check at every other call site.
+    position: entry.position ?? { x: 0, y: 0 },
     operations: childrenOf(entry.id, confirmedEntries).map((child) => toNode(child, confirmedEntries)),
   };
 }
@@ -106,6 +127,25 @@ export function buildModelExport(
 
 export class ModelImportError extends Error {}
 
+/**
+ * Reads a node's saved position, tolerating a model exported before positions were saved (or one
+ * hand-edited into something malformed) by falling back to undefined instead of rejecting the
+ * whole import — OperationPanel already falls back to its usual cascading placement in that case,
+ * same as it always has.
+ */
+function readPosition(node: Record<string, unknown>): EntryPosition | undefined {
+  const position = node.position;
+  if (
+    typeof position === 'object' &&
+    position !== null &&
+    typeof (position as EntryPosition).x === 'number' &&
+    typeof (position as EntryPosition).y === 'number'
+  ) {
+    return { x: (position as EntryPosition).x, y: (position as EntryPosition).y };
+  }
+  return undefined;
+}
+
 function flattenNode(node: unknown, knownKindIds: Set<string>, out: SerializableEntry[]): void {
   if (
     typeof node !== 'object' ||
@@ -124,7 +164,14 @@ function flattenNode(node: unknown, knownKindIds: Set<string>, out: Serializable
     throw new ModelImportError(`Tipo de operação desconhecido: ${typedNode.kind}`);
   }
 
-  out.push({ id: typedNode.id, name: typedNode.name, kindId: typedNode.kind, confirmed: true, fields: typedNode.fields });
+  out.push({
+    id: typedNode.id,
+    name: typedNode.name,
+    kindId: typedNode.kind,
+    confirmed: true,
+    fields: typedNode.fields,
+    position: readPosition(typedNode as unknown as Record<string, unknown>),
+  });
 
   for (const child of typedNode.operations ?? []) {
     flattenNode(child, knownKindIds, out);

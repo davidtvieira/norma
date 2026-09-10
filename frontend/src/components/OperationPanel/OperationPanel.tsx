@@ -181,9 +181,40 @@ function IoToggle({ label, active, onToggle }: IoToggleProps) {
   );
 }
 
+interface ExpandToggleButtonProps {
+  expanded: boolean;
+  onToggle: () => void;
+}
+
+/**
+ * The chevron at the bottom of a confirmed card that shows/hides its type-specific live
+ * value/result (see ConfirmedOperationCard's `children`) — kept collapsed by default so a canvas
+ * full of operations reads as just names, model input/output, kind/affected-fields, and reveal,
+ * without every card's live value field and result competing for attention at once. That content
+ * stays mounted either way (see renderConfirmedCard's own note) — this only ever toggles whether
+ * it's shown, never whether it's there for "Testar modelo" to compute.
+ */
+function ExpandToggleButton({ expanded, onToggle }: ExpandToggleButtonProps) {
+  return (
+    <button
+      type="button"
+      className={expanded ? 'operation-card__expand-toggle operation-card__expand-toggle--expanded' : 'operation-card__expand-toggle'}
+      onClick={onToggle}
+      aria-expanded={expanded}
+      aria-label={expanded ? 'Ocultar informação da operação' : 'Mostrar informação da operação'}
+      title={expanded ? 'Ocultar informação' : 'Mostrar informação'}
+    >
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  );
+}
+
 interface ConfirmedOperationCardProps {
   name: string;
-  /** e.g. "Pesquisa aninhada"/"Somar" — shown in the footer, under the live input/result. */
+  /** e.g. "Pesquisa aninhada"/"Somar" — shown in the footer, always visible (see
+   * ConfirmedOperationCard's own note on why this stays out of the collapsible section). */
   kindLabel: string;
   /** The "which table/columns/range" detail (see operationKind.ts's renderSummary) — shown next
    * to kindLabel in the footer. */
@@ -199,14 +230,23 @@ interface ConfirmedOperationCardProps {
   onToggleModelInput: () => void;
   isModelOutput: boolean;
   onToggleModelOutput: () => void;
+  /** Whether `children` (the live value/result) is currently shown — see ExpandToggleButton.
+   * Owned by OperationPanel (expandedIds) rather than local state so it isn't lost if this card
+   * unmounts and remounts (e.g. entries reordering). */
+  isExpanded: boolean;
+  onToggleExpanded: () => void;
 }
 
 /**
  * A confirmed operation node: name + model input/output toggles + reveal-in-sheet + edit
- * (pencil, reopens it as a draft), then whatever type-specific input/result the kind renders as
- * `children`, then a footer naming its type and which table/columns/range it's set up against.
- * Hover drives that kind's sheet highlight while the card is under the mouse; clicking the reveal
- * button pins that same highlight and opens the sheet panel to actually show it (see
+ * (pencil, reopens it as a draft) in the header, then a footer naming its kind and which
+ * table/columns/range it's set up against ("the affected fields") — both always visible, enough
+ * on their own to identify which operation a card is at a glance. Only the type-specific live
+ * value/result the kind renders as `children` collapses behind ExpandToggleButton, hidden by
+ * default — that's the one part that needs an actual click to interact with (type a test value,
+ * pick a dynamic reference, read a result), unlike the name/kind/fields, which are just read at a
+ * glance. Hover drives that kind's sheet highlight while the card is under the mouse; clicking the
+ * reveal button pins that same highlight and opens the sheet panel to actually show it (see
  * OperationPanel's onRevealInSheet).
  */
 function ConfirmedOperationCard({
@@ -224,6 +264,8 @@ function ConfirmedOperationCard({
   onToggleModelInput,
   isModelOutput,
   onToggleModelOutput,
+  isExpanded,
+  onToggleExpanded,
 }: ConfirmedOperationCardProps) {
   return (
     <div className="operation-card" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
@@ -237,12 +279,19 @@ function ConfirmedOperationCard({
         </div>
       </div>
 
-      {children}
-
       <div className="operation-card__footer">
         <span className="operation-card__kind">{kindLabel}</span>
         <span className="operation-card__summary">{summary}</span>
       </div>
+
+      {/* children stays mounted regardless of isExpanded — only its visibility (via this CSS
+          modifier) toggles — so a collapsed card's live value/result still computes and reports
+          into the reference chain when "Testar modelo" runs, same as an expanded one's. */}
+      <div className={isExpanded ? 'operation-card__details' : 'operation-card__details operation-card__details--collapsed'}>
+        {children}
+      </div>
+
+      <ExpandToggleButton expanded={isExpanded} onToggle={onToggleExpanded} />
     </div>
   );
 }
@@ -292,9 +341,10 @@ function createEntry(id: string, kindId: string, name: string, dataset: DatasetI
 
 interface OperationPanelProps {
   dataset: DatasetImportResponse;
-  /** Seeds the entry list on mount (e.g. a model just imported on the previous screen). Node
-   * positions aren't part of the exported model, so every seeded entry gets a fresh cascading
-   * placement (see placementFor) rather than restoring one. */
+  /** Seeds the entry list on mount (e.g. a model just imported on the previous screen). Restores
+   * each entry's saved canvas position (see modelSerialization's own EntryPosition) — only an
+   * entry from a model exported before positions were saved falls back to the usual cascading
+   * placement (see placementFor). */
   initialEntries?: SerializableEntry[];
   columnPick: ColumnPickState | null;
   onStartColumnPick: (entryId: string, field: ColumnPickField, sheetIndex: number) => void;
@@ -407,7 +457,7 @@ export function OperationPanel({
   onModelOutputIdsChange,
 }: OperationPanelProps) {
   const [entries, setEntries] = useState<OperationEntryState[]>(() =>
-    (initialEntries ?? []).map((entry, index) => ({ ...entry, position: placementFor(index) })),
+    (initialEntries ?? []).map((entry, index) => ({ ...entry, position: entry.position ?? placementFor(index) })),
   );
   const operationTypes = useOperationTypes();
   // Snapshot of an operation's confirmed state, taken when it enters edit mode — lets the ×
@@ -421,6 +471,23 @@ export function OperationPanel({
   // highlight in the meantime (see activeHighlightId below); leaving it falls back to this one.
   const [selectedOperationId, setSelectedOperationId] = useState<string | null>(null);
   const activeHighlightId = hoveredOperationId ?? selectedOperationId;
+  // Which confirmed cards currently have their info (live value/result + kind/summary footer)
+  // shown — see ExpandToggleButton. Empty by default: every card starts collapsed, so a canvas
+  // full of operations reads as just names + model input/output + reveal until expanded one by
+  // one.
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+
+  function toggleExpanded(id: string) {
+    setExpandedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
 
   // Clears the pinned highlight once the sheet panel it was shown in closes — otherwise
   // reopening the panel later some other way (e.g. "Ver dados", unrelated to any particular
@@ -761,6 +828,12 @@ export function OperationPanel({
       const { [id]: _discarded, ...rest } = current;
       return rest;
     });
+    setExpandedIds((current) => {
+      if (!current.has(id)) return current;
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
     delete nodeRefs.current[id];
   }
 
@@ -986,6 +1059,8 @@ export function OperationPanel({
             modelOutputIds.includes(entry.id) ? modelOutputIds.filter((id) => id !== entry.id) : [...modelOutputIds, entry.id],
           )
         }
+        isExpanded={expandedIds.has(entry.id)}
+        onToggleExpanded={() => toggleExpanded(entry.id)}
       >
         {kind.renderBody({
           fields: entry.fields,

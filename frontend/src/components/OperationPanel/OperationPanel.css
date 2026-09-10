@@ -846,6 +846,21 @@
   color: var(--color-surface);
 }
 
+/* Wraps a confirmed card's live value/result + footer (see ExpandToggleButton) — collapsed by
+   default via the modifier below. Stays in the layout flow either way rather than being unmounted
+   (display: none only, not a conditional render) so its content — in particular a kind's live
+   value/result component — keeps computing and reporting into the reference chain for "Testar
+   modelo" while collapsed, the same as while expanded. */
+.operation-card__details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.operation-card__details--collapsed {
+  display: none;
+}
+
 .operation-card__footer {
   display: flex;
   align-items: center;
@@ -873,6 +888,38 @@
 }
 
 .lookup-summary__arrow {
+  color: var(--color-primary);
+}
+
+/* Shows/hides a confirmed card's info (see .operation-card__details above) — centered at the
+   bottom of the card, below whichever of the two is currently showing, so it reads as "there's
+   more/less below" rather than living up in the header actions among the toggles. */
+.operation-card__expand-toggle {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.1rem;
+  margin-top: -0.2rem;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0;
+}
+
+.operation-card__expand-toggle svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  transition: transform 0.2s ease;
+}
+
+.operation-card__expand-toggle--expanded svg {
+  transform: rotate(180deg);
+}
+
+.operation-card__expand-toggle:hover {
   color: var(--color-primary);
 }
 
