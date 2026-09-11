@@ -165,7 +165,6 @@ export const lookupKind: OperationKind = {
     resolvedInputs,
     referenceOptions,
     onResultChange,
-    isModelInput,
   }) => {
     const f = asLookupFields(fields);
     // "input" (the query), "searchColumn" and "startRow" are all chainable fields on this kind,
@@ -208,7 +207,6 @@ export const lookupKind: OperationKind = {
           onChange={(input) => updateFields({ input })}
           referenceOptions={referenceOptions}
           resolvedInput={queryResolved}
-          disabled={isModelInput}
         />
 
         <div className="operation-entry__field">
@@ -359,14 +357,6 @@ function LookupResult({
 }: LookupResultProps) {
   const [state, setState] = useState<LookupRequestState>({ status: 'idle' });
 
-  // "Limpar teste": clears the shown result on demand, independent of any field changing.
-  useEffect(() => {
-    setState({ status: 'idle' });
-    onMatchChange(null);
-    onResultChange(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resetSignal]);
-
   // Which testSignal we've already gotten a definitive response (success or error) for — starts
   // at 0, "never tested". A *dynamic* query or search column (chained from another operation's
   // result) can go from empty/unresolved to a real value right after "Testar modelo" is clicked,
@@ -387,6 +377,22 @@ function LookupResult({
   // to that same promise instead of calling lookupValue again, so only one real request ever goes
   // out no matter how many times the effect is (re)invoked for the same testSignal.
   const inFlightRef = useRef<{ signal: number; promise: ReturnType<typeof lookupValue> } | null>(null);
+
+  // "Limpar teste": clears the shown result on demand, independent of any field changing. Also
+  // resets handledForSignalRef/inFlightRef — "Limpar teste" resets every entry's own testSignal
+  // counter back to 0 (see OperationPanel's cancelPendingTestStagger), so the *next* test's
+  // testSignal can numerically collide with a value already recorded here from before the clear;
+  // without this reset, that collision made the dedup check above mistake a genuinely new test for
+  // an already-handled one and skip the fetch entirely — "it says it tested but the API wasn't
+  // called" until a second click pushed the signal past the stale value.
+  useEffect(() => {
+    setState({ status: 'idle' });
+    onMatchChange(null);
+    onResultChange(null);
+    handledForSignalRef.current = 0;
+    inFlightRef.current = null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetSignal]);
 
   useEffect(() => {
     if (testSignal === 0 || query.trim() === '' || searchColumn === null || startRow === null) {

@@ -8,7 +8,7 @@ import { useOperationTypes } from '../../hooks/useOperationTypes';
 import { getDependencyChain, getDependents, resolveOperationInputs } from '../../utils/resolveOperationInputs';
 import { getInputSource, getInputSources, literalSource, remapValueSourceReferences } from '../../types/valueSource';
 import type { SerializableEntry } from '../../utils/modelSerialization';
-import { downloadTestCase, parseTestCaseFile } from '../../utils/testCaseSerialization';
+import { parseTestCaseFile } from '../../utils/testCaseSerialization';
 import type { OperationFields, ReferenceOption } from './operationKind';
 import { KINDS, KINDS_BY_ID } from './kinds/registry';
 import { AddOperationModal } from '../AddOperationModal/AddOperationModal';
@@ -496,9 +496,6 @@ interface OperationPanelProps {
   modelOutputIds: string[];
   onModelInputIdsChange: (ids: string[]) => void;
   onModelOutputIdsChange: (ids: string[]) => void;
-  /** Only used for the downloaded test-case file's name/contents (see TestValuesModal) — the
-   * model doesn't otherwise need its own name while just being edited/tested. */
-  modelName: string;
 }
 
 interface Edge {
@@ -548,7 +545,6 @@ export function OperationPanel({
   modelOutputIds,
   onModelInputIdsChange,
   onModelOutputIdsChange,
-  modelName,
 }: OperationPanelProps) {
   const [entries, setEntries] = useState<OperationEntryState[]>(() =>
     (initialEntries ?? []).map((entry, index) => ({ ...entry, position: entry.position ?? placementFor(index) })),
@@ -660,13 +656,14 @@ export function OperationPanel({
     }, confirmedIds.length * TEST_STAGGER_DELAY_MS + TEST_PROGRESS_LINGER_MS);
     testStaggerTimeoutsRef.current.push(clearProgressTimeoutId);
   }
-  // Whether the test-values modal (see TestValuesModal) is open — only reachable when the model
-  // has at least one designated input (see the "Testar modelo" button below); with none, there's
-  // nothing to prompt for and it runs immediately, same as before this modal existed.
-  const [isTestModalOpen, setIsTestModalOpen] = useState(false);
-  // Set when "Carregar teste" fails to parse a file — shown in the modal, cleared on the next
-  // successful load or the next time the modal is opened.
+  // Set when "Importar teste" fails to parse a file — shown next to the toolbar's own test
+  // buttons, cleared on the next successful load.
   const [testLoadError, setTestLoadError] = useState<string | null>(null);
+  const testFileInputRef = useRef<HTMLInputElement>(null);
+  // Whether the test-values modal (see TestValuesModal) is open — only reachable when the model
+  // has at least one designated input; with none, "Testar modelo" runs immediately since there's
+  // nothing to review first.
+  const [isTestModalOpen, setIsTestModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   // The existing (already-confirmed) operation currently reopened for editing in the left-docked
   // config panel (see renderConfigPanel and editEntry) — mutually exclusive with stagingEntryIds
@@ -940,10 +937,13 @@ export function OperationPanel({
     return KIND_LABELS[kindId] ?? operationTypes.find((type) => type.id === kindId)?.label ?? kindId;
   }
 
-  // One row per designated input (see TestValuesModal) — alphabetical, same reasoning as
-  // ModelCard's own sortByName: the author's input/output toggle order isn't a meaningful reading
-  // order for whoever's typing test values in. Always a literal (see isModelInputEligible below),
-  // same invariant ModelCard's own input fields rely on.
+  // One row per designated input, always reflecting whatever's currently set for it (typed
+  // directly on its own node, or loaded via "Importar teste") — feeds TestValuesModal (already
+  // filled in, not starting blank) and decides whether "Importar teste" has anything to fill and
+  // where a loaded file's entries land by name (see loadTestCase). App.tsx computes its own
+  // equivalent list for "Guardar teste", which now lives next to "Guardar modelo" instead of in
+  // this toolbar. Always a literal (see isModelInputEligible below), same invariant ModelCard's
+  // own input fields rely on.
   const testInputEntries = modelInputIds
     .map((id) => entries.find((entry) => entry.id === id && entry.confirmed))
     .filter((entry): entry is OperationEntryState => entry !== undefined)
@@ -953,16 +953,15 @@ export function OperationPanel({
     })
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
 
-  // "Testar modelo" itself when the model has no designated input (nothing to prompt for —
-  // unchanged from before this modal existed); otherwise opens the modal instead of running
-  // immediately.
-  function openTestModal() {
-    setTestLoadError(null);
-    setIsTestModalOpen(true);
-  }
-
   function updateTestValue(id: string, value: string) {
     updateEntryFields(id, { input: literalSource(value) });
+  }
+
+  // "Testar modelo" itself when the model has no designated input (nothing to review — runs
+  // immediately); otherwise opens TestValuesModal so the values can be checked/adjusted first,
+  // pre-filled from testInputEntries above rather than starting blank.
+  function openTestModal() {
+    setIsTestModalOpen(true);
   }
 
   function runTestFromModal() {
@@ -970,19 +969,16 @@ export function OperationPanel({
     runModelTest();
   }
 
-  function saveTestCase() {
-    downloadTestCase(
-      modelName,
-      testInputEntries.map((entry) => ({ name: entry.name, value: entry.value })),
-    );
+  function triggerImportTest() {
+    setTestLoadError(null);
+    testFileInputRef.current?.click();
   }
 
   // Matches each saved value against a currently-present input by exact name (see
   // testCaseSerialization.ts for why name, not id) — a name from the file with no match on the
   // canvas today is silently skipped, and a current input not mentioned in the file is left
   // exactly as it was. Only fills the input fields, same as typing the values in by hand — it
-  // does NOT run the model itself; the modal stays open with the loaded values showing so they
-  // can be reviewed (and, if needed, adjusted) before "Correr teste" actually runs it.
+  // does NOT run the model itself; "Testar modelo" is a separate, explicit click.
   function loadTestCase(file: File) {
     parseTestCaseFile(file)
       .then((parsed) => {
@@ -1181,7 +1177,6 @@ export function OperationPanel({
           onResultChange: (value) => setResults((current) => ({ ...current, [entry.id]: value })),
           testSignal: testSignals[entry.id] ?? 0,
           resetSignal,
-          isModelInput: modelInputIds.includes(entry.id),
         })}
       </ConfirmedOperationCard>
     );
@@ -1410,16 +1405,17 @@ export function OperationPanel({
                 ? 'operation-canvas__test-button operation-canvas__test-button--cancel'
                 : 'operation-canvas__test-button'
             }
-            // While a stagger's in progress, this same button interrupts it instead of starting
-            // another one — cancelPendingTestStagger just stops whatever hasn't fired yet
-            // (already-dispatched requests still run to completion; there's no cancelling those
-            // without an AbortController this app doesn't otherwise need).
+            // Opens TestValuesModal to review/adjust each designated input's value (already
+            // filled in from whatever's currently set — typed on canvas, or loaded via "Importar
+            // teste") before running, same as before; runs immediately if there's nothing to
+            // review (no designated input at all). While a stagger's in progress, this same
+            // button interrupts it instead — cancelPendingTestStagger just stops whatever hasn't
+            // fired yet (already-dispatched requests still run to completion; there's no
+            // cancelling those without an AbortController this app doesn't otherwise need).
             onClick={() => {
               if (testProgress) {
                 cancelPendingTestStagger();
-                return;
-              }
-              if (testInputEntries.length > 0) {
+              } else if (testInputEntries.length > 0) {
                 openTestModal();
               } else {
                 runModelTest();
@@ -1432,7 +1428,7 @@ export function OperationPanel({
                 : confirmedCount === 0
                   ? 'Conclua pelo menos uma operação para a poder testar.'
                   : testInputEntries.length > 0
-                    ? 'Introduza um valor para cada input antes de correr o teste.'
+                    ? 'Reveja os valores de cada input antes de correr o teste.'
                     : 'Calcula cada operação com os valores atuais.'
             }
           >
@@ -1448,8 +1444,30 @@ export function OperationPanel({
             )}
             <span className="operation-canvas__test-button-label">{testProgress ? 'Cancelar teste' : 'Testar modelo'}</span>
           </button>
+          <input
+            ref={testFileInputRef}
+            type="file"
+            accept="application/json"
+            className="operation-canvas__test-file-input"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = ''; // so re-importing the same file path fires onChange again
+              if (file) loadTestCase(file);
+            }}
+          />
+          <button
+            type="button"
+            className="operation-canvas__test-io-button"
+            onClick={triggerImportTest}
+            disabled={testInputEntries.length === 0}
+            title={testInputEntries.length === 0 ? 'O modelo não tem nenhum input definido.' : 'Preenche os inputs a partir de um ficheiro JSON.'}
+          >
+            Importar teste
+          </button>
         </div>
       </div>
+
+      {testLoadError && <p className="operation-canvas__test-load-error">{testLoadError}</p>}
 
       {tool === 'select' && selectedIds.length > 0 && (
         <div className="operation-canvas__selection-bar">
@@ -1564,9 +1582,6 @@ export function OperationPanel({
         inputs={testInputEntries}
         onChangeValue={updateTestValue}
         onRun={runTestFromModal}
-        onSave={saveTestCase}
-        onLoad={loadTestCase}
-        loadError={testLoadError}
       />
     </div>
   );

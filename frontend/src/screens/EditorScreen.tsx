@@ -55,6 +55,13 @@ interface EditorScreenProps {
   exportHint: string | null;
   inputLabels: string[] | null;
   outputLabels: string[] | null;
+
+  /** Downloads the model's current designated-input values as a JSON file — sits next to
+   * "Guardar modelo" rather than in the canvas toolbar (see App.tsx's own saveTestCase, which
+   * reads the same modelEntries/modelInputIds this screen already mirrors up from OperationPanel,
+   * so this doesn't need write access to the canvas' own state to do it). */
+  onSaveTestCase: () => void;
+  canSaveTestCase: boolean;
 }
 
 /** The main editor: model name, the operation canvas, "Guardar modelo", and the off-canvas sheet
@@ -100,6 +107,8 @@ export function EditorScreen({
   exportHint,
   inputLabels,
   outputLabels,
+  onSaveTestCase,
+  canSaveTestCase,
 }: EditorScreenProps) {
   return (
     <div className="app">
@@ -148,11 +157,21 @@ export function EditorScreen({
             modelOutputIds={modelOutputIds}
             onModelInputIdsChange={onModelInputIdsChange}
             onModelOutputIdsChange={onModelOutputIdsChange}
-            modelName={modelName}
           />
-          <button type="button" className="app__save-button" onClick={onOpenSaveModal}>
-            Guardar modelo
-          </button>
+          <div className="app__save-row">
+            <button
+              type="button"
+              className="app__save-button app__save-button--secondary"
+              onClick={onSaveTestCase}
+              disabled={!canSaveTestCase}
+              title={canSaveTestCase ? 'Guarda os valores atuais dos inputs num ficheiro JSON.' : 'O modelo não tem nenhum input definido.'}
+            >
+              Guardar teste
+            </button>
+            <button type="button" className="app__save-button" onClick={onOpenSaveModal}>
+              Guardar modelo
+            </button>
+          </div>
         </div>
       </main>
 

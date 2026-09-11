@@ -101,7 +101,6 @@ export const findKind: OperationKind = {
     resolvedInput,
     referenceOptions,
     onResultChange,
-    isModelInput,
   }) => {
     const f = asFindFields(fields);
     const query = resolvedInput.status === 'ready' ? resolvedInput.value : '';
@@ -115,7 +114,6 @@ export const findKind: OperationKind = {
           onChange={(input) => updateFields({ input })}
           referenceOptions={referenceOptions}
           resolvedInput={resolvedInput}
-          disabled={isModelInput}
         />
 
         <FindResult
@@ -178,19 +176,25 @@ type FindRequestState =
 function FindResult({ datasetId, query, sheetIndex, range, testSignal, resetSignal, onMatchChange, onResultChange }: FindResultProps) {
   const [state, setState] = useState<FindRequestState>({ status: 'idle' });
 
-  // "Limpar teste": clears the shown result on demand, independent of any field changing.
-  useEffect(() => {
-    setState({ status: 'idle' });
-    onMatchChange(null);
-    onResultChange(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resetSignal]);
-
   // Which testSignal we've already gotten a definitive response for — see the equivalent note in
   // LookupResult; a dynamic (chained) query catching up mid test-cycle must still fire once it
   // resolves, not be treated as a stale edit.
   const handledForSignalRef = useRef(0);
   const inFlightRef = useRef<{ signal: number; promise: ReturnType<typeof findMatch> } | null>(null);
+
+  // "Limpar teste": clears the shown result on demand, independent of any field changing. Also
+  // resets handledForSignalRef/inFlightRef — see LookupResult's equivalent note on why: "Limpar
+  // teste" resets every entry's own testSignal counter back to 0, so without this the *next*
+  // test's testSignal could numerically collide with a value already recorded here, making the
+  // dedup check above mistake a genuinely new test for an already-handled one and skip the fetch.
+  useEffect(() => {
+    setState({ status: 'idle' });
+    onMatchChange(null);
+    onResultChange(null);
+    handledForSignalRef.current = 0;
+    inFlightRef.current = null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetSignal]);
 
   useEffect(() => {
     if (testSignal === 0 || query.trim() === '') {

@@ -136,7 +136,7 @@ export const translatorKind: OperationKind = {
     );
   },
 
-  renderBody: ({ fields, updateFields, testSignal, resetSignal, resolvedInput, referenceOptions, onResultChange, isModelInput }) => {
+  renderBody: ({ fields, updateFields, testSignal, resetSignal, resolvedInput, referenceOptions, onResultChange }) => {
     const f = asTranslatorFields(fields);
     return (
       <>
@@ -148,7 +148,6 @@ export const translatorKind: OperationKind = {
           onChange={(input) => updateFields({ input })}
           referenceOptions={referenceOptions}
           resolvedInput={resolvedInput}
-          disabled={isModelInput}
         />
 
         <TranslatorResult
@@ -196,13 +195,6 @@ type TranslatorRequestState =
 function TranslatorResult({ resolvedInput, rules, testSignal, resetSignal, onResultChange }: TranslatorResultProps) {
   const [state, setState] = useState<TranslatorRequestState>({ status: 'idle' });
 
-  // "Limpar teste": clears the shown result on demand, independent of any field changing.
-  useEffect(() => {
-    setState({ status: 'idle' });
-    onResultChange(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resetSignal]);
-
   const resolvedKey = resolvedInput.status === 'ready' ? `ready:${resolvedInput.value}` : resolvedInput.status;
 
   // Which testSignal we've already gotten a definitive response for — see LookupResult's own
@@ -210,6 +202,19 @@ function TranslatorResult({ resolvedInput, rules, testSignal, resetSignal, onRes
   // resolves, not be treated as a stale edit.
   const handledForSignalRef = useRef(0);
   const inFlightRef = useRef<{ signal: number; promise: ReturnType<typeof translateValue> } | null>(null);
+
+  // "Limpar teste": clears the shown result on demand, independent of any field changing. Also
+  // resets handledForSignalRef/inFlightRef — see LookupResult's equivalent note on why: "Limpar
+  // teste" resets every entry's own testSignal counter back to 0, so without this the *next*
+  // test's testSignal could numerically collide with a value already recorded here, making the
+  // dedup check above mistake a genuinely new test for an already-handled one and skip the fetch.
+  useEffect(() => {
+    setState({ status: 'idle' });
+    onResultChange(null);
+    handledForSignalRef.current = 0;
+    inFlightRef.current = null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetSignal]);
 
   useEffect(() => {
     if (testSignal === 0) {

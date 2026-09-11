@@ -175,13 +175,6 @@ interface ValueSourceFieldProps {
    * clearing back to "pick again".
    */
   onRemove?: () => void;
-  /**
-   * True once this field's operation has been marked as the model's designated input (see
-   * OperationPanel's "Input" toggle) — that value is supplied by whoever utilizes the model
-   * (ModelCard), not typed in here while building it, so the toggle/typed-value/reference UI is
-   * replaced with an explanatory note instead of an editable field.
-   */
-  disabled?: boolean;
 }
 
 interface ValueSourcePickerModalProps {
@@ -356,7 +349,6 @@ export function ValueSourceField({
   resolvedInput,
   referenceOnly = false,
   onRemove,
-  disabled = false,
 }: ValueSourceFieldProps) {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
 
@@ -388,17 +380,6 @@ export function ValueSourceField({
   function pickReference(operationId: string) {
     onChange({ type: 'reference', operationId });
     setIsPickerOpen(false);
-  }
-
-  if (disabled) {
-    return (
-      <div className="operation-entry__field">
-        <label className="operation-entry__label">{label}</label>
-        <p className="operation-entry__chain-status">
-          Definido como input do modelo — o valor é introduzido ao utilizar o modelo.
-        </p>
-      </div>
-    );
   }
 
   return (

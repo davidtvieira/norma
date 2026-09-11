@@ -8,6 +8,7 @@ import type { ColumnHighlight, OperationHighlight, RangeHighlight } from './type
 import type { CellRange } from './types/cellRange';
 import { getInputSource } from './types/valueSource';
 import { buildModelExport, parseModelImport, type SerializableEntry } from './utils/modelSerialization';
+import { downloadTestCase } from './utils/testCaseSerialization';
 import { LandingScreen } from './screens/LandingScreen';
 import { UtilizeScreen, type UtilizeModel } from './screens/UtilizeScreen';
 import { ChooseModelScreen, type ImportedModel } from './screens/ChooseModelScreen';
@@ -94,6 +95,23 @@ function App() {
           .map((id) => modelOutputOptions.find((option) => option.id === id)?.label)
           .filter((label): label is string => Boolean(label))
       : null;
+
+  // "Guardar teste" reads the model's designated inputs straight off modelEntries (already
+  // mirrored up from OperationPanel via onEntriesChange) rather than needing OperationPanel to
+  // expose anything new — same values OperationPanel's own "Importar teste" would read, just
+  // computed here instead, since this button now sits next to "Guardar modelo" rather than in the
+  // canvas toolbar.
+  const testInputEntries = modelInputIds
+    .map((id) => modelEntries.find((entry) => entry.id === id && entry.confirmed))
+    .filter((entry): entry is SerializableEntry => entry !== undefined)
+    .map((entry) => {
+      const source = getInputSource(entry.fields);
+      return { name: entry.name, value: source.type === 'literal' ? source.value : '' };
+    });
+
+  function saveTestCase() {
+    downloadTestCase(modelName, testInputEntries);
+  }
 
   // Clears any pick that's no longer valid — the operation was deleted, un-confirmed, or switched
   // to a dynamic/reference value after being picked — instead of silently exporting a model that
@@ -340,6 +358,8 @@ function App() {
       exportHint={exportHint}
       inputLabels={inputLabels}
       outputLabels={outputLabels}
+      onSaveTestCase={saveTestCase}
+      canSaveTestCase={testInputEntries.length > 0}
     />
   );
 }

@@ -96,6 +96,45 @@
   opacity: 0.5;
 }
 
+.operation-canvas__test-file-input {
+  display: none;
+}
+
+/* "Importar teste"/"Guardar teste" — plain secondary-chrome buttons, same shape as
+   .operation-canvas__reset-button below, sitting right next to "Testar modelo" instead of
+   behind a modal only reachable once the model has a designated input to prompt for. */
+.operation-canvas__test-io-button {
+  padding: 0.55rem 1.1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.operation-canvas__test-io-button:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.operation-canvas__test-io-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* "Importar teste" own parse-failure message — sits below the whole toolbar rather than inside
+   it, since the toolbar's own row has no room to wrap a sentence without squeezing every other
+   button. */
+.operation-canvas__test-load-error {
+  margin: -0.4rem 0 0.75rem;
+  font-size: 0.8rem;
+  color: var(--color-error);
+}
+
 .operation-canvas__reset-button {
   padding: 0.55rem 1.1rem;
   border: 1px solid var(--color-border);

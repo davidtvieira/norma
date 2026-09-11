@@ -351,9 +351,31 @@
   transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
-.app__save-button:hover {
+.app__save-button:hover:not(:disabled) {
   background: var(--color-primary-hover);
   border-color: var(--color-primary-hover);
+}
+
+.app__save-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Groups "Guardar teste" alongside "Guardar modelo" as one right-aligned pair — takes over the
+   button's own align-self: flex-end below it. */
+.app__save-row {
+  align-self: flex-end;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.app__save-button--secondary {
+  background: transparent;
+  color: var(--color-primary);
+}
+
+.app__save-button--secondary:hover:not(:disabled) {
+  background: var(--color-surface-hover);
 }
 
 /* Off-canvas sheet viewer: slides in from the right over the editor instead of sitting
@@ -451,9 +473,12 @@
     overflow: visible;
   }
 
-  .app__save-button {
+  .app__save-row {
     align-self: stretch;
-    width: 100%;
+  }
+
+  .app__save-button {
+    flex: 1;
   }
 
   .sheet-panel {

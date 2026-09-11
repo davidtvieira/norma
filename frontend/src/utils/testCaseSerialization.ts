@@ -13,8 +13,9 @@ export interface TestCaseFile {
 }
 
 /**
- * Downloads the given input values as a JSON file (see TestValuesModal's "Guardar teste"), the
- * same download-a-Blob pattern App.tsx's own exportModel uses for the model itself.
+ * Downloads the given input values as a JSON file (see OperationPanel/ModelCard's own "Guardar
+ * teste" toolbar button), the same download-a-Blob pattern App.tsx's own exportModel uses for the
+ * model itself.
  */
 export function downloadTestCase(modelName: string, inputs: TestCaseInput[]): void {
   const file: TestCaseFile = { modelName, inputs };
@@ -29,8 +30,9 @@ export function downloadTestCase(modelName: string, inputs: TestCaseInput[]): vo
 
 /**
  * The counterpart of downloadTestCase — parses a previously saved file back into its input
- * name/value pairs (see TestValuesModal's "Carregar teste"). Throws with a user-facing
- * (Portuguese) message on anything malformed rather than silently producing a partial result.
+ * name/value pairs (see OperationPanel/ModelCard's own "Importar teste"/"Carregar teste (JSON)"
+ * toolbar button). Throws with a user-facing (Portuguese) message on anything malformed rather
+ * than silently producing a partial result.
  */
 export async function parseTestCaseFile(file: File): Promise<TestCaseFile> {
   const text = await file.text();

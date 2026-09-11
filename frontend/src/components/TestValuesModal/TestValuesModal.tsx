@@ -1,4 +1,3 @@
-import { useRef } from 'react';
 import './TestValuesModal.css';
 
 export interface TestValueEntry {
@@ -13,27 +12,19 @@ interface TestValuesModalProps {
   inputs: TestValueEntry[];
   onChangeValue: (id: string, value: string) => void;
   onRun: () => void;
-  onSave: () => void;
-  onLoad: (file: File) => void;
-  /** Set by OperationPanel if the last "Carregar teste" failed to parse — cleared on the next
-   * successful load, or when this modal is reopened (see OperationPanel's onOpen). */
-  loadError: string | null;
 }
 
 /**
- * Opened by "Testar modelo" once the model has at least one designated input (see
- * OperationPanel) — one field per input, instead of needing to type test values directly into
- * each input node's own field on the canvas first. Typing here writes straight through to that
- * same node's own field (see OperationPanel's onChangeValue), so "Correr teste" is just the usual
- * testSignal bump — nothing here duplicates where a value actually lives.
- *
- * "Guardar teste" downloads the current values as a JSON file; "Carregar teste" loads one back
- * in — see utils/testCaseSerialization.ts for why that file is keyed by each input's *name*
- * rather than its internal id.
+ * Opened by "Testar modelo" once the model has at least one designated input — one field per
+ * input, already filled with whatever's currently set for it (typed directly on its own node on
+ * the canvas, or loaded via the toolbar's "Importar teste"), so this is a review-and-adjust step
+ * rather than always starting blank. Typing here writes straight through to that same node's own
+ * field (see OperationPanel's onChangeValue), same as typing on the canvas itself would — nothing
+ * here duplicates where a value actually lives. "Importar teste"/"Guardar teste" live in the
+ * toolbar/next to "Guardar modelo" now, not in this modal, so it's just the fields plus the one
+ * action that actually runs something.
  */
-export function TestValuesModal({ open, onClose, inputs, onChangeValue, onRun, onSave, onLoad, loadError }: TestValuesModalProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
+export function TestValuesModal({ open, onClose, inputs, onChangeValue, onRun }: TestValuesModalProps) {
   if (!open) return null;
 
   return (
@@ -48,7 +39,7 @@ export function TestValuesModal({ open, onClose, inputs, onChangeValue, onRun, o
         <h2 id="test-values-modal-title" className="test-values-modal__title">
           Testar modelo
         </h2>
-        <p className="test-values-modal__body">Introduza um valor para cada input antes de correr o teste.</p>
+        <p className="test-values-modal__body">Reveja o valor de cada input antes de correr o teste.</p>
 
         <div className="test-values-modal__fields">
           {inputs.map((input) => (
@@ -65,33 +56,10 @@ export function TestValuesModal({ open, onClose, inputs, onChangeValue, onRun, o
           ))}
         </div>
 
-        {loadError && <p className="test-values-modal__hint">{loadError}</p>}
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="application/json"
-          className="test-values-modal__file-input"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            event.target.value = ''; // so re-loading the same file path fires onChange again
-            if (file) onLoad(file);
-          }}
-        />
-
         <div className="test-values-modal__actions">
-          <div className="test-values-modal__actions-row">
-            <button
-              type="button"
-              className="test-values-modal__button test-values-modal__button--secondary"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              Carregar teste (JSON)
-            </button>
-            <button type="button" className="test-values-modal__button test-values-modal__button--secondary" onClick={onSave}>
-              Guardar teste (JSON)
-            </button>
-          </div>
+          <button type="button" className="test-values-modal__button test-values-modal__button--secondary" onClick={onClose}>
+            Cancelar
+          </button>
           <button type="button" className="test-values-modal__button test-values-modal__run-button" onClick={onRun}>
             Correr teste
           </button>
