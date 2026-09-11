@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getDependents, resolveOperationInputs, type ChainableEntry } from './resolveOperationInputs';
+import { getDependencyChain, getDependents, resolveOperationInputs, type ChainableEntry } from './resolveOperationInputs';
 import { literalSource, type ValueSource } from '../types/valueSource';
 
 function reference(operationId: string): ValueSource {
@@ -161,5 +161,43 @@ describe('getDependents', () => {
     ];
 
     expect(getDependents('op-a', entries)).toEqual(new Set());
+  });
+});
+
+describe('getDependencyChain', () => {
+  it('includes the entry itself plus everything it transitively reads its input from', () => {
+    const entries = [
+      entry('op-a', { input: literalSource('x') }),
+      entry('op-b', { input: reference('op-a') }),
+      entry('op-c', { input: reference('op-b') }),
+      entry('op-unrelated', { input: literalSource('y') }),
+    ];
+
+    expect(getDependencyChain('op-c', entries)).toEqual(new Set(['op-c', 'op-b', 'op-a']));
+  });
+
+  it('returns just the entry itself when it has no reference input', () => {
+    const entries = [entry('op-a', { input: literalSource('x') })];
+
+    expect(getDependencyChain('op-a', entries)).toEqual(new Set(['op-a']));
+  });
+
+  it('collects every branch for a kind with several chainable inputs (counter-like)', () => {
+    const entries = [
+      entry('op-a', { input: literalSource('x') }),
+      entry('op-b', { input: literalSource('y') }),
+      entry('op-counter', { inputs: [reference('op-a'), reference('op-b'), literalSource('1')] }),
+    ];
+
+    expect(getDependencyChain('op-counter', entries)).toEqual(new Set(['op-counter', 'op-a', 'op-b']));
+  });
+
+  it('terminates instead of looping forever on a cycle reachable from the entry', () => {
+    const entries = [
+      entry('op-a', { input: reference('op-b') }),
+      entry('op-b', { input: reference('op-a') }),
+    ];
+
+    expect(getDependencyChain('op-a', entries)).toEqual(new Set(['op-a', 'op-b']));
   });
 });

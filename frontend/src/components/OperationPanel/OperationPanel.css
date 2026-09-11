@@ -862,6 +862,21 @@
   border-color: var(--color-primary);
 }
 
+/* Marks a card that's actually been tested (its own testSignal has fired at least once — see
+   OperationPanel's runModelTest/testSignals) — stays on regardless of hover, and regardless of
+   whether the result itself was a success, an error, or no match, so "have I tested this one
+   yet" is answerable from the canvas alone instead of having to open each card.
+   A literal, fixed color rather than var(--color-secondary): that variable is designed as a
+   *filled* pill color (see .operation-card__io-toggle--active, which pairs it with
+   --color-secondary-contrast text) and swaps to a near-black neutral in light mode for that
+   reason — fine as a small pill's fill, harsh as a whole card's outline. This is dark mode's own
+   --color-secondary value (#f0a150, a warm orange) fixed in place for both themes instead, so the
+   border itself doesn't flip to that near-black in light mode. */
+.operation-card--tested {
+  border-width: 2px;
+  border-color: #f0a150;
+}
+
 .operation-card__header {
   display: flex;
   align-items: center;
@@ -931,6 +946,27 @@
 }
 
 .operation-card__reveal:hover {
+  color: var(--color-primary);
+}
+
+/* TestUpToHereButton — same plain icon-button chrome as .operation-card__edit/__reveal above. */
+.operation-card__test {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0.15rem;
+}
+
+.operation-card__test svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.operation-card__test:hover {
   color: var(--color-primary);
 }
 

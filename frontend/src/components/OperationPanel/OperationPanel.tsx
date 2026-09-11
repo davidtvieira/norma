@@ -5,7 +5,7 @@ import type { DatasetImportResponse } from '../../types/dataset';
 import type { ColumnPickField, ColumnPickState, RangePickState } from '../../types/columnPick';
 import type { ColumnHighlight, OperationHighlight, RangeHighlight } from '../../types/highlight';
 import { useOperationTypes } from '../../hooks/useOperationTypes';
-import { getDependents, resolveOperationInputs } from '../../utils/resolveOperationInputs';
+import { getDependencyChain, getDependents, resolveOperationInputs } from '../../utils/resolveOperationInputs';
 import { getInputSource, getInputSources, literalSource, remapValueSourceReferences } from '../../types/valueSource';
 import type { SerializableEntry } from '../../utils/modelSerialization';
 import { downloadTestCase, parseTestCaseFile } from '../../utils/testCaseSerialization';
@@ -184,6 +184,26 @@ function RevealButton({ onReveal }: RevealButtonProps) {
   );
 }
 
+interface TestUpToHereButtonProps {
+  onTest: () => void;
+}
+
+/**
+ * Runs "Testar modelo" scoped to just this operation's own dependency chain — itself and every
+ * operation it (transitively) reads its input from (see getDependencyChain), not every confirmed
+ * operation on the canvas — so checking one operation's result doesn't also wait on, or spend API
+ * calls testing, unrelated ones elsewhere in the model.
+ */
+function TestUpToHereButton({ onTest }: TestUpToHereButtonProps) {
+  return (
+    <button type="button" className="operation-card__test" onClick={onTest} aria-label="Testar até aqui" title="Testar até aqui">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M6 4.5v15l13-7.5-13-7.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  );
+}
+
 interface IoToggleProps {
   label: string;
   active: boolean;
@@ -217,6 +237,13 @@ interface ConfirmedOperationCardProps {
   editDisabled: boolean;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
+  /** Whether this operation's own testSignal has fired at least once — draws a primary-color
+   * border on the card, regardless of whether the result itself was a success, an error, or no
+   * match (see .operation-card--tested). */
+  isTested: boolean;
+  /** Runs "Testar modelo" scoped to just this operation's own dependency chain — see
+   * TestUpToHereButton/runModelTest(upToEntryId). */
+  onTestUpToHere: () => void;
   onReveal: () => void;
   /** Whether this operation actually has a sheet location to reveal — false for kinds that never
    * highlight any column/range (see sheetIndexForEntry) — so the reveal button doesn't sit there
@@ -272,6 +299,8 @@ function ConfirmedOperationCard({
   editDisabled,
   onMouseEnter,
   onMouseLeave,
+  isTested,
+  onTestUpToHere,
   onReveal,
   isRevealEligible,
   children,
@@ -329,12 +358,18 @@ function ConfirmedOperationCard({
   }, [isModalOpen, onCloseModal]);
 
   return (
-    <div className="operation-card" ref={cardRef} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
+    <div
+      className={isTested ? 'operation-card operation-card--tested' : 'operation-card'}
+      ref={cardRef}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
       <div className="operation-card__header">
         <h3 className="operation-card__name">{name || 'Operação sem nome'}</h3>
         <div className="operation-card__actions">
           {isModelInputEligible && <IoToggle label="Input" active={isModelInput} onToggle={onToggleModelInput} />}
           <IoToggle label="Output" active={isModelOutput} onToggle={onToggleModelOutput} />
+          <TestUpToHereButton onTest={onTestUpToHere} />
           {isRevealEligible && <RevealButton onReveal={onReveal} />}
           <EditButton onEdit={onEdit} disabled={editDisabled} />
         </div>
@@ -594,14 +629,21 @@ export function OperationPanel({
    * chained operation still effectively waits on top of this for its own reference to resolve
    * (see resolveOperationInputs), same as before; this only changes when an *independent*
    * operation's own request actually goes out. testProgress is bumped alongside each signal
-   * purely so the progress bar at the top of the canvas has something to show; the bar itself
-   * fades away shortly after the last one fires rather than lingering at 100% indefinitely.
+   * purely so the progress bar shown on the button has something to show; it fades away shortly
+   * after the last one fires rather than lingering at 100% indefinitely.
+   *
+   * `upToEntryId`, if given, narrows the run to just that operation's own dependency chain (see
+   * getDependencyChain) — itself and everything it (transitively) reads its input from — instead
+   * of every confirmed operation on the canvas. This is what each card's own "Testar até aqui"
+   * button (see ConfirmedOperationCard) uses: check one operation's result without waiting on
+   * (or spending API calls testing) unrelated ones elsewhere in the model.
    */
-  function runModelTest() {
+  function runModelTest(upToEntryId?: string) {
     cancelPendingTestStagger();
     setHasTested(true);
 
-    const confirmedIds = entries.filter((entry) => entry.confirmed).map((entry) => entry.id);
+    const chain = upToEntryId ? getDependencyChain(upToEntryId, entries) : null;
+    const confirmedIds = entries.filter((entry) => entry.confirmed && (!chain || chain.has(entry.id))).map((entry) => entry.id);
     if (confirmedIds.length === 0) return;
 
     setTestProgress({ done: 0, total: confirmedIds.length });
@@ -1100,6 +1142,8 @@ export function OperationPanel({
         editDisabled={hasDraftInProgress}
         onMouseEnter={() => setHoveredOperationId(entry.id)}
         onMouseLeave={() => setHoveredOperationId((current) => (current === entry.id ? null : current))}
+        isTested={(testSignals[entry.id] ?? 0) > 0}
+        onTestUpToHere={() => runModelTest(entry.id)}
         onReveal={() => revealEntry(entry)}
         isRevealEligible={sheetIndexForEntry(entry) !== null}
         isModelInput={modelInputIds.includes(entry.id)}
@@ -1348,6 +1392,11 @@ export function OperationPanel({
             onClick={() => {
               cancelPendingTestStagger();
               setResetSignal((current) => current + 1);
+              // Also clears every card's own "tested" border (see isTested/operation-card--tested)
+              // and re-disables this same button — nothing's actually been tested any more once
+              // its results are cleared.
+              setTestSignals({});
+              setHasTested(false);
             }}
             disabled={!hasTested}
             title={!hasTested ? 'Ainda não testou o modelo.' : 'Limpa os resultados do último teste.'}

@@ -85,6 +85,29 @@ export function getDependents(entryId: string, entries: ChainableEntry[]): Set<s
   return dependents;
 }
 
+/**
+ * Ids of every entry `entryId` (transitively) reads its own input(s) from, plus `entryId` itself
+ * — the upstream counterpart of getDependents above, used by OperationPanel's per-card "testar
+ * até aqui" button to test only the chain an operation actually depends on instead of every
+ * confirmed operation on the canvas. A cycle involving `entryId` still terminates (each id is
+ * only ever added, and therefore only ever expanded, once).
+ */
+export function getDependencyChain(entryId: string, entries: ChainableEntry[]): Set<string> {
+  const edges = buildReferenceGraph(entries);
+  const chain = new Set<string>();
+  let frontier = [entryId];
+  while (frontier.length > 0) {
+    const next: string[] = [];
+    for (const id of frontier) {
+      if (chain.has(id)) continue;
+      chain.add(id);
+      next.push(...(edges.get(id) ?? []));
+    }
+    frontier = next;
+  }
+  return chain;
+}
+
 function resolveSource(
   source: ValueSource,
   entriesById: Map<string, ChainableEntry>,
