@@ -637,34 +637,54 @@
   border-color: var(--color-primary);
 }
 
+/* This same class covers every state a kind's result box can be in (see each kind's own
+   renderBody) — loading/error/no-match text (.operation-entry__result--empty, which overrides
+   background/color back to a plain neutral box) and the "Entrada" input readout
+   (.operation-entry__result--input, which overrides background to none) both start from this
+   base rule too. What's left — the base class alone, no modifier — is exactly the success/output
+   case (the "Saída"/"Total"/"Soma"/... box every kind ends on), so that's what actually gets the
+   fill below: --color-action, the same fixed-regardless-of-theme accent the test play/stop icon
+   and a lit-up edge also use (see .operation-card__test--stop/.operation-canvas__edges-path--
+   active) — an operation's own output reads as literally the same color as whatever else on this
+   canvas means "this is running/active" right now. --color-action-contrast (not a theme color
+   like --color-text) is the pairing that color was actually picked to sit on top of, same
+   reasoning --color-secondary-contrast already existed for --color-secondary. */
 .operation-entry__result {
   margin: 0;
   padding: 0.45rem 0.65rem;
   border-radius: var(--radius-sm);
-  background: var(--color-surface-hover);
+  background: var(--color-action);
   font-size: 0.85rem;
   line-height: 1.4;
-  color: var(--color-text);
+  color: var(--color-action-contrast);
 }
 
+/* color: inherit + a lower opacity (rather than a fixed --color-text-muted) so this still reads
+   as "the label, dimmer than the value next to it" whichever of the three states above the result
+   box itself is actually in, instead of being tuned for just one of them. */
 .operation-entry__result-label {
   font-size: 0.7rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--color-text-muted);
+  color: inherit;
+  opacity: 0.75;
   margin-right: 0.4rem;
 }
 
 .operation-entry__result--empty {
+  background: var(--color-surface-hover);
   color: var(--color-text-muted);
 }
 
 /* The "Entrada" readout (see ValueSourceField) vs. a kind's own "Saída"/result box — same shape
-   and label styling, but no background fill, so input and output read as visually distinct at a
-   glance instead of two identical-looking boxes stacked on top of each other. */
+   and label styling, but no background fill and plain text color rather than the base rule's own
+   orange fill — that accent means "this is an output", which an input readout specifically isn't
+   — so input and output read as visually distinct at a glance instead of two identical-looking
+   boxes stacked on top of each other. */
 .operation-entry__result--input {
   background: none;
+  color: var(--color-text);
 }
 
 .operation-entry__chain-status {
@@ -989,7 +1009,7 @@
 
 .operation-canvas__edges path {
   fill: none;
-  stroke: var(--color-primary);
+  stroke: var(--color-neutral-accent);
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -1008,7 +1028,7 @@
    modifier class alone — a bare single-class selector here would lose the specificity comparison
    against that base rule and never actually take visible effect regardless of source order. */
 .operation-canvas__edges path.operation-canvas__edges-path--active {
-  stroke: var(--color-secondary);
+  stroke: var(--color-action);
   stroke-width: 3;
   opacity: 1;
 }
@@ -1189,20 +1209,20 @@
 }
 
 .operation-card__test:hover {
-  color: var(--color-primary);
+  color: var(--color-action);
 }
 
 /* Once this chain's already been tested (see TestUpToHereButton's own isTested), reads as "clear"
-   instead of "play" — filled, and --color-secondary rather than the plain muted icon color, same
-   accent every other "armed"/"already active" state on this canvas already uses (Selecionado,
-   Colar while armed, "A editar", ...) rather than error-red, since this isn't a warning, just a
-   toggled-on state. */
+   instead of "play" — filled, and --color-action (same fixed accent .operation-entry__result's
+   own output fill and a lit-up edge use — see their own notes) rather than the plain muted icon
+   color, so play (on hover) and clear share the one color instead of drifting to whatever
+   different accent each state happened to reach for. */
 .operation-card__test--stop {
-  color: var(--color-secondary);
+  color: var(--color-action);
 }
 
 .operation-card__test--stop:hover {
-  color: var(--color-secondary);
+  color: var(--color-action);
   opacity: 0.85;
 }
 

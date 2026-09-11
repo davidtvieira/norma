@@ -21,6 +21,25 @@
 
   --color-error: #b3413a;
 
+  /* Action: "this is running/active/output" — the operation canvas' own test play/stop icon,
+     an operation's own output box, and a lit-up edge (see OperationPanel.css) all share this one
+     color, deliberately fixed rather than swapped per theme like --color-secondary above (which
+     is why --color-action/--color-action-hover are declared only here, not repeated in the
+     dark-mode blocks below) — the same literal orange either way, rather than reading as "the
+     same *kind* of accent" but a different color depending on theme. --color-action-contrast (the
+     text/icon color sitting *on* that background) still swaps per theme though, same as every
+     other *-contrast pairing here — it's picked for legibility against the surrounding UI each
+     theme already establishes, not against --color-action itself, which never changes. */
+  --color-action: #f0a150;
+  --color-action-hover: #f5b273;
+  --color-action-contrast: #ffffff;
+
+  /* A plain, theme-invariant grey (dark mode's own --color-primary, which is what a resting
+     edge already looked like there) — fixed the same way --color-action is, for the same reason:
+     a resting (not lit-up) edge should read as "just a neutral connector" identically in both
+     themes, not orange-tinted in light mode (--color-primary there) and grey in dark mode. */
+  --color-neutral-accent: #9a9a9a;
+
   --radius-sm: 10px;
   --radius-md: 16px;
   --radius-lg: 24px;
@@ -50,6 +69,11 @@
 
     --color-error: #e0857e;
 
+    /* --color-action itself stays the same literal orange as light mode (see its own note above)
+       — only its contrast text/icon color swaps here, back to the dark tone that already reads
+       well against it. */
+    --color-action-contrast: #241505;
+
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.24);
     --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.32);
   }
@@ -74,6 +98,11 @@
   --color-secondary-contrast: #241505;
 
   --color-error: #e0857e;
+
+  /* --color-action itself stays the same literal orange as light mode (see its own note above) —
+     only its contrast text/icon color swaps here, back to the dark tone that already reads well
+     against it. */
+  --color-action-contrast: #241505;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.24);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.32);
