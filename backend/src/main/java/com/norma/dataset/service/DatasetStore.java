@@ -24,4 +24,9 @@ public class DatasetStore {
     public Optional<DatasetImportResponse> get(String datasetId) {
         return Optional.ofNullable(datasetId).map(datasets::get);
     }
+
+    /** @return true if a dataset was actually removed, false if {@code datasetId} didn't exist. */
+    public boolean remove(String datasetId) {
+        return datasetId != null && datasets.remove(datasetId) != null;
+    }
 }

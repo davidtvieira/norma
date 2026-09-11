@@ -94,17 +94,23 @@ public class DatasetParserService {
             case STRING -> cell.getStringCellValue();
             case NUMERIC -> DateUtil.isCellDateFormatted(cell)
                     ? DateTimeFormatter.ISO_INSTANT.format(cell.getDateCellValue().toInstant())
-                    : normalizeNumber(cell.getNumericCellValue());
+                    : OperationSupport.normalizeNumber(cell.getNumericCellValue());
             case BOOLEAN -> cell.getBooleanCellValue();
             case BLANK -> null;
             default -> null;
         };
     }
 
-    private Object normalizeNumber(double value) {
-        if (value == Math.rint(value) && !Double.isInfinite(value)) {
-            return (long) value;
+    /**
+     * Removes a previously imported dataset (and, transitively, anything about it a caller might
+     * still hold onto — a model registered against it stays in {@link ModelStore} but can no
+     * longer be run, since {@link ModelExecutionService#runModel} re-fetches the dataset by id on
+     * every run). Deleting an already-deleted or unknown id is a request error, not a silent
+     * no-op, so a caller finds out immediately if it raced or already cleaned up.
+     */
+    public void delete(String datasetId) {
+        if (!datasetStore.remove(datasetId)) {
+            throw new IllegalArgumentException("Conjunto de dados não encontrado. Volte a importar o ficheiro.");
         }
-        return value;
     }
 }

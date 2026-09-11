@@ -4,10 +4,11 @@ import com.norma.dataset.dto.ModelOperationResult;
 import com.norma.dataset.dto.ModelRegisterRequest;
 import com.norma.dataset.dto.ModelRegisterResponse;
 import com.norma.dataset.dto.ModelRunRequest;
-import com.norma.dataset.service.DatasetOperationService;
+import com.norma.dataset.service.ModelExecutionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -16,15 +17,15 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @RestController
-@Tag(name = "Models", description = "Registering and running a model (a saved chain of operations) as a whole, "
-        + "as opposed to DatasetOperationController's single-operation endpoints used while a model is still "
-        + "being built")
+@Tag(name = "Models", description = "Registering, running and deleting a model (a saved chain of operations) as "
+        + "a whole, as opposed to DatasetOperationController's single-operation endpoints used while a model is "
+        + "still being built")
 public class ModelController {
 
-    private final DatasetOperationService datasetOperationService;
+    private final ModelExecutionService modelExecutionService;
 
-    public ModelController(DatasetOperationService datasetOperationService) {
-        this.datasetOperationService = datasetOperationService;
+    public ModelController(ModelExecutionService modelExecutionService) {
+        this.modelExecutionService = modelExecutionService;
     }
 
     @Operation(
@@ -41,7 +42,7 @@ public class ModelController {
     @PostMapping("/api/v1/dataset/{datasetId}/model")
     public ResponseEntity<ModelRegisterResponse> registerModel(
             @PathVariable String datasetId, @RequestBody ModelRegisterRequest request) {
-        String modelId = datasetOperationService.registerModel(datasetId, request);
+        String modelId = modelExecutionService.registerModel(datasetId, request);
         return ResponseEntity.ok(new ModelRegisterResponse(modelId));
     }
 
@@ -57,6 +58,19 @@ public class ModelController {
     @PostMapping("/api/v1/dataset/{datasetId}/model/{modelId}/run")
     public ResponseEntity<List<ModelOperationResult>> runModel(
             @PathVariable String datasetId, @PathVariable String modelId, @RequestBody ModelRunRequest request) {
-        return ResponseEntity.ok(datasetOperationService.runModel(datasetId, modelId, request.inputValues()));
+        return ResponseEntity.ok(modelExecutionService.runModel(datasetId, modelId, request.inputValues()));
+    }
+
+    @Operation(
+            summary = "Delete a registered model",
+            description = "Forgets a previously registered model — it can no longer be run by id afterwards. "
+                    + "Does not affect the dataset it was registered against, nor the model's own exported JSON "
+                    + "file (see frontend/src/utils/modelSerialization.ts), which remains importable/re-registerable "
+                    + "independently of this in-memory registration."
+    )
+    @DeleteMapping("/api/v1/dataset/{datasetId}/model/{modelId}")
+    public ResponseEntity<Void> deleteModel(@PathVariable String datasetId, @PathVariable String modelId) {
+        modelExecutionService.deleteModel(datasetId, modelId);
+        return ResponseEntity.noContent().build();
     }
 }

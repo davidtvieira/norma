@@ -13,10 +13,12 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class DatasetParserServiceTest {
 
-    private final DatasetParserService datasetParserService = new DatasetParserService(new DatasetStore());
+    private final DatasetStore datasetStore = new DatasetStore();
+    private final DatasetParserService datasetParserService = new DatasetParserService(datasetStore);
 
     @Test
     void parsesRowsAndCellsByIndexWithoutAssumingHeader() throws IOException {
@@ -56,6 +58,24 @@ class DatasetParserServiceTest {
         var sheet = response.sheets().get(0);
         assertThat(sheet.rows().get(0).cells().get(0).value()).isEqualTo("ID");
         assertThat(sheet.rows().get(1).cells().get(0).value()).isEqualTo(101L);
+    }
+
+    @Test
+    void deletesAnImportedDatasetSoItCanNoLongerBeReferenced() throws IOException {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "data_import.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                buildWorkbookBytes());
+        DatasetImportResponse response = datasetParserService.parse(file);
+
+        datasetParserService.delete(response.datasetId());
+
+        assertThat(datasetStore.get(response.datasetId())).isEmpty();
+    }
+
+    @Test
+    void rejectsDeletingAnUnknownDatasetId() {
+        assertThatThrownBy(() -> datasetParserService.delete("missing-dataset"))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     private byte[] buildWorkbookBytes() throws IOException {

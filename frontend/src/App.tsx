@@ -1,12 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { DatasetUploader } from './components/DatasetUploader/DatasetUploader';
-import { OperationPanel } from './components/OperationPanel/OperationPanel';
 import { KINDS_BY_ID, OPERATION_KIND_IDS } from './components/OperationPanel/kinds/registry';
-import { ModelCard } from './components/ModelCard/ModelCard';
-import { SaveModal } from './components/SaveModal/SaveModal';
-import { SheetViewer } from './components/SheetViewer/SheetViewer';
-import { ThemeToggle } from './components/ThemeToggle/ThemeToggle';
 import { useTheme } from './hooks/useTheme';
 import type { DatasetImportResponse } from './types/dataset';
 import type { ColumnPickField, ColumnPickState, RangePickState } from './types/columnPick';
@@ -14,6 +8,10 @@ import type { ColumnHighlight, OperationHighlight, RangeHighlight } from './type
 import type { CellRange } from './types/cellRange';
 import { getInputSource } from './types/valueSource';
 import { buildModelExport, parseModelImport, type SerializableEntry } from './utils/modelSerialization';
+import { LandingScreen } from './screens/LandingScreen';
+import { UtilizeScreen, type UtilizeModel } from './screens/UtilizeScreen';
+import { ChooseModelScreen, type ImportedModel } from './screens/ChooseModelScreen';
+import { EditorScreen } from './screens/EditorScreen';
 import './App.css';
 
 function App() {
@@ -47,20 +45,10 @@ function App() {
   const importFileInputRef = useRef<HTMLInputElement>(null);
   // Set once "Importar Modelo" has loaded a file — the ready screen then offers "Editar Modelo"
   // / "Utilizar Modelo" for this same imported model instead of the initial Criar/Importar choice.
-  const [importedModel, setImportedModel] = useState<{
-    modelName: string;
-    entries: SerializableEntry[];
-    inputOperationIds: string[];
-    outputOperationIds: string[];
-  } | null>(null);
+  const [importedModel, setImportedModel] = useState<ImportedModel | null>(null);
   // Set once a model is being utilized (not edited) — switches to the ModelCard screen instead
   // of the full editor for as long as it's non-null.
-  const [utilizeModel, setUtilizeModel] = useState<{
-    modelName: string;
-    entries: SerializableEntry[];
-    inputOperationIds: string[];
-    outputOperationIds: string[];
-  } | null>(null);
+  const [utilizeModel, setUtilizeModel] = useState<UtilizeModel | null>(null);
   const { theme, toggleTheme } = useTheme();
 
   // Only a confirmed operation whose kind has an editable chainable input (see
@@ -92,6 +80,20 @@ function App() {
       : modelOutputIds.length === 0
         ? 'Defina pelo menos um output do modelo (botão "Output" numa operação) antes de exportar.'
         : null;
+  const inputLabels =
+    modelInputIds.length > 0
+      ? modelInputIds
+          .map((id) => modelInputOptions.find((option) => option.id === id)?.label)
+          .filter((label): label is string => Boolean(label))
+      : isModelInputRequired
+        ? null
+        : ['nenhum (modelo fixo)'];
+  const outputLabels =
+    modelOutputIds.length > 0
+      ? modelOutputIds
+          .map((id) => modelOutputOptions.find((option) => option.id === id)?.label)
+          .filter((label): label is string => Boolean(label))
+      : null;
 
   // Clears any pick that's no longer valid — the operation was deleted, un-confirmed, or switched
   // to a dynamic/reference value after being picked — instead of silently exporting a model that
@@ -261,243 +263,84 @@ function App() {
   }
 
   if (!dataset) {
-    return (
-      <div className="app app--landing">
-        <header className="app__topbar">
-          <ThemeToggle theme={theme} onToggle={toggleTheme} />
-        </header>
-
-        <div className="app__landing-body">
-          <div className="app__landing-left">
-            <p className="app__intro">Importe um ficheiro de dados para começar a criar um modelo inteligente.</p>
-          </div>
-          <div className="app__landing-right">
-            <div className="app__landing-content">
-              <DatasetUploader onImportSuccess={setDataset} />
-            </div>
-          </div>
-        </div>
-
-        <footer className="app__footer">
-          <h1 className="app__brand">Norma</h1>
-        </footer>
-      </div>
-    );
+    return <LandingScreen theme={theme} onToggleTheme={toggleTheme} onImportSuccess={setDataset} />;
   }
 
   if (utilizeModel) {
     return (
-      <div className="app app--landing">
-        <header className="app__topbar app__topbar--with-title">
-          <nav className="app__breadcrumbs" aria-label="Breadcrumb">
-            <button type="button" className="app__breadcrumb-item" onClick={() => setUtilizeModel(null)}>
-              {dataset.filename}
-            </button>
-            <span className="app__breadcrumb-separator">/</span>
-            <span className="app__breadcrumb-item app__breadcrumb-item--current">
-              {utilizeModel.modelName || 'Modelo sem nome'}
-            </span>
-          </nav>
-          <ThemeToggle theme={theme} onToggle={toggleTheme} />
-        </header>
-
-        <div className="app__utilize-body">
-          <ModelCard
-            dataset={dataset}
-            modelName={utilizeModel.modelName}
-            entries={utilizeModel.entries}
-            inputOperationIds={utilizeModel.inputOperationIds}
-            outputOperationIds={utilizeModel.outputOperationIds}
-            onBack={() => setUtilizeModel(null)}
-          />
-        </div>
-
-        <footer className="app__footer">
-          <h1 className="app__brand">Norma</h1>
-        </footer>
-      </div>
+      <UtilizeScreen
+        dataset={dataset}
+        utilizeModel={utilizeModel}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        onBack={() => setUtilizeModel(null)}
+      />
     );
   }
 
   if (!modelCreated) {
     return (
-      <div className="app app--landing">
-        <header className="app__topbar app__topbar--with-title">
-          <nav className="app__breadcrumbs" aria-label="Breadcrumb">
-            <span className="app__breadcrumb-item app__breadcrumb-item--current">{dataset.filename}</span>
-          </nav>
-          <ThemeToggle theme={theme} onToggle={toggleTheme} />
-        </header>
-
-        <div className="app__create-model-body">
-          <div className="app__create-model-content">
-            <p className="app__create-model-eyebrow">{importedModel ? importedModel.modelName || 'Modelo sem nome' : dataset.filename}</p>
-            <h1 className="app__create-model-title">
-              {importedModel ? 'O modelo foi importado.' : 'O seu conjunto de dados está pronto.'}
-            </h1>
-            <p className="app__create-model-hint">
-              {importedModel ? 'O que pretende fazer com o modelo importado?' : 'Escolha uma das opções abaixo para começar.'}
-            </p>
-            <div className="app__create-model-actions">
-              {importedModel ? (
-                <>
-                  <button type="button" className="app__create-model-button" onClick={goToEditorWithImportedModel}>
-                    Editar Modelo
-                  </button>
-                  <button type="button" className="app__create-model-button app__create-model-button--secondary" onClick={goToUtilizeWithImportedModel}>
-                    Utilizar Modelo
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button type="button" className="app__create-model-button" onClick={goToEditorFresh}>
-                    Criar Modelo
-                  </button>
-                  <button type="button" className="app__create-model-button app__create-model-button--secondary" onClick={triggerImportModel}>
-                    Importar Modelo
-                  </button>
-                  <input
-                    ref={importFileInputRef}
-                    type="file"
-                    accept="application/json"
-                    className="app__import-model-file-input"
-                    onChange={handleImportModelFile}
-                  />
-                </>
-              )}
-            </div>
-
-            <button
-              type="button"
-              className="app__create-model-button app__create-model-button--back"
-              onClick={importedModel ? cancelImportedModel : () => setDataset(null)}
-            >
-              {importedModel ? '← Voltar' : '← Importar outro conjunto de dados'}
-            </button>
-
-            {importError && <p className="app__create-model-error">{importError}</p>}
-          </div>
-        </div>
-
-        <footer className="app__footer">
-          <h1 className="app__brand">Norma</h1>
-        </footer>
-      </div>
+      <ChooseModelScreen
+        dataset={dataset}
+        importedModel={importedModel}
+        importError={importError}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        importFileInputRef={importFileInputRef}
+        onCreateFresh={goToEditorFresh}
+        onTriggerImportModel={triggerImportModel}
+        onImportModelFile={handleImportModelFile}
+        onEditImportedModel={goToEditorWithImportedModel}
+        onUtilizeImportedModel={goToUtilizeWithImportedModel}
+        onCancelImportedModel={cancelImportedModel}
+        onBackToLanding={() => setDataset(null)}
+      />
     );
   }
 
   return (
-    <div className="app">
-      <header className="app__topbar app__topbar--with-title">
-        <nav className="app__breadcrumbs" aria-label="Breadcrumb">
-          <button type="button" className="app__breadcrumb-item" onClick={() => setModelCreated(false)}>
-            {dataset.filename}
-          </button>
-          <span className="app__breadcrumb-separator">/</span>
-          <span className="app__breadcrumb-item app__breadcrumb-item--current">Criar modelo</span>
-        </nav>
-        <div className="app__topbar-actions">
-          <button type="button" className="app__view-data-button" onClick={() => setIsSheetPanelOpen(true)}>
-            Ver dados
-          </button>
-          <ThemeToggle theme={theme} onToggle={toggleTheme} />
-        </div>
-      </header>
-
-      <main className="app__main">
-        <div className="app__main-content">
-          <input
-            type="text"
-            className="app__model-name-input"
-            placeholder="Nome do modelo"
-            value={modelName}
-            onChange={(event) => setModelName(event.target.value)}
-          />
-          <OperationPanel
-            dataset={dataset}
-            initialEntries={pendingImportEntries}
-            columnPick={columnPick}
-            onStartColumnPick={startColumnPick}
-            onFinishColumnPick={finishColumnPick}
-            rangePick={rangePick}
-            onStartRangePick={startRangePick}
-            onFinishRangePick={finishRangePick}
-            onColumnHighlightsChange={setColumnHighlights}
-            onRangeHighlightsChange={setRangeHighlights}
-            onCellHighlightChange={setCellHighlight}
-            onRevealInSheet={revealInSheet}
-            onOperationConfirmed={closeSheetPanel}
-            isSheetPanelOpen={isSheetPanelOpen}
-            onEntriesChange={setModelEntries}
-            modelInputIds={modelInputIds}
-            modelOutputIds={modelOutputIds}
-            onModelInputIdsChange={setModelInputIds}
-            onModelOutputIdsChange={setModelOutputIds}
-            modelName={modelName}
-          />
-          <button type="button" className="app__save-button" onClick={() => setIsSaveModalOpen(true)}>
-            Guardar modelo
-          </button>
-        </div>
-      </main>
-
-      <footer className="app__footer">
-        <h1 className="app__brand">Norma</h1>
-      </footer>
-
-      <div
-        className={isSheetPanelOpen ? 'sheet-panel__backdrop sheet-panel__backdrop--visible' : 'sheet-panel__backdrop'}
-        onClick={closeSheetPanel}
-        aria-hidden="true"
-      />
-      <aside className={isSheetPanelOpen ? 'sheet-panel sheet-panel--open' : 'sheet-panel'} aria-hidden={!isSheetPanelOpen}>
-        <div className="sheet-panel__header">
-          <span className="sheet-panel__title">{dataset.filename}</span>
-          <button type="button" className="sheet-panel__close" onClick={closeSheetPanel} aria-label="Fechar">
-            ×
-          </button>
-        </div>
-        <div className="sheet-panel__body">
-          <SheetViewer
-            dataset={dataset}
-            activeSheetIndex={columnPick ? columnPick.sheetIndex : rangePick ? rangePick.sheetIndex : activeSheetIndex}
-            onActiveSheetIndexChange={setActiveSheetIndex}
-            tabsDisabled={columnPick !== null || rangePick !== null}
-            columnPicker={columnPick ? { selectedColumn: columnPick.column } : null}
-            onColumnHeaderClick={pickColumn}
-            rangePicker={rangePick !== null}
-            onRangeSelected={pickRange}
-            columnHighlights={columnHighlights}
-            rangeHighlights={rangeHighlights}
-            cellHighlight={cellHighlight}
-          />
-        </div>
-      </aside>
-
-      <SaveModal
-        open={isSaveModalOpen}
-        onClose={() => setIsSaveModalOpen(false)}
-        onExport={exportModel}
-        canExport={canExportModel}
-        exportHint={exportHint}
-        inputLabels={
-          modelInputIds.length > 0
-            ? modelInputIds
-                .map((id) => modelInputOptions.find((option) => option.id === id)?.label)
-                .filter((label): label is string => Boolean(label))
-            : isModelInputRequired
-              ? null
-              : ['nenhum (modelo fixo)']
-        }
-        outputLabels={
-          modelOutputIds.length > 0
-            ? modelOutputIds
-                .map((id) => modelOutputOptions.find((option) => option.id === id)?.label)
-                .filter((label): label is string => Boolean(label))
-            : null
-        }
-      />
-    </div>
+    <EditorScreen
+      dataset={dataset}
+      theme={theme}
+      onToggleTheme={toggleTheme}
+      onBackToChoose={() => setModelCreated(false)}
+      modelName={modelName}
+      onModelNameChange={setModelName}
+      pendingImportEntries={pendingImportEntries}
+      columnPick={columnPick}
+      onStartColumnPick={startColumnPick}
+      onFinishColumnPick={finishColumnPick}
+      onPickColumn={pickColumn}
+      rangePick={rangePick}
+      onStartRangePick={startRangePick}
+      onFinishRangePick={finishRangePick}
+      onPickRange={pickRange}
+      onColumnHighlightsChange={setColumnHighlights}
+      onRangeHighlightsChange={setRangeHighlights}
+      onCellHighlightChange={setCellHighlight}
+      onRevealInSheet={revealInSheet}
+      onEntriesChange={setModelEntries}
+      modelInputIds={modelInputIds}
+      modelOutputIds={modelOutputIds}
+      onModelInputIdsChange={setModelInputIds}
+      onModelOutputIdsChange={setModelOutputIds}
+      isSheetPanelOpen={isSheetPanelOpen}
+      onOpenSheetPanel={() => setIsSheetPanelOpen(true)}
+      onCloseSheetPanel={closeSheetPanel}
+      activeSheetIndex={activeSheetIndex}
+      onActiveSheetIndexChange={setActiveSheetIndex}
+      columnHighlights={columnHighlights}
+      rangeHighlights={rangeHighlights}
+      cellHighlight={cellHighlight}
+      isSaveModalOpen={isSaveModalOpen}
+      onOpenSaveModal={() => setIsSaveModalOpen(true)}
+      onCloseSaveModal={() => setIsSaveModalOpen(false)}
+      onExportModel={exportModel}
+      canExportModel={canExportModel}
+      exportHint={exportHint}
+      inputLabels={inputLabels}
+      outputLabels={outputLabels}
+    />
   );
 }
 

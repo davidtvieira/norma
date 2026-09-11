@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { MouseEvent as ReactMouseEvent, ReactNode, WheelEvent as ReactWheelEvent } from 'react';
+import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import type { DatasetImportResponse } from '../../types/dataset';
 import type { ColumnPickField, ColumnPickState, RangePickState } from '../../types/columnPick';
 import type { ColumnHighlight, OperationHighlight, RangeHighlight } from '../../types/highlight';
@@ -13,6 +13,8 @@ import type { OperationFields, ReferenceOption } from './operationKind';
 import { KINDS, KINDS_BY_ID } from './kinds/registry';
 import { AddOperationModal } from '../AddOperationModal/AddOperationModal';
 import { TestValuesModal } from '../TestValuesModal/TestValuesModal';
+import { useCanvasViewport, MIN_ZOOM, MAX_ZOOM, ZOOM_STEP } from './useCanvasViewport';
+import type { NodePosition } from './useCanvasViewport';
 import './OperationPanel.css';
 
 /**
@@ -26,12 +28,6 @@ import './OperationPanel.css';
  * hover) are shared; anything type-specific is delegated to whichever "kind" (see
  * operationKind.ts) an entry was created as.
  */
-
-/** A node's position on the canvas surface, in canvas-local pixels (unaffected by panning). */
-interface NodePosition {
-  x: number;
-  y: number;
-}
 
 /** Fixed node width used both for layout (inline style) and edge-anchor math. */
 const NODE_WIDTH = 300;
@@ -47,14 +43,6 @@ const NODE_HEADER_ANCHOR_Y = 28;
 const NODES_PER_ROW = 3;
 const NODE_COLUMN_GAP = 340;
 const NODE_ROW_GAP = 240;
-
-/** How far the canvas can be zoomed out/in, and the multiplicative step each zoom-in/zoom-out
- * click (or wheel notch — see handleViewportWheel) applies. Multiplicative rather than additive so
- * repeated clicks feel like a consistent proportional change at any zoom level, not a fixed pixel
- * amount that feels huge when zoomed out and tiny when zoomed in. */
-const MIN_ZOOM = 0.4;
-const MAX_ZOOM = 2;
-const ZOOM_STEP = 1.2;
 
 /** Simple cascading grid placement for a node restored without a saved position (see
  * initialEntries) — anchored at a fixed canvas-local origin regardless of the current pan/zoom,
@@ -468,35 +456,6 @@ interface OperationPanelProps {
   modelName: string;
 }
 
-/** An in-progress canvas pan (dragging empty canvas background) or node drag: the pointer
- * position where the drag started, and the position being dragged from at that point. */
-interface DragState {
-  id: string | null;
-  startX: number;
-  startY: number;
-  originX: number;
-  originY: number;
-}
-
-/** The pointer position (in screen/client pixels, not canvas-local ones — see the marquee-drag
- * effect below) a select-mode marquee drag started at — stable for the whole drag, same as
- * DragState above; only its endpoint moves, tracked separately in MarqueeRect so the drag's own
- * effect doesn't need to re-subscribe on every pointer move. */
-interface MarqueeStart {
-  x: number;
-  y: number;
-}
-
-/** The marquee's current on-screen box, recomputed from MarqueeStart and the latest pointer
- * position on every move — purely for drawing the selection rectangle; the hit-test against nodes
- * only happens once, on mouseup (see the effect below). */
-interface MarqueeRect {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-}
-
 interface Edge {
   fromId: string;
   toId: string;
@@ -613,24 +572,12 @@ export function OperationPanel({
   const [results, setResults] = useState<Record<string, string | null>>({});
   const resolvedInputsByEntry = resolveOperationInputs(entries, results);
 
-  // The canvas' pan offset (dragging empty background) and, independently, a node being dragged
-  // — see the window-level listener effect below. Both are plain pointer-delta math, no library.
-  const [viewOffset, setViewOffset] = useState<NodePosition>({ x: 0, y: 0 });
-  const [pan, setPan] = useState<DragState | null>(null);
-  const [dragNode, setDragNode] = useState<DragState | null>(null);
-  // The canvas' zoom level, 1 = 100% — applied to the same surface viewOffset already pans (see
-  // zoomBy and the transform in the JSX below), so panning and zooming compose naturally instead
-  // of needing two separate transformed layers.
-  const [zoom, setZoom] = useState(1);
-
   // Which canvas tool is active: "pan" (default) drags the background to scroll the canvas,
-  // "select" instead drags a marquee to bulk-select nodes (see the toolbar toggle and the marquee
-  // effect below). Switching away from "select" drops whatever was selected — a leftover
-  // selection would otherwise linger, invisible, back in "pan" mode.
+  // "select" instead drags a marquee to bulk-select nodes (see the toolbar toggle and
+  // useCanvasViewport's own marquee handling). Switching away from "select" drops whatever was
+  // selected — a leftover selection would otherwise linger, invisible, back in "pan" mode.
   const [tool, setTool] = useState<'pan' | 'select'>('pan');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [marqueeStart, setMarqueeStart] = useState<MarqueeStart | null>(null);
-  const [marqueeRect, setMarqueeRect] = useState<MarqueeRect | null>(null);
   // Copied operations, kept purely in memory (nothing persisted, same as everything else on this
   // canvas) — see copySelection/pasteClipboardAt. Cleared only by copying again, never by pasting,
   // so the same copy can be pasted more than once.
@@ -640,24 +587,25 @@ export function OperationPanel({
   // dropping on top of the original, which would bury it under (or overlapping) the rest of the
   // model.
   const [pendingPaste, setPendingPaste] = useState(false);
-  const viewportRef = useRef<HTMLDivElement | null>(null);
-  // Each rendered node's DOM element, keyed by entry id — read only on marquee mouseup, to hit-test
-  // its actual on-screen box (including however tall its live result/body currently renders) against
-  // the marquee rectangle. A stale entry for a since-deleted id is harmless (see removeEntry, which
-  // still deletes it for tidiness) since nothing ever looks it up again.
-  const nodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  // Each node's stacking order, keyed by entry id — bumped (see bringToFront) whenever a node is
-  // dragged, clicked into, or expanded, so it renders above every other node instead of staying
-  // stuck under whichever ones happen to come later in `entries` (plain DOM order otherwise, since
-  // .operation-canvas__node itself sets no z-index). Absent entries fall back to CSS's implicit
-  // stacking (DOM order), so a node never needs touching here until it's actually interacted with.
-  const [nodeZIndex, setNodeZIndex] = useState<Record<string, number>>({});
-  const nodeZIndexCounter = useRef(0);
 
-  function bringToFront(id: string) {
-    nodeZIndexCounter.current += 1;
-    setNodeZIndex((current) => ({ ...current, [id]: nodeZIndexCounter.current }));
-  }
+  // The canvas' own pan/zoom/marquee-select/node-drag mechanics — see useCanvasViewport for why
+  // this is split out rather than living directly here: none of it needs to know what an
+  // operation entry actually is, only its id and on-screen box.
+  const { viewOffset, zoom, pan, marqueeRect, viewportRef, nodeRefs, nodeZIndex, startPan, startMarquee, startNodeDrag, zoomBy, handleViewportWheel } =
+    useCanvasViewport({
+      entries,
+      onDragEntry: (id, position) => updateEntry(id, { position }),
+      // A click (not a drag) on a node: in "select" mode that toggles the node's selection;
+      // otherwise (plain "pan" mode) it opens that node's detail modal instead.
+      onNodeClick: (id) => {
+        if (tool === 'select') {
+          setSelectedIds((current) => (current.includes(id) ? current.filter((existing) => existing !== id) : [...current, id]));
+        } else {
+          setModalEntryId(id);
+        }
+      },
+      onMarqueeSelect: setSelectedIds,
+    });
 
   // Lets App.tsx export the model (see the "Guardar modelo" flow) without entries living there.
   useEffect(() => {
@@ -712,129 +660,6 @@ export function OperationPanel({
     onCellHighlightChange(kind.getCellHighlight(entry.fields, matchedRows[entry.id] ?? null));
   }, [entries, activeHighlightId, matchedRows, onCellHighlightChange]);
 
-  // Drives both canvas panning and node dragging: a single pointer-move/up listener registered
-  // only while one of the two is active (mirrors SheetViewer's range-drag-select pattern), so a
-  // release outside the canvas still ends the drag instead of leaving it stuck.
-  useLayoutEffect(() => {
-    if (!pan && !dragNode) return;
-
-    function handleMouseMove(event: globalThis.MouseEvent) {
-      if (pan) {
-        setViewOffset({ x: pan.originX + (event.clientX - pan.startX), y: pan.originY + (event.clientY - pan.startY) });
-      }
-      if (dragNode) {
-        // Node positions live in the surface's own pre-zoom coordinate space (see the transform
-        // in the JSX below) while the pointer delta is measured in real screen pixels — dividing
-        // by zoom converts the latter into the former, so a node tracks the cursor 1:1 on screen
-        // at any zoom level instead of drifting faster than the cursor while zoomed in (or slower
-        // while zoomed out). Uses whatever zoom was active when this drag started (see the
-        // dep-array note below) — changing zoom mid-drag (e.g. via the wheel) isn't accounted for.
-        const nextPosition = {
-          x: dragNode.originX + (event.clientX - dragNode.startX) / zoom,
-          y: dragNode.originY + (event.clientY - dragNode.startY) / zoom,
-        };
-        setEntries((current) =>
-          current.map((entry) => (entry.id === dragNode.id ? { ...entry, position: nextPosition } : entry)),
-        );
-      }
-    }
-
-    function handleMouseUp(event: globalThis.MouseEvent) {
-      // A node "drag" that barely moved is really a click — in "select" mode that toggles the
-      // node's selection; otherwise (plain "pan" mode) it opens that node's detail modal (see
-      // ConfirmedOperationCard) instead. A real pan/drag (movement past the threshold) never
-      // triggers either — only startNodeDrag's own form-control bypass (mousedown on a button/
-      // input inside the card) leaves dragNode unset here, so a click on those still reaches the
-      // control itself rather than opening the modal.
-      if (dragNode?.id) {
-        const movedDistance = Math.hypot(event.clientX - dragNode.startX, event.clientY - dragNode.startY);
-        if (movedDistance < 4) {
-          const nodeId = dragNode.id;
-          if (tool === 'select') {
-            setSelectedIds((current) => (current.includes(nodeId) ? current.filter((id) => id !== nodeId) : [...current, nodeId]));
-          } else {
-            setModalEntryId(nodeId);
-          }
-        }
-      }
-      setPan(null);
-      setDragNode(null);
-    }
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-    // pan/dragNode only ever change at the start (mousedown) and end (mouseup) of a drag, never
-    // mid-drag — safe to depend on just these two.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pan, dragNode]);
-
-  // The marquee-select counterpart of the pan/node-drag effect above, kept separate since it
-  // drives its own bit of state (the selection) instead of viewOffset/entries — same shape
-  // otherwise: marqueeStart is set once on mousedown and cleared on mouseup, never touched
-  // mid-drag, so depending on just it (not the constantly-updating marqueeRect) is safe, same
-  // reasoning as pan/dragNode above.
-  useLayoutEffect(() => {
-    if (!marqueeStart) return;
-
-    function handleMouseMove(event: globalThis.MouseEvent) {
-      setMarqueeRect({
-        left: Math.min(marqueeStart!.x, event.clientX),
-        top: Math.min(marqueeStart!.y, event.clientY),
-        width: Math.abs(event.clientX - marqueeStart!.x),
-        height: Math.abs(event.clientY - marqueeStart!.y),
-      });
-    }
-
-    function handleMouseUp(event: globalThis.MouseEvent) {
-      const left = Math.min(marqueeStart!.x, event.clientX);
-      const right = Math.max(marqueeStart!.x, event.clientX);
-      const top = Math.min(marqueeStart!.y, event.clientY);
-      const bottom = Math.max(marqueeStart!.y, event.clientY);
-
-      // Any confirmed node whose on-screen box (read straight off the DOM, so it reflects
-      // whatever it's actually rendering right now — a longer result, an expanded field, ...)
-      // overlaps the dragged rectangle at all becomes the new selection, replacing whatever was
-      // selected before. A plain click (no real drag) hits nothing and clears the selection.
-      const hits = entries
-        .filter((entry) => entry.confirmed)
-        .filter((entry) => {
-          const el = nodeRefs.current[entry.id];
-          if (!el) return false;
-          const box = el.getBoundingClientRect();
-          return box.left < right && box.right > left && box.top < bottom && box.bottom > top;
-        })
-        .map((entry) => entry.id);
-      setSelectedIds(hits);
-      setMarqueeStart(null);
-      setMarqueeRect(null);
-    }
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [marqueeStart]);
-
-  function startPan(event: ReactMouseEvent<HTMLDivElement>) {
-    // Only ever reaches here for a mousedown on empty canvas background — a node's own
-    // mousedown handler (see startNodeDrag) stops propagation before it would bubble up here.
-    event.preventDefault();
-    setPan({ id: null, startX: event.clientX, startY: event.clientY, originX: viewOffset.x, originY: viewOffset.y });
-  }
-
-  function startMarquee(event: ReactMouseEvent<HTMLDivElement>) {
-    event.preventDefault();
-    setMarqueeStart({ x: event.clientX, y: event.clientY });
-    setMarqueeRect({ left: event.clientX, top: event.clientY, width: 0, height: 0 });
-  }
-
   // Mousedown on empty canvas background: places a pending paste (see handleViewportClick, which
   // does the actual placing on the following click), starts a marquee drag in "select" mode, or
   // pans the canvas otherwise — whichever's active, never more than one at a time.
@@ -867,60 +692,6 @@ export function OperationPanel({
     });
   }
 
-  // Zooms toward/away from a focal point (in screen coordinates — the cursor for a wheel notch,
-  // or the viewport's own center for a toolbar +/− click, which has no cursor position of its own
-  // to zoom around) while keeping whatever's currently under that point visually still, the same
-  // way most other canvas/map tools zoom: solved by picking a new viewOffset such that the
-  // surface-local point the focal point currently maps to (given the old zoom/viewOffset) still
-  // maps to that exact same screen position under the new zoom.
-  function zoomBy(factor: number, focal?: { clientX: number; clientY: number }) {
-    const nextZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom * factor));
-    if (nextZoom === zoom) return;
-
-    const viewportBox = viewportRef.current?.getBoundingClientRect();
-    if (viewportBox) {
-      const focalX = (focal?.clientX ?? viewportBox.left + viewportBox.width / 2) - viewportBox.left;
-      const focalY = (focal?.clientY ?? viewportBox.top + viewportBox.height / 2) - viewportBox.top;
-      setViewOffset({
-        x: focalX - (nextZoom / zoom) * (focalX - viewOffset.x),
-        y: focalY - (nextZoom / zoom) * (focalY - viewOffset.y),
-      });
-    }
-    setZoom(nextZoom);
-  }
-
-  // Ctrl/Cmd+wheel (a trackpad pinch is reported as this by the browser) zooms the canvas around
-  // the cursor; a plain wheel is left alone (does nothing — the viewport has nothing to scroll,
-  // and reserving plain wheel for zoom too would make it too easy to zoom by accident while just
-  // moving the mouse across the canvas with a scroll wheel resting under the cursor).
-  function handleViewportWheel(event: ReactWheelEvent<HTMLDivElement>) {
-    if (!event.ctrlKey && !event.metaKey) return;
-    event.preventDefault();
-    zoomBy(event.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP, { clientX: event.clientX, clientY: event.clientY });
-  }
-
-  function startNodeDrag(entry: OperationEntryState) {
-    return (event: ReactMouseEvent<HTMLDivElement>) => {
-      // Bring the node to front on any interaction with it — dragging, clicking a control inside
-      // it, or selecting it — so it's never left rendered underneath other nodes it overlaps
-      // (plain DOM/entries order otherwise, since .operation-canvas__node itself sets no z-index).
-      bringToFront(entry.id);
-      // Let a form control inside the node (the lookup query input, a select, a button, ...)
-      // handle its own click/focus instead of hijacking it into a node drag — preventDefault on
-      // mousedown suppresses the browser's default "focus this element" behavior, which made it
-      // impossible to click into a text field and type. Still stopPropagation so the click
-      // doesn't also bubble up and start a canvas pan.
-      const target = event.target as HTMLElement;
-      if (target.closest('input, textarea, select, button')) {
-        event.stopPropagation();
-        return;
-      }
-      event.preventDefault();
-      event.stopPropagation();
-      setDragNode({ id: entry.id, startX: event.clientX, startY: event.clientY, originX: entry.position.x, originY: entry.position.y });
-    };
-  }
-
   function updateEntry(id: string, patch: Partial<OperationEntryState>) {
     setEntries((current) => current.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry)));
   }
@@ -944,7 +715,9 @@ export function OperationPanel({
       return rest;
     });
     setModalEntryId((current) => (current === id ? null : current));
-    delete nodeRefs.current[id];
+    // Its nodeRefs entry (owned by useCanvasViewport) is left in place rather than deleted here —
+    // harmless: nothing looks a deleted id up again once it's gone from `entries` (see that
+    // hook's own note on why).
   }
 
   // "Copiar" in the selection bar (see the toolbar below) — snapshots the selected entries as
@@ -1596,7 +1369,7 @@ export function OperationPanel({
                   selectedIds.includes(entry.id) ? 'operation-canvas__node operation-canvas__node--selected' : 'operation-canvas__node'
                 }
                 style={{ left: entry.position.x, top: entry.position.y, width: NODE_WIDTH, zIndex: nodeZIndex[entry.id] }}
-                onMouseDown={startNodeDrag(entry)}
+                onMouseDown={startNodeDrag(entry.id, entry.position)}
               >
                 {/* Unreachable in practice: an unconfirmed entry is always either the one being
                     edited or part of the current staging batch, both filtered out above — this
@@ -1609,7 +1382,7 @@ export function OperationPanel({
                     (and the pencil, once back there) is for. startNodeDrag's own form-control
                     bypass (see below) never needs to trigger here since the overlay itself, not
                     any inner control, is always what's actually clicked. */}
-                {tool === 'select' && <div className="operation-canvas__node-overlay" onMouseDown={startNodeDrag(entry)} />}
+                {tool === 'select' && <div className="operation-canvas__node-overlay" onMouseDown={startNodeDrag(entry.id, entry.position)} />}
               </div>
             );
           })}

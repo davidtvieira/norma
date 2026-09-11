@@ -10,6 +10,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -42,5 +44,19 @@ public class DatasetController {
             throw new IllegalArgumentException("O ficheiro enviado não pode estar vazio.");
         }
         return ResponseEntity.ok(datasetParserService.parse(file));
+    }
+
+    @Operation(
+            summary = "Delete an imported dataset",
+            description = "Forgets a previously imported dataset — it can no longer be referenced by id "
+                    + "afterwards, by any operation, single or model-run. Any model still registered against it "
+                    + "is left in place but can no longer be run, since a run re-fetches the dataset by id."
+    )
+    @ApiResponse(responseCode = "204", description = "Dataset deleted")
+    @ApiResponse(responseCode = "400", description = "No dataset exists with the given id")
+    @DeleteMapping("/api/v1/dataset/{datasetId}")
+    public ResponseEntity<Void> deleteDataset(@PathVariable String datasetId) {
+        datasetParserService.delete(datasetId);
+        return ResponseEntity.noContent().build();
     }
 }

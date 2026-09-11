@@ -9,6 +9,13 @@ spring:
 server:
   port: 8080
 
+norma:
+  cors:
+    # Comma-separated exact origins (scheme+host+port), or "*" to allow any — see WebCorsConfig.
+    # Only Vite's own default dev-server port by default; widen only when you actually need to
+    # (e.g. a tunnel), and never to "*" anywhere reachable beyond your own machine.
+    allowed-origins: http://localhost:5173
+
 springdoc:
   swagger-ui:
     path: /api/swagger

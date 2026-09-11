@@ -27,4 +27,9 @@ public class ModelStore {
     public Optional<StoredModel> get(String modelId) {
         return Optional.ofNullable(modelId).map(models::get);
     }
+
+    /** @return true if a model was actually removed, false if {@code modelId} didn't exist. */
+    public boolean remove(String modelId) {
+        return modelId != null && models.remove(modelId) != null;
+    }
 }
