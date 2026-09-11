@@ -130,15 +130,10 @@ export function EditorScreen({
 
       <main className="app__main">
         <div className="app__main-content">
-          <input
-            type="text"
-            className="app__model-name-input"
-            placeholder="Nome do modelo"
-            value={modelName}
-            onChange={(event) => onModelNameChange(event.target.value)}
-          />
           <OperationPanel
             dataset={dataset}
+            modelName={modelName}
+            onModelNameChange={onModelNameChange}
             initialEntries={pendingImportEntries}
             columnPick={columnPick}
             onStartColumnPick={onStartColumnPick}

@@ -260,12 +260,12 @@ export function useCanvasViewport({ entries, onDragEntry, onNodeClick, onMarquee
     setZoom(nextZoom);
   }
 
-  // Ctrl/Cmd+wheel (a trackpad pinch is reported as this by the browser) zooms the canvas around
-  // the cursor; a plain wheel is left alone (does nothing — the viewport has nothing to scroll,
-  // and reserving plain wheel for zoom too would make it too easy to zoom by accident while just
-  // moving the mouse across the canvas with a scroll wheel resting under the cursor).
+  // Any wheel notch zooms the canvas around the cursor — same as Ctrl/Cmd+wheel (a trackpad pinch
+  // is reported as this by the browser) already did, now without needing the modifier held too,
+  // so scrolling zooms the same way the toolbar's own +/− buttons do; the viewport has nothing to
+  // scroll on its own, so there's no competing behavior a plain wheel notch would otherwise be
+  // reserved for.
   function handleViewportWheel(event: ReactWheelEvent<HTMLDivElement>) {
-    if (!event.ctrlKey && !event.metaKey) return;
     event.preventDefault();
     zoomBy(event.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP, { clientX: event.clientX, clientY: event.clientY });
   }

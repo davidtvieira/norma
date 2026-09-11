@@ -12,32 +12,150 @@
   margin-left: auto;
 }
 
-.operation-canvas__add-button {
-  padding: 0.55rem 1.1rem;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  background: var(--color-surface);
-  color: var(--color-text);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.875rem;
-  font-weight: 500;
-  transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
+/* The model's own name + operation count, at the start of this same row — its own margin-left:
+   auto above is what pushes "Importar teste"/"Testar modelo" to the opposite end. */
+.operation-canvas__model-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
 }
 
-.operation-canvas__add-button:hover {
+/* Width comes from its own size attribute (character count, not a fixed CSS width — see
+   OperationPanel.tsx), so it stretches/shrinks to fit whatever's actually typed instead of
+   sitting at one fixed width regardless of how short or long the name is. min-width keeps it
+   from going illegibly narrow for a one-character (or empty) name. */
+.operation-canvas__model-name-input {
+  min-width: 8rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+/* Off-screen twin of the input above — same padding/border/font, so its own offsetWidth (see the
+   layout effect that reads it) already includes exactly what a border-box width for the input
+   needs, not just the bare glyphs. position: absolute both takes it out of the row's layout flow
+   (it would otherwise sit right where the real input sits) and makes it shrink-wrap to its own
+   content's width, which is the whole point of measuring it; visibility: hidden keeps it
+   invisible while still rendering (unlike display: none, which can't be measured at all). */
+.operation-canvas__model-name-mirror {
+  position: absolute;
+  visibility: hidden;
+  white-space: pre;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid transparent;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.operation-canvas__model-name-input:hover {
+  border-color: var(--color-border);
+}
+
+.operation-canvas__model-name-input:focus {
+  outline: none;
   border-color: var(--color-primary);
   background: var(--color-surface-hover);
 }
 
-.operation-canvas__add-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
+.operation-canvas__model-name-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  flex-shrink: 0;
 }
 
-.operation-canvas__add-button:disabled:hover {
-  border-color: var(--color-border);
-  background: var(--color-surface);
+.operation-canvas__model-name-confirm,
+.operation-canvas__model-name-cancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.operation-canvas__model-name-confirm svg,
+.operation-canvas__model-name-cancel svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.operation-canvas__model-name-confirm:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-primary);
+}
+
+.operation-canvas__model-name-cancel:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-error);
+}
+
+/* The model name before its own pencil (see .operation-canvas__model-name-edit) is clicked — same
+   size/weight as .operation-canvas__model-name-input so swapping between the two doesn't shift
+   anything else in this row. */
+.operation-canvas__model-name-text {
+  max-width: 22rem;
+  padding: 0.65rem 0.85rem;
+  color: var(--color-text);
+  font-size: 1.1rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.operation-canvas__model-name-edit {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.operation-canvas__model-name-edit svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.operation-canvas__model-name-edit:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-primary);
+}
+
+/* Hover (see its own title) carries what the number means now that "Operações" text is gone —
+   just the count next to the model name. */
+.operation-panel__count {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.1rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  background: var(--color-surface-hover);
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .operation-canvas__test-button {
@@ -179,14 +297,30 @@
   color: var(--color-primary);
 }
 
+/* No opacity fade — a translucent button here reads as "floating over the canvas, barely there"
+   rather than "disabled", since this whole toolbar already floats semi-transparently in spirit
+   over the canvas itself. cursor: not-allowed alone still says "disabled" without that. */
 .operation-canvas__zoom-button:disabled,
 .operation-canvas__zoom-level:disabled {
   cursor: not-allowed;
-  opacity: 0.5;
 }
 
+/* "Editar" and, while it's on, the selection/clipboard actions next to it (Selecionar/Copiar/
+   Colar/Eliminar/Cancelar seleção — see OperationPanel.tsx's own render) all share this: a pencil
+   or plain text label, same height as .operation-canvas__zoom-button, which the group sits
+   directly next to in spirit (all are canvas-chrome toggles), just each in its own bordered pill
+   since none are part of that button group. No wrapping panel around the actions — they're plain
+   siblings of "Editar" in the same flex row (see .operation-canvas__floating-toolbar--right),
+   rendered before it in DOM order so they appear to its left, sized identically instead of a
+   smaller/differently-styled set living inside a separate flyout box. */
 .operation-canvas__tool-button {
-  padding: 0.55rem 1.1rem;
+  height: 2.1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0 0.85rem;
+  white-space: nowrap;
   border: 1px solid var(--color-border);
   border-radius: 999px;
   background: var(--color-surface);
@@ -200,7 +334,13 @@
   box-shadow: var(--shadow-sm);
 }
 
-.operation-canvas__tool-button:hover {
+.operation-canvas__tool-button svg {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
+.operation-canvas__tool-button:hover:not(:disabled) {
   border-color: var(--color-primary);
   background: var(--color-surface-hover);
 }
@@ -211,98 +351,42 @@
   color: var(--color-surface);
 }
 
-/* A second, always-visible toolbar strip for bulk/clipboard actions, kept out of the main toolbar
-   above so those don't clutter it at all times. "Colar" always shows here (disabled — see
-   .operation-canvas__selection-button:disabled — rather than hidden while the clipboard's empty);
-   "Copiar"/"Eliminar"/"Cancelar seleção" only appear once something's actually selected, since
-   unlike "Colar" they have no sensible disabled state to fall back to (there'd be nothing for
-   them to name/act on). */
-.operation-canvas__selection-bar {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem 0.9rem;
-  margin-bottom: 0.75rem;
-  border: 1px solid var(--color-secondary);
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--color-secondary) 10%, var(--color-surface));
-}
-
-.operation-canvas__selection-count {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.operation-canvas__selection-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-left: auto;
-}
-
-.operation-canvas__selection-button {
-  padding: 0.4rem 0.85rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  color: var(--color-text);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.8rem;
-  font-weight: 500;
-  transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
-}
-
-.operation-canvas__selection-button:hover:not(:disabled) {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-}
-
-.operation-canvas__selection-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-.operation-canvas__selection-button--danger:hover {
-  border-color: var(--color-error);
-  color: var(--color-error);
-}
-
-/* "Colar" while a pending paste is armed (see OperationPanel.tsx's pendingPaste) — same active
-   treatment .operation-canvas__tool-button--active uses for "Selecionar". */
-.operation-canvas__selection-button--active {
+/* :not(:disabled) here isn't just belt-and-suspenders — .operation-canvas__tool-button's own
+   :hover:not(:disabled) above outranks a plain :hover on one class (:not() counts toward
+   specificity by what it excludes), so without it that rule's background: var(--color-surface-
+   hover) would win over this one's, leaving --color-surface text (meant to sit on the much
+   stronger --color-secondary fill) on a background close enough to it to read as blank — which is
+   exactly the bug this guards against, on "A editar" most visibly. */
+.operation-canvas__tool-button--active:hover:not(:disabled) {
   border-color: var(--color-secondary);
   background: var(--color-secondary);
   color: var(--color-surface);
 }
 
-.operation-canvas__selection-button--active:hover {
-  border-color: var(--color-secondary);
+/* "+ Adicionar operação": filled instead of the plain bordered pill every other button in this
+   row gets — it's the one that starts something (a whole new operation), not just acts on or
+   toggles what's already there, so it gets the same primary-filled treatment "Testar modelo"
+   already uses for the toolbar's own main action. */
+.operation-canvas__tool-button--primary {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
   color: var(--color-surface);
 }
 
-.operation-canvas__count {
-  font-size: 0.8rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: var(--color-text-muted);
+.operation-canvas__tool-button--primary:hover:not(:disabled) {
+  border-color: var(--color-primary-hover);
+  background: var(--color-primary-hover);
+  color: var(--color-surface);
 }
 
-.operation-panel__count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.1rem;
-  padding: 0.05rem 0.35rem;
-  border-radius: 999px;
-  background: var(--color-surface-hover);
-  color: var(--color-text-muted);
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: normal;
-  text-transform: none;
+.operation-canvas__tool-button--danger:hover:not(:disabled) {
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
+.operation-canvas__tool-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .operation-entry {
@@ -804,12 +888,16 @@
 /* Zoom/select/paste, floating over the canvas itself instead of the toolbar above it — a sibling
    of .operation-canvas__surface (not a child), so each group is positioned against the
    viewport's own corner (see the --left/--right modifiers below) and stays there regardless of
-   how far the surface underneath it has been panned/zoomed. z-index clears both the surface's
-   nodes/edges and the marquee rectangle, so neither group is ever drawn over by either. */
+   how far the surface underneath it has been panned/zoomed. z-index clears the surface's own
+   nodes/edges so neither group is ever drawn over by them, but stays below the left-docked
+   "criar/editar operação" panel (see .add-operation-panel in AddOperationModal.css, z-index 22)
+   — that panel is position: fixed over the whole canvas while open, and without this staying
+   under it, this being nested several DOM levels deep inside the canvas didn't stop its own
+   z-index from still winning the stacking comparison and floating on top of the panel. */
 .operation-canvas__floating-toolbar {
   position: absolute;
   top: 0.75rem;
-  z-index: 30;
+  z-index: 19;
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -824,14 +912,32 @@
   right: 0.75rem;
 }
 
-/* A visible tint + border while the select tool is active — otherwise the only cue that node
-   controls have gone inert (see .operation-canvas__node-overlay) and dragging the background now
-   marquee-selects instead of panning is the toolbar's own toggle state, easy to miss once
+/* Splits the right-hand group's own buttons into clusters by concern (create / select+clipboard /
+   session — see OperationPanel.tsx's own render) instead of one undifferentiated row. Stretches
+   to the row's own height (the parent's align-items: center would otherwise shrink it to its
+   content, which for an empty span is nothing) rather than a fixed height, so it always spans
+   whatever the buttons around it are tall regardless of their own padding. */
+.operation-canvas__tool-divider {
+  align-self: stretch;
+  width: 1px;
+  background: var(--color-border);
+}
+
+/* A visible tint + border while "Editar" is on at all (see the pencil toggle) — otherwise the
+   only cue that nodes have become draggable is the toolbar button's own state, easy to miss once
    attention's on the canvas itself. */
+.operation-canvas__viewport--editing {
+  background-color: color-mix(in srgb, var(--color-secondary) 4%, color-mix(in srgb, #000 2%, var(--color-surface)));
+  border-color: color-mix(in srgb, var(--color-secondary) 45%, var(--color-border));
+}
+
+/* "Selecionar" only ever changes the cursor, not the canvas' own tint/border —
+   .operation-canvas__viewport--editing above already covers the visual cue for "something about
+   this canvas is different right now" the moment "Editar" turns on; arming "Selecionar" on top of
+   that just needs to tell the pointer apart (crosshair, for drawing a marquee, instead of the
+   grab/grabbing pan cursor), not restyle the canvas a second time. */
 .operation-canvas__viewport--select {
   cursor: crosshair;
-  background-color: color-mix(in srgb, var(--color-secondary) 8%, color-mix(in srgb, #000 2%, var(--color-surface)));
-  border-color: var(--color-secondary);
 }
 
 .operation-canvas__viewport--placing {
@@ -936,6 +1042,13 @@
 
 .operation-card:hover {
   border-color: var(--color-primary);
+}
+
+/* While "Editar" is on, a click no longer opens the modal (see OperationPanel's own onNodeClick)
+   — falls back to the parent node's own grab/grabbing cursor (see .operation-canvas__node)
+   instead of the pointer cursor above, which would otherwise promise a click that does nothing. */
+.operation-card--edit-mode {
+  cursor: inherit;
 }
 
 /* Marks a card that's actually been tested (its own testSignal has fired at least once — see

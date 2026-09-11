@@ -235,6 +235,9 @@ interface ConfirmedOperationCardProps {
   summary: ReactNode;
   onEdit: () => void;
   editDisabled: boolean;
+  /** Whether the canvas is currently in "Editar" mode — the pencil is only shown at all while
+   * this is true; editing an operation, like moving one, is off-limits outside that mode. */
+  isEditMode: boolean;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
   /** Whether this operation's own testSignal has fired at least once — draws a primary-color
@@ -297,6 +300,7 @@ function ConfirmedOperationCard({
   summary,
   onEdit,
   editDisabled,
+  isEditMode,
   onMouseEnter,
   onMouseLeave,
   isTested,
@@ -359,7 +363,18 @@ function ConfirmedOperationCard({
 
   return (
     <div
-      className={isTested ? 'operation-card operation-card--tested' : 'operation-card'}
+      className={[
+        'operation-card',
+        isTested ? 'operation-card--tested' : '',
+        // Clicking the card no longer opens its modal while editing (see OperationPanel's own
+        // onNodeClick) — this drops the pointer cursor .operation-card otherwise hints that with,
+        // so hovering it in "Editar" mode shows the same grab cursor dragging it already does
+        // (inherited from .operation-canvas__node) instead of promising a click that won't do
+        // anything.
+        isEditMode ? 'operation-card--edit-mode' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
       ref={cardRef}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
@@ -367,11 +382,22 @@ function ConfirmedOperationCard({
       <div className="operation-card__header">
         <h3 className="operation-card__name">{name || 'Operação sem nome'}</h3>
         <div className="operation-card__actions">
-          {isModelInputEligible && <IoToggle label="Input" active={isModelInput} onToggle={onToggleModelInput} />}
-          <IoToggle label="Output" active={isModelOutput} onToggle={onToggleModelOutput} />
-          <TestUpToHereButton onTest={onTestUpToHere} />
-          {isRevealEligible && <RevealButton onReveal={onReveal} />}
-          <EditButton onEdit={onEdit} disabled={editDisabled} />
+          {/* "Editar" mode and every other card interaction are mutually exclusive: while editing,
+              the pencil is the only thing this card does at all (see isEditMode below and this
+              card's own onClick in the canvas, which drops the click entirely in that mode
+              instead of opening the modal) — moving/editing operations shouldn't also be testing,
+              revealing, or toggling model input/output out from under whatever's being
+              rearranged. Outside "Editar", it's the reverse: every one of these is available, and
+              the pencil itself is the one hidden (see its own render below). */}
+          {!isEditMode && (
+            <>
+              {isModelInputEligible && <IoToggle label="Input" active={isModelInput} onToggle={onToggleModelInput} />}
+              <IoToggle label="Output" active={isModelOutput} onToggle={onToggleModelOutput} />
+              <TestUpToHereButton onTest={onTestUpToHere} />
+              {isRevealEligible && <RevealButton onReveal={onReveal} />}
+            </>
+          )}
+          {isEditMode && <EditButton onEdit={onEdit} disabled={editDisabled} />}
         </div>
       </div>
 
@@ -434,6 +460,16 @@ interface OperationEntryState {
   position: NodePosition;
 }
 
+/** "Desfazer"/"Refazer" (see undoEditMode/redoEditMode) within a single "Editar" session — every
+ * committed step (see the effect that appends to `steps`) plus which one `entries` currently
+ * matches. Bundled into one state, not two, so undoing/redoing can move `index` and hand `entries`
+ * the step at that new index in the same update instead of risking a render where they briefly
+ * disagree. */
+interface EditHistoryState {
+  steps: OperationEntryState[][];
+  index: number;
+}
+
 /**
  * Not cryptographically unique, just unlikely enough to collide within one session — plain
  * crypto.randomUUID() requires a secure context (HTTPS or localhost), which isn't guaranteed
@@ -460,6 +496,12 @@ function createEntry(id: string, kindId: string, name: string, dataset: DatasetI
 
 interface OperationPanelProps {
   dataset: DatasetImportResponse;
+  /** The model's own name and its own operation count — rendered at the start of the canvas
+   * toolbar (see below), on the same line as "Importar teste"/"Testar modelo", rather than in
+   * EditorScreen above the canvas — owned by App.tsx same as everything else this component
+   * doesn't hold itself. */
+  modelName: string;
+  onModelNameChange: (name: string) => void;
   /** Seeds the entry list on mount (e.g. a model just imported on the previous screen). Restores
    * each entry's saved canvas position (see modelSerialization's own EntryPosition) — only an
    * entry from a model exported before positions were saved falls back to the usual cascading
@@ -527,6 +569,8 @@ function edgePath({ from, to }: Edge): string {
  */
 export function OperationPanel({
   dataset,
+  modelName,
+  onModelNameChange,
   initialEntries,
   columnPick,
   onStartColumnPick,
@@ -549,6 +593,25 @@ export function OperationPanel({
   const [entries, setEntries] = useState<OperationEntryState[]>(() =>
     (initialEntries ?? []).map((entry, index) => ({ ...entry, position: entry.position ?? placementFor(index) })),
   );
+  // The model name shows as plain text (with a pencil to start editing — see startNameEdit) until
+  // that pencil is clicked, same "nothing looks editable until you ask it to be" idea as an
+  // operation's own pencil (see editEntry) reopening its config panel. While editing, typing no
+  // longer commits straight to onModelNameChange on every keystroke either — nameDraft holds it
+  // until "✓"/"✗" (see confirmNameEdit/cancelNameEdit) explicitly commit or discard it. Seeded
+  // once from the modelName prop rather than kept in sync with it via an effect — that prop only
+  // ever changes from outside this component before it mounts at all (an imported model's name,
+  // set just before the screen switches to this one), never while it's already mounted, so
+  // there's nothing external for a later render to reconcile against.
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(modelName);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  // Measures nameDraft's actual rendered width (see the hidden mirror span and the layout effect
+  // below) rather than sizing the input by character count (the <input> "size" attribute) — size
+  // approximates every character as the same width, which for a proportional font leaves a gap
+  // between the text and the field's own edge that grows or shrinks with which letters happen to
+  // be in the name, instead of hugging it.
+  const [nameInputWidth, setNameInputWidth] = useState<number | null>(null);
+  const nameMirrorRef = useRef<HTMLSpanElement>(null);
   const operationTypes = useOperationTypes();
   // Snapshot of an operation's confirmed state, taken when it enters edit mode — lets the ×
   // cancel the edit (restore the snapshot) instead of deleting an already-confirmed operation.
@@ -727,11 +790,32 @@ export function OperationPanel({
   const [results, setResults] = useState<Record<string, string | null>>({});
   const resolvedInputsByEntry = resolveOperationInputs(entries, results);
 
-  // Which canvas tool is active: "pan" (default) drags the background to scroll the canvas,
-  // "select" instead drags a marquee to bulk-select nodes (see the toolbar toggle and
-  // useCanvasViewport's own marquee handling). Switching away from "select" drops whatever was
-  // selected — a leftover selection would otherwise linger, invisible, back in "pan" mode.
+  // "select" is "Editar" mode (see the pencil toggle below) — the only state operations can be
+  // dragged to a new position in. Dragging the background still just pans the canvas either way
+  // (see handleViewportMouseDown/marqueeActive below); "Editar" only changes what dragging a node
+  // itself does. Switching away from "select" drops whatever was selected/copied/armed — a
+  // leftover selection or clipboard would otherwise linger, invisible, back in "pan" mode.
   const [tool, setTool] = useState<'pan' | 'select'>('pan');
+  // Snapshot of every entry (positions included) taken the moment "Editar" turns on (see
+  // enterEditMode) — what "Cancelar" (see cancelEditMode) restores, discarding every move/
+  // copy/paste/delete made during this editing session at once, same as editEntry's own
+  // editSnapshots does for a single operation's fields. State, not a ref, since hasEditModeChanges
+  // below reads it during render to decide what the canvas shows for leaving "Editar" — a ref
+  // read there wouldn't be reactive (React wouldn't know to re-render when it's written).
+  const [editModeSnapshot, setEditModeSnapshot] = useState<OperationEntryState[] | null>(null);
+  // "Desfazer"/"Refazer" within the current "Editar" session (see EditHistoryState/
+  // undoEditMode/redoEditMode) — null outside "Editar" (nothing to step through), reset to a
+  // single starting step by enterEditMode. Committed to by the effect just below this component's
+  // own state declarations, not by every individual mutation site (drag/copy/paste/delete/a
+  // per-operation edit confirmed) — same reasoning as hasEditModeChanges' own deep-equality check
+  // over tracking each one separately.
+  const [editHistory, setEditHistory] = useState<EditHistoryState | null>(null);
+  // The "Selecionar" toggle (see its own button, only enabled in "Editar" mode) — while armed,
+  // dragging empty canvas background draws a marquee to bulk-select nodes instead of panning, and
+  // clicking a node toggles its selection instead of opening its detail modal (see
+  // handleViewportMouseDown/onNodeClick below, and the node overlay in the canvas' own render).
+  // Reset to false whenever "Editar" itself turns off, same as selectedIds/clipboard.
+  const [marqueeActive, setMarqueeActive] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   // Copied operations, kept purely in memory (nothing persisted, same as everything else on this
   // canvas) — see copySelection/pasteClipboardAt. Cleared only by copying again, never by pasting,
@@ -746,16 +830,40 @@ export function OperationPanel({
   // The canvas' own pan/zoom/marquee-select/node-drag mechanics — see useCanvasViewport for why
   // this is split out rather than living directly here: none of it needs to know what an
   // operation entry actually is, only its id and on-screen box.
-  const { viewOffset, zoom, pan, marqueeRect, viewportRef, nodeRefs, nodeZIndex, startPan, startMarquee, startNodeDrag, zoomBy, handleViewportWheel } =
-    useCanvasViewport({
+  const {
+    viewOffset,
+    zoom,
+    pan,
+    dragNode,
+    marqueeRect,
+    viewportRef,
+    nodeRefs,
+    nodeZIndex,
+    startPan,
+    startMarquee,
+    startNodeDrag,
+    zoomBy,
+    handleViewportWheel,
+  } = useCanvasViewport({
       entries,
-      onDragEntry: (id, position) => updateEntry(id, { position }),
-      // A click (not a drag) on a node: in "select" mode that toggles the node's selection;
-      // otherwise (plain "pan" mode) it opens that node's detail modal instead.
+      // Repositioning only actually applies in "Editar" mode (see its own button/comment below)
+      // — the hook itself still tracks the drag either way (so its own click-vs-drag distance
+      // check, and therefore onNodeClick, still works outside "Editar" mode too), this just
+      // drops the position update on the floor the rest of the time.
+      onDragEntry: (id, position) => {
+        if (tool === 'select') updateEntry(id, { position });
+      },
+      // A click (not a drag) on a node: while "Selecionar" is armed that toggles the node's
+      // selection; in plain "pan" mode (not editing at all) it opens that node's detail modal;
+      // in plain "Editar" mode (editing, but not selecting) it does nothing — the card's own
+      // interactions (test/reveal/IO toggles/opening the modal) are all off-limits while editing,
+      // same as its ConfirmedOperationCard render (see isEditMode there) already hides them for.
+      // Dragging a node to reposition it still works in every case (see onDragEntry above), only
+      // what a plain click does changes.
       onNodeClick: (id) => {
-        if (tool === 'select') {
+        if (marqueeActive) {
           setSelectedIds((current) => (current.includes(id) ? current.filter((existing) => existing !== id) : [...current, id]));
-        } else {
+        } else if (tool !== 'select') {
           setModalEntryId(id);
         }
       },
@@ -766,6 +874,47 @@ export function OperationPanel({
   useEffect(() => {
     onEntriesChange(entries);
   }, [entries, onEntriesChange]);
+
+  // Focuses (and selects, so typing straight away replaces rather than appends to) the model name
+  // input the moment editing it starts (see startNameEdit) — otherwise the pencil click would
+  // swap the text for an input the cursor isn't actually in yet, one extra click away from typing.
+  useEffect(() => {
+    if (!isEditingName) return;
+    nameInputRef.current?.focus();
+    nameInputRef.current?.select();
+  }, [isEditingName]);
+
+  // Re-measures the hidden mirror span (see its own render, just below the input) on every
+  // keystroke while editing the model name — before paint (useLayoutEffect, not useEffect), so
+  // the input's own width never visibly lags a character behind what's actually been typed.
+  useLayoutEffect(() => {
+    if (!isEditingName) return;
+    setNameInputWidth(nameMirrorRef.current?.offsetWidth ?? null);
+  }, [isEditingName, nameDraft]);
+
+  // Commits a new "Desfazer"/"Refazer" step (see EditHistoryState) whenever `entries` actually
+  // settles on something new during "Editar" — skipped mid-drag (dragNode still set: onDragEntry
+  // fires on every single mousemove, so committing here too would turn one drag into dozens of
+  // undo steps instead of the one it should read as), skipped while any entry is unconfirmed
+  // (a staged batch or a single operation reopened for editing — see hasDraftInProgress below;
+  // committing mid-edit would let "Desfazer" land on a half-finished edit with no open panel left
+  // to finish it in, since editingEntryId/stagingEntryIds aren't themselves part of this history),
+  // and skipped again if undo/redo itself was what just changed `entries` (its own setEditHistory
+  // already moved `index` to match, so the step comparison below finds nothing new to append). A
+  // fresh change made after undoing drops every step past the current one — the redo branch that
+  // was undone away is gone the moment editing continues down a different path, same as most
+  // editors' own undo stacks.
+  useEffect(() => {
+    if (tool !== 'select' || !editHistory || dragNode) return;
+    if (entries.some((entry) => !entry.confirmed)) return;
+    const currentStep = editHistory.steps[editHistory.index];
+    if (JSON.stringify(currentStep) === JSON.stringify(entries)) return;
+    const steps = [...editHistory.steps.slice(0, editHistory.index + 1), structuredClone(entries)];
+    setEditHistory({ steps, index: steps.length - 1 });
+    // editHistory is deliberately left out — this effect only reacts to entries/dragNode settling
+    // on something new, not to editHistory's own writes (which never touch entries themselves).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries, dragNode, tool]);
 
   // Closes the edit panel once the entry it was editing resolves — reverted (× cancels back to
   // its confirmed snapshot — see cancelEntry) or, in principle, confirmed some other way. Driven
@@ -816,11 +965,13 @@ export function OperationPanel({
   }, [entries, activeHighlightId, matchedRows, onCellHighlightChange]);
 
   // Mousedown on empty canvas background: places a pending paste (see handleViewportClick, which
-  // does the actual placing on the following click), starts a marquee drag in "select" mode, or
-  // pans the canvas otherwise — whichever's active, never more than one at a time.
+  // does the actual placing on the following click), starts a marquee drag while "Selecionar" is
+  // armed, or pans the canvas otherwise — whichever's active, never more than one at a time. Pans
+  // even in plain "Editar" mode (marqueeActive false) — that mode only changes what dragging a
+  // node itself does, not the background.
   function handleViewportMouseDown(event: ReactMouseEvent<HTMLDivElement>) {
     if (pendingPaste) return;
-    if (tool === 'select') {
+    if (marqueeActive) {
       startMarquee(event);
       return;
     }
@@ -873,6 +1024,69 @@ export function OperationPanel({
     // Its nodeRefs entry (owned by useCanvasViewport) is left in place rather than deleted here —
     // harmless: nothing looks a deleted id up again once it's gone from `entries` (see that
     // hook's own note on why).
+  }
+
+  // "Editar": snapshots every entry (see editModeSnapshot) so "Cancelar" has something to
+  // restore, closes whatever detail modal happened to be open (its test/reveal/IO-toggle controls
+  // are exactly what this mode locks out — see ConfirmedOperationCard's own isEditMode), and
+  // switches into "select" mode.
+  function enterEditMode() {
+    const snapshot = structuredClone(entries);
+    setEditModeSnapshot(snapshot);
+    setEditHistory({ steps: [snapshot], index: 0 });
+    setModalEntryId(null);
+    setTool('select');
+  }
+
+  // Shared by both "Guardar" and "Cancelar" — leaving "Editar" always drops whatever's
+  // copied/selected/armed within it, regardless of which one exits it: a leftover
+  // selection/clipboard would otherwise linger, invisible, back in "pan" mode. Also discards any
+  // per-operation edit or new-operation batch still open in the left panel (cancelEntry/
+  // cancelStaging, same as their own ×) rather than leaving it open (and, for a staged batch,
+  // its never-confirmed drafts orphaned) once the whole editing session it lives inside of ends —
+  // "+ Adicionar operação"/the pencil that start either are only reachable in "Editar" to begin
+  // with, so neither could have been in progress before this session started.
+  function exitEditMode() {
+    if (editingEntryId) cancelEntry(editingEntryId);
+    if (stagingEntryIds.length > 0) cancelStaging();
+    setTool('pan');
+    setEditModeSnapshot(null);
+    setEditHistory(null);
+    setMarqueeActive(false);
+    setSelectedIds([]);
+    setClipboard(null);
+    setPendingPaste(false);
+  }
+
+  // "Cancelar" (only shown while editing — see its own button): restores every entry to how it
+  // looked the moment "Editar" turned on, undoing every move/copy/paste/delete made since, then
+  // exits the same way "Guardar" does. editModeSnapshot is never null in practice here — it's
+  // always written by enterEditMode just before this becomes reachable at all.
+  function cancelEditMode() {
+    if (editModeSnapshot) {
+      setEntries(editModeSnapshot);
+    }
+    exitEditMode();
+  }
+
+  // "Desfazer"/"Refazer" (see their own buttons, and the effect above that builds editHistory up
+  // in the first place) — step `entries` to the previous/next committed step without touching
+  // `index` and `entries` in two separate renders, so they can never briefly disagree (which would
+  // otherwise re-trigger that same effect and misread the step change as a fresh edit). Both are
+  // no-ops at either end of the history (nothing before the first step, nothing past the last)
+  // rather than wrapping around — mirrored by their own buttons' disabled state.
+  function undoEditMode() {
+    if (!editHistory || editHistory.index <= 0) return;
+    const index = editHistory.index - 1;
+    setEntries(editHistory.steps[index]);
+    setEditHistory({ ...editHistory, index });
+  }
+
+  function redoEditMode() {
+    if (!editHistory || editHistory.index >= editHistory.steps.length - 1) return;
+    const index = editHistory.index + 1;
+    setEntries(editHistory.steps[index]);
+    setEditHistory({ ...editHistory, index });
   }
 
   // "Copiar" in the selection bar (see the toolbar below) — snapshots the selected entries as
@@ -945,6 +1159,10 @@ export function OperationPanel({
   }
 
   function editEntry(id: string) {
+    // Belt-and-suspenders: the pencil that calls this is only rendered in "Editar" mode to begin
+    // with (see ConfirmedOperationCard's own isEditMode), but this still guards the actual state
+    // change in case that ever changes without this being updated to match.
+    if (tool !== 'select') return;
     if (entries.some((entry) => !entry.confirmed)) return;
     const entry = entries.find((item) => item.id === id);
     if (entry) {
@@ -1114,12 +1332,18 @@ export function OperationPanel({
 
   const hasDraftInProgress = entries.some((entry) => !entry.confirmed);
   const confirmedCount = entries.filter((entry) => entry.confirmed).length;
-  // Gate which buttons the always-visible selection/clipboard bar shows (see its own render
-  // below) — "Colar" doesn't need hasClipboard to *appear*, only to not be disabled; hasSelection
-  // does gate whether Copiar/Eliminar/Cancelar seleção render at all (see that render's own note
-  // on why).
+  // Gate which of the "Editar"-only buttons are disabled once they're rendered at all — see their
+  // own render below (next to the pencil toggle), gated on tool === 'select' ("Editar" mode)
+  // first. Neither hasClipboard nor hasSelection gate whether their buttons *appear* — only
+  // whether each is disabled (Colar/Copiar/Eliminar/Cancelar seleção are all always rendered).
   const hasSelection = tool === 'select' && selectedIds.length > 0;
   const hasClipboard = !!clipboard && clipboard.length > 0;
+  // Whether anything's actually changed since "Editar" turned on (see editModeSnapshot) — a
+  // plain deep-equality check against the snapshot rather than tracking every mutation site
+  // (drag, copy/paste, delete, a per-operation edit confirmed, ...) separately. Drives which
+  // button(s) the canvas shows for leaving "Editar" (see that render below): "Guardar"/"Cancelar"
+  // only once this is true, plain "Editar" (nothing to commit or discard yet) otherwise.
+  const hasEditModeChanges = tool === 'select' && JSON.stringify(entries) !== JSON.stringify(editModeSnapshot);
 
   // Every confirmed operation whose input dynamically references another one's result — drawn
   // as a connecting line between the two nodes (see edgePath) instead of nesting one inside the
@@ -1210,6 +1434,7 @@ export function OperationPanel({
         summary={kind.renderSummary(entry.fields, dataset)}
         onEdit={() => editEntry(entry.id)}
         editDisabled={hasDraftInProgress}
+        isEditMode={tool === 'select'}
         onMouseEnter={() => setHoveredOperationId(entry.id)}
         onMouseLeave={() => setHoveredOperationId((current) => (current === entry.id ? null : current))}
         isTested={(testSignals[entry.id] ?? 0) > 0}
@@ -1373,21 +1598,117 @@ export function OperationPanel({
     );
   }
 
+  // The pencil next to the plain-text model name — swaps it for the editable input, seeded with
+  // whatever the name currently is.
+  function startNameEdit() {
+    setNameDraft(modelName);
+    setIsEditingName(true);
+  }
+
+  // "✓" next to the model name input — commits nameDraft up to App.tsx and swaps back to plain
+  // text.
+  function confirmNameEdit() {
+    onModelNameChange(nameDraft);
+    setIsEditingName(false);
+  }
+
+  // "✗" next to the model name input — discards nameDraft (onModelNameChange was never called,
+  // so nothing to undo there) and swaps back to plain text.
+  function cancelNameEdit() {
+    setNameDraft(modelName);
+    setIsEditingName(false);
+  }
+
   return (
     <div className="operation-canvas">
       <div className="operation-canvas__toolbar">
-        <button
-          type="button"
-          className="operation-canvas__add-button"
-          onClick={() => setIsAddModalOpen(true)}
-          disabled={hasDraftInProgress}
-          title={hasDraftInProgress ? 'Termine a operação em curso antes de criar outra.' : undefined}
-        >
-          + Adicionar operação
-        </button>
-        <span className="operation-canvas__count">
-          Operações <span className="operation-panel__count">{confirmedCount}</span>
-        </span>
+        {/* The model's own name + operation count — same line as "Importar teste"/"Testar
+            modelo" (see .operation-canvas__toolbar-actions' own margin-left: auto, which pushes
+            those to the opposite end of this same row) rather than a separate line above the
+            canvas. */}
+        <div className="operation-canvas__model-name-row">
+          {isEditingName ? (
+            <>
+              <input
+                ref={nameInputRef}
+                type="text"
+                className="operation-canvas__model-name-input"
+                placeholder="Nome do modelo"
+                value={nameDraft}
+                // Grows/shrinks with the typed name itself, pixel-accurate (see nameInputWidth/
+                // the mirror span just below) rather than sitting at one fixed width regardless
+                // of how short or long the name is. Falls back to the CSS min-width for the one
+                // frame before the mirror's first measurement lands.
+                style={nameInputWidth !== null ? { width: nameInputWidth } : undefined}
+                onChange={(event) => setNameDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') confirmNameEdit();
+                  if (event.key === 'Escape') cancelNameEdit();
+                }}
+              />
+              {/* Invisible, same font as the input — exists purely so nameInputWidth (see the
+                  layout effect above) can measure how wide nameDraft actually renders, character
+                  widths and all, instead of approximating via the input's own "size" attribute
+                  (a plain character count, which for a proportional font leaves an uneven gap
+                  between the text and the field's edge). Falls back to the placeholder text so
+                  an empty field still measures out to something legible rather than collapsing. */}
+              <span ref={nameMirrorRef} className="operation-canvas__model-name-mirror" aria-hidden="true">
+                {nameDraft || 'Nome do modelo'}
+              </span>
+              <div className="operation-canvas__model-name-actions">
+                <button
+                  type="button"
+                  className="operation-canvas__model-name-confirm"
+                  onClick={confirmNameEdit}
+                  aria-label="Confirmar nome"
+                  title="Confirmar nome"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  className="operation-canvas__model-name-cancel"
+                  onClick={cancelNameEdit}
+                  aria-label="Cancelar edição do nome"
+                  title="Cancelar edição do nome"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <span className="operation-canvas__model-name-text">{modelName || 'Nome do modelo'}</span>
+              <button
+                type="button"
+                className="operation-canvas__model-name-edit"
+                onClick={startNameEdit}
+                aria-label="Editar nome"
+                title="Editar nome"
+              >
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <path
+                    d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+            </>
+          )}
+          <span
+            className="operation-panel__count"
+            title={confirmedCount === 1 ? '1 operação' : `${confirmedCount} operações`}
+          >
+            {confirmedCount}
+          </span>
+        </div>
         <div className="operation-canvas__toolbar-actions">
           {/* One button, not two: "Importar teste" for as long as there's nothing yet to clear,
               switching to "Limpar teste" the moment there is (a value typed by hand, one loaded
@@ -1480,64 +1801,13 @@ export function OperationPanel({
           importError prop), which covers the whole canvas whenever it's open. */}
       {granularTestWarning && <p className="operation-canvas__test-load-error">{granularTestWarning}</p>}
 
-      {/* Always rendered (unlike Copiar/Eliminar/Cancelar seleção just below, only relevant once
-          something's selected) — "Colar" doesn't need a selection, just a non-empty clipboard, so
-          it stays visible (disabled rather than hidden while the clipboard's empty) whether or
-          not anything's currently selected. */}
-      <div className="operation-canvas__selection-bar">
-        {hasSelection && (
-          <span className="operation-canvas__selection-count">
-            {selectedIds.length} {selectedIds.length === 1 ? 'operação selecionada' : 'operações selecionadas'}
-          </span>
-        )}
-        <div className="operation-canvas__selection-actions">
-          {hasSelection && (
-            <button type="button" className="operation-canvas__selection-button" onClick={copySelection}>
-              Copiar
-            </button>
-          )}
-          <button
-            type="button"
-            className={
-              pendingPaste
-                ? 'operation-canvas__selection-button operation-canvas__selection-button--active'
-                : 'operation-canvas__selection-button'
-            }
-            onClick={() => setPendingPaste((current) => !current)}
-            disabled={!hasClipboard}
-            title={
-              !hasClipboard
-                ? 'Copie uma ou mais operações primeiro.'
-                : pendingPaste
-                  ? 'Clique no canvas para colar aqui — ou clique de novo aqui para cancelar.'
-                  : 'Cola as operações copiadas onde clicar no canvas.'
-            }
-          >
-            {pendingPaste ? 'Clique no canvas para colar…' : 'Colar'}
-          </button>
-          {hasSelection && (
-            <>
-              <button
-                type="button"
-                className="operation-canvas__selection-button operation-canvas__selection-button--danger"
-                onClick={deleteSelection}
-              >
-                Eliminar
-              </button>
-              <button type="button" className="operation-canvas__selection-button" onClick={() => setSelectedIds([])}>
-                Cancelar seleção
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-
       <div
         ref={viewportRef}
         className={[
           'operation-canvas__viewport',
           pan ? 'operation-canvas__viewport--panning' : '',
-          tool === 'select' ? 'operation-canvas__viewport--select' : '',
+          tool === 'select' ? 'operation-canvas__viewport--editing' : '',
+          marqueeActive ? 'operation-canvas__viewport--select' : '',
           pendingPaste ? 'operation-canvas__viewport--placing' : '',
           // Nothing on the canvas — panning, dragging/editing a node, marquee-selecting — should
           // be touchable while a test is staggering through the model's operations: an edit
@@ -1559,18 +1829,17 @@ export function OperationPanel({
           backgroundSize: `${GRID_SIZE * zoom}px ${GRID_SIZE * zoom}px`,
         }}
       >
-        {/* Zoom/select: floats over the canvas itself (a sibling of the surface below, so it sits
-            outside that element's pan/zoom transform and stays put on screen regardless of
-            either) rather than living in the toolbar above — same reasoning as the progress fill
-            on "Testar modelo": these are canvas-manipulation controls, so they stay in view right
-            where the canvas itself is. Split into two groups — zoom pinned to the viewport's own
-            top-left corner, select to its top-right — rather than one, so zoom (adjusting what's
-            visible) reads as a distinct concern from select (acting on what's on the canvas).
-            "Colar" isn't here any more — it now lives next to "Copiar"/"Eliminar" (see the
-            selection/clipboard bar below), since it acts on the same clipboard those do. Each
-            group's own mousedown stops propagation before reaching the viewport's (which would
-            otherwise start a pan/marquee-select right under the click); handleViewportClick also
-            excludes both by their shared class, the same way it already does for a node. */}
+        {/* Floats over the canvas itself (a sibling of the surface below, so it sits outside that
+            element's pan/zoom transform and stays put on screen regardless of either) rather than
+            living in the toolbar above — same reasoning as the progress fill on "Testar modelo":
+            these are canvas-manipulation controls, so they stay in view right where the canvas
+            itself is. Split into two groups by what they're controls *over* rather than one big
+            row — zoom and "Desfazer"/"Refazer" (view/history, pinned to the viewport's own
+            top-left corner) from "+ Adicionar operação"/"Selecionar"/"Copiar"/"Colar"/"Eliminar"/
+            "Cancelar seleção"/"Editar" (the operations themselves, top-right). Each group's own
+            mousedown stops propagation before reaching the viewport's (which would otherwise
+            start a pan/marquee-select right under the click); handleViewportClick also excludes
+            both by their shared class, the same way it already does for a node. */}
         <div
           className="operation-canvas__floating-toolbar operation-canvas__floating-toolbar--left"
           onMouseDown={(event) => event.stopPropagation()}
@@ -1606,30 +1875,233 @@ export function OperationPanel({
               +
             </button>
           </div>
+
+          {/* "Desfazer"/"Refazer": step back/forward through this "Editar" session's own history
+              (see editHistory/undoEditMode/redoEditMode) — kept with zoom rather than the
+              create/select/copy/paste/delete cluster on the right: both this and zoom are "meta"
+              controls over the canvas' view/history, not actions on the operations themselves.
+              Always rendered while editing, each disabled at whichever end of the history it's
+              already at (nothing before the first step, nothing past the last), same "show
+              always, disable when there's nothing to do" treatment as "Colar"/"Cancelar seleção"
+              get. Also disabled while a draft's in progress (a staged batch, or a single
+              operation reopened via its own pencil) — every committed step is a fully-confirmed
+              state (see the history effect's own guard), so jumping to one mid-edit would just
+              discard whatever's unconfirmed right now. */}
+          {tool === 'select' && editHistory && (
+            <>
+              <button
+                type="button"
+                className="operation-canvas__tool-button"
+                onClick={undoEditMode}
+                disabled={editHistory.index <= 0 || hasDraftInProgress}
+                aria-label="Desfazer"
+                title="Desfazer"
+              >
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <path d="M7 7 3 11l4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M3 11h11a6 6 0 1 1 0 12h-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                className="operation-canvas__tool-button"
+                onClick={redoEditMode}
+                disabled={editHistory.index >= editHistory.steps.length - 1 || hasDraftInProgress}
+                aria-label="Refazer"
+                title="Refazer"
+              >
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <path d="M17 7l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M21 11H10a6 6 0 1 0 0 12h2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            </>
+          )}
         </div>
 
         <div
           className="operation-canvas__floating-toolbar operation-canvas__floating-toolbar--right"
           onMouseDown={(event) => event.stopPropagation()}
         >
-          <button
-            type="button"
-            className={
-              tool === 'select'
-                ? 'operation-canvas__tool-button operation-canvas__tool-button--active'
-                : 'operation-canvas__tool-button'
-            }
-            onClick={() => {
-              setTool((current) => {
-                const next = current === 'select' ? 'pan' : 'select';
-                if (next !== 'select') setSelectedIds([]);
-                return next;
-              });
-            }}
-            title={tool === 'select' ? 'Voltar a arrastar o fundo para mover a vista.' : 'Arrastar sobre o fundo para selecionar várias operações.'}
-          >
-            Selecionar
-          </button>
+          {/* "+ Adicionar operação": only rendered in "Editar" mode now — a new operation needs
+              to be placed/wired up on the canvas, the same as any other change here, so outside
+              "Editar" there's nothing for it to do. Filled/primary-colored (see
+              .operation-canvas__tool-button--primary) rather than the plain bordered pill every
+              other button here gets — it's this row's main action, the one that starts something
+              new rather than acting on what's already there. Its own divider (see
+              .operation-canvas__tool-divider) separates it from the selection/clipboard cluster
+              just after it — different concerns (creating something new vs. acting on what's
+              already selected), both only reachable in "Editar" but not otherwise related. */}
+          {tool === 'select' && (
+            <>
+              <button
+                type="button"
+                className="operation-canvas__tool-button operation-canvas__tool-button--primary"
+                onClick={() => setIsAddModalOpen(true)}
+                disabled={hasDraftInProgress}
+                title={hasDraftInProgress ? 'Termine a operação em curso antes de criar outra.' : undefined}
+              >
+                + Adicionar operação
+              </button>
+              <span className="operation-canvas__tool-divider" />
+            </>
+          )}
+
+          {/* Selecting/copying/moving/pasting operations, only rendered while "Editar" is
+              actually on, since that's the only mode any of this has something to do — plain
+              siblings of "Editar" in this same flex row rather than a wrapped-up flyout panel, so
+              they come out sized identically to it. Rendered before "Editar" in DOM order so they
+              appear to its left, with its own divider right after them separating this cluster
+              from "Editar"/"Guardar"/"Cancelar" (acting on the current selection/clipboard vs.
+              ending the whole session). Every button here is text, not an icon — same convention
+              as "Editar" and the rest of this row, rather than singling three of them out (copy/
+              paste/trash glyphs aren't universal enough here to carry meaning on their own
+              without a label anyway). All five are always rendered, disabled rather than hidden
+              when there's nothing for them to act on yet ("Colar" while the clipboard's empty,
+              the rest while nothing's selected). */}
+          {tool === 'select' && (
+            <>
+              {/* Arms marquee-select on the background drag and click-to-toggle on a node (see
+                  marqueeActive/onNodeClick/handleViewportMouseDown), in place of their normal
+                  "Editar" behavior (dragging the background pans; clicking a node opens it). Its
+                  own label doubles as the selection count once there is one ("Selecionado (n)")
+                  instead of a separate element just for that. Clicking it again to disarm also
+                  clears whatever's currently selected — otherwise the count would linger in the
+                  label (still reading "Selecionado (n)") despite the button no longer looking
+                  armed, and Copiar/Eliminar would stay live on a selection there's no way back
+                  into short of arming "Selecionar" again. */}
+              <button
+                type="button"
+                className={
+                  marqueeActive
+                    ? 'operation-canvas__tool-button operation-canvas__tool-button--active'
+                    : 'operation-canvas__tool-button'
+                }
+                onClick={() => {
+                  setMarqueeActive((current) => !current);
+                  setSelectedIds([]);
+                }}
+                aria-pressed={marqueeActive}
+                title={
+                  marqueeActive
+                    ? 'Desativa a seleção e volta a arrastar o fundo para mover a vista.'
+                    : 'Ativa a seleção: arraste sobre o fundo para selecionar várias operações.'
+                }
+              >
+                {hasSelection ? `Selecionado (${selectedIds.length})` : 'Selecionar'}
+              </button>
+              <button
+                type="button"
+                className="operation-canvas__tool-button"
+                onClick={copySelection}
+                disabled={!hasSelection}
+                title={hasSelection ? undefined : 'Selecione uma ou mais operações primeiro.'}
+              >
+                Copiar
+              </button>
+              <button
+                type="button"
+                className={
+                  pendingPaste
+                    ? 'operation-canvas__tool-button operation-canvas__tool-button--active'
+                    : 'operation-canvas__tool-button'
+                }
+                onClick={() => setPendingPaste((current) => !current)}
+                disabled={!hasClipboard}
+                title={
+                  !hasClipboard
+                    ? 'Copie uma ou mais operações primeiro.'
+                    : pendingPaste
+                      ? 'Clique no canvas para colar aqui — ou clique de novo aqui para cancelar.'
+                      : 'Cola as operações copiadas onde clicar no canvas.'
+                }
+              >
+                {pendingPaste ? 'Clique no canvas para colar…' : 'Colar'}
+              </button>
+              <button
+                type="button"
+                className="operation-canvas__tool-button operation-canvas__tool-button--danger"
+                onClick={deleteSelection}
+                disabled={!hasSelection}
+                title={hasSelection ? undefined : 'Selecione uma ou mais operações primeiro.'}
+              >
+                Eliminar
+              </button>
+              <button
+                type="button"
+                className="operation-canvas__tool-button"
+                onClick={() => setSelectedIds([])}
+                disabled={!hasSelection}
+                title={hasSelection ? undefined : 'Selecione uma ou mais operações primeiro.'}
+              >
+                Cancelar seleção
+              </button>
+              <span className="operation-canvas__tool-divider" />
+            </>
+          )}
+
+          {/* "Editar"/"A editar": the only state operations can actually be dragged to a new
+              position in (see the onDragEntry passed to useCanvasViewport below, which drops
+              every drag report while this is off) — outside it, a node click still opens its
+              detail modal (see onNodeClick), but nothing on the canvas can be repositioned by
+              accident while just panning around. Stays this same pencil for as long as nothing's
+              actually changed yet (hasEditModeChanges false) — active-styled and relabeled "A
+              editar" once "Editar" is actually on, so the color change (not just the label)
+              carries over from before this button could also read "Editar" while already
+              editing; clicking it then just leaves "Editar" outright (exitEditMode), nothing to
+              commit or discard either way. Once something has changed, this becomes
+              "Guardar"/"Cancelar" instead (see just below) — an explicit commit-or-discard so a
+              whole editing session (every move/copy/paste/delete made while it was on) can be
+              undone at once rather than only one drag at a time. */}
+          {!hasEditModeChanges && (
+            <button
+              type="button"
+              className={
+                tool === 'select'
+                  ? 'operation-canvas__tool-button operation-canvas__tool-button--active'
+                  : 'operation-canvas__tool-button'
+              }
+              onClick={tool === 'select' ? exitEditMode : enterEditMode}
+              title={
+                tool === 'select'
+                  ? 'Sai do modo de edição (nada foi alterado ainda).'
+                  : 'Ativa o modo de edição: mover operações no canvas.'
+              }
+            >
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path
+                  d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              {tool === 'select' ? 'A editar' : 'Editar'}
+            </button>
+          )}
+
+          {/* "Cancelar"/"Guardar": only once something's actually changed (see hasEditModeChanges
+              above) — "Cancelar" restores editModeSnapshot (every entry as it looked the
+              moment "Editar" turned on, via cancelEditMode), "Guardar" just leaves things as they
+              are (via exitEditMode) and keeps whatever changed. Same relationship
+              DraftOperationCard's own ×/"Atualizar operação" has for a single operation's fields,
+              just scoped to the whole editing session instead of one operation's config. */}
+          {hasEditModeChanges && (
+            <>
+              <button type="button" className="operation-canvas__tool-button" onClick={cancelEditMode} title="Descarta tudo o que mudou neste modo de edição.">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="operation-canvas__tool-button operation-canvas__tool-button--active"
+                onClick={exitEditMode}
+                title="Guarda as alterações e sai do modo de edição."
+              >
+                Guardar
+              </button>
+            </>
+          )}
         </div>
 
         <div
@@ -1666,14 +2138,14 @@ export function OperationPanel({
                     edited or part of the current staging batch, both filtered out above — this
                     branch only exists so TypeScript doesn't need entry.confirmed narrowed further. */}
                 {entry.confirmed ? renderConfirmedCard(entry) : renderDraftCard(entry, 'stage')}
-                {/* In "select" mode, a transparent overlay sits in front of the whole card,
-                    intercepting every click before it reaches the card's own controls (Input/
-                    Output toggles, edit, reveal, the live value field, ...) — selecting or moving
-                    a node is all that's meant to be possible here; editing it is what "pan" mode
-                    (and the pencil, once back there) is for. startNodeDrag's own form-control
-                    bypass (see below) never needs to trigger here since the overlay itself, not
-                    any inner control, is always what's actually clicked. */}
-                {tool === 'select' && <div className="operation-canvas__node-overlay" onMouseDown={startNodeDrag(entry.id, entry.position)} />}
+                {/* While "Selecionar" is armed, a transparent overlay sits in front of the whole
+                    card, intercepting every click before it reaches the card's own controls
+                    (Input/Output toggles, edit, reveal, the live value field, ...) — selecting or
+                    moving a node is all that's meant to be possible here; plain "Editar" (or
+                    "pan") mode is what clicking into the card itself is for. startNodeDrag's own
+                    form-control bypass (see below) never needs to trigger here since the overlay
+                    itself, not any inner control, is always what's actually clicked. */}
+                {marqueeActive && <div className="operation-canvas__node-overlay" onMouseDown={startNodeDrag(entry.id, entry.position)} />}
               </div>
             );
           })}
