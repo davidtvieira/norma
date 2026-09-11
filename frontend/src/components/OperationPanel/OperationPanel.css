@@ -1048,25 +1048,10 @@
   cursor: grabbing;
 }
 
-/* Marks a node as part of the current selection (see OperationPanel.tsx's select tool) — a
-   colored ring around its card rather than changing the card's own border, so it stays visible
-   underneath the card's own :hover border-color change. */
+/* Marks a node as part of the current selection (see OperationPanel.tsx's select tool). */
 .operation-canvas__node--selected .operation-card {
   border-color: var(--color-secondary);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-secondary) 40%, transparent);
-}
-
-/* The select-mode-only overlay (see OperationPanel.tsx) that sits in front of a node's whole
-   card, capturing every click itself instead of letting it reach the card's own buttons/fields
-   underneath — the select tool is for selecting/moving nodes, not editing them. */
-.operation-canvas__node-overlay {
-  position: absolute;
-  inset: 0;
-  cursor: grab;
-}
-
-.operation-canvas__node-overlay:active {
-  cursor: grabbing;
 }
 
 .operation-card {
@@ -1089,6 +1074,16 @@
   border-color: var(--color-primary);
 }
 
+/* A selected node already shows its own border-color/box-shadow (see
+   .operation-canvas__node--selected above) — hovering it too would otherwise fight that color
+   right at the border, stacking two different treatments on the same edge at once. Keeping the
+   selection's own border-color on hover (rather than nothing) still lets the box-shadow ring
+   read clean underneath it, just without the hover rule above swapping it out from under the
+   selection. */
+.operation-canvas__node--selected .operation-card:hover {
+  border-color: var(--color-secondary);
+}
+
 /* While "Editar" is on, a click no longer opens the modal (see OperationPanel's own onNodeClick)
    — falls back to the parent node's own grab/grabbing cursor (see .operation-canvas__node)
    instead of the pointer cursor above, which would otherwise promise a click that does nothing.
@@ -1106,6 +1101,20 @@
      and its old position implying the light source. */
   transform: translateY(-4px) scale(1.045);
   box-shadow: 0 22px 34px -14px rgba(0, 0, 0, 0.4), 0 8px 14px -6px rgba(0, 0, 0, 0.22);
+}
+
+/* While "Editar" is on, the footer and the kind's own live/editable body (operation-card__details
+   — see ConfirmedOperationCard's inlineSlot) stop being interactive: a click there should select
+   or drag the node, same as clicking anywhere else on the card, never reach a kind-specific
+   control (a "confirm value" button, a static-input toggle, ...) that isn't otherwise gated on
+   isEditMode. pointer-events: none makes the click fall straight through to .operation-canvas__node
+   (its own onMouseDown handles select/drag regardless of mode) instead of whatever's underneath.
+   The header is deliberately excluded — its one remaining control while editing, the edit pencil
+   (see ConfirmedOperationCard's own isEditMode), is exactly the one thing a click here should
+   still be able to reach (see startNodeDrag's own form-control bypass). */
+.operation-card--edit-mode > .operation-card__footer,
+.operation-card--edit-mode > .operation-card__details {
+  pointer-events: none;
 }
 
 /* Marks a card that's actually been tested (its own testSignal has fired at least once — see

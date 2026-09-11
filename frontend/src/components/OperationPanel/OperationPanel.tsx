@@ -938,11 +938,13 @@ export function OperationPanel({
         }
         updateEntry(id, { position });
       },
-      // A click (not a drag) on a node: in "Editar" mode, a plain click selects just this node
-      // (replacing whatever else was selected), a shift/ctrl/cmd-click toggles it in or out of
-      // the existing selection instead (multi-select), and in plain "pan" mode (not editing at
-      // all) it opens that node's detail modal — the card's own interactions (test/reveal/IO
-      // toggles/opening the modal) are all off-limits while editing, same as its
+      // A click (not a drag) on a node: in "Editar" mode, clicking an already-selected node always
+      // removes just it from the selection — no modifier needed, whether it's the only one
+      // selected or one of several — while clicking one that isn't yet selected either replaces
+      // the selection with just it (a plain click) or adds it alongside whatever's already
+      // selected (shift/ctrl/cmd-click, multi-select). In plain "pan" mode (not editing at all) a
+      // click opens that node's detail modal instead — the card's own interactions (test/reveal/
+      // IO toggles/opening the modal) are all off-limits while editing, same as its
       // ConfirmedOperationCard render (see isEditMode there) already hides them for. Dragging a
       // node to reposition it still works in every case (see onDragEntry above), only what a
       // plain click does changes.
@@ -950,8 +952,8 @@ export function OperationPanel({
         if (tool === 'select') {
           const additive = event.shiftKey || event.metaKey || event.ctrlKey;
           setSelectedIds((current) => {
-            if (!additive) return [id];
-            return current.includes(id) ? current.filter((existing) => existing !== id) : [...current, id];
+            if (current.includes(id)) return current.filter((existing) => existing !== id);
+            return additive ? [...current, id] : [id];
           });
         } else {
           setModalEntryId(id);
@@ -1299,9 +1301,10 @@ export function OperationPanel({
       setEditSnapshots((current) => ({ ...current, [id]: entry }));
     }
     updateEntry(id, { confirmed: false });
-    // Opens the same left-docked config panel used for adding a new operation — the node
-    // disappears from the canvas while it's being edited (see the entries.map filter below), so
-    // its detail modal (if open) wouldn't have anything left to show either.
+    // Opens the same left-docked config panel used for adding a new operation — the node itself
+    // stays on the canvas throughout (see the entries.map render below), still showing its
+    // confirmed look and live position/edges, so its own detail modal (if open) would now be
+    // redundant with the docked panel doing the actual editing.
     setModalEntryId((current) => (current === id ? null : current));
     setEditingEntryId(id);
   }
@@ -2325,9 +2328,15 @@ export function OperationPanel({
           </svg>
 
           {entries.map((entry) => {
-            // Being edited, or staged as part of a new-operation batch, in the config panel right
-            // now (see renderConfigPanel) — hidden from the canvas until it's confirmed there.
-            if (entry.id === editingEntryId || stagingEntryIds.includes(entry.id)) return null;
+            // Staged as part of a new-operation batch, in the config panel right now (see
+            // renderConfigPanel) — nothing to show on the canvas yet for one of these: no
+            // established position of its own until confirmAllStaged actually adds it. An entry
+            // reopened for editing (editingEntryId) is different — it already has a position and
+            // edges other operations rely on, so unlike staging it stays fully visible here (see
+            // the render below, which treats it as confirmed regardless of its own momentarily
+            // false entry.confirmed — editEntry flips that off only to reuse the same draft-field
+            // UI in the docked panel, not to pull the card off the canvas).
+            if (stagingEntryIds.includes(entry.id)) return null;
 
             return (
               <div
@@ -2341,18 +2350,12 @@ export function OperationPanel({
                 style={{ left: entry.position.x, top: entry.position.y, width: NODE_WIDTH, zIndex: nodeZIndex[entry.id] }}
                 onMouseDown={beginNodeDrag(entry)}
               >
-                {/* Unreachable in practice: an unconfirmed entry is always either the one being
-                    edited or part of the current staging batch, both filtered out above — this
-                    branch only exists so TypeScript doesn't need entry.confirmed narrowed further. */}
-                {entry.confirmed ? renderConfirmedCard(entry) : renderDraftCard(entry, 'stage')}
-                {/* Throughout "Editar", a transparent overlay sits in front of the whole card,
-                    intercepting every click before it reaches the card's own controls (Input/
-                    Output toggles, edit, reveal, the live value field, ...) — selecting or moving
-                    a node is all that's meant to be possible here; plain "pan" mode is what
-                    clicking into the card itself is for. startNodeDrag's own form-control bypass
-                    (see below) never needs to trigger here since the overlay itself, not any
-                    inner control, is always what's actually clicked. */}
-                {tool === 'select' && <div className="operation-canvas__node-overlay" onMouseDown={beginNodeDrag(entry)} />}
+                {/* entry.id === editingEntryId is the only way an unconfirmed entry ever reaches
+                    here (every staged one was already filtered out above) — rendered the same as
+                    a confirmed card (see the comment on the filter above) rather than
+                    renderDraftCard's 'stage' mode, which is for a staged batch's own layout, not
+                    an existing card reopened for editing. */}
+                {entry.confirmed || entry.id === editingEntryId ? renderConfirmedCard(entry) : renderDraftCard(entry, 'stage')}
               </div>
             );
           })}
