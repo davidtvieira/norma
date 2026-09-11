@@ -108,22 +108,80 @@
 }
 
 /* --color-surface (one step lighter than the panel's own --color-surface-hover background above)
-   so each field card still reads as its own raised card instead of blending into the panel. */
+   so each field card still reads as its own raised card instead of blending into the panel. A
+   fixed height (rather than the auto/content-driven height flex would otherwise give it) is what
+   actually makes every card the same size regardless of how long its name is or how much its
+   input/result takes up — combined with .model-card__field-grid's own equal-width columns, that's
+   both dimensions covered. justify-content: space-between then pins whichever single element
+   follows the name (the input editor, or the result — see ModelCard.tsx, always exactly one) to
+   the card's bottom edge, with the name always at the top, instead of both just stacking
+   top-down with whatever gap happens to be left over. overflow: hidden backstops the fixed height
+   against any content that still doesn't fit (see the name/result truncation below) rather than
+   letting it push the card taller and break the grid's uniformity. */
 .model-card__field {
+  position: relative;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   gap: 0.6rem;
+  height: 8.5rem;
   padding: 1rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-surface);
+  overflow: hidden;
 }
 
+/* Truncated to one line with an ellipsis rather than wrapping — a long operation name would
+   otherwise grow past the fixed card height above. The native title tooltip, and the eye button
+   (see .model-card__field-view below) both let a hover/click reveal the untruncated name.
+   padding-right keeps that same ellipsis point clear of the eye button sitting over the name's
+   own top-right corner instead of overlapping it. */
 .model-card__field-name {
   margin: 0;
+  padding-right: 1.5rem;
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--color-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The eye button that opens FullTextModal (see ModelCard.tsx) — pinned to the card's own top-right
+   corner regardless of where the name's own text happens to end, same positioning idea as
+   .operation-card__reveal in the editor, just absolutely placed here instead of sitting inline
+   next to other header controls (this card has none). */
+.model-card__field-view {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.7rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0.15rem;
+}
+
+.model-card__field-view svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.model-card__field-view:hover {
+  color: var(--color-primary);
+}
+
+/* Same truncate-with-tooltip treatment as the field name above, scoped to just this screen's own
+   result cards — .operation-entry__result (defined in OperationPanel.css) is shared with the
+   editor's own confirmed-operation cards, which have room to wrap and shouldn't be truncated. */
+.model-card__field .operation-entry__result {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .model-card__missing-io {
@@ -193,4 +251,75 @@
 .model-card__run-button:disabled {
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+/* The eye button's own modal (see FullTextModal in ModelCard.tsx) — same overlay/dialog chrome as
+   SaveModal, just showing one field's full name + value instead of a form. No portal: unlike
+   OperationPanel's own card modal, nothing on this screen sits inside a transformed ancestor, so a
+   plain fixed overlay already covers the real viewport correctly. */
+.model-card__view-modal-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 100;
+}
+
+.model-card__view-modal {
+  width: 100%;
+  max-width: 480px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
+}
+
+.model-card__view-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.model-card__view-modal-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--color-text);
+  word-break: break-word;
+}
+
+.model-card__view-modal-close {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.1rem 0.3rem;
+}
+
+.model-card__view-modal-close:hover {
+  color: var(--color-text);
+}
+
+/* Wrapped and scrollable rather than clipped — the whole point of this modal is showing the value
+   the card itself had to truncate, however long that turns out to be. */
+.model-card__view-modal-value {
+  margin: 0;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--color-text);
 }

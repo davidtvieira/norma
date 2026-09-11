@@ -51,6 +51,11 @@ export function ModelCard({ dataset, modelName, entries, inputOperationIds, outp
     Object.fromEntries(entries.map((entry) => [entry.id, entry.fields])),
   );
 
+  // Which field's full (untruncated) name + value is currently shown in the view-full-text modal
+  // (see EyeButton/FullTextModal below) — at most one at a time, same pattern as OperationPanel's
+  // own modalEntryId. Null means the modal is closed.
+  const [viewFullText, setViewFullText] = useState<{ name: string; value: string } | null>(null);
+
   // Null while registration is still in flight (or hasn't started) — "Correr modelo" stays
   // disabled until there's a model id to run. entries/inputOperationIds/outputOperationIds are
   // fixed for the lifetime of this screen (the model as imported/built), so this only needs to
@@ -171,27 +176,23 @@ export function ModelCard({ dataset, modelName, entries, inputOperationIds, outp
   }
 
   // Matches each saved value against a currently-present input by exact name (ids regenerate on
-  // every import — see OperationPanel's testCaseSerialization notes) and runs immediately with
-  // the loaded values themselves (see runWithInputValues) rather than the (not yet updated)
-  // `fields` state, while also writing them into `fields` so the input boxes reflect what was
-  // loaded.
+  // every import — see OperationPanel's testCaseSerialization notes), writing them into `fields`
+  // so the input boxes reflect what was loaded. Only fills the fields, same as typing the values
+  // in by hand — it does NOT run the model itself; "Correr modelo" is still a separate, explicit
+  // step, so a loaded test can be reviewed (and, if needed, adjusted) before it actually runs.
   function loadTestCase(file: File) {
     parseTestCaseFile(file)
       .then((parsed) => {
         setTestLoadError(null);
         const valueByName = new Map(parsed.inputs.map((input) => [input.name, input.value]));
         const nextFields = { ...fields };
-        const inputValues: Record<string, string> = {};
         for (const entry of inputEntries) {
           const loadedValue = valueByName.get(entry.name);
           if (loadedValue !== undefined) {
             nextFields[entry.id] = { ...nextFields[entry.id], input: literalSource(loadedValue) };
           }
-          const source = getInputSource(nextFields[entry.id]);
-          inputValues[entry.id] = source.type === 'literal' ? source.value : '';
         }
         setFields(nextFields);
-        runWithInputValues(inputValues);
       })
       .catch((error) => {
         setTestLoadError(error instanceof Error ? error.message : 'Falha ao carregar o teste.');
@@ -239,9 +240,15 @@ export function ModelCard({ dataset, modelName, entries, inputOperationIds, outp
                 {inputEntries.map((inputEntry) => {
                   const inputKind = KINDS_BY_ID[inputEntry.kindId];
                   if (!inputKind.renderInputEditor) return null;
+                  const name = inputEntry.name || 'Input';
+                  const source = getInputSource(fields[inputEntry.id]);
+                  const currentValue = source.type === 'literal' ? source.value : '';
                   return (
                     <div key={inputEntry.id} className="model-card__field">
-                      <h3 className="model-card__field-name">{inputEntry.name || 'Input'}</h3>
+                      <EyeButton onView={() => setViewFullText({ name, value: currentValue })} />
+                      <h3 className="model-card__field-name" title={name}>
+                        {name}
+                      </h3>
                       {inputKind.renderInputEditor({
                         fields: fields[inputEntry.id],
                         updateFields: (patch) => updateEntryFields(inputEntry.id, patch),
@@ -261,15 +268,16 @@ export function ModelCard({ dataset, modelName, entries, inputOperationIds, outp
             <div className="model-card__field-grid">
               {outputEntries.map((outputEntry) => {
                 const outputResult = results?.find((candidate) => candidate.id === outputEntry.id) ?? null;
+                const name = outputEntry.name || 'Output';
+                const value = outputResult && outputResult.success && outputResult.value != null ? String(outputResult.value) : null;
+                const error = runError ?? (outputResult && !outputResult.success ? outputResult.error : null);
                 return (
                   <div key={outputEntry.id} className="model-card__field">
-                    <h3 className="model-card__field-name">{outputEntry.name || 'Output'}</h3>
-                    <ModelOperationResultView
-                      hasRun={hasRun}
-                      isCalculating={isRunning}
-                      value={outputResult && outputResult.success && outputResult.value != null ? String(outputResult.value) : null}
-                      error={runError ?? (outputResult && !outputResult.success ? outputResult.error : null)}
-                    />
+                    <EyeButton onView={() => setViewFullText({ name, value: describeResult(hasRun, isRunning, value, error) })} />
+                    <h3 className="model-card__field-name" title={name}>
+                      {name}
+                    </h3>
+                    <ModelOperationResultView hasRun={hasRun} isCalculating={isRunning} value={value} error={error} />
                   </div>
                 );
               })}
@@ -324,6 +332,69 @@ export function ModelCard({ dataset, modelName, entries, inputOperationIds, outp
           </div>
         </div>
       </div>
+
+      <FullTextModal field={viewFullText} onClose={() => setViewFullText(null)} />
+    </div>
+  );
+}
+
+interface EyeButtonProps {
+  onView: () => void;
+}
+
+/** Top-right corner of every input/output card — opens FullTextModal with that card's own full
+ * (untruncated) name + value, the same "eye" icon RevealButton (OperationPanel.tsx) already uses
+ * elsewhere in the app for "see the full thing, not just what's shown here". */
+function EyeButton({ onView }: EyeButtonProps) {
+  return (
+    <button type="button" className="model-card__field-view" onClick={onView} aria-label="Ver texto completo" title="Ver texto completo">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path
+          d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12Z"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <circle cx="12" cy="12" r="2.5" stroke="currentColor" strokeWidth="1.5" />
+      </svg>
+    </button>
+  );
+}
+
+interface FullTextModalProps {
+  /** Null closes the modal — same "the value itself is the open/closed state" pattern as most of
+   * this app's other single-item modals (e.g. OperationPanel's modalEntryId). */
+  field: { name: string; value: string } | null;
+  onClose: () => void;
+}
+
+/** The eye button's own modal — just the field's full name (as a heading, in case that's what's
+ * actually truncated, not the value) and its full value below, wrapped rather than clipped. No
+ * portal (unlike OperationPanel's own card modal): nothing on this screen sits inside a
+ * transformed ancestor, so a plain fixed overlay already covers the real viewport correctly. */
+function FullTextModal({ field, onClose }: FullTextModalProps) {
+  if (!field) return null;
+
+  return (
+    <div className="model-card__view-modal-overlay" onClick={onClose}>
+      <div
+        className="model-card__view-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="model-card-view-modal-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="model-card__view-modal-header">
+          <h3 id="model-card-view-modal-title" className="model-card__view-modal-title">
+            {field.name}
+          </h3>
+          <button type="button" className="model-card__view-modal-close" onClick={onClose} aria-label="Fechar">
+            ×
+          </button>
+        </div>
+        <p className="model-card__view-modal-value">{field.value || '(vazio)'}</p>
+      </div>
     </div>
   );
 }
@@ -335,26 +406,32 @@ interface ModelOperationResultViewProps {
   error: string | null;
 }
 
+/** The plain-text description of an output's current state — shared by ModelOperationResultView
+ * below (which additionally prefixes the success case with a "Resultado:" label and styles the
+ * not-yet-run/empty states as muted) and the eye button's own full-text modal, which just needs
+ * the text itself, not that formatting. */
+function describeResult(hasRun: boolean, isCalculating: boolean, value: string | null, error: string | null): string {
+  if (isCalculating) return 'A calcular…';
+  if (!hasRun) return 'Prima "Correr modelo" para ver o resultado.';
+  if (error) return error;
+  if (value === null) return 'Sem correspondência encontrada.';
+  return formatCellValue(value) || '(vazio)';
+}
+
 function ModelOperationResultView({ hasRun, isCalculating, value, error }: ModelOperationResultViewProps) {
-  if (isCalculating) {
-    return <p className="operation-entry__result operation-entry__result--empty">A calcular…</p>;
+  if (isCalculating || !hasRun || error || value === null) {
+    const text = describeResult(hasRun, isCalculating, value, error);
+    return (
+      <p className="operation-entry__result operation-entry__result--empty" title={text}>
+        {text}
+      </p>
+    );
   }
 
-  if (!hasRun) {
-    return <p className="operation-entry__result operation-entry__result--empty">Prima "Correr modelo" para ver o resultado.</p>;
-  }
-
-  if (error) {
-    return <p className="operation-entry__result operation-entry__result--empty">{error}</p>;
-  }
-
-  if (value === null) {
-    return <p className="operation-entry__result operation-entry__result--empty">Sem correspondência encontrada.</p>;
-  }
-
+  const displayValue = describeResult(hasRun, isCalculating, value, error);
   return (
-    <p className="operation-entry__result">
-      <span className="operation-entry__result-label">Resultado:</span> {formatCellValue(value) || '(vazio)'}
+    <p className="operation-entry__result" title={displayValue}>
+      <span className="operation-entry__result-label">Resultado:</span> {displayValue}
     </p>
   );
 }

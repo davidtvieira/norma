@@ -864,8 +864,9 @@ export function OperationPanel({
   // Matches each saved value against a currently-present input by exact name (see
   // testCaseSerialization.ts for why name, not id) — a name from the file with no match on the
   // canvas today is silently skipped, and a current input not mentioned in the file is left
-  // exactly as it was. Runs immediately afterward, same as clicking "Correr teste" — that's the
-  // whole point of loading a saved test back in.
+  // exactly as it was. Only fills the input fields, same as typing the values in by hand — it
+  // does NOT run the model itself; the modal stays open with the loaded values showing so they
+  // can be reviewed (and, if needed, adjusted) before "Correr teste" actually runs it.
   function loadTestCase(file: File) {
     parseTestCaseFile(file)
       .then((parsed) => {
@@ -876,8 +877,6 @@ export function OperationPanel({
             updateTestValue(matched.id, input.value);
           }
         }
-        setIsTestModalOpen(false);
-        setTestSignal((current) => current + 1);
       })
       .catch((error) => {
         setTestLoadError(error instanceof Error ? error.message : 'Falha ao carregar o teste.');
