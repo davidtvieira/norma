@@ -305,8 +305,8 @@
   cursor: not-allowed;
 }
 
-/* "Editar" and, while it's on, the selection/clipboard actions next to it (Selecionar/Copiar/
-   Colar/Eliminar/Cancelar seleção — see OperationPanel.tsx's own render) all share this: a pencil
+/* "Editar" and, while it's on, the clipboard actions next to it (Copiar/Colar/Eliminar/
+   Cancelar seleção — see OperationPanel.tsx's own render) all share this: a pencil
    or plain text label, same height as .operation-canvas__zoom-button, which the group sits
    directly next to in spirit (all are canvas-chrome toggles), just each in its own bordered pill
    since none are part of that button group. No wrapping panel around the actions — they're plain
@@ -901,7 +901,12 @@
   cursor: grab;
 }
 
-.operation-canvas__viewport--panning {
+/* Chained with the base class (rather than a bare .operation-canvas__viewport--panning) purely
+   to outrank .operation-canvas__viewport--select below on specificity — while "Editar" is on,
+   panning is a middle-button drag layered on top of the same background a left-button drag
+   marquee-selects on, so both classes land together and an actual pan in progress needs to win
+   the cursor over the mode's own resting crosshair. */
+.operation-canvas__viewport.operation-canvas__viewport--panning {
   cursor: grabbing;
 }
 
@@ -951,11 +956,12 @@
   border-color: color-mix(in srgb, var(--color-secondary) 45%, var(--color-border));
 }
 
-/* "Selecionar" only ever changes the cursor, not the canvas' own tint/border —
-   .operation-canvas__viewport--editing above already covers the visual cue for "something about
-   this canvas is different right now" the moment "Editar" turns on; arming "Selecionar" on top of
-   that just needs to tell the pointer apart (crosshair, for drawing a marquee, instead of the
-   grab/grabbing pan cursor), not restyle the canvas a second time. */
+/* A left-button drag on the background is always a marquee-select throughout "Editar" (panning
+   there is a middle-button drag instead — see handleViewportMouseDown) — this only ever changes
+   the cursor, not the canvas' own tint/border; .operation-canvas__viewport--editing above already
+   covers the visual cue for "something about this canvas is different right now" the moment
+   "Editar" turns on, this just needs to tell the pointer apart (crosshair, for drawing a marquee,
+   instead of the grab/grabbing pan cursor), not restyle the canvas a second time. */
 .operation-canvas__viewport--select {
   cursor: crosshair;
 }

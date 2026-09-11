@@ -73,9 +73,12 @@ interface UseCanvasViewportOptions {
   /** A node was dragged to a new canvas-local position — the caller applies it (e.g. setEntries). */
   onDragEntry: (id: string, position: NodePosition) => void;
   /** A node was clicked rather than dragged (movement stayed under the threshold) — what that
-   * means (toggle selection vs. open a detail modal) is the caller's call, not this hook's; it
-   * depends on which tool is active, which this hook has no notion of. */
-  onNodeClick: (id: string) => void;
+   * means (select it, possibly additively if a modifier was held, vs. open a detail modal) is the
+   * caller's call, not this hook's; it depends on which tool is active, which this hook has no
+   * notion of. The native event is passed through (not the React synthetic one this all started
+   * from — the click is only detected once the drag ends, in a window-level listener) so the
+   * caller can read its modifier keys (shift/ctrl/cmd) for additive/toggle selection. */
+  onNodeClick: (id: string, event: globalThis.MouseEvent) => void;
   /** A marquee drag ended — every node whose on-screen box overlapped it, replacing whatever
    * selection the caller was tracking (an empty array for a marquee that hit nothing). */
   onMarqueeSelect: (ids: string[]) => void;
@@ -171,7 +174,7 @@ export function useCanvasViewport({ entries, onDragEntry, onNodeClick, onMarquee
       if (dragNode?.id) {
         const movedDistance = Math.hypot(event.clientX - dragNode.startX, event.clientY - dragNode.startY);
         if (movedDistance < CLICK_DISTANCE_THRESHOLD) {
-          onNodeClickRef.current(dragNode.id);
+          onNodeClickRef.current(dragNode.id, event);
         }
       }
       setPan(null);
@@ -286,6 +289,10 @@ export function useCanvasViewport({ entries, onDragEntry, onNodeClick, onMarquee
 
   function startNodeDrag(id: string, position: NodePosition) {
     return (event: ReactMouseEvent<HTMLDivElement>) => {
+      // Anything but the left button (most commonly the middle button, used to pan) is left
+      // alone to bubble up to the viewport's own mousedown handler instead — a node sits over the
+      // background, but the middle button always means "pan", never "drag this node".
+      if (event.button !== 0) return;
       // Bring the node to front on any interaction with it — dragging, clicking a control inside
       // it, or selecting it — so it's never left rendered underneath other nodes it overlaps
       // (plain DOM order otherwise, since a node itself sets no z-index).
