@@ -878,11 +878,6 @@
      wash above, since there'd be barely any contrast left to darken into. */
   background-image: radial-gradient(circle, color-mix(in srgb, var(--color-text) 30%, transparent) 1px, transparent 1px);
   background-size: 22px 22px;
-  /* Animates the dot grid going denser/sparser as "Editar" turns on/off (see the inline
-     backgroundSize style in OperationPanel.tsx, which swaps between GRID_SIZE and
-     EDIT_GRID_SIZE) — half of the "canvas lifted toward you" effect entering/leaving edit mode
-     plays; .operation-card--edit-mode's own transform is the other half. */
-  transition: background-size 0.3s ease;
   cursor: grab;
 }
 
@@ -996,6 +991,8 @@
   fill: none;
   stroke: var(--color-primary);
   stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
   opacity: 0.6;
   /* Defined once here rather than only on --active below, so the same duration/easing applies
      both when a flash lights the edge up and when it fades back to this resting state once
@@ -1059,10 +1056,6 @@
      detail modal in "pan" mode — cursor: pointer hints at that, same as the rest of the card's
      controls, even though the click itself is handled well above this DOM node. */
   cursor: pointer;
-  /* transform's own duration/easing match .operation-canvas__viewport's background-size
-     transition — the two play together as one "the canvas lifted toward you" effect entering/
-     leaving "Editar" (see .operation-card--edit-mode's own scale below), so they need to move in
-     lockstep rather than one settling visibly before the other. */
   transition: border-color 0.2s ease, transform 0.3s ease, box-shadow 0.3s ease;
 }
 
@@ -1073,16 +1066,20 @@
 /* While "Editar" is on, a click no longer opens the modal (see OperationPanel's own onNodeClick)
    — falls back to the parent node's own grab/grabbing cursor (see .operation-canvas__node)
    instead of the pointer cursor above, which would otherwise promise a click that does nothing.
-   The scale-up + heavier shadow is the other half of the "lifted toward you" effect entering/
-   leaving edit mode (see .operation-canvas__viewport's own background-size transition for the
-   grid-density half) — a small enough bump that neighboring cards don't visibly overlap from it,
-   just enough to read as "raised". transform-origin stays centered (the default) rather than
-   anchored to a corner so the card grows evenly in place instead of visibly shifting toward one
-   side. */
+   The lift+shadow below (see its own note) is "the canvas got closer to you" effect entering/
+   leaving edit mode — a small enough bump that neighboring cards don't visibly overlap from it,
+   just enough to read as genuinely raised off the surface. transform-origin stays centered (the
+   default) rather than anchored to a corner so the card grows evenly in place instead of visibly
+   shifting toward one side. */
 .operation-card--edit-mode {
   cursor: inherit;
-  transform: scale(1.035);
-  box-shadow: var(--shadow-md);
+  /* Scale alone (no matter how big) reads as "zoomed in on", not "lifted off the surface" — the
+     upward shift plus a shadow that's both bigger *and* pushed further down/out (rather than just
+     .operation-card's own resting shadow scaled up) is what actually sells depth: the card looks
+     like it's now floating above the canvas, closer to the screen, with the extra gap between it
+     and its old position implying the light source. */
+  transform: translateY(-4px) scale(1.045);
+  box-shadow: 0 22px 34px -14px rgba(0, 0, 0, 0.4), 0 8px 14px -6px rgba(0, 0, 0, 0.22);
 }
 
 /* Marks a card that's actually been tested (its own testSignal has fired at least once — see
@@ -1172,7 +1169,9 @@
   color: var(--color-primary);
 }
 
-/* TestUpToHereButton — same plain icon-button chrome as .operation-card__edit/__reveal above. */
+/* TestUpToHereButton — same plain icon-button chrome as .operation-card__edit/__reveal above,
+   just a bit bigger (see its own svg sizing below) since it's the one most often actually clicked
+   on a card rather than an occasional action. */
 .operation-card__test {
   display: inline-flex;
   align-items: center;
@@ -1185,12 +1184,26 @@
 }
 
 .operation-card__test svg {
-  width: 0.9rem;
-  height: 0.9rem;
+  width: 1.15rem;
+  height: 1.15rem;
 }
 
 .operation-card__test:hover {
   color: var(--color-primary);
+}
+
+/* Once this chain's already been tested (see TestUpToHereButton's own isTested), reads as "clear"
+   instead of "play" — filled, and --color-secondary rather than the plain muted icon color, same
+   accent every other "armed"/"already active" state on this canvas already uses (Selecionado,
+   Colar while armed, "A editar", ...) rather than error-red, since this isn't a warning, just a
+   toggled-on state. */
+.operation-card__test--stop {
+  color: var(--color-secondary);
+}
+
+.operation-card__test--stop:hover {
+  color: var(--color-secondary);
+  opacity: 0.85;
 }
 
 .operation-card__io-toggle {

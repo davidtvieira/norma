@@ -37,15 +37,6 @@ const NODE_WIDTH = 300;
  * so the grid still looks right for the split second before the first render's inline style
  * applies). */
 const GRID_SIZE = 22;
-/** The same dot grid, a little denser, while "Editar" is on — part of the little "the canvas just
- * got lifted toward you to work on" effect (see the viewport's own backgroundSize below, and
- * .operation-card--edit-mode's matching scale-up in OperationPanel.css) that plays when entering/
- * leaving edit mode. Only a mild reduction (not halved — that quadruples the dot count per axis,
- * which reads as a completely different grid rather than the same one going subtly denser to
- * match the cards' own small scale-up) so the two keep feeling proportionate to each other.
- * background-size is what actually animates it (see .operation-canvas__viewport's own transition)
- * — this only supplies the two numbers it eases between. */
-const EDIT_GRID_SIZE = GRID_SIZE * 0.96;
 /** Vertical offset from a node's top to its header's center — where edges attach — constant
  * regardless of how tall the node's body grows (result text, expanded info, ...). */
 const NODE_HEADER_ANCHOR_Y = 28;
@@ -195,19 +186,41 @@ function RevealButton({ onReveal }: RevealButtonProps) {
 
 interface TestUpToHereButtonProps {
   onTest: () => void;
+  /** Whether this operation's own testSignal has fired at least once (same value the card's own
+   * border — see .operation-card--tested — already reflects), not whether a stagger is currently
+   * mid-run — "has this chain already been tested, with its own edges still colored from that"
+   * is what swaps this button over to a stop/clear icon (see onClear), independent of whether
+   * anything is actively running right now. */
+  isTested: boolean;
+  /** Clears just this operation's own dependency chain back to not-tested — its testSignals,
+   * results, and whichever of its own outgoing edges (see activeEdgeKeys) that chain lit up —
+   * without touching any other operation's own test state, unlike the toolbar's "Limpar teste"
+   * (see clearChainTest). */
+  onClear: () => void;
 }
 
 /**
  * Runs "Testar modelo" scoped to just this operation's own dependency chain — itself and every
  * operation it (transitively) reads its input from (see getDependencyChain), not every confirmed
  * operation on the canvas — so checking one operation's result doesn't also wait on, or spend API
- * calls testing, unrelated ones elsewhere in the model.
+ * calls testing, unrelated ones elsewhere in the model. Once that chain has actually been tested
+ * (see isTested), this same button becomes a way to clear just that chain's own test state
+ * instead of running it again.
  */
-function TestUpToHereButton({ onTest }: TestUpToHereButtonProps) {
+function TestUpToHereButton({ onTest, isTested, onClear }: TestUpToHereButtonProps) {
+  if (isTested) {
+    return (
+      <button type="button" className="operation-card__test operation-card__test--stop" onClick={onClear} aria-label="Limpar teste desta operação" title="Limpar teste desta operação">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor" />
+        </svg>
+      </button>
+    );
+  }
   return (
     <button type="button" className="operation-card__test" onClick={onTest} aria-label="Testar até aqui" title="Testar até aqui">
       <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <path d="M6 4.5v15l13-7.5-13-7.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M6 4.5v15l13-7.5-13-7.5Z" fill="currentColor" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
       </svg>
     </button>
   );
@@ -251,11 +264,15 @@ interface ConfirmedOperationCardProps {
   onMouseLeave?: () => void;
   /** Whether this operation's own testSignal has fired at least once — draws a primary-color
    * border on the card, regardless of whether the result itself was a success, an error, or no
-   * match (see .operation-card--tested). */
+   * match (see .operation-card--tested), and doubles as TestUpToHereButton's own isTested (its
+   * play icon becomes a "clear this chain's test" icon once this is true). */
   isTested: boolean;
   /** Runs "Testar modelo" scoped to just this operation's own dependency chain — see
    * TestUpToHereButton/runModelTest(upToEntryId). */
   onTestUpToHere: () => void;
+  /** Clears just this operation's own dependency chain's test state — see TestUpToHereButton's
+   * own onClear/clearChainTest. */
+  onClearTest: () => void;
   onReveal: () => void;
   /** Whether this operation actually has a sheet location to reveal — false for kinds that never
    * highlight any column/range (see sheetIndexForEntry) — so the reveal button doesn't sit there
@@ -314,6 +331,7 @@ function ConfirmedOperationCard({
   onMouseLeave,
   isTested,
   onTestUpToHere,
+  onClearTest,
   onReveal,
   isRevealEligible,
   children,
@@ -402,7 +420,7 @@ function ConfirmedOperationCard({
             <>
               {isModelInputEligible && <IoToggle label="Input" active={isModelInput} onToggle={onToggleModelInput} />}
               <IoToggle label="Output" active={isModelOutput} onToggle={onToggleModelOutput} />
-              <TestUpToHereButton onTest={onTestUpToHere} />
+              <TestUpToHereButton onTest={onTestUpToHere} isTested={isTested} onClear={onClearTest} />
               {isRevealEligible && <RevealButton onReveal={onReveal} />}
             </>
           )}
@@ -661,9 +679,15 @@ export function OperationPanel({
   // check before testSignal became per-entry (see "Limpar teste"'s disabled/title logic below),
   // which needed a single shared value to compare against 0 in the first place.
   const [hasTested, setHasTested] = useState(false);
-  // Bumped by "Limpar teste" — the counterpart to testSignals: clears every kind's shown result
-  // back to not-tested without needing to change any of its fields first.
-  const [resetSignal, setResetSignal] = useState(0);
+  // Bumped per-entry by "Limpar teste" (every confirmed entry at once) and clearChainTest (just
+  // the ids it's clearing) — the counterpart to testSignals: dropping an entry's own testSignal
+  // back to 0 on its own only stops it from being staggered *again* (see each kind's own
+  // renderBody), it doesn't itself clear what's already shown — every kind's own reset effect
+  // watches this instead, specifically because it needs to fire even when nothing else about that
+  // entry changed. Keyed by entry id (not one shared counter) so clearChainTest can reset just one
+  // chain's own displayed results without touching every other operation's, the same reasoning
+  // testSignals itself is per-entry rather than a single shared value.
+  const [resetSignals, setResetSignals] = useState<Record<string, number>>({});
   // How far a "Testar modelo" run has staggered through the confirmed operations so far — null
   // whenever one isn't in progress (nothing to show a bar for). Drives the progress bar at the
   // top of the canvas (see below); purely observational, doesn't gate anything itself.
@@ -746,6 +770,21 @@ export function OperationPanel({
 
     cancelPendingTestStagger();
     setHasTested(true);
+
+    // Scoped run ("Testar até aqui"): every entry actually being (re-)tested is about to get a
+    // fresh testSignal below, but anything downstream of *those* that isn't itself part of this
+    // chain (see getDependents) still has a cached "tested" result computed against the chain's
+    // *previous* values — invalidate it now rather than leaving it looking validly tested against
+    // data that's about to change out from under it.
+    if (chain) {
+      const staleDependents = new Set<string>();
+      for (const id of chain) {
+        for (const dependentId of getDependents(id, entries)) {
+          if (!chain.has(dependentId)) staleDependents.add(dependentId);
+        }
+      }
+      clearTestStateForIds(staleDependents);
+    }
 
     const confirmedIds = entries.filter((entry) => entry.confirmed && (!chain || chain.has(entry.id))).map((entry) => entry.id);
     if (confirmedIds.length === 0) return true;
@@ -1250,7 +1289,17 @@ export function OperationPanel({
   // that's still been partly filled in rather than back to how it looked before any of that.
   function clearTest() {
     cancelPendingTestStagger();
-    setResetSignal((current) => current + 1);
+    // Bumps every entry's own resetSignals slot at once, not just the ones with a testSignal/
+    // result currently set — a kind can have something worth clearing (e.g. a typed-but-never-
+    // tested literal shown mid-flight) without either of those, so this errs toward clearing
+    // everything rather than trying to compute exactly who needs it.
+    setResetSignals((current) => {
+      const next = { ...current };
+      for (const entry of entries) {
+        next[entry.id] = (next[entry.id] ?? 0) + 1;
+      }
+      return next;
+    });
     setTestSignals({});
     setHasTested(false);
     setActiveEdgeKeys(new Set());
@@ -1258,6 +1307,74 @@ export function OperationPanel({
       updateTestValue(id, '');
     }
     setGranularTestWarning(null);
+  }
+
+  // Wipes testSignals/results/activeEdgeKeys for exactly the given ids (a no-op for any id that
+  // wasn't set in the first place) and bumps each one's own resetSignals entry — shared by
+  // clearChainTest below (an explicit "clear" click) and runModelTest's own downstream-
+  // invalidation (a *fresh* run of an upstream chain, which makes every downstream dependent's
+  // still-cached test state stale even though nothing asked to clear those specifically).
+  // Dropping testSignals back to 0 alone doesn't make a kind's own already-shown result go blank
+  // — only resetSignals actually does that (see each kind's own reset effect) — so both need
+  // bumping together here, not just the one.
+  function clearTestStateForIds(ids: Set<string>) {
+    if (ids.size === 0) return;
+    setTestSignals((current) => {
+      const next = { ...current };
+      let changed = false;
+      for (const id of ids) {
+        if (id in next) {
+          delete next[id];
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+    setResults((current) => {
+      const next = { ...current };
+      let changed = false;
+      for (const id of ids) {
+        if (id in next) {
+          delete next[id];
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+    setActiveEdgeKeys((current) => {
+      const next = new Set(current);
+      let changed = false;
+      for (const edge of edges) {
+        if (ids.has(edge.fromId) && next.delete(`${edge.fromId}-${edge.toId}`)) changed = true;
+      }
+      return changed ? next : current;
+    });
+    setResetSignals((current) => {
+      const next = { ...current };
+      for (const id of ids) {
+        next[id] = (next[id] ?? 0) + 1;
+      }
+      return next;
+    });
+  }
+
+  // TestUpToHereButton's own "clear" click (see its own onClear) once a chain's already been
+  // tested — undoes that dependency chain's own test state, and cascades forward to every entry
+  // that (transitively) depends on any of them (see getDependents) — an operation can't still
+  // count as "tested" once something it actually reads its own input from just had its test state
+  // wiped, the same way a downstream operation was never able to resolve *past* an upstream one
+  // that hadn't been tested yet in the first place. Leaves every operation outside that whole
+  // up-and-downstream neighborhood untouched, unlike "Limpar teste" (see clearTest above), which
+  // resets the entire canvas at once.
+  function clearChainTest(entryId: string) {
+    const upstreamChain = getDependencyChain(entryId, entries);
+    const toClear = new Set(upstreamChain);
+    for (const id of upstreamChain) {
+      for (const dependentId of getDependents(id, entries)) {
+        toClear.add(dependentId);
+      }
+    }
+    clearTestStateForIds(toClear);
   }
 
   // "Testar modelo" itself when the model has no designated input (nothing to review — runs
@@ -1471,6 +1588,7 @@ export function OperationPanel({
         onMouseLeave={() => setHoveredOperationId((current) => (current === entry.id ? null : current))}
         isTested={(testSignals[entry.id] ?? 0) > 0}
         onTestUpToHere={() => runModelTest(entry.id)}
+        onClearTest={() => clearChainTest(entry.id)}
         onReveal={() => revealEntry(entry)}
         isRevealEligible={sheetIndexForEntry(entry) !== null}
         isModelInput={modelInputIds.includes(entry.id)}
@@ -1515,7 +1633,7 @@ export function OperationPanel({
             if (value !== null) flashEdgesFrom(entry.id);
           },
           testSignal: testSignals[entry.id] ?? 0,
-          resetSignal,
+          resetSignal: resetSignals[entry.id] ?? 0,
         })}
       </ConfirmedOperationCard>
     );
@@ -1863,14 +1981,10 @@ export function OperationPanel({
         // Keeps the dotted grid (see OperationPanel.css) moving and scaling together with the
         // surface below, instead of staying fixed to the viewport while the nodes on it pan/zoom
         // past — its phase follows the same unscaled viewOffset the surface's own translate uses
-        // (see the surface's transform below), and its dot spacing scales by the same zoom. Also
-        // swaps to EDIT_GRID_SIZE while "Editar" is on, animated by the CSS transition on
-        // background-size itself (see .operation-canvas__viewport) rather than anything here.
+        // (see the surface's transform below), and its dot spacing scales by the same zoom.
         style={{
           backgroundPosition: `${viewOffset.x}px ${viewOffset.y}px`,
-          backgroundSize: `${(tool === 'select' ? EDIT_GRID_SIZE : GRID_SIZE) * zoom}px ${
-            (tool === 'select' ? EDIT_GRID_SIZE : GRID_SIZE) * zoom
-          }px`,
+          backgroundSize: `${GRID_SIZE * zoom}px ${GRID_SIZE * zoom}px`,
         }}
       >
         {/* Floats over the canvas itself (a sibling of the surface below, so it sits outside that
