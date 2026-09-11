@@ -54,6 +54,17 @@ export const ZOOM_STEP = 1.2;
 /** A node "drag" that barely moved (in screen pixels) is really a click, not a reposition. */
 const CLICK_DISTANCE_THRESHOLD = 4;
 
+/** The canvas-local pixel spacing a dragged node's position snaps to (see handleMouseMove's own
+ * snapToGrid) — matches OperationPanel's own dotted background grid's dot spacing (see its own
+ * GRID_SIZE), so a snapped node always lands exactly on one of those dots instead of the two
+ * drifting apart over time. */
+export const SNAP_GRID_SIZE = 22;
+
+/** Rounds a single canvas-local coordinate to the nearest multiple of SNAP_GRID_SIZE. */
+function snapToGrid(value: number): number {
+  return Math.round(value / SNAP_GRID_SIZE) * SNAP_GRID_SIZE;
+}
+
 interface UseCanvasViewportOptions {
   /** Every node currently on the canvas — read only for the marquee's own mouseup hit-test
    * (against each entry's actual on-screen DOM box, via nodeRefs), same as before this was its
@@ -141,10 +152,13 @@ export function useCanvasViewport({ entries, onDragEntry, onNodeClick, onMarquee
         // dividing by zoom converts the latter into the former, so a node tracks the cursor 1:1
         // on screen at any zoom level instead of drifting faster than the cursor while zoomed in
         // (or slower while zoomed out). Uses whatever zoom was active when this drag started —
-        // changing zoom mid-drag (e.g. via the wheel) isn't accounted for.
+        // changing zoom mid-drag (e.g. via the wheel) isn't accounted for. Snapped to SNAP_GRID_
+        // SIZE (see its own note) so the node itself only ever visibly jumps between grid steps
+        // instead of tracking the cursor pixel-for-pixel — small, uneven mouse movements no longer
+        // leave two operations meant to line up a few stray pixels apart.
         onDragEntryRef.current(dragNode.id!, {
-          x: dragNode.originX + (event.clientX - dragNode.startX) / zoom,
-          y: dragNode.originY + (event.clientY - dragNode.startY) / zoom,
+          x: snapToGrid(dragNode.originX + (event.clientX - dragNode.startX) / zoom),
+          y: snapToGrid(dragNode.originY + (event.clientY - dragNode.startY) / zoom),
         });
       }
     }
