@@ -118,7 +118,7 @@ export function EditorScreen({
             {dataset.filename}
           </button>
           <span className="app__breadcrumb-separator">/</span>
-          <span className="app__breadcrumb-item app__breadcrumb-item--current">Criar modelo</span>
+          <span className="app__breadcrumb-item app__breadcrumb-item--current">{modelName.trim() || 'Modelo sem nome'}</span>
         </nav>
         <div className="app__topbar-actions">
           <button type="button" className="app__view-data-button" onClick={onOpenSheetPanel}>

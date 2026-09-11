@@ -2222,7 +2222,7 @@ export function OperationPanel({
                       : 'Cola as operações copiadas onde clicar no canvas.'
                 }
               >
-                {pendingPaste ? 'Clique no canvas para colar…' : 'Colar'}
+                {pendingPaste ? 'Clique no canvas para colar…' : clipboard && clipboard.length > 0 ? `Colar (${clipboard.length})` : 'Colar'}
               </button>
               <button
                 type="button"
@@ -2236,7 +2236,10 @@ export function OperationPanel({
               <button
                 type="button"
                 className="operation-canvas__tool-button"
-                onClick={() => setSelectedIds([])}
+                onClick={() => {
+                  setSelectedIds([]);
+                  setClipboard(null);
+                }}
                 disabled={!hasSelection}
                 title={hasSelection ? undefined : 'Selecione uma ou mais operações primeiro.'}
               >
