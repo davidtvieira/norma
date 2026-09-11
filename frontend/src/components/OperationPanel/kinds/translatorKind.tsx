@@ -282,8 +282,10 @@ function TranslatorResult({ resolvedInput, rules, testSignal, resetSignal, onRes
     return null;
   }
 
+  // Chained off another operation that hasn't produced a result yet — nothing to show, same as
+  // 'idle' (no test run at all), rather than a placeholder message.
   if (state.status === 'waiting') {
-    return <p className="operation-entry__result operation-entry__result--empty">A aguardar pela entrada…</p>;
+    return null;
   }
 
   if (state.status === 'loading') {

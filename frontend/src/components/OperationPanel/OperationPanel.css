@@ -41,6 +41,8 @@
 }
 
 .operation-canvas__test-button {
+  position: relative;
+  overflow: hidden;
   padding: 0.55rem 1.1rem;
   border: 1px solid var(--color-primary);
   border-radius: 999px;
@@ -56,6 +58,37 @@
 .operation-canvas__test-button:hover:not(:disabled) {
   background: var(--color-primary-hover);
   border-color: var(--color-primary-hover);
+}
+
+/* While a "Testar modelo" stagger is in progress, this same button interrupts it instead —
+   --color-error rather than --color-primary so it visibly reads as a stop/cancel action, not
+   just "run again". */
+.operation-canvas__test-button--cancel {
+  background: var(--color-error);
+  border-color: var(--color-error);
+}
+
+.operation-canvas__test-button--cancel:hover:not(:disabled) {
+  background: var(--color-error);
+  border-color: var(--color-error);
+  opacity: 0.85;
+}
+
+/* The stagger's own progress, as a fill sweeping across the button itself (see
+   OperationPanel.tsx's testProgress) instead of a separate bar elsewhere on the canvas — right
+   under the label, growing left to right underneath it rather than a bar the user has to look
+   away from the button to see. */
+.operation-canvas__test-button-progress {
+  position: absolute;
+  inset: 0;
+  width: 0%;
+  background: rgba(255, 255, 255, 0.3);
+  transition: width 0.15s ease;
+}
+
+.operation-canvas__test-button-label {
+  position: relative;
+  z-index: 1;
 }
 
 .operation-canvas__test-button:disabled {

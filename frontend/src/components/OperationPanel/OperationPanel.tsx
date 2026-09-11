@@ -44,6 +44,16 @@ const NODES_PER_ROW = 3;
 const NODE_COLUMN_GAP = 340;
 const NODE_ROW_GAP = 240;
 
+/** How far apart "Testar modelo" staggers each confirmed operation's own live-result request
+ * (see runModelTest) — small enough that testing a model still feels close to instant, big
+ * enough that a model with many operations sends the API a trickle of requests instead of a
+ * burst all in the same instant. */
+const TEST_STAGGER_DELAY_MS = 120;
+/** How long the progress bar (see runModelTest/testProgress) stays visible at 100% once the
+ * stagger itself has finished, before fading away on its own — just long enough to actually
+ * register as "done" rather than the bar vanishing the instant it fills. */
+const TEST_PROGRESS_LINGER_MS = 500;
+
 /** Simple cascading grid placement for a node restored without a saved position (see
  * initialEntries) — anchored at a fixed canvas-local origin regardless of the current pan/zoom,
  * since there's no "current viewport" the entries being restored are meaningfully tied to (they
@@ -537,13 +547,77 @@ export function OperationPanel({
   // The row each operation's query currently matches (if any) — only meaningful for kinds
   // that implement getCellHighlight (currently just lookup).
   const [matchedRows, setMatchedRows] = useState<Record<string, number | null>>({});
-  // Bumped by "Testar modelo" (see the toolbar below) — passed through to every kind's
+  // Bumped by "Testar modelo" (see runModelTest below) — passed through to each entry's own
   // renderBody (see operationKind.ts) as the one signal that should make it actually call its
-  // endpoint, instead of every result live-fetching as soon as its inputs are ready.
-  const [testSignal, setTestSignal] = useState(0);
-  // Bumped by "Limpar teste" — the counterpart to testSignal: clears every kind's shown result
+  // endpoint, instead of every result live-fetching as soon as its inputs are ready. Keyed by
+  // entry id (rather than one number shared by every entry) so runModelTest can stagger *when*
+  // each entry's own bump actually lands — a model with many operations would otherwise fire
+  // every one of their live-result requests against the API in the very same instant.
+  const [testSignals, setTestSignals] = useState<Record<string, number>>({});
+  // Whether "Testar modelo" has fired at least once — the counterpart of testSignal's own "=== 0"
+  // check before testSignal became per-entry (see "Limpar teste"'s disabled/title logic below),
+  // which needed a single shared value to compare against 0 in the first place.
+  const [hasTested, setHasTested] = useState(false);
+  // Bumped by "Limpar teste" — the counterpart to testSignals: clears every kind's shown result
   // back to not-tested without needing to change any of its fields first.
   const [resetSignal, setResetSignal] = useState(0);
+  // How far a "Testar modelo" run has staggered through the confirmed operations so far — null
+  // whenever one isn't in progress (nothing to show a bar for). Drives the progress bar at the
+  // top of the canvas (see below); purely observational, doesn't gate anything itself.
+  const [testProgress, setTestProgress] = useState<{ done: number; total: number } | null>(null);
+  // Pending runModelTest timeouts (see below), so a fresh "Testar modelo" click — or "Limpar
+  // teste" — can cancel whatever's left of a previous stagger instead of letting it keep firing
+  // requests for a test that's already been superseded or cleared.
+  const testStaggerTimeoutsRef = useRef<number[]>([]);
+
+  useEffect(() => {
+    return () => {
+      for (const timeoutId of testStaggerTimeoutsRef.current) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, []);
+
+  function cancelPendingTestStagger() {
+    for (const timeoutId of testStaggerTimeoutsRef.current) {
+      window.clearTimeout(timeoutId);
+    }
+    testStaggerTimeoutsRef.current = [];
+    setTestProgress(null);
+  }
+
+  /**
+   * "Testar modelo" itself: bumps every confirmed operation's own testSignal, one at a time in
+   * canvas order, each TEST_STAGGER_DELAY_MS after the last — instead of bumping one signal
+   * every operation would react to at once, which is exactly what would otherwise turn "test a
+   * model with a lot of operations" into a burst of simultaneous requests against the API. A
+   * chained operation still effectively waits on top of this for its own reference to resolve
+   * (see resolveOperationInputs), same as before; this only changes when an *independent*
+   * operation's own request actually goes out. testProgress is bumped alongside each signal
+   * purely so the progress bar at the top of the canvas has something to show; the bar itself
+   * fades away shortly after the last one fires rather than lingering at 100% indefinitely.
+   */
+  function runModelTest() {
+    cancelPendingTestStagger();
+    setHasTested(true);
+
+    const confirmedIds = entries.filter((entry) => entry.confirmed).map((entry) => entry.id);
+    if (confirmedIds.length === 0) return;
+
+    setTestProgress({ done: 0, total: confirmedIds.length });
+    confirmedIds.forEach((id, index) => {
+      const timeoutId = window.setTimeout(() => {
+        setTestSignals((current) => ({ ...current, [id]: (current[id] ?? 0) + 1 }));
+        setTestProgress((current) => (current ? { ...current, done: current.done + 1 } : current));
+      }, index * TEST_STAGGER_DELAY_MS);
+      testStaggerTimeoutsRef.current.push(timeoutId);
+    });
+
+    const clearProgressTimeoutId = window.setTimeout(() => {
+      setTestProgress(null);
+    }, confirmedIds.length * TEST_STAGGER_DELAY_MS + TEST_PROGRESS_LINGER_MS);
+    testStaggerTimeoutsRef.current.push(clearProgressTimeoutId);
+  }
   // Whether the test-values modal (see TestValuesModal) is open — only reachable when the model
   // has at least one designated input (see the "Testar modelo" button below); with none, there's
   // nothing to prompt for and it runs immediately, same as before this modal existed.
@@ -851,7 +925,7 @@ export function OperationPanel({
 
   function runTestFromModal() {
     setIsTestModalOpen(false);
-    setTestSignal((current) => current + 1);
+    runModelTest();
   }
 
   function saveTestCase() {
@@ -1061,7 +1135,7 @@ export function OperationPanel({
           resolvedInputs: resolvedInputsByEntry[entry.id],
           referenceOptions: referenceOptionsFor(entry.id),
           onResultChange: (value) => setResults((current) => ({ ...current, [entry.id]: value })),
-          testSignal,
+          testSignal: testSignals[entry.id] ?? 0,
           resetSignal,
           isModelInput: modelInputIds.includes(entry.id),
         })}
@@ -1271,26 +1345,59 @@ export function OperationPanel({
           <button
             type="button"
             className="operation-canvas__reset-button"
-            onClick={() => setResetSignal((current) => current + 1)}
-            disabled={testSignal === 0}
-            title={testSignal === 0 ? 'Ainda não testou o modelo.' : 'Limpa os resultados do último teste.'}
+            onClick={() => {
+              cancelPendingTestStagger();
+              setResetSignal((current) => current + 1);
+            }}
+            disabled={!hasTested}
+            title={!hasTested ? 'Ainda não testou o modelo.' : 'Limpa os resultados do último teste.'}
           >
             Limpar teste
           </button>
           <button
             type="button"
-            className="operation-canvas__test-button"
-            onClick={() => (testInputEntries.length > 0 ? openTestModal() : setTestSignal((current) => current + 1))}
+            className={
+              testProgress
+                ? 'operation-canvas__test-button operation-canvas__test-button--cancel'
+                : 'operation-canvas__test-button'
+            }
+            // While a stagger's in progress, this same button interrupts it instead of starting
+            // another one — cancelPendingTestStagger just stops whatever hasn't fired yet
+            // (already-dispatched requests still run to completion; there's no cancelling those
+            // without an AbortController this app doesn't otherwise need).
+            onClick={() => {
+              if (testProgress) {
+                cancelPendingTestStagger();
+                return;
+              }
+              if (testInputEntries.length > 0) {
+                openTestModal();
+              } else {
+                runModelTest();
+              }
+            }}
             disabled={confirmedCount === 0}
             title={
-              confirmedCount === 0
-                ? 'Conclua pelo menos uma operação para a poder testar.'
-                : testInputEntries.length > 0
-                  ? 'Introduza um valor para cada input antes de correr o teste.'
-                  : 'Calcula cada operação com os valores atuais.'
+              testProgress
+                ? `Interrompe o teste (${testProgress.done}/${testProgress.total}) — para de calcular as operações que ainda faltam.`
+                : confirmedCount === 0
+                  ? 'Conclua pelo menos uma operação para a poder testar.'
+                  : testInputEntries.length > 0
+                    ? 'Introduza um valor para cada input antes de correr o teste.'
+                    : 'Calcula cada operação com os valores atuais.'
             }
           >
-            Testar modelo
+            {/* The progress fill lives on the button itself instead of a separate bar elsewhere
+                on the canvas — one less element to place, and it's right where the user's
+                attention already is (they just clicked this). Absolutely positioned under the
+                label (z-index), growing left to right as testProgress advances. */}
+            {testProgress && (
+              <span
+                className="operation-canvas__test-button-progress"
+                style={{ width: `${(testProgress.done / testProgress.total) * 100}%` }}
+              />
+            )}
+            <span className="operation-canvas__test-button-label">{testProgress ? 'Cancelar teste' : 'Testar modelo'}</span>
           </button>
         </div>
       </div>
