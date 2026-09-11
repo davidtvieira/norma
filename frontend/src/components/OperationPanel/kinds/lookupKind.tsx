@@ -199,16 +199,6 @@ export const lookupKind: OperationKind = {
           resolvedInput={searchColumnResolved}
         />
 
-        <ValueSourceField
-          label="Valor a procurar"
-          placeholder="Introduza um valor"
-          inputType="text"
-          source={f.input}
-          onChange={(input) => updateFields({ input })}
-          referenceOptions={referenceOptions}
-          resolvedInput={queryResolved}
-        />
-
         <div className="operation-entry__field">
           <label className="operation-entry__label">Tipo de comparação</label>
           <select
@@ -241,6 +231,16 @@ export const lookupKind: OperationKind = {
             </div>
           )}
         </div>
+
+        <ValueSourceField
+          label="Valor a procurar"
+          placeholder="Introduza um valor"
+          inputType="text"
+          source={f.input}
+          onChange={(input) => updateFields({ input })}
+          referenceOptions={referenceOptions}
+          resolvedInput={queryResolved}
+        />
 
         <LookupResult
           datasetId={datasetId}
@@ -474,7 +474,7 @@ function LookupResult({
 
   return (
     <p className="operation-entry__result">
-      <span className="operation-entry__result-label">Resultado:</span> {resultValue || '(vazio)'}
+      <span className="operation-entry__result-label">Saída:</span> {resultValue || '(vazio)'}
     </p>
   );
 }

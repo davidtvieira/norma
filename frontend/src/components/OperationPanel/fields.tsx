@@ -383,6 +383,12 @@ export function ValueSourceField({
   }
 
   return (
+    // A fragment, not a single div: the field itself (label + editable control) and the
+    // "Entrada" readout below need to be *siblings*, not nested — the collapsed-card CSS
+    // (.operation-card__details--collapsed) and the opened-card CSS
+    // (.operation-card-modal__body) both key off direct children to show one and hide the
+    // other, which only works if they're not both buried inside one wrapping div together.
+    <>
     <div className="operation-entry__field">
       <label className="operation-entry__label">{label}</label>
 
@@ -417,6 +423,12 @@ export function ValueSourceField({
         </button>
       )}
 
+      {/* A dynamic pill only ever names the operation it points at — the value it currently
+          resolves to is shown separately below instead (see the "Entrada" readout), not folded
+          into the pill itself: that readout is meant to survive the card being collapsed (see
+          .operation-entry__result's own note) but disappear once the card is actually opened,
+          the exact opposite of this pill (and the plain input/static pill above), which exist to
+          be edited and so are only ever shown while open. */}
       {source.type === 'reference' && (
         <>
           <button type="button" className="operation-column-pill operation-column-pill--pickable" onClick={onRemove ?? reset}>
@@ -448,5 +460,26 @@ export function ValueSourceField({
         />
       )}
     </div>
+
+    {/* This field's currently resolved value, styled the same way a kind's own result is (see
+        e.g. LookupResult) — the "input" counterpart to that "output", distinguished from it by
+        the --input modifier (no background fill, see OperationPanel.css) so the two read as
+        input/output at a glance rather than two identical boxes. Labeled with this field's own
+        `label` (e.g. "Valor a procurar") rather than a generic "Entrada" — a kind with more than
+        one chainable field (e.g. lookup's own startRow/searchColumn/query) would otherwise show
+        three identically-labeled readouts with no way to tell which is which. Meant to be
+        visible while the card is collapsed (so both input and output read at a glance, without
+        opening it — see .operation-card__details--collapsed's own exemption for
+        .operation-entry__result, which this shares) and hidden once the card actually opens (see
+        .operation-card-modal__body's own opposite rule), where the point is editing the field
+        itself — the plain input/pick-button/pill above already shows a typed value directly,
+        and this would otherwise just duplicate it right next to the very control that already
+        has it. */}
+    {resolvedInput.status === 'ready' && (
+      <p className="operation-entry__result operation-entry__result--input">
+        <span className="operation-entry__result-label">{label}:</span> {resolvedInput.value || '(vazio)'}
+      </p>
+    )}
+    </>
   );
 }

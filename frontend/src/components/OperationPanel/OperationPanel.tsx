@@ -633,14 +633,50 @@ export function OperationPanel({
    * of every confirmed operation on the canvas. This is what each card's own "Testar até aqui"
    * button (see ConfirmedOperationCard) uses: check one operation's result without waiting on
    * (or spending API calls testing) unrelated ones elsewhere in the model.
+   *
+   * Either way, every operation the run actually touches (the whole model's for a full run, just
+   * the chain's for a scoped one) that has a single chainable field (see renderInputEditor — the
+   * same "is it eligible to be a model input" test used elsewhere) must have a real, non-blank
+   * value first *if* that field is currently a literal — not just the ones actually toggled on as
+   * a designated model input: an operation someone chains off (e.g. a node) can have an empty
+   * literal value whether or not its own author ever marked it as a model input, and either way
+   * that operation (and everything chained past it) would otherwise silently sit there doing
+   * nothing — no request, no result, no error — while its testSignal still ticks over and its
+   * card still shows as "tested". A field currently set to a *reference* is never flagged here —
+   * whether that resolves in time is what resolveOperationInputs' own pending/ready/missing/cycle
+   * states already track, not a blank-value problem. "Empty" covers both a field that was simply
+   * never touched and one that was typed into and then left as just whitespace; trimming treats
+   * them the same. Reported as a warning (see granularTestWarning) and the run doesn't start at
+   * all, rather than silently producing nothing. Returns whether the run actually started, so a
+   * caller (see runTestFromModal) can tell a blocked attempt apart from one that proceeded.
    */
-  function runModelTest(upToEntryId?: string) {
+  function runModelTest(upToEntryId?: string): boolean {
+    const chain = upToEntryId ? getDependencyChain(upToEntryId, entries) : null;
+    const relevantEntries = entries.filter((entry) => entry.confirmed && (!chain || chain.has(entry.id)));
+
+    const emptyInputNames = relevantEntries
+      .filter((entry) => {
+        if (!KINDS_BY_ID[entry.kindId].renderInputEditor) return false;
+        const source = getInputSource(entry.fields);
+        return source.type === 'literal' && source.value.trim() === '';
+      })
+      .map((entry) => entry.name || 'Operação sem nome');
+
+    if (emptyInputNames.length > 0) {
+      setGranularTestWarning(
+        emptyInputNames.length === 1
+          ? `Não é possível testar: a operação "${emptyInputNames[0]}" não tem um valor definido.`
+          : `Não é possível testar: as operações ${emptyInputNames.map((name) => `"${name}"`).join(', ')} não têm um valor definido.`,
+      );
+      return false;
+    }
+    setGranularTestWarning(null);
+
     cancelPendingTestStagger();
     setHasTested(true);
 
-    const chain = upToEntryId ? getDependencyChain(upToEntryId, entries) : null;
     const confirmedIds = entries.filter((entry) => entry.confirmed && (!chain || chain.has(entry.id))).map((entry) => entry.id);
-    if (confirmedIds.length === 0) return;
+    if (confirmedIds.length === 0) return true;
 
     setTestProgress({ done: 0, total: confirmedIds.length });
     confirmedIds.forEach((id, index) => {
@@ -655,9 +691,15 @@ export function OperationPanel({
       setTestProgress(null);
     }, confirmedIds.length * TEST_STAGGER_DELAY_MS + TEST_PROGRESS_LINGER_MS);
     testStaggerTimeoutsRef.current.push(clearProgressTimeoutId);
+    return true;
   }
-  // Set when "Importar teste" fails to parse a file — shown next to the toolbar's own test
-  // buttons, cleared on the next successful load.
+  // Set when a test attempt (granular, via "Testar até aqui", or the full model, via "Testar
+  // modelo"/"Correr teste") is blocked because a designated input it actually depends on is
+  // currently empty — cleared on the next test that actually runs (see runModelTest) or on
+  // "Limpar teste".
+  const [granularTestWarning, setGranularTestWarning] = useState<string | null>(null);
+  // Set when "Importar teste" (inside TestValuesModal) fails to parse a file — cleared on the
+  // next successful load.
   const [testLoadError, setTestLoadError] = useState<string | null>(null);
   const testFileInputRef = useRef<HTMLInputElement>(null);
   // Whether the test-values modal (see TestValuesModal) is open — only reachable when the model
@@ -796,7 +838,7 @@ export function OperationPanel({
     // Ignore a click that landed on an existing node (it still bubbles up here) — pasting
     // straight on top of it is exactly the overlap this whole placement step exists to avoid;
     // pendingPaste stays on so the very next click on actual empty canvas still places it.
-    if ((event.target as HTMLElement).closest('.operation-canvas__node')) return;
+    if ((event.target as HTMLElement).closest('.operation-canvas__node, .operation-canvas__floating-toolbar')) return;
     const viewportBox = viewportRef.current?.getBoundingClientRect();
     if (!viewportBox) return;
     pasteClipboardAt({
@@ -938,9 +980,9 @@ export function OperationPanel({
   }
 
   // One row per designated input, always reflecting whatever's currently set for it (typed
-  // directly on its own node, or loaded via "Importar teste") — feeds TestValuesModal (already
-  // filled in, not starting blank) and decides whether "Importar teste" has anything to fill and
-  // where a loaded file's entries land by name (see loadTestCase). App.tsx computes its own
+  // directly on its own node, or loaded via the toolbar's "Importar teste") — feeds
+  // TestValuesModal (already filled in, not starting blank) and decides where a loaded file's
+  // entries land by name (see loadTestCase). App.tsx computes its own
   // equivalent list for "Guardar teste", which now lives next to "Guardar modelo" instead of in
   // this toolbar. Always a literal (see isModelInputEligible below), same invariant ModelCard's
   // own input fields rely on.
@@ -953,8 +995,30 @@ export function OperationPanel({
     })
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
 
+  // Whether there's actually anything for "Limpar teste" to blank out — keeps it enabled even
+  // before "Testar modelo" has ever run, as long as some input already has a typed/imported value
+  // sitting in it (hasTested alone would otherwise leave that value stuck with no way to clear it).
+  const hasAnyTestInputValue = testInputEntries.some((entry) => entry.value.trim() !== '');
+
   function updateTestValue(id: string, value: string) {
     updateEntryFields(id, { input: literalSource(value) });
+  }
+
+  // "Limpar teste": clears every card's own shown result/"tested" border (see
+  // isTested/operation-card--tested) and re-disables this same action — nothing's actually been
+  // tested any more once its results are cleared. Also blanks every designated input's own typed
+  // value, not just the shown results — otherwise a value typed by hand, or loaded via "Importar
+  // teste", stayed sitting in the field after clearing, leaving the canvas looking like a model
+  // that's still been partly filled in rather than back to how it looked before any of that.
+  function clearTest() {
+    cancelPendingTestStagger();
+    setResetSignal((current) => current + 1);
+    setTestSignals({});
+    setHasTested(false);
+    for (const id of modelInputIds) {
+      updateTestValue(id, '');
+    }
+    setGranularTestWarning(null);
   }
 
   // "Testar modelo" itself when the model has no designated input (nothing to review — runs
@@ -964,9 +1028,13 @@ export function OperationPanel({
     setIsTestModalOpen(true);
   }
 
+  // Only closes the modal once the run actually starts — if it's blocked (see runModelTest's own
+  // empty-input check), the modal stays open with the warning showing right where the user can
+  // still fix the offending field, instead of closing and leaving them to go find it again.
   function runTestFromModal() {
-    setIsTestModalOpen(false);
-    runModelTest();
+    if (runModelTest()) {
+      setIsTestModalOpen(false);
+    }
   }
 
   function triggerImportTest() {
@@ -1046,6 +1114,12 @@ export function OperationPanel({
 
   const hasDraftInProgress = entries.some((entry) => !entry.confirmed);
   const confirmedCount = entries.filter((entry) => entry.confirmed).length;
+  // Gate which buttons the always-visible selection/clipboard bar shows (see its own render
+  // below) — "Colar" doesn't need hasClipboard to *appear*, only to not be disabled; hasSelection
+  // does gate whether Copiar/Eliminar/Cancelar seleção render at all (see that render's own note
+  // on why).
+  const hasSelection = tool === 'select' && selectedIds.length > 0;
+  const hasClipboard = !!clipboard && clipboard.length > 0;
 
   // Every confirmed operation whose input dynamically references another one's result — drawn
   // as a connecting line between the two nodes (see edgePath) instead of nesting one inside the
@@ -1315,88 +1389,27 @@ export function OperationPanel({
           Operações <span className="operation-panel__count">{confirmedCount}</span>
         </span>
         <div className="operation-canvas__toolbar-actions">
-          <div className="operation-canvas__zoom-controls">
-            <button
-              type="button"
-              className="operation-canvas__zoom-button"
-              onClick={() => zoomBy(1 / ZOOM_STEP)}
-              disabled={zoom <= MIN_ZOOM}
-              title="Diminuir zoom"
-              aria-label="Diminuir zoom"
-            >
-              −
-            </button>
-            <button
-              type="button"
-              className="operation-canvas__zoom-level"
-              onClick={() => zoomBy(1 / zoom)}
-              disabled={zoom === 1}
-              title="Repor zoom para 100%"
-            >
-              {Math.round(zoom * 100)}%
-            </button>
-            <button
-              type="button"
-              className="operation-canvas__zoom-button"
-              onClick={() => zoomBy(ZOOM_STEP)}
-              disabled={zoom >= MAX_ZOOM}
-              title="Aumentar zoom"
-              aria-label="Aumentar zoom"
-            >
-              +
-            </button>
-          </div>
-          <button
-            type="button"
-            className={
-              tool === 'select'
-                ? 'operation-canvas__tool-button operation-canvas__tool-button--active'
-                : 'operation-canvas__tool-button'
-            }
-            onClick={() => {
-              setTool((current) => {
-                const next = current === 'select' ? 'pan' : 'select';
-                if (next !== 'select') setSelectedIds([]);
-                return next;
-              });
-            }}
-            title={tool === 'select' ? 'Voltar a arrastar o fundo para mover a vista.' : 'Arrastar sobre o fundo para selecionar várias operações.'}
-          >
-            Selecionar
-          </button>
-          <button
-            type="button"
-            className={
-              pendingPaste ? 'operation-canvas__paste-button operation-canvas__paste-button--active' : 'operation-canvas__paste-button'
-            }
-            onClick={() => setPendingPaste((current) => !current)}
-            disabled={!clipboard || clipboard.length === 0}
-            title={
-              !clipboard || clipboard.length === 0
-                ? 'Copie uma ou mais operações primeiro.'
-                : pendingPaste
-                  ? 'Clique no canvas para colar aqui — ou clique de novo aqui para cancelar.'
-                  : 'Cola as operações copiadas onde clicar no canvas.'
-            }
-          >
-            {pendingPaste ? 'Clique no canvas para colar…' : 'Colar'}
-          </button>
+          {/* One button, not two: "Importar teste" for as long as there's nothing yet to clear,
+              switching to "Limpar teste" the moment there is (a value typed by hand, one loaded
+              via import, or an actual test run — see hasTested/hasAnyTestInputValue). This is the
+              only place either lives — TestValuesModal (opened by "Testar modelo" below) is
+              review-only, with no import/clear of its own. Only disabled in the one combination
+              where "Importar teste" would be a dead click: nothing to clear yet *and* no
+              designated input for it to import a value into in the first place. */}
           <button
             type="button"
             className="operation-canvas__reset-button"
-            onClick={() => {
-              cancelPendingTestStagger();
-              setResetSignal((current) => current + 1);
-              // Also clears every card's own "tested" border (see isTested/operation-card--tested)
-              // and re-disables this same button — nothing's actually been tested any more once
-              // its results are cleared.
-              setTestSignals({});
-              setHasTested(false);
-            }}
-            disabled={!hasTested}
-            title={!hasTested ? 'Ainda não testou o modelo.' : 'Limpa os resultados do último teste.'}
+            onClick={hasTested || hasAnyTestInputValue ? clearTest : triggerImportTest}
+            disabled={!hasTested && !hasAnyTestInputValue && testInputEntries.length === 0}
+            title={
+              hasTested || hasAnyTestInputValue
+                ? 'Limpa os resultados do último teste e os valores introduzidos nos inputs.'
+                : testInputEntries.length === 0
+                  ? 'O modelo não tem nenhum input definido.'
+                  : 'Preenche os inputs a partir de um ficheiro JSON.'
+            }
           >
-            Limpar teste
+            {hasTested || hasAnyTestInputValue ? 'Limpar teste' : 'Importar teste'}
           </button>
           <button
             type="button"
@@ -1406,12 +1419,13 @@ export function OperationPanel({
                 : 'operation-canvas__test-button'
             }
             // Opens TestValuesModal to review/adjust each designated input's value (already
-            // filled in from whatever's currently set — typed on canvas, or loaded via "Importar
-            // teste") before running, same as before; runs immediately if there's nothing to
-            // review (no designated input at all). While a stagger's in progress, this same
-            // button interrupts it instead — cancelPendingTestStagger just stops whatever hasn't
-            // fired yet (already-dispatched requests still run to completion; there's no
-            // cancelling those without an AbortController this app doesn't otherwise need).
+            // filled in from whatever's currently set — typed on canvas, or loaded via the
+            // toolbar's "Importar teste") before running, same as before; runs immediately if
+            // there's nothing to review (no designated input at all). While a stagger's in
+            // progress, this same button interrupts it instead — cancelPendingTestStagger just
+            // stops whatever hasn't fired yet (already-dispatched requests still run to
+            // completion; there's no cancelling those without an AbortController this app
+            // doesn't otherwise need).
             onClick={() => {
               if (testProgress) {
                 cancelPendingTestStagger();
@@ -1444,6 +1458,9 @@ export function OperationPanel({
             )}
             <span className="operation-canvas__test-button-label">{testProgress ? 'Cancelar teste' : 'Testar modelo'}</span>
           </button>
+          {/* Hidden — clicked programmatically by the toolbar's "Importar teste" button above
+              (see triggerImportTest) rather than shown directly, so the button can carry its own
+              label/icon instead of the browser's default file-input chrome. */}
           <input
             ref={testFileInputRef}
             type="file"
@@ -1455,42 +1472,65 @@ export function OperationPanel({
               if (file) loadTestCase(file);
             }}
           />
-          <button
-            type="button"
-            className="operation-canvas__test-io-button"
-            onClick={triggerImportTest}
-            disabled={testInputEntries.length === 0}
-            title={testInputEntries.length === 0 ? 'O modelo não tem nenhum input definido.' : 'Preenche os inputs a partir de um ficheiro JSON.'}
-          >
-            Importar teste
-          </button>
         </div>
       </div>
 
-      {testLoadError && <p className="operation-canvas__test-load-error">{testLoadError}</p>}
+      {/* testLoadError has no toolbar display of its own — it's set by the toolbar's "Importar
+          teste" (see loadTestCase) but only ever shown inside TestValuesModal (its own
+          importError prop), which covers the whole canvas whenever it's open. */}
+      {granularTestWarning && <p className="operation-canvas__test-load-error">{granularTestWarning}</p>}
 
-      {tool === 'select' && selectedIds.length > 0 && (
-        <div className="operation-canvas__selection-bar">
+      {/* Always rendered (unlike Copiar/Eliminar/Cancelar seleção just below, only relevant once
+          something's selected) — "Colar" doesn't need a selection, just a non-empty clipboard, so
+          it stays visible (disabled rather than hidden while the clipboard's empty) whether or
+          not anything's currently selected. */}
+      <div className="operation-canvas__selection-bar">
+        {hasSelection && (
           <span className="operation-canvas__selection-count">
             {selectedIds.length} {selectedIds.length === 1 ? 'operação selecionada' : 'operações selecionadas'}
           </span>
-          <div className="operation-canvas__selection-actions">
+        )}
+        <div className="operation-canvas__selection-actions">
+          {hasSelection && (
             <button type="button" className="operation-canvas__selection-button" onClick={copySelection}>
               Copiar
             </button>
-            <button
-              type="button"
-              className="operation-canvas__selection-button operation-canvas__selection-button--danger"
-              onClick={deleteSelection}
-            >
-              Eliminar
-            </button>
-            <button type="button" className="operation-canvas__selection-button" onClick={() => setSelectedIds([])}>
-              Cancelar seleção
-            </button>
-          </div>
+          )}
+          <button
+            type="button"
+            className={
+              pendingPaste
+                ? 'operation-canvas__selection-button operation-canvas__selection-button--active'
+                : 'operation-canvas__selection-button'
+            }
+            onClick={() => setPendingPaste((current) => !current)}
+            disabled={!hasClipboard}
+            title={
+              !hasClipboard
+                ? 'Copie uma ou mais operações primeiro.'
+                : pendingPaste
+                  ? 'Clique no canvas para colar aqui — ou clique de novo aqui para cancelar.'
+                  : 'Cola as operações copiadas onde clicar no canvas.'
+            }
+          >
+            {pendingPaste ? 'Clique no canvas para colar…' : 'Colar'}
+          </button>
+          {hasSelection && (
+            <>
+              <button
+                type="button"
+                className="operation-canvas__selection-button operation-canvas__selection-button--danger"
+                onClick={deleteSelection}
+              >
+                Eliminar
+              </button>
+              <button type="button" className="operation-canvas__selection-button" onClick={() => setSelectedIds([])}>
+                Cancelar seleção
+              </button>
+            </>
+          )}
         </div>
-      )}
+      </div>
 
       <div
         ref={viewportRef}
@@ -1519,6 +1559,79 @@ export function OperationPanel({
           backgroundSize: `${GRID_SIZE * zoom}px ${GRID_SIZE * zoom}px`,
         }}
       >
+        {/* Zoom/select: floats over the canvas itself (a sibling of the surface below, so it sits
+            outside that element's pan/zoom transform and stays put on screen regardless of
+            either) rather than living in the toolbar above — same reasoning as the progress fill
+            on "Testar modelo": these are canvas-manipulation controls, so they stay in view right
+            where the canvas itself is. Split into two groups — zoom pinned to the viewport's own
+            top-left corner, select to its top-right — rather than one, so zoom (adjusting what's
+            visible) reads as a distinct concern from select (acting on what's on the canvas).
+            "Colar" isn't here any more — it now lives next to "Copiar"/"Eliminar" (see the
+            selection/clipboard bar below), since it acts on the same clipboard those do. Each
+            group's own mousedown stops propagation before reaching the viewport's (which would
+            otherwise start a pan/marquee-select right under the click); handleViewportClick also
+            excludes both by their shared class, the same way it already does for a node. */}
+        <div
+          className="operation-canvas__floating-toolbar operation-canvas__floating-toolbar--left"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <div className="operation-canvas__zoom-controls">
+            <button
+              type="button"
+              className="operation-canvas__zoom-button"
+              onClick={() => zoomBy(1 / ZOOM_STEP)}
+              disabled={zoom <= MIN_ZOOM}
+              title="Diminuir zoom"
+              aria-label="Diminuir zoom"
+            >
+              −
+            </button>
+            <button
+              type="button"
+              className="operation-canvas__zoom-level"
+              onClick={() => zoomBy(1 / zoom)}
+              disabled={zoom === 1}
+              title="Repor zoom para 100%"
+            >
+              {Math.round(zoom * 100)}%
+            </button>
+            <button
+              type="button"
+              className="operation-canvas__zoom-button"
+              onClick={() => zoomBy(ZOOM_STEP)}
+              disabled={zoom >= MAX_ZOOM}
+              title="Aumentar zoom"
+              aria-label="Aumentar zoom"
+            >
+              +
+            </button>
+          </div>
+        </div>
+
+        <div
+          className="operation-canvas__floating-toolbar operation-canvas__floating-toolbar--right"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <button
+            type="button"
+            className={
+              tool === 'select'
+                ? 'operation-canvas__tool-button operation-canvas__tool-button--active'
+                : 'operation-canvas__tool-button'
+            }
+            onClick={() => {
+              setTool((current) => {
+                const next = current === 'select' ? 'pan' : 'select';
+                if (next !== 'select') setSelectedIds([]);
+                return next;
+              });
+            }}
+            title={tool === 'select' ? 'Voltar a arrastar o fundo para mover a vista.' : 'Arrastar sobre o fundo para selecionar várias operações.'}
+          >
+            Selecionar
+          </button>
+        </div>
+
         <div
           className="operation-canvas__surface"
           // translate() is applied in real screen pixels, outside the scale — panning always
@@ -1578,10 +1691,15 @@ export function OperationPanel({
 
       <TestValuesModal
         open={isTestModalOpen}
-        onClose={() => setIsTestModalOpen(false)}
+        onClose={() => {
+          setIsTestModalOpen(false);
+          setGranularTestWarning(null);
+        }}
         inputs={testInputEntries}
         onChangeValue={updateTestValue}
         onRun={runTestFromModal}
+        warning={granularTestWarning}
+        importError={testLoadError}
       />
     </div>
   );

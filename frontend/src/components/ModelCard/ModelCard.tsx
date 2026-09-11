@@ -431,7 +431,7 @@ function ModelOperationResultView({ hasRun, isCalculating, value, error }: Model
   const displayValue = describeResult(hasRun, isCalculating, value, error);
   return (
     <p className="operation-entry__result" title={displayValue}>
-      <span className="operation-entry__result-label">Resultado:</span> {displayValue}
+      <span className="operation-entry__result-label">Saída:</span> {displayValue}
     </p>
   );
 }

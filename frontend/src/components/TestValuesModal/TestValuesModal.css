@@ -78,6 +78,14 @@
   border-color: var(--color-primary);
 }
 
+.test-values-modal__hint {
+  flex-shrink: 0;
+  margin: 0 0 1rem;
+  font-size: 0.8rem;
+  color: var(--color-error);
+}
+
+/* A single row — "Cancelar" and "Correr teste" side by side, each taking equal width. */
 .test-values-modal__actions {
   flex-shrink: 0;
   display: flex;
@@ -104,6 +112,11 @@
 .test-values-modal__button:hover:not(:disabled) {
   background: var(--color-primary-hover);
   border-color: var(--color-primary-hover);
+}
+
+.test-values-modal__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .test-values-modal__button--secondary {

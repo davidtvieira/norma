@@ -303,7 +303,7 @@ function TranslatorResult({ resolvedInput, rules, testSignal, resetSignal, onRes
 
   return (
     <p className="operation-entry__result">
-      <span className="operation-entry__result-label">Resultado:</span> {state.value || '(vazio)'}
+      <span className="operation-entry__result-label">Saída:</span> {state.value || '(vazio)'}
     </p>
   );
 }

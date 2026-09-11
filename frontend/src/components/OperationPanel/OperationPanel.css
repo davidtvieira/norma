@@ -100,32 +100,6 @@
   display: none;
 }
 
-/* "Importar teste"/"Guardar teste" — plain secondary-chrome buttons, same shape as
-   .operation-canvas__reset-button below, sitting right next to "Testar modelo" instead of
-   behind a modal only reachable once the model has a designated input to prompt for. */
-.operation-canvas__test-io-button {
-  padding: 0.55rem 1.1rem;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.875rem;
-  font-weight: 500;
-  transition: border-color 0.2s ease, color 0.2s ease;
-}
-
-.operation-canvas__test-io-button:hover:not(:disabled) {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-}
-
-.operation-canvas__test-io-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
 /* "Importar teste" own parse-failure message — sits below the whole toolbar rather than inside
    it, since the toolbar's own row has no room to wrap a sentence without squeezing every other
    button. */
@@ -164,6 +138,9 @@
   border: 1px solid var(--color-border);
   border-radius: 999px;
   overflow: hidden;
+  /* A bit of elevation now that this floats directly over the canvas (see
+     .operation-canvas__floating-toolbar) instead of sitting in the plain toolbar row above it. */
+  box-shadow: var(--shadow-sm);
 }
 
 .operation-canvas__zoom-button,
@@ -208,8 +185,7 @@
   opacity: 0.5;
 }
 
-.operation-canvas__tool-button,
-.operation-canvas__paste-button {
+.operation-canvas__tool-button {
   padding: 0.55rem 1.1rem;
   border: 1px solid var(--color-border);
   border-radius: 999px;
@@ -220,34 +196,27 @@
   font-size: 0.875rem;
   font-weight: 500;
   transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
+  /* Same elevation as .operation-canvas__zoom-controls — see its own note. */
+  box-shadow: var(--shadow-sm);
 }
 
-.operation-canvas__tool-button:hover,
-.operation-canvas__paste-button:hover:not(:disabled) {
+.operation-canvas__tool-button:hover {
   border-color: var(--color-primary);
   background: var(--color-surface-hover);
 }
 
-.operation-canvas__tool-button--active,
-.operation-canvas__paste-button--active {
+.operation-canvas__tool-button--active {
   border-color: var(--color-secondary);
   background: var(--color-secondary);
   color: var(--color-surface);
 }
 
-.operation-canvas__paste-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-.operation-canvas__paste-button:disabled:hover {
-  border-color: var(--color-border);
-  background: var(--color-surface);
-}
-
-/* A second toolbar strip, only shown while the select tool has something selected — bulk actions
-   for whatever's currently selected instead of cluttering the main toolbar with them at all
-   times. */
+/* A second, always-visible toolbar strip for bulk/clipboard actions, kept out of the main toolbar
+   above so those don't clutter it at all times. "Colar" always shows here (disabled — see
+   .operation-canvas__selection-button:disabled — rather than hidden while the clipboard's empty);
+   "Copiar"/"Eliminar"/"Cancelar seleção" only appear once something's actually selected, since
+   unlike "Colar" they have no sensible disabled state to fall back to (there'd be nothing for
+   them to name/act on). */
 .operation-canvas__selection-bar {
   display: flex;
   align-items: center;
@@ -285,14 +254,32 @@
   transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
 }
 
-.operation-canvas__selection-button:hover {
+.operation-canvas__selection-button:hover:not(:disabled) {
   border-color: var(--color-primary);
   color: var(--color-primary);
+}
+
+.operation-canvas__selection-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .operation-canvas__selection-button--danger:hover {
   border-color: var(--color-error);
   color: var(--color-error);
+}
+
+/* "Colar" while a pending paste is armed (see OperationPanel.tsx's pendingPaste) — same active
+   treatment .operation-canvas__tool-button--active uses for "Selecionar". */
+.operation-canvas__selection-button--active {
+  border-color: var(--color-secondary);
+  background: var(--color-secondary);
+  color: var(--color-surface);
+}
+
+.operation-canvas__selection-button--active:hover {
+  border-color: var(--color-secondary);
+  color: var(--color-surface);
 }
 
 .operation-canvas__count {
@@ -410,6 +397,26 @@
   font-size: 0.875rem;
   color: var(--color-text);
   font-weight: 500;
+}
+
+/* A reference pill's own two-line content (see ValueSourceField) — the referenced operation's
+   name on top, its currently resolved value (reusing .operation-column-pill__value itself, same
+   as a plain committed literal's single-line pill) underneath once there is one. min-width: 0 so
+   a long operation name still ellipsis-truncates (see below) instead of forcing the pill wider
+   than the card. */
+.operation-column-pill__dynamic {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.operation-column-pill__label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
 }
 
 .operation-column-picking {
@@ -567,6 +574,13 @@
 
 .operation-entry__result--empty {
   color: var(--color-text-muted);
+}
+
+/* The "Entrada" readout (see ValueSourceField) vs. a kind's own "Saída"/result box — same shape
+   and label styling, but no background fill, so input and output read as visually distinct at a
+   glance instead of two identical-looking boxes stacked on top of each other. */
+.operation-entry__result--input {
+  background: none;
 }
 
 .operation-entry__chain-status {
@@ -785,6 +799,29 @@
 
 .operation-canvas__viewport--panning {
   cursor: grabbing;
+}
+
+/* Zoom/select/paste, floating over the canvas itself instead of the toolbar above it — a sibling
+   of .operation-canvas__surface (not a child), so each group is positioned against the
+   viewport's own corner (see the --left/--right modifiers below) and stays there regardless of
+   how far the surface underneath it has been panned/zoomed. z-index clears both the surface's
+   nodes/edges and the marquee rectangle, so neither group is ever drawn over by either. */
+.operation-canvas__floating-toolbar {
+  position: absolute;
+  top: 0.75rem;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: default;
+}
+
+.operation-canvas__floating-toolbar--left {
+  left: 0.75rem;
+}
+
+.operation-canvas__floating-toolbar--right {
+  right: 0.75rem;
 }
 
 /* A visible tint + border while the select tool is active — otherwise the only cue that node
@@ -1046,12 +1083,16 @@
   gap: 0.6rem;
 }
 
-/* Collapsed hides every field a kind renders here EXCEPT its result (every kind ends this section
-   with one .operation-entry__result, by convention — see CLAUDE.md's operation kind plugin
-   pattern) — so the live value/result of an operation stays visible/readable at a glance even
-   with the card collapsed, instead of needing to expand every card just to read its output. A
-   kind whose result is still idle (nothing tested yet) renders nothing here regardless, so this
-   has no visual effect until there's actually something to show. */
+/* Collapsed hides every field a kind renders here EXCEPT its own .operation-entry__result boxes
+   — a kind's own "Resultado" (every kind ends this section with one, by convention — see
+   CLAUDE.md's operation kind plugin pattern) and each of its fields' own "Entrada" readout (see
+   ValueSourceField) — so both the input and the output an operation currently produces stay
+   visible/readable at a glance even with the card collapsed, instead of needing to open it just
+   to read either one. See .operation-card-modal__body's own opposite rule below: once the card
+   *is* open, these same boxes hide instead, since opening it is for editing the fields
+   themselves, not re-reading a value already visible on the collapsed card. Nothing tested yet
+   (still idle) renders no result here regardless, so this has no visual effect until there's
+   actually something to show. */
 .operation-card__details--collapsed > *:not(.operation-entry__result) {
   display: none;
 }
@@ -1167,5 +1208,16 @@
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
+}
+
+/* The opposite of .operation-card__details--collapsed's own exemption: every .operation-entry__
+   result (a kind's own "Resultado", and a field's own "Entrada" readout — see ValueSourceField)
+   is hidden once the card is actually open, since opening it is for editing the field itself —
+   the plain input/pick-button/pill it shows instead already carries a typed value directly, and
+   the point of opening was to change it, not re-read a value already visible on the collapsed
+   card. Chain-status messages (missing/cycle) aren't .operation-entry__result and stay visible —
+   still relevant context while actually picking a reference. */
+.operation-card-modal__body .operation-entry__result {
+  display: none;
 }
 
