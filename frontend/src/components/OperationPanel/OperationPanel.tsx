@@ -1432,12 +1432,17 @@ export function OperationPanel({
           pan ? 'operation-canvas__viewport--panning' : '',
           tool === 'select' ? 'operation-canvas__viewport--select' : '',
           pendingPaste ? 'operation-canvas__viewport--placing' : '',
+          // Nothing on the canvas — panning, dragging/editing a node, marquee-selecting — should
+          // be touchable while a test is staggering through the model's operations: an edit
+          // mid-test would leave a still-running test computing against fields that have since
+          // changed underneath it.
+          testProgress ? 'operation-canvas__viewport--disabled' : '',
         ]
           .filter(Boolean)
           .join(' ')}
-        onMouseDown={handleViewportMouseDown}
-        onClick={handleViewportClick}
-        onWheel={handleViewportWheel}
+        onMouseDown={testProgress ? undefined : handleViewportMouseDown}
+        onClick={testProgress ? undefined : handleViewportClick}
+        onWheel={testProgress ? undefined : handleViewportWheel}
         // Keeps the dotted grid (see OperationPanel.css) moving and scaling together with the
         // surface below, instead of staying fixed to the viewport while the nodes on it pan/zoom
         // past — its phase follows the same unscaled viewOffset the surface's own translate uses

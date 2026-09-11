@@ -762,6 +762,16 @@
   cursor: crosshair;
 }
 
+/* While a test is staggering through the model's operations (see OperationPanel.tsx's
+   testProgress) — pointer-events: none blocks every interaction with the canvas and everything
+   on it (panning, dragging/editing a node, marquee-selecting, the node overlay's own select-mode
+   clicks) in one place, rather than disabling each control individually; the dimming is just the
+   visible cue that matches. */
+.operation-canvas__viewport--disabled {
+  pointer-events: none;
+  opacity: 0.6;
+}
+
 /* The in-progress marquee rectangle (see the marquee-drag effect in OperationPanel.tsx) — drawn
    in raw screen coordinates (position: fixed), so it needs no adjustment for the canvas' own pan
    offset or scroll position; it only ever exists for the duration of the drag that produced it. */
