@@ -878,6 +878,11 @@
      wash above, since there'd be barely any contrast left to darken into. */
   background-image: radial-gradient(circle, color-mix(in srgb, var(--color-text) 30%, transparent) 1px, transparent 1px);
   background-size: 22px 22px;
+  /* Animates the dot grid going denser/sparser as "Editar" turns on/off (see the inline
+     backgroundSize style in OperationPanel.tsx, which swaps between GRID_SIZE and
+     EDIT_GRID_SIZE) — half of the "canvas lifted toward you" effect entering/leaving edit mode
+     plays; .operation-card--edit-mode's own transform is the other half. */
+  transition: background-size 0.3s ease;
   cursor: grab;
 }
 
@@ -992,6 +997,23 @@
   stroke: var(--color-primary);
   stroke-width: 2;
   opacity: 0.6;
+  /* Defined once here rather than only on --active below, so the same duration/easing applies
+     both when a flash lights the edge up and when it fades back to this resting state once
+     OperationPanel.tsx's own EDGE_FLASH_DURATION_MS timer removes the class again. */
+  transition: stroke 0.15s ease-out, stroke-width 0.15s ease-out, opacity 0.15s ease-out;
+}
+
+/* Briefly lit (see OperationPanel.tsx's own activeEdgeKeys/flashEdgesFrom) the moment data
+   actually starts flowing along this edge — a result landing on the operation it leads out of,
+   from "Testar modelo", a scoped "Testar até aqui", "Correr teste", or just typing a live value
+   that happens to already have everything it needs. Qualified with both the element type and the
+   parent class (matching .operation-canvas__edges path's own specificity) rather than just the
+   modifier class alone — a bare single-class selector here would lose the specificity comparison
+   against that base rule and never actually take visible effect regardless of source order. */
+.operation-canvas__edges path.operation-canvas__edges-path--active {
+  stroke: var(--color-secondary);
+  stroke-width: 3;
+  opacity: 1;
 }
 
 .operation-canvas__node {
@@ -1037,7 +1059,11 @@
      detail modal in "pan" mode — cursor: pointer hints at that, same as the rest of the card's
      controls, even though the click itself is handled well above this DOM node. */
   cursor: pointer;
-  transition: border-color 0.2s ease;
+  /* transform's own duration/easing match .operation-canvas__viewport's background-size
+     transition — the two play together as one "the canvas lifted toward you" effect entering/
+     leaving "Editar" (see .operation-card--edit-mode's own scale below), so they need to move in
+     lockstep rather than one settling visibly before the other. */
+  transition: border-color 0.2s ease, transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 .operation-card:hover {
@@ -1046,9 +1072,17 @@
 
 /* While "Editar" is on, a click no longer opens the modal (see OperationPanel's own onNodeClick)
    — falls back to the parent node's own grab/grabbing cursor (see .operation-canvas__node)
-   instead of the pointer cursor above, which would otherwise promise a click that does nothing. */
+   instead of the pointer cursor above, which would otherwise promise a click that does nothing.
+   The scale-up + heavier shadow is the other half of the "lifted toward you" effect entering/
+   leaving edit mode (see .operation-canvas__viewport's own background-size transition for the
+   grid-density half) — a small enough bump that neighboring cards don't visibly overlap from it,
+   just enough to read as "raised". transform-origin stays centered (the default) rather than
+   anchored to a corner so the card grows evenly in place instead of visibly shifting toward one
+   side. */
 .operation-card--edit-mode {
   cursor: inherit;
+  transform: scale(1.035);
+  box-shadow: var(--shadow-md);
 }
 
 /* Marks a card that's actually been tested (its own testSignal has fired at least once — see

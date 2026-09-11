@@ -37,6 +37,15 @@ const NODE_WIDTH = 300;
  * so the grid still looks right for the split second before the first render's inline style
  * applies). */
 const GRID_SIZE = 22;
+/** The same dot grid, a little denser, while "Editar" is on — part of the little "the canvas just
+ * got lifted toward you to work on" effect (see the viewport's own backgroundSize below, and
+ * .operation-card--edit-mode's matching scale-up in OperationPanel.css) that plays when entering/
+ * leaving edit mode. Only a mild reduction (not halved — that quadruples the dot count per axis,
+ * which reads as a completely different grid rather than the same one going subtly denser to
+ * match the cards' own small scale-up) so the two keep feeling proportionate to each other.
+ * background-size is what actually animates it (see .operation-canvas__viewport's own transition)
+ * — this only supplies the two numbers it eases between. */
+const EDIT_GRID_SIZE = GRID_SIZE * 0.96;
 /** Vertical offset from a node's top to its header's center — where edges attach — constant
  * regardless of how tall the node's body grows (result text, expanded info, ...). */
 const NODE_HEADER_ANCHOR_Y = 28;
@@ -789,6 +798,17 @@ export function OperationPanel({
   // here instead of a typed value. Null means "no value yet" (loading, error, or not found).
   const [results, setResults] = useState<Record<string, string | null>>({});
   const resolvedInputsByEntry = resolveOperationInputs(entries, results);
+  // Which edges (see the `edges` computation below, keyed the same way — "fromId-toId") are lit
+  // up as data has flowed through them — lit by flashEdgesFrom the moment the operation an edge
+  // starts *from* reports a new result (see each renderBody's own onResultChange below), whether
+  // that's from a full "Testar modelo" run, a scoped "Testar até aqui", or "Correr teste" — same
+  // one signal covers all three, since it's tied to a result actually landing rather than to any
+  // particular button. Accumulates across runs rather than resetting at the start of each one —
+  // running one operation, then a different one, keeps the first one's own edges lit alongside
+  // the second's, rather than the second run wiping out a path that's still just as true as it
+  // was. Only "Limpar teste" (see clearTest) clears it, the same as everything else a test
+  // touched.
+  const [activeEdgeKeys, setActiveEdgeKeys] = useState<Set<string>>(new Set());
 
   // "select" is "Editar" mode (see the pencil toggle below) — the only state operations can be
   // dragged to a new position in. Dragging the background still just pans the canvas either way
@@ -1233,6 +1253,7 @@ export function OperationPanel({
     setResetSignal((current) => current + 1);
     setTestSignals({});
     setHasTested(false);
+    setActiveEdgeKeys(new Set());
     for (const id of modelInputIds) {
       updateTestValue(id, '');
     }
@@ -1359,6 +1380,17 @@ export function OperationPanel({
     });
   });
 
+  // Lights up every edge leading *out of* fromEntryId (see activeEdgeKeys) — called from that
+  // entry's own onResultChange (see renderConfirmedCard below) the moment its live result
+  // actually changes, which is what "data passing through the wire" means here: the edge a
+  // downstream operation's reference chain resolves along lights up right as the value it's
+  // chained off of becomes available, not on any fixed schedule of its own.
+  function flashEdgesFrom(fromEntryId: string) {
+    const keys = edges.filter((edge) => edge.fromId === fromEntryId).map((edge) => `${edge.fromId}-${edge.toId}`);
+    if (keys.length === 0) return;
+    setActiveEdgeKeys((current) => new Set([...current, ...keys]));
+  }
+
   // The edit panel's own confirm ("Atualizar operação" — see renderDraftCard's 'edit' mode) —
   // pins the entry's highlight so it's what shows next time the sheet panel opens (a reveal
   // click, or "Ver dados") without needing to hover first, and reports the confirm so App.tsx can
@@ -1473,7 +1505,15 @@ export function OperationPanel({
           resolvedInput: resolvedInputsByEntry[entry.id][0],
           resolvedInputs: resolvedInputsByEntry[entry.id],
           referenceOptions: referenceOptionsFor(entry.id),
-          onResultChange: (value) => setResults((current) => ({ ...current, [entry.id]: value })),
+          onResultChange: (value) => {
+            setResults((current) => ({ ...current, [entry.id]: value }));
+            // Only an actual value passing through counts as "data flowed" — onResultChange also
+            // fires with null for every reset/no-op case (clearing an input, "Limpar teste",
+            // opening "Editar", or just nothing resolved yet), which used to flash every edge
+            // regardless, lighting up the whole canvas for reasons that had nothing to do with a
+            // test actually running.
+            if (value !== null) flashEdgesFrom(entry.id);
+          },
           testSignal: testSignals[entry.id] ?? 0,
           resetSignal,
         })}
@@ -1823,10 +1863,14 @@ export function OperationPanel({
         // Keeps the dotted grid (see OperationPanel.css) moving and scaling together with the
         // surface below, instead of staying fixed to the viewport while the nodes on it pan/zoom
         // past — its phase follows the same unscaled viewOffset the surface's own translate uses
-        // (see the surface's transform below), and its dot spacing scales by the same zoom.
+        // (see the surface's transform below), and its dot spacing scales by the same zoom. Also
+        // swaps to EDIT_GRID_SIZE while "Editar" is on, animated by the CSS transition on
+        // background-size itself (see .operation-canvas__viewport) rather than anything here.
         style={{
           backgroundPosition: `${viewOffset.x}px ${viewOffset.y}px`,
-          backgroundSize: `${GRID_SIZE * zoom}px ${GRID_SIZE * zoom}px`,
+          backgroundSize: `${(tool === 'select' ? EDIT_GRID_SIZE : GRID_SIZE) * zoom}px ${
+            (tool === 'select' ? EDIT_GRID_SIZE : GRID_SIZE) * zoom
+          }px`,
         }}
       >
         {/* Floats over the canvas itself (a sibling of the surface below, so it sits outside that
@@ -2113,7 +2157,11 @@ export function OperationPanel({
         >
           <svg className="operation-canvas__edges">
             {edges.map((edge, index) => (
-              <path key={`${edge.fromId}-${edge.toId}-${index}`} d={edgePath(edge)} />
+              <path
+                key={`${edge.fromId}-${edge.toId}-${index}`}
+                className={activeEdgeKeys.has(`${edge.fromId}-${edge.toId}`) ? 'operation-canvas__edges-path--active' : undefined}
+                d={edgePath(edge)}
+              />
             ))}
           </svg>
 
