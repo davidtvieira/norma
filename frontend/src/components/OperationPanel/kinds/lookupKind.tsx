@@ -4,6 +4,7 @@ import { lookupValue } from '../../../services/datasetApi';
 import { formatCellValue } from '../../../utils/sheet';
 import { literalSource, type ValueSource } from '../../../types/valueSource';
 import type { LookupMatchMode } from '../../../types/lookup';
+import type { OperationHighlight } from '../../../types/highlight';
 import type { ResolvedInput } from '../../../utils/resolveOperationInputs';
 import { ColumnPickerField, TableSelect, ValueSourceField } from '../fields';
 import type { OperationFields, OperationKind } from '../operationKind';
@@ -271,7 +272,7 @@ export const lookupKind: OperationKind = {
       highlights.push({ sheetIndex: f.sheetIndex, column: Number(f.searchColumn.value), role: 'search' as const });
     }
     if (f.resultColumn !== '') {
-      highlights.push({ sheetIndex: f.sheetIndex, column: f.resultColumn, role: 'result' as const });
+      highlights.push({ sheetIndex: f.sheetIndex, column: f.resultColumn, role: 'result' as const, label: 'Saída' });
     }
     return highlights;
   },
@@ -280,19 +281,27 @@ export const lookupKind: OperationKind = {
     if (matchedRow === null) return null;
     const f = asLookupFields(fields);
     if (f.sheetIndex === '' || f.resultColumn === '') return null;
-    // Only a literal (fixed) search column has a known position without a live test result to
-    // read it back from — a dynamic one falls back to no exact-cell highlight, same as find's own
-    // (there's no single matched cell to point at ahead of testing either).
-    if (f.searchColumn.type !== 'literal' || f.searchColumn.value.trim() === '') return null;
-    const searchColumn = Number(f.searchColumn.value);
-    if (!Number.isInteger(searchColumn)) return null;
-    return {
-      searchSheetIndex: f.sheetIndex,
-      searchColumn,
+    // The result cell only ever needs the (always-fixed) resultColumn + the matched row, both
+    // already known here — unlike the search cell below, it never depended on the search column
+    // being a literal, so it used to get thrown away right along with the search cell whenever
+    // the search column was dynamic instead, even though the result itself was matched just fine.
+    const highlight: OperationHighlight = {
       resultSheetIndex: f.sheetIndex,
       resultColumn: f.resultColumn,
       rowIndex: matchedRow,
     };
+    // Only a literal (fixed) search column has a known position without a live test result to
+    // read it back from — a dynamic one just skips this paired search-cell highlight, leaving the
+    // result cell above as the only thing marked (same as find, which has no fixed search column
+    // at all).
+    if (f.searchColumn.type === 'literal' && f.searchColumn.value.trim() !== '') {
+      const searchColumn = Number(f.searchColumn.value);
+      if (Number.isInteger(searchColumn)) {
+        highlight.searchSheetIndex = f.sheetIndex;
+        highlight.searchColumn = searchColumn;
+      }
+    }
+    return highlight;
   },
 };
 

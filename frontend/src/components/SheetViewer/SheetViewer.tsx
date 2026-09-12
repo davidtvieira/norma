@@ -141,9 +141,12 @@ export function SheetViewer({
     activeColumnHighlights.find((highlight) => highlight.role === 'search' && highlight.label)?.label ??
     activeRangeHighlights.find((highlight) => highlight.role === 'search' && highlight.label)?.label ??
     'Onde procura';
+  const activeCellHighlightResultLabel =
+    cellHighlight && cellHighlight.resultSheetIndex === activeSheetIndex ? cellHighlight.resultLabel : undefined;
   const resultLabel =
     activeColumnHighlights.find((highlight) => highlight.role === 'result' && highlight.label)?.label ??
     activeRangeHighlights.find((highlight) => highlight.role === 'result' && highlight.label)?.label ??
+    activeCellHighlightResultLabel ??
     'O que devolve';
   const hasSearchHighlight =
     cellHighlightSearchColumn !== null ||
@@ -153,6 +156,10 @@ export function SheetViewer({
     cellHighlightResultColumn !== null ||
     activeColumnHighlights.some((highlight) => highlight.role === 'result') ||
     activeRangeHighlights.some((highlight) => highlight.role === 'result');
+  // Whether the matched row itself (see .sheet-viewer__highlight-matched-row) is tinted on the
+  // currently displayed sheet — its own legend entry, separate from the search/result swatches
+  // above, since it's a third, distinct color rather than a re-explanation of either of those.
+  const hasMatchedRowHighlight = cellHighlight !== null && cellHighlight.resultSheetIndex === activeSheetIndex && cellHighlightRowIndex !== null;
 
   return (
     <div className="sheet-viewer">
@@ -183,7 +190,7 @@ export function SheetViewer({
         </div>
       )}
 
-      {(hasSearchHighlight || hasResultHighlight) && (
+      {(hasSearchHighlight || hasResultHighlight || hasMatchedRowHighlight) && (
         <div className="sheet-viewer__legend">
           {hasSearchHighlight && (
             <span className="sheet-viewer__legend-item">
@@ -195,6 +202,12 @@ export function SheetViewer({
             <span className="sheet-viewer__legend-item">
               <span className="sheet-viewer__legend-swatch sheet-viewer__legend-swatch--result" aria-hidden="true" />
               {resultLabel}
+            </span>
+          )}
+          {hasMatchedRowHighlight && (
+            <span className="sheet-viewer__legend-item">
+              <span className="sheet-viewer__legend-swatch sheet-viewer__legend-swatch--matched-row" aria-hidden="true" />
+              Valor de saída
             </span>
           )}
         </div>
@@ -264,6 +277,7 @@ export function SheetViewer({
                     columnPicker?.selectedColumn === columnIndex ? 'sheet-viewer__cell--selected-column' : null,
                     columnPicker && hoveredColumn === columnIndex ? 'sheet-viewer__cell--hovered-column' : null,
                     rangePicker ? 'sheet-viewer__cell--range-pickable' : null,
+                    isMatchedRow ? 'sheet-viewer__highlight-matched-row' : null,
                     columnHighlightRole === 'search' ? 'sheet-viewer__highlight-search' : null,
                     columnHighlightRole === 'result' ? 'sheet-viewer__highlight-result' : null,
                     rangeHighlightRole === 'search' ? 'sheet-viewer__highlight-search' : null,

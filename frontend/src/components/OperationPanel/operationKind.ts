@@ -36,7 +36,10 @@ export interface OperationBodyContext {
   fields: OperationFields;
   updateFields: (patch: OperationFields) => void;
   datasetId: string;
-  onMatchChange: (rowIndex: number | null) => void;
+  /** columnIndex is only meaningful for a kind whose match isn't at any single fixed column (e.g.
+   * find, scanning a whole range) — lookup's own fixed result column makes it redundant there, so
+   * it's optional and lookup's own call site omits it. */
+  onMatchChange: (rowIndex: number | null, columnIndex?: number | null) => void;
   /** The operation's chainable input ("query", ...) resolved to a literal value, for kinds that
    * have exactly one. Always resolvedInputs[0] — kept alongside it so a single-input kind (e.g.
    * lookup) doesn't need to index into an array for the one value it actually has. */
@@ -92,6 +95,12 @@ export interface OperationKind {
   getColumnHighlights: (fields: OperationFields) => ColumnHighlight[];
   /** Rectangular range tints this operation's fields currently point at. */
   getRangeHighlights?: (fields: OperationFields) => RangeHighlight[];
-  /** Exact input/output cell for the current match, if this kind supports that precision. */
-  getCellHighlight?: (fields: OperationFields, matchedRow: number | null) => OperationHighlight | null;
+  /** Exact input/output cell for the current match, if this kind supports that precision.
+   * matchedColumn is only ever populated for (and only needs reading by) a kind whose match isn't
+   * at a fixed column — see onMatchChange's own note above. */
+  getCellHighlight?: (
+    fields: OperationFields,
+    matchedRow: number | null,
+    matchedColumn?: number | null,
+  ) => OperationHighlight | null;
 }

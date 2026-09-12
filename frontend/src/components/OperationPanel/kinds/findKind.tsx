@@ -141,9 +141,22 @@ export const findKind: OperationKind = {
   },
 
   // Unlike lookup, the matched column isn't a fixed field here (it's whatever column within the
-  // range the match landed in) — the exact-cell highlight machinery (getCellHighlight) only ever
-  // tracks a matched *row* against fixed search/result columns, so find falls back to the
-  // whole-range tint above, same as sum's own aggregate result has no single cell to point at.
+  // range the match landed in) — so unlike lookup's getCellHighlight, there's no paired "search
+  // cell" to report (the whole range already covers that, see getRangeHighlights above); only the
+  // result cell itself, at whatever position matchedColumn (reported by FindResult via
+  // onMatchChange, straight from the API's own columnIndex) says it landed at.
+  getCellHighlight: (fields, matchedRow, matchedColumn) => {
+    const f = asFindFields(fields);
+    if (f.sheetIndex === '' || matchedRow === null || matchedColumn === null || matchedColumn === undefined) {
+      return null;
+    }
+    return {
+      resultSheetIndex: f.sheetIndex,
+      resultColumn: matchedColumn,
+      rowIndex: matchedRow,
+      resultLabel: 'Saída',
+    };
+  },
 };
 
 interface FindResultProps {
@@ -156,7 +169,7 @@ interface FindResultProps {
   testSignal: number;
   /** Incremented by "Limpar teste" — clears the shown result back to not-tested on demand. */
   resetSignal: number;
-  onMatchChange: (rowIndex: number | null) => void;
+  onMatchChange: (rowIndex: number | null, columnIndex?: number | null) => void;
   onResultChange: (value: string | null) => void;
 }
 
@@ -233,7 +246,7 @@ function FindResult({ datasetId, query, sheetIndex, range, testSignal, resetSign
         if (!cancelled) {
           handledForSignalRef.current = testSignal;
           setState({ status: 'done', found: response.found, rowIndex: response.rowIndex, columnIndex: response.columnIndex });
-          onMatchChange(response.found ? response.rowIndex : null);
+          onMatchChange(response.found ? response.rowIndex : null, response.found ? response.columnIndex : null);
           onResultChange(response.found ? `${response.rowIndex},${response.columnIndex}` : null);
         }
       })

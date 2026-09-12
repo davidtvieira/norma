@@ -665,9 +665,11 @@ export function OperationPanel({
       setSelectedOperationId(null);
     }
   }, [isSheetPanelOpen]);
-  // The row each operation's query currently matches (if any) — only meaningful for kinds
-  // that implement getCellHighlight (currently just lookup).
+  // The row (and, for a kind like find whose match column isn't fixed, the column) each
+  // operation's query currently matches — only meaningful for kinds that implement
+  // getCellHighlight (lookup, find).
   const [matchedRows, setMatchedRows] = useState<Record<string, number | null>>({});
+  const [matchedColumns, setMatchedColumns] = useState<Record<string, number | null>>({});
   // Bumped by "Testar modelo" (see runModelTest below) — passed through to each entry's own
   // renderBody (see operationKind.ts) as the one signal that should make it actually call its
   // endpoint, instead of every result live-fetching as soon as its inputs are ready. Keyed by
@@ -1081,8 +1083,8 @@ export function OperationPanel({
       onCellHighlightChange(null);
       return;
     }
-    onCellHighlightChange(kind.getCellHighlight(entry.fields, matchedRows[entry.id] ?? null));
-  }, [entries, activeHighlightId, matchedRows, onCellHighlightChange]);
+    onCellHighlightChange(kind.getCellHighlight(entry.fields, matchedRows[entry.id] ?? null, matchedColumns[entry.id] ?? null));
+  }, [entries, activeHighlightId, matchedRows, matchedColumns, onCellHighlightChange]);
 
   // Mousedown on empty canvas background: places a pending paste (see handleViewportClick, which
   // does the actual placing on the following click), starts a marquee drag while "Editar" is on
@@ -1693,7 +1695,10 @@ export function OperationPanel({
           fields: entry.fields,
           updateFields: (patch) => updateEntryFields(entry.id, patch),
           datasetId: dataset.datasetId,
-          onMatchChange: (rowIndex) => setMatchedRows((current) => ({ ...current, [entry.id]: rowIndex })),
+          onMatchChange: (rowIndex, columnIndex) => {
+            setMatchedRows((current) => ({ ...current, [entry.id]: rowIndex }));
+            setMatchedColumns((current) => ({ ...current, [entry.id]: columnIndex ?? null }));
+          },
           resolvedInput: resolvedInputsByEntry[entry.id][0],
           resolvedInputs: resolvedInputsByEntry[entry.id],
           referenceOptions: referenceOptionsFor(entry.id),

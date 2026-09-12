@@ -28,15 +28,25 @@ export interface RangeHighlight {
 }
 
 /**
- * The exact input (search) and output (result) cell a confirmed operation's query currently
+ * The exact input (search) and/or output (result) cell a confirmed operation's query currently
  * matches — shown when hovering that operation's card, not while it's being edited. `rowIndex`
- * is the matched row (same index in both sheets); null while there's no match yet, in which
- * case nothing is highlighted.
+ * is the matched row (same index in both the search and result sheets, when both are given);
+ * null while there's no match yet, in which case nothing is highlighted.
+ *
+ * The search half is optional: lookup (a fixed search column, reading a fixed result column) sets
+ * both, but a kind whose match isn't at any single fixed column — e.g. find, which scans a whole
+ * range and reports wherever within it the match landed — only has a result cell to point at, its
+ * "search" side already covered by that range's own whole-range tint (see RangeHighlight) instead
+ * of a second, more precise cell.
  */
 export interface OperationHighlight {
-  searchSheetIndex: number;
-  searchColumn: number;
+  searchSheetIndex?: number;
+  searchColumn?: number;
   resultSheetIndex: number;
   resultColumn: number;
   rowIndex: number | null;
+  /** Overrides the "result" role's default legend text (see ColumnHighlight's own `label`) —
+   * there's no column/range highlight to hang it off for a kind like find, whose result cell only
+   * ever comes from this exact-cell highlight, never a tinted column of its own. */
+  resultLabel?: string;
 }

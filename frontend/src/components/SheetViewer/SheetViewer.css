@@ -70,6 +70,10 @@
   background: var(--color-primary);
 }
 
+.sheet-viewer__legend-swatch--matched-row {
+  background: var(--color-action);
+}
+
 .sheet-viewer__col-header--pickable {
   cursor: pointer;
   transition: background-color 0.2s ease, color 0.2s ease;
@@ -91,6 +95,17 @@
 
 .sheet-viewer__cell--hovered-column {
   background: var(--color-surface-hover);
+}
+
+/* The whole row a confirmed operation's exact-cell match (see cellHighlight/OperationHighlight)
+   landed on — "Valor de saída" in the legend below. Uses --color-action (the same
+   fixed-regardless-of-theme accent the test play/stop icon and a lit-up canvas edge already use
+   elsewhere) rather than reusing the search/result secondary/primary colors, so it reads as a
+   genuinely third, distinct color instead of a duller repeat of either. Declared before every
+   other highlight rule here so those still win on any cell that's both in the matched row and one
+   of the more specific search/result highlights. */
+.sheet-viewer__highlight-matched-row {
+  background: color-mix(in srgb, var(--color-action) 30%, var(--color-surface));
 }
 
 .sheet-viewer__highlight-search {
