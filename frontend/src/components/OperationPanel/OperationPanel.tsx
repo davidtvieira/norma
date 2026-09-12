@@ -1692,9 +1692,19 @@ export function OperationPanel({
         onCloseModal={() => setModalEntryId((current) => (current === entry.id ? null : current))}
       >
         {kind.renderBody({
+          entryId: entry.id,
           fields: entry.fields,
           updateFields: (patch) => updateEntryFields(entry.id, patch),
           datasetId: dataset.datasetId,
+          columnPick,
+          onStartColumnPick: (id, field, sheetIndex) => {
+            // Closes this card's own detail modal first — its full-screen overlay would otherwise
+            // sit on top of (and swallow every click meant for) the sheet panel the pick needs to
+            // be visible and clickable (see OperationBodyContext's own note on columnPick).
+            setModalEntryId((current) => (current === entry.id ? null : current));
+            onStartColumnPick(id, field, sheetIndex);
+          },
+          onFinishColumnPick,
           onMatchChange: (rowIndex, columnIndex) => {
             setMatchedRows((current) => ({ ...current, [entry.id]: rowIndex }));
             setMatchedColumns((current) => ({ ...current, [entry.id]: columnIndex ?? null }));

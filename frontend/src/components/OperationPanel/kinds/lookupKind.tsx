@@ -15,11 +15,13 @@ interface LookupFields {
   // Search and result columns always come from the same table — a lookup matches a row in one
   // table by its search column and reads the result from another column of that same row.
   sheetIndex: number | '';
-  // Chainable, same as `input` — typed directly, or (notably) chained from a find operation's
-  // own combined "rowIndex,columnIndex" result (see parseColumnIndex below), so a lookup can
-  // search whichever column a find elsewhere in the model landed on. Unlike before, no longer
-  // picked by clicking a column header directly in the sheet at draft time — see renderBody's
-  // own ValueSourceField for it instead, same as the query.
+  // Chainable, same as `input` — typed directly, chained from a find operation's own combined
+  // "rowIndex,columnIndex" result (see parseColumnIndex below, letting a lookup search whichever
+  // column a find elsewhere in the model landed on), or picked directly by clicking a column
+  // header in the sheet (see renderBody's own searchColumnPicker) — all three reached through the
+  // same ValueSourceField modal as the query, rather than a dedicated ColumnPickerField in
+  // renderDraftConfig the way resultColumn is (which can only ever be a fixed column, never
+  // chained).
   searchColumn: ValueSource;
   resultColumn: number | '';
   // Skips every row before it when scanning for a match — chainable too, same as searchColumn,
@@ -157,9 +159,13 @@ export const lookupKind: OperationKind = {
   },
 
   renderBody: ({
+    entryId,
     fields,
     updateFields,
     datasetId,
+    columnPick,
+    onStartColumnPick,
+    onFinishColumnPick,
     testSignal,
     resetSignal,
     onMatchChange,
@@ -177,6 +183,21 @@ export const lookupKind: OperationKind = {
     const query = queryResolved.status === 'ready' ? queryResolved.value : '';
     const searchColumn = parseColumnIndex(searchColumnResolved);
     const startRow = parseRowIndex(startRowResolved);
+
+    // Lets searchColumn's ValueSourceField offer "pick a column from the sheet" as a third source
+    // alongside static/dynamic (see fields.tsx's own `columnPicker` prop) — reusing the 'search'
+    // column-pick id already reserved for this exact field (see types/columnPick.ts), previously
+    // unused since this field moved to a plain ValueSourceField. Only meaningful once a table's
+    // picked (nothing to pick a column *from* otherwise).
+    const searchColumnPicker =
+      f.sheetIndex === ''
+        ? undefined
+        : {
+            isPicking: columnPick?.entryId === entryId && columnPick.field === 'search',
+            pendingColumn: columnPick?.entryId === entryId && columnPick.field === 'search' ? columnPick.column : null,
+            onStart: () => onStartColumnPick(entryId, 'search', f.sheetIndex as number),
+            onCancel: onFinishColumnPick,
+          };
 
     return (
       <>
@@ -198,6 +219,7 @@ export const lookupKind: OperationKind = {
           onChange={(searchColumn) => updateFields({ searchColumn })}
           referenceOptions={referenceOptions}
           resolvedInput={searchColumnResolved}
+          columnPicker={searchColumnPicker}
         />
 
         <div className="operation-entry__field">

@@ -33,9 +33,20 @@ export interface OperationDraftContext {
 }
 
 export interface OperationBodyContext {
+  entryId: string;
   fields: OperationFields;
   updateFields: (patch: OperationFields) => void;
   datasetId: string;
+  /** Column-pick state/controls (see ColumnPickerField in fields.tsx) — threaded through so a
+   * chainable field's ValueSourceField can offer "pick a column from the sheet" as a third source
+   * alongside static/dynamic (see its own `columnPicker` prop), the same click-a-header flow
+   * ColumnPickerField already gives a kind's fixed, non-chainable column fields (e.g. lookup's own
+   * resultColumn, picked in renderDraftConfig instead). Starting a pick from here closes this
+   * card's own detail modal (see OperationPanel's renderConfirmedCard) so the sheet panel — which
+   * a modal's full-screen overlay would otherwise sit on top of — is actually clickable. */
+  columnPick: ColumnPickState | null;
+  onStartColumnPick: (entryId: string, field: ColumnPickField, sheetIndex: number) => void;
+  onFinishColumnPick: () => void;
   /** columnIndex is only meaningful for a kind whose match isn't at any single fixed column (e.g.
    * find, scanning a whole range) — lookup's own fixed result column makes it redundant there, so
    * it's optional and lookup's own call site omits it. */

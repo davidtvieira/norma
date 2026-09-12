@@ -175,6 +175,23 @@ interface ValueSourceFieldProps {
    * clearing back to "pick again".
    */
   onRemove?: () => void;
+  /**
+   * When given, adds a third "Coluna da tabela" source alongside static/dynamic: instead of
+   * typing a value or picking a reference, the user clicks a column header directly in the sheet
+   * viewer, same as ColumnPickerField's own picking flow (which this mirrors, just reached through
+   * this field's modal instead of a dedicated button). `isPicking`/`pendingColumn` are this exact
+   * field's own slice of the app-wide column-pick state (see OperationBodyContext's columnPick) —
+   * true/non-null only while *this* field is the one being picked for, not any other field on the
+   * card. Once picked, the column index is stored as a plain literal (`literalSource(String(...))`
+   * — see the effect below), indistinguishable afterward from one typed in by hand; only the
+   * *how* differs, not the resulting value or its pill.
+   */
+  columnPicker?: {
+    isPicking: boolean;
+    pendingColumn: number | null;
+    onStart: () => void;
+    onCancel: () => void;
+  };
 }
 
 interface ValueSourcePickerModalProps {
@@ -183,6 +200,13 @@ interface ValueSourcePickerModalProps {
   inputType: 'text' | 'number';
   referenceOnly: boolean;
   referenceOptions: ReferenceOption[];
+  /** Whether this field also offers the column-pick source (see ValueSourceField's own
+   * `columnPicker` prop) — shows a third tab when true. */
+  hasColumnPicker: boolean;
+  /** Starts the column pick (see ValueSourceField's `columnPicker.onStart`) — closes this modal
+   * immediately after, same as picking a reference or typing a static value does, since the actual
+   * selection happens by clicking a header in the sheet viewer, not inside this modal. */
+  onStartColumnPick: () => void;
   /** Which tab the modal opens on — 'dynamic' when reopening a field that already has (or last
    * had) a reference picked, 'static' otherwise. Purely a starting point; the user can still
    * switch tabs inside the modal unless referenceOnly hides the toggle entirely. */
@@ -215,12 +239,14 @@ function ValueSourcePickerModal({
   inputType,
   referenceOnly,
   referenceOptions,
+  hasColumnPicker,
+  onStartColumnPick,
   initialTab,
   onPickStatic,
   onPickReference,
   onClose,
 }: ValueSourcePickerModalProps) {
-  const [tab, setTab] = useState<'static' | 'dynamic'>(initialTab);
+  const [tab, setTab] = useState<'static' | 'dynamic' | 'column'>(initialTab);
   const [draftValue, setDraftValue] = useState('');
   // Which reference the user has clicked in the list below, if any — clicking only selects it
   // (see the option buttons' own onClick); Confirmar is what actually commits it, same two-step
@@ -228,9 +254,14 @@ function ValueSourcePickerModal({
   // is clicked.
   const [selectedOperationId, setSelectedOperationId] = useState<string | null>(null);
   const isDynamicMode = referenceOnly || tab === 'dynamic';
-  const canConfirm = isDynamicMode ? selectedOperationId !== null : draftValue.trim() !== '';
+  const isColumnMode = !referenceOnly && tab === 'column';
+  // The column tab has no Confirmar step of its own — its dedicated "Selecionar coluna" button
+  // (below) starts the pick and closes this modal in one action, since the actual selection
+  // happens by clicking a header in the sheet viewer next, not by confirming anything in here.
+  const canConfirm = isColumnMode ? false : isDynamicMode ? selectedOperationId !== null : draftValue.trim() !== '';
 
   function confirm() {
+    if (isColumnMode) return;
     if (isDynamicMode) {
       if (selectedOperationId) onPickReference(selectedOperationId);
     } else if (draftValue.trim() !== '') {
@@ -267,10 +298,35 @@ function ValueSourcePickerModal({
             >
               Input dinâmico
             </button>
+            {hasColumnPicker && (
+              <button
+                type="button"
+                className={`operation-entry__source-toggle-button${tab === 'column' ? ' operation-entry__source-toggle-button--active' : ''}`}
+                onClick={() => setTab('column')}
+              >
+                Coluna da tabela
+              </button>
+            )}
           </div>
         )}
 
-        {!isDynamicMode && (
+        {isColumnMode && (
+          <div className="value-source-modal__column">
+            <p className="operation-entry__chain-status">Escolha diretamente uma coluna na tabela à direita.</p>
+            <button
+              type="button"
+              className="operation-entry__pick-button"
+              onClick={() => {
+                onStartColumnPick();
+                onClose();
+              }}
+            >
+              Selecionar coluna
+            </button>
+          </div>
+        )}
+
+        {!isDynamicMode && !isColumnMode && (
           <div className="value-source-modal__static">
             <input
               type={inputType}
@@ -308,9 +364,14 @@ function ValueSourcePickerModal({
           <button type="button" className="add-operation-modal__close-button" onClick={onClose}>
             Cancelar
           </button>
-          <button type="button" className="value-source-modal__confirm-button" onClick={confirm} disabled={!canConfirm}>
-            Confirmar
-          </button>
+          {/* The column tab has its own dedicated "Selecionar coluna" button above instead — a
+              disabled Confirmar next to it would just be dead weight, since that tab has nothing
+              of its own left for it to confirm. */}
+          {!isColumnMode && (
+            <button type="button" className="value-source-modal__confirm-button" onClick={confirm} disabled={!canConfirm}>
+              Confirmar
+            </button>
+          )}
         </div>
       </div>
     </div>,
@@ -349,8 +410,10 @@ export function ValueSourceField({
   resolvedInput,
   referenceOnly = false,
   onRemove,
+  columnPicker,
 }: ValueSourceFieldProps) {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const picking = columnPicker?.isPicking ?? false;
 
   // Whether there's an actual value in hand — a picked reference, or (for a plain typed field) any
   // non-empty text — derived straight from `source` rather than its own tracked state, so the
@@ -358,8 +421,9 @@ export function ValueSourceField({
   // typing/clearing the field or picking/removing a reference.
   const committed = source.type === 'reference' || (!referenceOnly && source.value !== '');
   // Whether there's a genuine choice worth a modal for — at least one other operation to
-  // reference, whether alongside a static option or (referenceOnly) on its own as a list.
-  const needsPicker = referenceOptions.length > 0;
+  // reference, or a column-pick capability, whether alongside a static option or (referenceOnly)
+  // on its own as a list.
+  const needsPicker = referenceOptions.length > 0 || columnPicker !== undefined;
   // The only possible source is a plain typed value — no picker needed at all, ever.
   const alwaysStatic = !referenceOnly && !needsPicker;
   // referenceOnly with nothing yet to reference — nothing to pick, so a warning instead of a
@@ -382,6 +446,18 @@ export function ValueSourceField({
     setIsPickerOpen(false);
   }
 
+  // The pick started (see ValueSourcePickerModal's own "Selecionar coluna" button, which already
+  // closed that modal) actually lands a column: mirrors ColumnPickerField's own effect exactly —
+  // commit it as a plain literal the moment a column is clicked in the sheet, then finish the pick
+  // so columnPick clears back to null app-wide.
+  useEffect(() => {
+    if (columnPicker?.isPicking && columnPicker.pendingColumn !== null) {
+      onChange(literalSource(String(columnPicker.pendingColumn)));
+      columnPicker.onCancel();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [columnPicker?.isPicking, columnPicker?.pendingColumn]);
+
   return (
     // A fragment, not a single div: the field itself (label + editable control) and the
     // "Entrada" readout below need to be *siblings*, not nested — the collapsed-card CSS
@@ -389,12 +465,29 @@ export function ValueSourceField({
     // (.operation-card-modal__body) both key off direct children to show one and hide the
     // other, which only works if they're not both buried inside one wrapping div together.
     <>
-    <div className="operation-entry__field">
+    <div className={`operation-entry__field${picking ? ' operation-entry__field--active-pick' : ''}`}>
       <label className="operation-entry__label">{label}</label>
 
-      {blocked && <p className="operation-entry__chain-status">Não há nenhuma outra operação para referenciar ainda.</p>}
+      {/* Column-pick in progress for this exact field — the ValueSourcePickerModal that started it
+          (see its own "Selecionar coluna" button) already closed itself, and — if this field lives
+          on a confirmed card's own detail modal — that modal closed too (see OperationPanel's
+          renderConfirmedCard), so the sheet viewer is actually visible/clickable. This replaces
+          every other control below (there's nothing else to show/edit until the pick resolves),
+          and stays visible even on an otherwise-collapsed card (see the matching CSS exemption on
+          .operation-entry__field--active-pick) so the "click a header" hint isn't just silently
+          hidden along with everything else the collapse rule hides. */}
+      {picking && (
+        <div className="operation-column-picking">
+          <span className="operation-column-picking__hint">Escolha uma coluna na tabela à direita</span>
+          <button type="button" className="operation-column-picking__cancel" onClick={columnPicker?.onCancel}>
+            Cancelar
+          </button>
+        </div>
+      )}
 
-      {alwaysStatic && (
+      {!picking && blocked && <p className="operation-entry__chain-status">Não há nenhuma outra operação para referenciar ainda.</p>}
+
+      {!picking && alwaysStatic && (
         <div className="operation-entry__static-input-row">
           <input
             type={inputType}
@@ -407,7 +500,7 @@ export function ValueSourceField({
         </div>
       )}
 
-      {needsPicker && !committed && (
+      {!picking && needsPicker && !committed && (
         <button type="button" className="operation-entry__pick-button" onClick={() => setIsPickerOpen(true)}>
           {referenceOnly ? 'Selecionar operação' : 'Selecionar valor'}
         </button>
@@ -417,7 +510,7 @@ export function ValueSourceField({
           typing only ever happens in the modal itself (see ValueSourcePickerModal). Clicking it
           removes the value outright (or, if `onRemove` is given, removes the field/row entirely
           instead), bringing back "Selecionar valor" to add a new one. */}
-      {needsPicker && committed && source.type === 'literal' && (
+      {!picking && needsPicker && committed && source.type === 'literal' && (
         <button type="button" className="operation-column-pill operation-column-pill--pickable" onClick={onRemove ?? reset}>
           <span className="operation-column-pill__value">{source.value}</span>
         </button>
@@ -429,7 +522,7 @@ export function ValueSourceField({
           .operation-entry__result's own note) but disappear once the card is actually opened,
           the exact opposite of this pill (and the plain input/static pill above), which exist to
           be edited and so are only ever shown while open. */}
-      {source.type === 'reference' && (
+      {!picking && source.type === 'reference' && (
         <>
           <button type="button" className="operation-column-pill operation-column-pill--pickable" onClick={onRemove ?? reset}>
             <span className="operation-column-pill__value">
@@ -453,6 +546,8 @@ export function ValueSourceField({
           inputType={inputType}
           referenceOnly={referenceOnly}
           referenceOptions={referenceOptions}
+          hasColumnPicker={columnPicker !== undefined}
+          onStartColumnPick={() => columnPicker?.onStart()}
           initialTab={source.type === 'reference' ? 'dynamic' : 'static'}
           onPickStatic={pickStatic}
           onPickReference={pickReference}
