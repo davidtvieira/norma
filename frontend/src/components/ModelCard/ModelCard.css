@@ -1,7 +1,7 @@
 /* The model's own name is shown in the breadcrumb (see App.tsx), not repeated here — this fills
-   the whole utilize screen (see .app__utilize-body), split into a left half for the model's
-   input(s) and a right half for its output(s), mirroring how the landing screen itself splits
-   into .app__landing-left/right, with the actions row (back/run) pinned to the bottom. */
+   the whole utilize screen (see .app__utilize-body), split into a left side for the model's
+   input(s) and a right side for its output(s) (see .model-card__io-panel below for how the two
+   trade off expanded/collapsed space), with the actions row (back/run) pinned to the bottom. */
 .model-card {
   width: 100%;
   flex: 1;
@@ -38,17 +38,63 @@
    below to plain --color-bg instead — --color-surface-hover carries a warm brownish tint even in
    dark mode (a leftover of it being designed as a "hover" tint, not a neutral panel fill), which
    read as an unwanted orange cast against dark mode's otherwise monochrome gray palette. */
+/* The actual flex item within .model-card__io — holds the "Input"/"Output" title (see
+   .model-card__io-panel-title, now a plain sibling here instead of living inside the bordered box
+   below, so it reads as a caption *above* the card rather than a heading squeezed inside it) and
+   the bordered panel box underneath. The expanded side takes most of the row; the other side (see
+   --collapsed below) shrinks to just its own small button, so the two together still fill
+   .model-card__io's full width. Only one side of a toggleable pair is ever --collapsed at a time
+   (see ModelCard.tsx's expandedSide state) — a model with no designated input has no collapsed
+   side at all, its single output column always getting this same --expanded treatment. */
+.model-card__io-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+  min-height: 0;
+  transition: flex-grow 0.3s ease, flex-basis 0.3s ease;
+}
+
+.model-card__io-column--expanded {
+  flex: 6 1 0%;
+}
+
+/* Shrinks to just its own button's content size (see .model-card__io-panel-collapsed below)
+   instead of reserving a fixed block of space — no title, no field grid, so it reads as a plain
+   button sitting there rather than a second (mostly-empty) panel. */
+.model-card__io-column--collapsed {
+  flex: 0 0 auto;
+}
+
+/* The bordered/background box itself, now separate from the flex-sizing column above it — always
+   present so its scrolling behavior is the same whether it holds a field grid or the collapsed
+   button. align-items: flex-start keeps the field grid pinned to the panel's top edge rather than
+   vertically centered in whatever height the row gives this panel (a short list of fields would
+   otherwise float in the middle with dead space above it, and a long, scrolled one would jump
+   around as it scrolls) — the collapsed button below overrides this back to centered, since a
+   single small button floating at the top of a tall empty strip looks wrong the way a top-aligned
+   grid doesn't. */
 .model-card__io-panel {
-  flex: 1 1 50%;
+  flex: 1;
   min-width: 0;
   min-height: 0;
   display: flex;
-  align-items: safe center;
+  align-items: flex-start;
   justify-content: center;
   overflow-y: auto;
   background: var(--color-surface-hover);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
+  transition: background-color 0.2s ease;
+}
+
+/* Collapsed side drops the panel's own chrome entirely — just centers its plain button in the
+   space the column above has shrunk down to, rather than drawing a mostly-empty bordered box
+   around it. */
+.model-card__io-panel--collapsed {
+  align-items: center;
+  background: transparent;
+  border: none;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -81,8 +127,36 @@
   color: var(--color-text-muted);
 }
 
-/* Three field cards per row within a half; narrows as the half itself narrows, first to two
-   columns and then, once .model-card__io stacks the two halves (see below), to one. */
+/* The collapsed side's only content: a plain pill button (same shape language as
+   .model-card__run-button) sized to its own label, not stretched to fill the collapsed panel —
+   clicking it re-expands that side (see ModelCard.tsx's setExpandedSide) without touching any
+   field value or triggering a run. */
+.model-card__io-panel-collapsed {
+  padding: 0.6rem 1.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.model-card__io-panel-collapsed:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+/* Always 3 equal columns per row, on both the input and output grids, filling however wide the
+   panel currently is (see .model-card__io-column--expanded, which can grow to most of the
+   screen) — each .model-card__field's own min-width: 0 is what keeps a long name from forcing
+   these columns wider than that instead of truncating with an ellipsis. Narrows to 2 and then 1
+   as the viewport itself narrows, same as .model-card__io's own stacking breakpoint below. */
 .model-card__field-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -108,28 +182,30 @@
 }
 
 /* --color-surface (one step lighter than the panel's own --color-surface-hover background above)
-   so each field card still reads as its own raised card instead of blending into the panel. A
-   fixed height (rather than the auto/content-driven height flex would otherwise give it) is what
-   actually makes every card the same size regardless of how long its name is or how much its
-   input/result takes up — combined with .model-card__field-grid's own equal-width columns, that's
-   both dimensions covered. justify-content: space-between then pins whichever single element
-   follows the name (the input editor, or the result — see ModelCard.tsx, always exactly one) to
-   the card's bottom edge, with the name always at the top, instead of both just stacking
-   top-down with whatever gap happens to be left over. overflow: hidden backstops the fixed height
-   against any content that still doesn't fit (see the name/result truncation below) rather than
-   letting it push the card taller and break the grid's uniformity. */
+   so each field card still reads as its own raised card instead of blending into the panel. No
+   fixed height here — the card sizes to whatever its own name heading + input/result actually
+   need, so .model-card__field-grid's equal-width columns are the only thing keeping cards
+   uniform (width only, not height); a card with a longer wrapped name or result is simply taller
+   than its neighbors on the same row. justify-content: flex-start keeps the name heading and
+   whatever single element follows it (the input editor, or the result — see ModelCard.tsx, always
+   exactly one, the field-input component's own inner label/readout being hidden below) close
+   together near the top rather than spread apart. min-width: 0 overrides a grid item's default
+   min-width: auto, which otherwise sizes this card's minimum width off its own content's
+   min-content — for a long, un-wrapped operation name (see .model-card__field-name's own
+   white-space: nowrap below) that's the name's *full* unwrapped width, forcing every column
+   wide enough to fit the longest name in the grid and blowing right through the grid's own
+   max-width instead of actually truncating with an ellipsis like it's supposed to. */
 .model-card__field {
   position: relative;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 0.6rem;
-  height: 8.5rem;
+  min-width: 0;
   padding: 1rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-surface);
-  overflow: hidden;
 }
 
 /* Truncated to one line with an ellipsis rather than wrapping — a long operation name would
@@ -182,6 +258,25 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+/* The shared chainable-field-input component (see fields.tsx) also renders its own resolved-value
+   readout below every input field (e.g. "Valor: (vazio)") — meant for OperationPanel's collapsed
+   cards elsewhere, where it's the only visible trace of a field's value while the card is closed.
+   This screen's input cards are never collapsed per-field (the name heading above and the input
+   box itself already show everything there is to show), so that readout is pure duplication here
+   — and its extra height didn't fit this card's fixed height, so it was being clipped off by
+   overflow: hidden instead of actually removed. */
+.model-card__field .operation-entry__result--input {
+  display: none;
+}
+
+/* The shared field-input component also renders its own <label> above the control (fields.tsx:393)
+   — ModelCard.tsx already shows this same field name as its own heading above the whole card (see
+   .model-card__field-name), so this inner label would just repeat it a second time immediately
+   above the input. */
+.model-card__field .operation-entry__label {
+  display: none;
 }
 
 .model-card__missing-io {

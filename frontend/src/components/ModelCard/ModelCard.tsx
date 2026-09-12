@@ -104,6 +104,14 @@ export function ModelCard({ dataset, modelName, entries, inputOperationIds, outp
   const runIdRef = useRef(0);
   const testFileInputRef = useRef<HTMLInputElement>(null);
 
+  // Which of the two IO panels currently takes up most of the screen — the other collapses to a
+  // small clickable square. Starts on "input" (nothing to show on the output side yet), and
+  // clicking "Correr modelo" swaps it to "output" so the result is what's immediately visible.
+  // Purely a display toggle from then on: clicking either collapsed square swaps it back, without
+  // triggering a run or touching any input value — only "Correr modelo" itself does that (see run()
+  // below).
+  const [expandedSide, setExpandedSide] = useState<'input' | 'output'>('input');
+
   // The output's status only ever comes from a run's own response now — a run returns just the
   // designated output, not every operation's result — so there's nothing meaningful to resolve
   // reference chain status against here; the input field itself is always a literal (see the
@@ -128,6 +136,7 @@ export function ModelCard({ dataset, modelName, entries, inputOperationIds, outp
     if (!modelId) return;
     const runId = ++runIdRef.current;
     setIsRunning(true);
+    setExpandedSide('output');
 
     runModel(dataset.datasetId, modelId, inputValues)
       .then((response) => {
@@ -229,59 +238,93 @@ export function ModelCard({ dataset, modelName, entries, inputOperationIds, outp
     );
   }
 
+  // With no designated input at all, there's nothing to toggle between — the output panel just
+  // takes the full width on its own, same as before this expand/collapse behavior existed.
+  const canToggleIo = inputEntries.length > 0;
+  const inputExpanded = !canToggleIo || expandedSide === 'input';
+  const outputExpanded = !canToggleIo || expandedSide === 'output';
+
   return (
     <div className="model-card">
       <div className="model-card__io">
         {inputEntries.length > 0 && (
-          <div className="model-card__io-panel">
-            <div className="model-card__io-panel-content">
-              <h3 className="model-card__io-panel-title">Input</h3>
-              <div className="model-card__field-grid">
-                {inputEntries.map((inputEntry) => {
-                  const inputKind = KINDS_BY_ID[inputEntry.kindId];
-                  if (!inputKind.renderInputEditor) return null;
-                  const name = inputEntry.name || 'Input';
-                  const source = getInputSource(fields[inputEntry.id]);
-                  const currentValue = source.type === 'literal' ? source.value : '';
-                  return (
-                    <div key={inputEntry.id} className="model-card__field">
-                      <EyeButton onView={() => setViewFullText({ name, value: currentValue })} />
-                      <h3 className="model-card__field-name" title={name}>
-                        {name}
-                      </h3>
-                      {inputKind.renderInputEditor({
-                        fields: fields[inputEntry.id],
-                        updateFields: (patch) => updateEntryFields(inputEntry.id, patch),
-                        resolvedInput: resolvedInputs[inputEntry.id][0],
-                      })}
-                    </div>
-                  );
-                })}
-              </div>
+          <div
+            className={`model-card__io-column ${inputExpanded ? 'model-card__io-column--expanded' : 'model-card__io-column--collapsed'}`}
+          >
+            {inputExpanded && <h3 className="model-card__io-panel-title">Input ({inputEntries.length})</h3>}
+            <div className={`model-card__io-panel ${inputExpanded ? '' : 'model-card__io-panel--collapsed'}`}>
+              {inputExpanded ? (
+                <div className="model-card__io-panel-content">
+                  <div className="model-card__field-grid">
+                    {inputEntries.map((inputEntry) => {
+                      const inputKind = KINDS_BY_ID[inputEntry.kindId];
+                      if (!inputKind.renderInputEditor) return null;
+                      const name = inputEntry.name || 'Input';
+                      const source = getInputSource(fields[inputEntry.id]);
+                      const currentValue = source.type === 'literal' ? source.value : '';
+                      return (
+                        <div key={inputEntry.id} className="model-card__field">
+                          <EyeButton onView={() => setViewFullText({ name, value: currentValue })} />
+                          <h3 className="model-card__field-name" title={name}>
+                            {name}
+                          </h3>
+                          {inputKind.renderInputEditor({
+                            fields: fields[inputEntry.id],
+                            updateFields: (patch) => updateEntryFields(inputEntry.id, patch),
+                            resolvedInput: resolvedInputs[inputEntry.id][0],
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="model-card__io-panel-collapsed"
+                  onClick={() => setExpandedSide('input')}
+                >
+                  Inputs ({inputEntries.length})
+                </button>
+              )}
             </div>
           </div>
         )}
 
-        <div className="model-card__io-panel">
-          <div className="model-card__io-panel-content">
-            <h3 className="model-card__io-panel-title">Output</h3>
-            <div className="model-card__field-grid">
-              {outputEntries.map((outputEntry) => {
-                const outputResult = results?.find((candidate) => candidate.id === outputEntry.id) ?? null;
-                const name = outputEntry.name || 'Output';
-                const value = outputResult && outputResult.success && outputResult.value != null ? String(outputResult.value) : null;
-                const error = runError ?? (outputResult && !outputResult.success ? outputResult.error : null);
-                return (
-                  <div key={outputEntry.id} className="model-card__field">
-                    <EyeButton onView={() => setViewFullText({ name, value: describeResult(hasRun, isRunning, value, error) })} />
-                    <h3 className="model-card__field-name" title={name}>
-                      {name}
-                    </h3>
-                    <ModelOperationResultView hasRun={hasRun} isCalculating={isRunning} value={value} error={error} />
-                  </div>
-                );
-              })}
-            </div>
+        <div
+          className={`model-card__io-column ${outputExpanded ? 'model-card__io-column--expanded' : 'model-card__io-column--collapsed'}`}
+        >
+          {outputExpanded && <h3 className="model-card__io-panel-title">Output ({outputEntries.length})</h3>}
+          <div className={`model-card__io-panel ${outputExpanded ? '' : 'model-card__io-panel--collapsed'}`}>
+            {outputExpanded ? (
+              <div className="model-card__io-panel-content">
+                <div className="model-card__field-grid">
+                  {outputEntries.map((outputEntry) => {
+                    const outputResult = results?.find((candidate) => candidate.id === outputEntry.id) ?? null;
+                    const name = outputEntry.name || 'Output';
+                    const value = outputResult && outputResult.success && outputResult.value != null ? String(outputResult.value) : null;
+                    const error = runError ?? (outputResult && !outputResult.success ? outputResult.error : null);
+                    return (
+                      <div key={outputEntry.id} className="model-card__field">
+                        <EyeButton onView={() => setViewFullText({ name, value: describeResult(hasRun, isRunning, value, error) })} />
+                        <h3 className="model-card__field-name" title={name}>
+                          {name}
+                        </h3>
+                        <ModelOperationResultView hasRun={hasRun} isCalculating={isRunning} value={value} error={error} />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="model-card__io-panel-collapsed"
+                onClick={() => setExpandedSide('output')}
+              >
+                Outputs ({outputEntries.length})
+              </button>
+            )}
           </div>
         </div>
       </div>
