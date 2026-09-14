@@ -48,10 +48,10 @@ export interface MarqueeRect {
  * repeated clicks feel like a consistent proportional change at any zoom level, not a fixed pixel
  * amount that feels huge when zoomed out and tiny when zoomed in. MIN_ZOOM is deliberately low —
  * a model with a lot of far-apart nodes needs to be able to zoom out well past "100%" to see
- * everything at once. MAX_ZOOM stays modest in the other direction: there's rarely any real need
- * to zoom in past a node's own natural size. */
+ * everything at once. MAX_ZOOM is capped at "100%" itself: a node already renders at its own
+ * natural size there, so there's no need to zoom in any further past it. */
 export const MIN_ZOOM = 0.15;
-export const MAX_ZOOM = 1.5;
+export const MAX_ZOOM = 1;
 export const ZOOM_STEP = 1.2;
 
 /** A node "drag" that barely moved (in screen pixels) is really a click, not a reposition. */
