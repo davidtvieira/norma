@@ -46,9 +46,12 @@ export interface MarqueeRect {
 /** How far the canvas can be zoomed out/in, and the multiplicative step each zoom-in/zoom-out
  * click (or wheel notch — see handleViewportWheel) applies. Multiplicative rather than additive so
  * repeated clicks feel like a consistent proportional change at any zoom level, not a fixed pixel
- * amount that feels huge when zoomed out and tiny when zoomed in. */
-export const MIN_ZOOM = 0.4;
-export const MAX_ZOOM = 2;
+ * amount that feels huge when zoomed out and tiny when zoomed in. MIN_ZOOM is deliberately low —
+ * a model with a lot of far-apart nodes needs to be able to zoom out well past "100%" to see
+ * everything at once. MAX_ZOOM stays modest in the other direction: there's rarely any real need
+ * to zoom in past a node's own natural size. */
+export const MIN_ZOOM = 0.15;
+export const MAX_ZOOM = 1.5;
 export const ZOOM_STEP = 1.2;
 
 /** A node "drag" that barely moved (in screen pixels) is really a click, not a reposition. */
