@@ -61,7 +61,7 @@ const MINIMAP_NODE_HEIGHT = 90;
  * and instead shows a fixed-size window centered on the real viewport (see renderMinimap) —
  * plenty for orientation/navigation, which is all it's for; it was never meant to always fit the
  * entire model at once. */
-const MINIMAP_MIN_SCALE = 0.12;
+const MINIMAP_MIN_SCALE = 0.06;
 const MINIMAP_MAX_SCALE = 0.35;
 
 /** How far apart "Testar modelo" staggers each confirmed operation's own live-result request
