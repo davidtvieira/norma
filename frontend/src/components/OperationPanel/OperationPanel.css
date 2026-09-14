@@ -1004,6 +1004,45 @@
   pointer-events: none;
 }
 
+/* Bottom-right overview of the whole canvas (see renderMinimap in OperationPanel.tsx) — a
+   sibling of .operation-canvas__surface, same as the floating toolbars above, so it stays
+   docked to the viewport's own corner regardless of how far the surface underneath it has been
+   panned/zoomed. Its own corner rather than one of .operation-canvas__floating-toolbar's, so it
+   shares that rule's z-index/stacking reasoning without inheriting its top-anchored position. */
+.operation-canvas__minimap {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  z-index: 19;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, #000 4%, var(--color-surface));
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+/* Every confirmed node's simplified footprint, positioned/sized in the minimap's own scaled-down
+   pixel space (see toMinimap in OperationPanel.tsx), not the canvas' real one. */
+.operation-canvas__minimap-node {
+  position: absolute;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--color-primary) 55%, transparent);
+}
+
+.operation-canvas__minimap-node--selected {
+  background: var(--color-secondary);
+}
+
+/* The viewport's own currently-visible rectangle, outlined over the node dots above — the "you
+   are here" cue the rest of the minimap exists to give a frame of reference for. */
+.operation-canvas__minimap-viewport {
+  position: absolute;
+  border: 1.5px solid var(--color-secondary);
+  background: color-mix(in srgb, var(--color-secondary) 12%, transparent);
+  pointer-events: none;
+}
+
 .operation-canvas__surface {
   position: relative;
   width: 100%;

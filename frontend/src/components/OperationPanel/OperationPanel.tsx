@@ -44,6 +44,16 @@ const NODES_PER_ROW = 3;
 const NODE_COLUMN_GAP = 340;
 const NODE_ROW_GAP = 240;
 
+/** The bottom-right minimap's own box size in screen pixels, the padding kept around every
+ * node's position when fitting the canvas' content into it, and an approximate node height (real
+ * cards vary with their content — result text, expanded fields — but the minimap only needs a
+ * rough sense of "where things are", not pixel-perfect boxes) to round out each node's footprint
+ * alongside the fixed NODE_WIDTH above. See renderMinimap. */
+const MINIMAP_WIDTH = 180;
+const MINIMAP_HEIGHT = 130;
+const MINIMAP_PADDING = 24;
+const MINIMAP_NODE_HEIGHT = 90;
+
 /** How far apart "Testar modelo" staggers each confirmed operation's own live-result request
  * (see runModelTest) — small enough that testing a model still feels close to instant, big
  * enough that a model with many operations sends the API a trickle of requests instead of a
@@ -914,6 +924,7 @@ export function OperationPanel({
     startNodeDrag,
     zoomBy,
     handleViewportWheel,
+    centerViewOn,
   } = useCanvasViewport({
       entries,
       // Repositioning only actually applies in "Editar" mode (see its own button/comment below)
@@ -963,6 +974,28 @@ export function OperationPanel({
       },
       onMarqueeSelect: setSelectedIds,
     });
+
+  // The viewport's own on-screen size, purely for the minimap (see renderMinimap) to scale its
+  // "you are here" rectangle correctly — kept in state rather than read straight off viewportRef
+  // during render, which wouldn't have it yet on the very first render and wouldn't update on a
+  // window/pane resize on its own. Nothing else on the canvas needs its container's pixel size.
+  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
+  useLayoutEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => {
+      setViewportSize({ width: entry.contentRect.width, height: entry.contentRect.height });
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [viewportRef]);
+
+  // The minimap's own most recent content-bounds/scale (see renderMinimap) — stashed in a ref
+  // rather than recomputed from scratch on every pointer-move of a minimap drag (see
+  // handleMinimapPointer) purely so that handler doesn't need to duplicate renderMinimap's own
+  // bounds math; always current, since renderMinimap runs (and updates it) on every render this
+  // component does, which a pointer-move driven centerViewOn call itself triggers.
+  const minimapTransformRef = useRef({ minX: 0, minY: 0, scale: 1 });
 
   // Wraps startNodeDrag so a drag on a node that's part of a multi-node selection (more than one
   // id selected, this node among them) moves the whole group instead of just the one node under
@@ -1117,7 +1150,7 @@ export function OperationPanel({
     // Ignore a click that landed on an existing node (it still bubbles up here) — pasting
     // straight on top of it is exactly the overlap this whole placement step exists to avoid;
     // pendingPaste stays on so the very next click on actual empty canvas still places it.
-    if ((event.target as HTMLElement).closest('.operation-canvas__node, .operation-canvas__floating-toolbar')) return;
+    if ((event.target as HTMLElement).closest('.operation-canvas__node, .operation-canvas__floating-toolbar, .operation-canvas__minimap')) return;
     const viewportBox = viewportRef.current?.getBoundingClientRect();
     if (!viewportBox) return;
     pasteClipboardAt({
@@ -1725,6 +1758,122 @@ export function OperationPanel({
           resetSignal: resetSignals[entry.id] ?? 0,
         })}
       </ConfirmedOperationCard>
+    );
+  }
+
+  // A click or drag anywhere on the minimap (see renderMinimap) recenters the real canvas on that
+  // same spot, at whatever zoom is already active — converts the pointer's screen position back
+  // into a canvas-local point via the minimap's own last-rendered bounds/scale (minimapTransformRef,
+  // always current — see its own comment) and hands that straight to centerViewOn. Reads the
+  // container's box fresh on every move rather than once at mousedown, since a drag that pans the
+  // real canvas can itself change where the minimap's own box sits if the surrounding layout ever
+  // reflows mid-drag.
+  function handleMinimapPointer(event: ReactMouseEvent<HTMLDivElement>) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const container = event.currentTarget;
+
+    function jumpTo(clientX: number, clientY: number) {
+      const box = container.getBoundingClientRect();
+      const { minX, minY, scale } = minimapTransformRef.current;
+      centerViewOn({ x: minX + (clientX - box.left) / scale, y: minY + (clientY - box.top) / scale });
+    }
+
+    jumpTo(event.clientX, event.clientY);
+
+    function handleMouseMove(moveEvent: globalThis.MouseEvent) {
+      jumpTo(moveEvent.clientX, moveEvent.clientY);
+    }
+    function handleMouseUp() {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    }
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  }
+
+  // Bottom-right overview of the whole canvas: every confirmed node as a simplified rectangle at
+  // its actual relative position, plus the viewport's own currently-visible area outlined as a
+  // "you are here" rectangle, both scaled down to fit inside MINIMAP_WIDTH x MINIMAP_HEIGHT.
+  // Clicking or dragging anywhere on it recenters the real canvas there (see
+  // handleMinimapPointer) — its main job is still keeping a sense of where things are on a large
+  // canvas, this just makes it a shortcut for getting back to any of them too, on top of the
+  // zoom/pan controls already in the left toolbar. Hidden until there's at least one confirmed
+  // node and the viewport has actually been measured (see viewportSize) — nothing meaningful to
+  // show before either.
+  function renderMinimap(): ReactNode {
+    const confirmed = entries.filter((entry) => entry.confirmed);
+    if (confirmed.length === 0 || !viewportSize.width || !viewportSize.height) return null;
+
+    // The viewport's own currently-visible rectangle, converted from screen pixels back into the
+    // same canvas-local coordinate space node positions already live in (undoing the surface's
+    // pan/zoom transform) — folded into the content bounds below so the minimap still makes sense
+    // even zoomed/panned out well past where any node actually sits.
+    const viewportRect = {
+      left: -viewOffset.x / zoom,
+      top: -viewOffset.y / zoom,
+      width: viewportSize.width / zoom,
+      height: viewportSize.height / zoom,
+    };
+
+    let minX = viewportRect.left;
+    let minY = viewportRect.top;
+    let maxX = viewportRect.left + viewportRect.width;
+    let maxY = viewportRect.top + viewportRect.height;
+    for (const entry of confirmed) {
+      minX = Math.min(minX, entry.position.x);
+      minY = Math.min(minY, entry.position.y);
+      maxX = Math.max(maxX, entry.position.x + NODE_WIDTH);
+      maxY = Math.max(maxY, entry.position.y + MINIMAP_NODE_HEIGHT);
+    }
+    minX -= MINIMAP_PADDING;
+    minY -= MINIMAP_PADDING;
+    maxX += MINIMAP_PADDING;
+    maxY += MINIMAP_PADDING;
+
+    const scale = Math.min(MINIMAP_WIDTH / (maxX - minX), MINIMAP_HEIGHT / (maxY - minY));
+    const toMinimap = (x: number, y: number) => ({ x: (x - minX) * scale, y: (y - minY) * scale });
+    const viewportTopLeft = toMinimap(viewportRect.left, viewportRect.top);
+    minimapTransformRef.current = { minX, minY, scale };
+
+    return (
+      <div
+        className="operation-canvas__minimap"
+        style={{ width: MINIMAP_WIDTH, height: MINIMAP_HEIGHT }}
+        onMouseDown={(event) => {
+          event.stopPropagation();
+          handleMinimapPointer(event);
+        }}
+      >
+        {confirmed.map((entry) => {
+          const point = toMinimap(entry.position.x, entry.position.y);
+          return (
+            <div
+              key={entry.id}
+              className={
+                selectedIds.includes(entry.id)
+                  ? 'operation-canvas__minimap-node operation-canvas__minimap-node--selected'
+                  : 'operation-canvas__minimap-node'
+              }
+              style={{
+                left: point.x,
+                top: point.y,
+                width: Math.max(3, NODE_WIDTH * scale),
+                height: Math.max(3, MINIMAP_NODE_HEIGHT * scale),
+              }}
+            />
+          );
+        })}
+        <div
+          className="operation-canvas__minimap-viewport"
+          style={{
+            left: viewportTopLeft.x,
+            top: viewportTopLeft.y,
+            width: viewportRect.width * scale,
+            height: viewportRect.height * scale,
+          }}
+        />
+      </div>
     );
   }
 
@@ -2378,6 +2527,8 @@ export function OperationPanel({
             );
           })}
         </div>
+
+        {renderMinimap()}
       </div>
 
       {marqueeRect && (

@@ -287,6 +287,19 @@ export function useCanvasViewport({ entries, onDragEntry, onNodeClick, onMarquee
     zoomBy(event.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP, { clientX: event.clientX, clientY: event.clientY });
   }
 
+  // Jumps the canvas so a given canvas-local point (see NodePosition) ends up centered in the
+  // viewport, at whatever zoom is already active — unlike zoomBy, this never changes zoom, only
+  // pans. Used by the minimap's own click/drag-to-navigate (see OperationPanel's renderMinimap):
+  // clicking anywhere on it, or dragging across it, recenters the real canvas on that same spot.
+  function centerViewOn(point: NodePosition) {
+    const viewportBox = viewportRef.current?.getBoundingClientRect();
+    if (!viewportBox) return;
+    setViewOffset({
+      x: viewportBox.width / 2 - point.x * zoom,
+      y: viewportBox.height / 2 - point.y * zoom,
+    });
+  }
+
   function startNodeDrag(id: string, position: NodePosition) {
     return (event: ReactMouseEvent<HTMLDivElement>) => {
       // Anything but the left button (most commonly the middle button, used to pan) is left
@@ -328,5 +341,6 @@ export function useCanvasViewport({ entries, onDragEntry, onNodeClick, onMarquee
     startNodeDrag,
     zoomBy,
     handleViewportWheel,
+    centerViewOn,
   };
 }
