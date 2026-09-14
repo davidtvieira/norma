@@ -1837,7 +1837,9 @@ export function OperationPanel({
   // canvas, this just makes it a shortcut for getting back to any of them too, on top of the
   // zoom/pan controls already in the left toolbar. Hidden until there's at least one confirmed
   // node and the viewport has actually been measured (see viewportSize) — nothing meaningful to
-  // show before either.
+  // show before either. A node currently toggled as the model's designated input and/or output
+  // (see modelInputIds/modelOutputIds) gets its own highlight color(s) here too, same distinction
+  // ConfirmedOperationCard's own IoToggle pills already make on the card itself.
   function renderMinimap(): ReactNode {
     const confirmed = entries.filter((entry) => entry.confirmed);
     if (confirmed.length === 0 || !viewportSize.width || !viewportSize.height) return null;
@@ -1884,13 +1886,24 @@ export function OperationPanel({
       >
         {confirmed.map((entry) => {
           const point = toMinimap(entry.position.x, entry.position.y);
+          const isModelInput = modelInputIds.includes(entry.id);
+          const isModelOutput = modelOutputIds.includes(entry.id);
           return (
             <div
               key={entry.id}
-              className={
-                selectedIds.includes(entry.id)
-                  ? 'operation-canvas__minimap-node operation-canvas__minimap-node--selected'
-                  : 'operation-canvas__minimap-node'
+              className={[
+                'operation-canvas__minimap-node',
+                selectedIds.includes(entry.id) ? 'operation-canvas__minimap-node--selected' : '',
+                isModelInput ? 'operation-canvas__minimap-node--input' : '',
+                isModelOutput ? 'operation-canvas__minimap-node--output' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              title={
+                entry.name +
+                (isModelInput || isModelOutput
+                  ? ` (${[isModelInput && 'Input', isModelOutput && 'Output'].filter(Boolean).join(' / ')})`
+                  : '')
               }
               style={{
                 left: point.x,
