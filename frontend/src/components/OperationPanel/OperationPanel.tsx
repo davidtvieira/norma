@@ -53,16 +53,6 @@ const MINIMAP_WIDTH = 180;
 const MINIMAP_HEIGHT = 130;
 const MINIMAP_PADDING = 24;
 const MINIMAP_NODE_HEIGHT = 90;
-/** How far the minimap's own scale is allowed to drift from "fit every node in" (see
- * renderMinimap) — without a floor, a model with many far-apart nodes shrinks every node down to
- * an unreadable speck just so all of them fit at once; without a ceiling, one or two nodes close
- * together (or the canvas zoomed in a lot, shrinking the viewport's own canvas-local size) blow up
- * to fill the whole box. Once either bound kicks in, the minimap stops trying to fit everything
- * and instead shows a fixed-size window centered on the real viewport (see renderMinimap) —
- * plenty for orientation/navigation, which is all it's for; it was never meant to always fit the
- * entire model at once. */
-const MINIMAP_MIN_SCALE = 0.06;
-const MINIMAP_MAX_SCALE = 0.35;
 
 /** How far apart "Testar modelo" staggers each confirmed operation's own live-result request
  * (see runModelTest) — small enough that testing a model still feels close to instant, big
@@ -1839,14 +1829,10 @@ export function OperationPanel({
     window.addEventListener('mouseup', handleMouseUp);
   }
 
-  // Bottom-right overview of the canvas: every confirmed node as a simplified rectangle at its
-  // actual relative position, plus the viewport's own currently-visible area outlined as a "you
-  // are here" rectangle, scaled to fit everything inside MINIMAP_WIDTH x MINIMAP_HEIGHT — as long
-  // as that scale stays within [MINIMAP_MIN_SCALE, MINIMAP_MAX_SCALE]; past either bound it shows
-  // a fixed-scale window centered on the real viewport instead (see MINIMAP_MIN_SCALE's own
-  // comment and the scale/origin math below) rather than shrinking every node into an unreadable
-  // speck just to fit a large, spread-out model in all at once. Clicking or dragging anywhere on it
-  // recenters the real canvas there (see
+  // Bottom-right overview of the whole canvas: every confirmed node as a simplified rectangle at
+  // its actual relative position, plus the viewport's own currently-visible area outlined as a
+  // "you are here" rectangle, both scaled down to fit inside MINIMAP_WIDTH x MINIMAP_HEIGHT.
+  // Clicking or dragging anywhere on it recenters the real canvas there (see
   // handleMinimapPointer) — its main job is still keeping a sense of where things are on a large
   // canvas, this just makes it a shortcut for getting back to any of them too, on top of the
   // zoom/pan controls already in the left toolbar. Hidden until there's at least one confirmed
@@ -1884,22 +1870,10 @@ export function OperationPanel({
     maxX += MINIMAP_PADDING;
     maxY += MINIMAP_PADDING;
 
-    const fitScale = Math.min(MINIMAP_WIDTH / (maxX - minX), MINIMAP_HEIGHT / (maxY - minY));
-    const scale = Math.min(MINIMAP_MAX_SCALE, Math.max(MINIMAP_MIN_SCALE, fitScale));
-    // fitScale itself is only usable once it's inside [MIN_SCALE, MAX_SCALE] — clamped past
-    // either bound, the "top-left of the bounding box" origin below no longer makes sense (the
-    // window's now a different size than what that box was measured for), so the minimap instead
-    // centers its fixed-size window on the real viewport — plenty for orientation, without forcing
-    // a scale so small every node collapses into a speck (see MINIMAP_MIN_SCALE's own comment).
-    const viewportCenter = { x: viewportRect.left + viewportRect.width / 2, y: viewportRect.top + viewportRect.height / 2 };
-    const [minimapOriginX, minimapOriginY] =
-      scale === fitScale
-        ? [minX, minY]
-        : [viewportCenter.x - MINIMAP_WIDTH / scale / 2, viewportCenter.y - MINIMAP_HEIGHT / scale / 2];
-
-    const toMinimap = (x: number, y: number) => ({ x: (x - minimapOriginX) * scale, y: (y - minimapOriginY) * scale });
+    const scale = Math.min(MINIMAP_WIDTH / (maxX - minX), MINIMAP_HEIGHT / (maxY - minY));
+    const toMinimap = (x: number, y: number) => ({ x: (x - minX) * scale, y: (y - minY) * scale });
     const viewportTopLeft = toMinimap(viewportRect.left, viewportRect.top);
-    minimapTransformRef.current = { minX: minimapOriginX, minY: minimapOriginY, scale };
+    minimapTransformRef.current = { minX, minY, scale };
 
     return (
       <div
