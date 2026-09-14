@@ -1034,6 +1034,25 @@
   background: var(--color-secondary);
 }
 
+/* A node currently toggled as the model's designated input and/or output (see
+   modelInputIds/modelOutputIds in OperationPanel.tsx) gets its own ring here, echoing
+   ConfirmedOperationCard's own IoToggle pills on the card itself. A ring (box-shadow) rather than
+   a filled background so it stays visually distinct from --selected's own solid fill above, and
+   both can apply to the same node at once — inset box-shadow paints over any background — without
+   fighting over it. --color-action for output rather than --color-secondary (already spoken for
+   by --selected): the same fixed accent this app already uses elsewhere for "this is the
+   operation's own output" (an operation's output box, a lit-up edge — see --color-action's own
+   definition). If a node is somehow both, this rule (declared after --input) wins the ring by
+   plain cascade order, same "later wins" reasoning already relied on for the toolbar/panning
+   classes elsewhere in this file. */
+.operation-canvas__minimap-node--input {
+  box-shadow: inset 0 0 0 1.5px var(--color-secondary);
+}
+
+.operation-canvas__minimap-node--output {
+  box-shadow: inset 0 0 0 1.5px var(--color-action);
+}
+
 /* The viewport's own currently-visible rectangle, outlined over the node dots above — the "you
    are here" cue the rest of the minimap exists to give a frame of reference for. */
 .operation-canvas__minimap-viewport {
