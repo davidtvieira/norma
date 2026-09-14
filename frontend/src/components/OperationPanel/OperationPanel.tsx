@@ -207,6 +207,12 @@ interface TestUpToHereButtonProps {
    * without touching any other operation's own test state, unlike the toolbar's "Limpar teste"
    * (see clearChainTest). */
   onClear: () => void;
+  /** Whether this operation's own chainable field is currently a blank literal (see the
+   * module-level hasEmptyInput) — hides the play trigger below entirely rather than leaving it
+   * clickable only to bounce off runModelTest's own "não tem um valor definido" warning. Ignored
+   * once isTested is true: clearing an already-tested chain's result stays available even if its
+   * input has since been blanked out again. */
+  hasEmptyInput: boolean;
 }
 
 /**
@@ -217,7 +223,7 @@ interface TestUpToHereButtonProps {
  * (see isTested), this same button becomes a way to clear just that chain's own test state
  * instead of running it again.
  */
-function TestUpToHereButton({ onTest, isTested, onClear }: TestUpToHereButtonProps) {
+function TestUpToHereButton({ onTest, isTested, onClear, hasEmptyInput }: TestUpToHereButtonProps) {
   if (isTested) {
     return (
       <button type="button" className="operation-card__test operation-card__test--stop" onClick={onClear} aria-label="Limpar teste desta operação" title="Limpar teste desta operação">
@@ -227,6 +233,9 @@ function TestUpToHereButton({ onTest, isTested, onClear }: TestUpToHereButtonPro
       </button>
     );
   }
+  // Nothing typed here yet — hidden rather than disabled, same treatment RevealButton already
+  // gets from isRevealEligible just below it in the card's own action cluster.
+  if (hasEmptyInput) return null;
   return (
     <button type="button" className="operation-card__test" onClick={onTest} aria-label="Testar até aqui" title="Testar até aqui">
       <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -283,6 +292,11 @@ interface ConfirmedOperationCardProps {
   /** Clears just this operation's own dependency chain's test state — see TestUpToHereButton's
    * own onClear/clearChainTest. */
   onClearTest: () => void;
+  /** Whether this operation's own chainable field is currently a blank literal (see the
+   * module-level hasEmptyInput) — hides TestUpToHereButton's play trigger entirely rather than
+   * leaving it clickable only to bounce off runModelTest's own "não tem um valor definido"
+   * warning; ignored once isTested is true (see TestUpToHereButton's own comment). */
+  hasEmptyInput: boolean;
   onReveal: () => void;
   /** Whether this operation actually has a sheet location to reveal — false for kinds that never
    * highlight any column/range (see sheetIndexForEntry) — so the reveal button doesn't sit there
@@ -342,6 +356,7 @@ function ConfirmedOperationCard({
   isTested,
   onTestUpToHere,
   onClearTest,
+  hasEmptyInput,
   onReveal,
   isRevealEligible,
   children,
@@ -430,7 +445,7 @@ function ConfirmedOperationCard({
             <>
               {isModelInputEligible && <IoToggle label="Input" active={isModelInput} onToggle={onToggleModelInput} />}
               <IoToggle label="Output" active={isModelOutput} onToggle={onToggleModelOutput} />
-              <TestUpToHereButton onTest={onTestUpToHere} isTested={isTested} onClear={onClearTest} />
+              <TestUpToHereButton onTest={onTestUpToHere} isTested={isTested} onClear={onClearTest} hasEmptyInput={hasEmptyInput} />
               {isRevealEligible && <RevealButton onReveal={onReveal} />}
             </>
           )}
@@ -593,6 +608,29 @@ function edgePath({ from, to }: Edge): string {
   const endY = to.y + NODE_HEADER_ANCHOR_Y;
   const controlOffset = Math.max(60, Math.abs(endX - startX) / 2);
   return `M ${startX} ${startY} C ${startX + controlOffset} ${startY}, ${endX - controlOffset} ${endY}, ${endX} ${endY}`;
+}
+
+/** Whether an entry's own chainable field (see getInputSource) is currently a blank literal — a
+ * kind with no chainable field at all (renderInputEditor absent, e.g. sum) never counts, and
+ * neither does a reference source: whether that resolves in time is what resolveOperationInputs'
+ * own pending/ready/missing/cycle states already track, not a blank-value problem. Shared by
+ * runModelTest's own emptyInputNames warning and the per-card/master run triggers below, which
+ * both block on the same "nothing typed here yet" condition rather than reimplementing it. */
+function hasEmptyInput(entry: OperationEntryState): boolean {
+  if (!KINDS_BY_ID[entry.kindId].renderInputEditor) return false;
+  const source = getInputSource(entry.fields);
+  return source.type === 'literal' && source.value.trim() === '';
+}
+
+/** Whether entryId's own "Testar até aqui" chain (itself plus everything it transitively reads
+ * its input from — see getDependencyChain) currently has an empty input anywhere in it — not just
+ * on entryId itself. A card several steps downstream of a blank field has nothing of its own to
+ * fill in (its field is a reference, not a literal), so hasEmptyInput alone would never catch it;
+ * this is what actually decides whether "Testar até aqui" would succeed, same scope
+ * runModelTest(upToEntryId) itself runs against. */
+function chainHasEmptyInput(entryId: string, entries: OperationEntryState[]): boolean {
+  const chain = getDependencyChain(entryId, entries);
+  return entries.some((entry) => chain.has(entry.id) && hasEmptyInput(entry));
 }
 
 /**
@@ -762,13 +800,7 @@ export function OperationPanel({
     const chain = upToEntryId ? getDependencyChain(upToEntryId, entries) : null;
     const relevantEntries = entries.filter((entry) => entry.confirmed && (!chain || chain.has(entry.id)));
 
-    const emptyInputNames = relevantEntries
-      .filter((entry) => {
-        if (!KINDS_BY_ID[entry.kindId].renderInputEditor) return false;
-        const source = getInputSource(entry.fields);
-        return source.type === 'literal' && source.value.trim() === '';
-      })
-      .map((entry) => entry.name || 'Operação sem nome');
+    const emptyInputNames = relevantEntries.filter(hasEmptyInput).map((entry) => entry.name || 'Operação sem nome');
 
     if (emptyInputNames.length > 0) {
       setGranularTestWarning(
@@ -1579,6 +1611,10 @@ export function OperationPanel({
 
   const hasDraftInProgress = entries.some((entry) => !entry.confirmed);
   const confirmedCount = entries.filter((entry) => entry.confirmed).length;
+  // Same condition runModelTest itself blocks a run on (see its own emptyInputNames) — precomputed
+  // here so "Testar modelo" can stay disabled up front instead of only bouncing off that check
+  // after the click.
+  const hasAnyEmptyInput = entries.some((entry) => entry.confirmed && hasEmptyInput(entry));
   // Gate which of the "Editar"-only buttons are disabled once they're rendered at all — see their
   // own render below (next to the pencil toggle), gated on tool === 'select' ("Editar" mode)
   // first. Neither hasClipboard nor hasSelection gate whether their buttons *appear* — only
@@ -1698,6 +1734,7 @@ export function OperationPanel({
         isTested={(testSignals[entry.id] ?? 0) > 0}
         onTestUpToHere={() => runModelTest(entry.id)}
         onClearTest={() => clearChainTest(entry.id)}
+        hasEmptyInput={chainHasEmptyInput(entry.id, entries)}
         onReveal={() => revealEntry(entry)}
         isRevealEligible={sheetIndexForEntry(entry) !== null}
         isModelInput={modelInputIds.includes(entry.id)}
@@ -2152,15 +2189,17 @@ export function OperationPanel({
                 runModelTest();
               }
             }}
-            disabled={confirmedCount === 0}
+            disabled={testProgress ? false : confirmedCount === 0 || hasAnyEmptyInput}
             title={
               testProgress
                 ? `Interrompe o teste (${testProgress.done}/${testProgress.total}) — para de calcular as operações que ainda faltam.`
                 : confirmedCount === 0
                   ? 'Conclua pelo menos uma operação para a poder testar.'
-                  : testInputEntries.length > 0
-                    ? 'Reveja os valores de cada input antes de correr o teste.'
-                    : 'Calcula cada operação com os valores atuais.'
+                  : hasAnyEmptyInput
+                    ? 'Preencha o valor de cada operação antes de testar o modelo.'
+                    : testInputEntries.length > 0
+                      ? 'Reveja os valores de cada input antes de correr o teste.'
+                      : 'Calcula cada operação com os valores atuais.'
             }
           >
             {/* The progress fill lives on the button itself instead of a separate bar elsewhere
