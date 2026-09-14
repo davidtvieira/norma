@@ -50,7 +50,7 @@ export interface MarqueeRect {
  * a model with a lot of far-apart nodes needs to be able to zoom out well past "100%" to see
  * everything at once. MAX_ZOOM is capped at "100%" itself: a node already renders at its own
  * natural size there, so there's no need to zoom in any further past it. */
-export const MIN_ZOOM = 0.15;
+export const MIN_ZOOM = 0.3;
 export const MAX_ZOOM = 1;
 export const ZOOM_STEP = 1.2;
 
