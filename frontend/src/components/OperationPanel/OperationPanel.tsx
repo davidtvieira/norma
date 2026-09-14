@@ -1870,10 +1870,19 @@ export function OperationPanel({
     maxX += MINIMAP_PADDING;
     maxY += MINIMAP_PADDING;
 
-    const scale = Math.min(MINIMAP_WIDTH / (maxX - minX), MINIMAP_HEIGHT / (maxY - minY));
-    const toMinimap = (x: number, y: number) => ({ x: (x - minX) * scale, y: (y - minY) * scale });
+    const contentWidth = maxX - minX;
+    const contentHeight = maxY - minY;
+    const scale = Math.min(MINIMAP_WIDTH / contentWidth, MINIMAP_HEIGHT / contentHeight);
+    // scale is the smaller of the two ratios above (to fit both dimensions without distorting
+    // the aspect ratio), so exactly one axis has leftover space once scaled. Splitting that slack
+    // evenly as an origin offset centers everything (every node dot, and the "you are here"
+    // square) inside the box — without it, the leftover space all piles up on one side (right or
+    // bottom) instead, since content would otherwise map minX/minY straight to the box's own 0,0.
+    const originX = minX - (MINIMAP_WIDTH / scale - contentWidth) / 2;
+    const originY = minY - (MINIMAP_HEIGHT / scale - contentHeight) / 2;
+    const toMinimap = (x: number, y: number) => ({ x: (x - originX) * scale, y: (y - originY) * scale });
     const viewportTopLeft = toMinimap(viewportRect.left, viewportRect.top);
-    minimapTransformRef.current = { minX, minY, scale };
+    minimapTransformRef.current = { minX: originX, minY: originY, scale };
 
     return (
       <div
