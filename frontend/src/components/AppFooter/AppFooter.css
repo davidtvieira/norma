@@ -1,0 +1,12 @@
+.app__brand--link {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.app__brand--link:hover,
+.app__brand--link:focus-visible {
+  color: var(--color-primary);
+}

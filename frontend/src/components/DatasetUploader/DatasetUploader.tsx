@@ -1,3 +1,4 @@
+import { inlineErrorMessage } from '../../services/apiErrors';
 import { useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent } from 'react';
 import { importDataset } from '../../services/datasetApi';
@@ -5,7 +6,10 @@ import type { DatasetImportResponse } from '../../types/dataset';
 import './DatasetUploader.css';
 
 interface DatasetUploaderProps {
-  onImportSuccess: (dataset: DatasetImportResponse) => void;
+  /** Also hands back the raw file (not just the parsed dataset) so it can be re-zipped into a
+   * .nrm later without needing the backend to serve the original bytes back (see App.tsx's
+   * datasetFile and the "Guardar modelo" export). */
+  onImportSuccess: (dataset: DatasetImportResponse, file: File) => void;
 }
 
 /**
@@ -15,17 +19,22 @@ export function DatasetUploader({ onImportSuccess }: DatasetUploaderProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // Set on any failed upload, including an API one whose message only shows in a toast — drives the
+  // dropzone's red outline, which errorMessage alone can't (it's empty for an API failure).
+  const [hasError, setHasError] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function uploadFile(file: File) {
     setIsUploading(true);
     setErrorMessage(null);
+    setHasError(false);
 
     try {
       const dataset = await importDataset(file);
-      onImportSuccess(dataset);
+      onImportSuccess(dataset, file);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Falha ao importar o conjunto de dados.');
+      setErrorMessage(inlineErrorMessage(error, 'Falha ao importar o conjunto de dados.') || null);
+      setHasError(true);
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) {
@@ -62,7 +71,7 @@ export function DatasetUploader({ onImportSuccess }: DatasetUploaderProps) {
   return (
     <div className="dataset-uploader">
       <div
-        className={`dataset-uploader__dropzone${isDragActive ? ' dataset-uploader__dropzone--active' : ''}${isUploading ? ' dataset-uploader__dropzone--busy' : ''}`}
+        className={`dataset-uploader__dropzone${isDragActive ? ' dataset-uploader__dropzone--active' : ''}${isUploading ? ' dataset-uploader__dropzone--busy' : ''}${hasError ? ' dataset-uploader__dropzone--error' : ''}`}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}

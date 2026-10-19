@@ -1,13 +1,18 @@
+import { inlineErrorMessage } from './services/apiErrors';
 import { useEffect, useRef, useState } from 'react';
-import type { ChangeEvent } from 'react';
+import type { ChangeEvent, ReactNode } from 'react';
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { KINDS_BY_ID, OPERATION_KIND_IDS } from './components/OperationPanel/kinds/registry';
 import { useTheme } from './hooks/useTheme';
+import { getDataset, importDataset } from './services/datasetApi';
 import type { DatasetImportResponse } from './types/dataset';
 import type { ColumnPickField, ColumnPickState, RangePickState } from './types/columnPick';
 import type { ColumnHighlight, OperationHighlight, RangeHighlight } from './types/highlight';
 import type { CellRange } from './types/cellRange';
 import { getInputSource } from './types/valueSource';
 import { buildModelExport, parseModelImport, type SerializableEntry } from './utils/modelSerialization';
+import { buildNrmFile, readModelFile } from './utils/nrmSerialization';
+import { deleteSessionCacheEntry, listSessionCacheEntries, saveSessionCacheEntry, type SessionCacheEntry } from './utils/sessionCache';
 import { downloadTestCase } from './utils/testCaseSerialization';
 import { LandingScreen } from './screens/LandingScreen';
 import { UtilizeScreen, type UtilizeModel } from './screens/UtilizeScreen';
@@ -15,10 +20,72 @@ import { ChooseModelScreen, type ImportedModel } from './screens/ChooseModelScre
 import { EditorScreen } from './screens/EditorScreen';
 import './App.css';
 
+/**
+ * Guards every /d/:datasetId* route: the actual dataset only ever lives in App's own state (no
+ * backend lookup by id exists, and there's no persistence anyway — see CLAUDE.md), so a URL
+ * whose :datasetId doesn't match what's currently loaded — a hard reload, a pasted/bookmarked
+ * link, or browser history from a previous session — has nothing to show and bounces to "/"
+ * instead (after a reload has had its chance to restore the session from the cache first). children is a render prop (not plain ReactNode) purely so every screen below gets
+ * `dataset` narrowed to non-null without re-checking it itself.
+ */
+function DatasetRoute({
+  dataset,
+  isRestoring,
+  children,
+}: {
+  dataset: DatasetImportResponse | null;
+  /** A reload is still restoring this URL's session (see App's reload restore) — nothing to show
+   * yet, but not a reason to bounce either. */
+  isRestoring: boolean;
+  children: (dataset: DatasetImportResponse) => ReactNode;
+}) {
+  const { datasetId } = useParams<{ datasetId: string }>();
+  if (isRestoring) return null;
+  if (!dataset || dataset.datasetId !== datasetId) {
+    return <Navigate to="/" replace />;
+  }
+  return <>{children(dataset)}</>;
+}
+
+/** Pulls just the model's name out of a cached session's modelJson, for the landing screen's
+ * RecentSessionCard — no need for parseModelImport's full validation here, this is read-only
+ * display text, and a model actually being resumed goes through parseModelImport properly
+ * anyway. Null for a dataset-only cache, or if the cached JSON is somehow unreadable. */
+function cachedNrmName(modelJson: string | null): string | null {
+  if (!modelJson) return null;
+  try {
+    const parsed = JSON.parse(modelJson) as { nrmName?: unknown };
+    return typeof parsed.nrmName === 'string' && parsed.nrmName.trim() ? parsed.nrmName.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Not cryptographically unique, just unlikely enough to collide within one session — plain
+ * crypto.randomUUID() requires a secure context (HTTPS or localhost), which isn't guaranteed for
+ * every way this app gets served in development (same reason OperationPanel's own
+ * generateEntryId avoids it). Used as the id for a new cached session (see startNewCachedSession
+ * below) instead.
+ */
+function generateSessionId(): string {
+  return `session-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function App() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [dataset, setDataset] = useState<DatasetImportResponse | null>(null);
-  const [modelCreated, setModelCreated] = useState(false);
+  // The raw file behind `dataset` (the originally uploaded spreadsheet, or the one extracted
+  // from a .nrm) — kept around purely so "Guardar modelo" can re-zip it into a new .nrm without
+  // needing the backend to serve the original bytes back (DatasetStore only keeps the parsed
+  // JSON). Always set together with `dataset` — see handleDatasetImportSuccess/
+  // handleReadyModelImportSuccess, the only two places `dataset` is ever set to non-null.
+  const [datasetFile, setDatasetFile] = useState<File | null>(null);
   const [modelName, setModelName] = useState('');
+  // The .nrm file's own name (see ExportedModel.nrmName) — what "Sessões recentes" identifies a
+  // session by, and what "Exportar modelo" names the downloaded file. Empty until picked.
+  const [nrmName, setNrmName] = useState('');
   const [activeSheetIndex, setActiveSheetIndex] = useState(0);
   const [columnPick, setColumnPick] = useState<ColumnPickState | null>(null);
   const [rangePick, setRangePick] = useState<RangePickState | null>(null);
@@ -51,6 +118,160 @@ function App() {
   // of the full editor for as long as it's non-null.
   const [utilizeModel, setUtilizeModel] = useState<UtilizeModel | null>(null);
   const { theme, toggleTheme } = useTheme();
+
+  // Up to the 4 most recently uploaded/saved .nrm sessions (see utils/sessionCache.ts) — shown on
+  // the landing screen as "Sessões recentes", offering to resume any of them rather than silently
+  // re-uploading one and jumping straight into its model: the re-upload is a real network call
+  // the user hasn't asked for yet, and landing them mid-model with no warning is more surprising
+  // than useful.
+  const [recentSessions, setRecentSessions] = useState<SessionCacheEntry[]>([]);
+  const [resumingId, setResumingId] = useState<string | null>(null);
+  const [resumeError, setResumeError] = useState<{ id: string; message: string } | null>(null);
+  // Which cached entry's id the *active* dataset/model corresponds to, if any — so continuing to
+  // edit (or re-picking a model for it) updates that one entry in place instead of spawning a new
+  // one on every autosave. Null whenever there's no active dataset (landing, or just after
+  // goHome/handleBackToLanding) — a plain ref since it never needs to trigger a render on its own.
+  const currentSessionIdRef = useRef<string | null>(null);
+
+  function refreshRecentSessions() {
+    listSessionCacheEntries()
+      .then(setRecentSessions)
+      .catch((error) => console.warn('Falha ao ler as sessões recentes do IndexedDB.', error));
+  }
+
+  // Guarded by a ref rather than an empty dep array alone so React 18 StrictMode's double-invoke
+  // in dev doesn't read the list twice.
+  const didLoadRecentSessions = useRef(false);
+  useEffect(() => {
+    if (didLoadRecentSessions.current) return;
+    didLoadRecentSessions.current = true;
+    refreshRecentSessions();
+  }, []);
+
+  /** Starts tracking a brand-new cached entry (a fresh dataset or .nrm upload) under a new id —
+   * distinct from cacheCurrentSession, which updates whichever entry is already active. */
+  function startNewCachedSession(datasetId: string, datasetFileName: string, datasetBlob: Blob, modelJson: string | null) {
+    const id = generateSessionId();
+    currentSessionIdRef.current = id;
+    saveSessionCacheEntry(id, { datasetId, datasetFileName, datasetBlob, modelJson })
+      .then(refreshRecentSessions)
+      .catch((error) => console.warn('Falha ao guardar a sessão no IndexedDB.', error));
+  }
+
+  /** Updates the currently active entry (see currentSessionIdRef) in place — a no-op if there
+   * somehow isn't one, which shouldn't happen whenever `dataset` is set. */
+  function cacheCurrentSession(datasetId: string, datasetFileName: string, datasetBlob: Blob, modelJson: string | null) {
+    const id = currentSessionIdRef.current;
+    if (!id) return;
+    saveSessionCacheEntry(id, { datasetId, datasetFileName, datasetBlob, modelJson })
+      .then(refreshRecentSessions)
+      .catch((error) => console.warn('Falha ao atualizar a sessão no IndexedDB.', error));
+  }
+
+  // The actual replay, only run once the user has chosen to resume a given entry (or a page reload
+  // is restoring the one its URL belonged to, see below) — a plain re-upload of its cached dataset
+  // bytes against whichever backend is up right now (there's no way to ask it for a dataset by id
+  // back; see CLAUDE.md), plus its cached model JSON parsed the same way an import would. `target`
+  // is the page to land on: by default Utilizar when a model was cached, or the choose screen for a
+  // dataset-only entry; a reload passes the page it was on. Resolves to whether it succeeded.
+  function resumeSession(
+    entry: SessionCacheEntry,
+    target: 'editor' | 'utilizar' | 'choose' | null = null,
+    knownDatasetId: string | null = null,
+  ): Promise<boolean> {
+    setResumingId(entry.id);
+    setResumeError(null);
+    const file = new File([entry.datasetBlob], entry.datasetFileName);
+    // A reload already knows its dataset id from the URL: if the backend still has that dataset,
+    // fetch it instead of re-uploading, which also keeps the URL exactly as it was. Only when it
+    // doesn't (the backend restarted) is the cached file re-imported, getting a fresh id.
+    const loadDataset = knownDatasetId
+      ? getDataset(knownDatasetId).catch(() => importDataset(file))
+      : importDataset(file);
+    return loadDataset
+      .then((restoredDataset) => {
+        setDataset(restoredDataset);
+        setDatasetFile(file);
+        currentSessionIdRef.current = entry.id;
+        const base = `/d/${restoredDataset.datasetId}`;
+
+        if (entry.modelJson) {
+          const imported = parseModelImport(entry.modelJson, OPERATION_KIND_IDS);
+          const model: ImportedModel = {
+            modelName: imported.modelName,
+            nrmName: imported.nrmName,
+            entries: imported.entries,
+            inputOperationIds: imported.inputOperationIds,
+            outputOperationIds: imported.outputOperationIds,
+          };
+          setImportError(null);
+          if (target === 'editor') {
+            setModelName(imported.modelName);
+            setNrmName(imported.nrmName);
+            setPendingImportEntries(imported.entries);
+            setModelInputIds(imported.inputOperationIds);
+            setModelOutputIds(imported.outputOperationIds);
+            navigate(`${base}/editor`, { replace: true });
+          } else {
+            // Kept as the imported model so the choose screen's Editar/Utilizar pair (and "back"
+            // from Utilizar) still work.
+            setImportedModel(model);
+            if (target === 'choose') {
+              navigate(base, { replace: true });
+            } else {
+              setUtilizeModel(model);
+              navigate(`${base}/utilizar`, { replace: true });
+            }
+          }
+        } else {
+          navigate(target === 'editor' ? `${base}/editor` : base, { replace: true });
+        }
+        // Bumps this entry back to the top of "recent" (same content, fresh savedAt, and the new
+        // dataset id) without needing its own separate "touch" call.
+        cacheCurrentSession(restoredDataset.datasetId, entry.datasetFileName, entry.datasetBlob, entry.modelJson);
+        return true;
+      })
+      .catch((error) => {
+        setResumeError({ id: entry.id, message: inlineErrorMessage(error, 'Falha ao retomar esta sessão.') });
+        return false;
+      })
+      .finally(() => setResumingId(null));
+  }
+
+  // A hard reload on /d/:datasetId[/editor|/utilizar] used to bounce to "/" (nothing in memory to
+  // show). Instead, find the cached entry that URL's dataset id belonged to and restore it onto the
+  // same page. The dataset is fetched back from the backend by the URL's id, so the URL stays
+  // untouched; only if the backend no longer has it (it restarted) is the cached file re-imported,
+  // which gives it a new id. Falls back to "/" when no entry matches (a bookmarked link from before ids were tracked, etc.).
+  const [isRestoring, setIsRestoring] = useState(() => window.location.pathname.startsWith('/d/'));
+  const didRestoreFromUrl = useRef(false);
+  useEffect(() => {
+    if (didRestoreFromUrl.current || !isRestoring) return;
+    didRestoreFromUrl.current = true;
+    const [, , urlDatasetId, page] = window.location.pathname.split('/');
+    const target = page === 'editor' ? 'editor' : page === 'utilizar' ? 'utilizar' : 'choose';
+    listSessionCacheEntries()
+      .then((entries) => {
+        const match = entries.find((entry) => entry.datasetId === urlDatasetId);
+        return match ? resumeSession(match, target, urlDatasetId) : false;
+      })
+      .catch(() => false)
+      .then((restored) => {
+        if (!restored) navigate('/', { replace: true });
+      })
+      .finally(() => setIsRestoring(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** "Limpar tudo" on the recents row — deletes every cached entry; the only way to remove them. */
+  function discardAllEntries() {
+    currentSessionIdRef.current = null;
+    const ids = recentSessions.map((entry) => entry.id);
+    setRecentSessions([]);
+    ids.forEach((id) =>
+      deleteSessionCacheEntry(id).catch((error) => console.warn('Falha ao remover a sessão do IndexedDB.', error)),
+    );
+  }
 
   // Only a confirmed operation whose kind has an editable chainable input (see
   // OperationKind.renderInputEditor), and that isn't itself already chained off another
@@ -132,6 +353,23 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modelEntries]);
 
+  // Keeps the session cache's model half current while actually editing — gated on the editor
+  // route (not just `dataset`/`datasetFile` being set) so this never fires while on the choose
+  // screen, where modelEntries is still empty because OperationPanel hasn't mounted yet; without
+  // that guard this would immediately overwrite the good modelJson handleReadyModelImportSuccess/
+  // handleImportModelFile just cached with a premature null. Debounced since every keystroke in a
+  // field re-renders with new modelEntries — no need to hit IndexedDB that often.
+  useEffect(() => {
+    if (!dataset || !datasetFile || !location.pathname.endsWith('/editor')) return;
+    const modelJson = hasConfirmedEntry
+      ? JSON.stringify(buildModelExport(modelEntries, modelName, dataset.datasetId, modelInputIds, modelOutputIds, nrmName))
+      : null;
+    const timeoutId = window.setTimeout(() => {
+      cacheCurrentSession(dataset.datasetId, datasetFile.name, datasetFile, modelJson);
+    }, 500);
+    return () => window.clearTimeout(timeoutId);
+  }, [dataset, datasetFile, location.pathname, modelEntries, modelName, nrmName, modelInputIds, modelOutputIds, hasConfirmedEntry]);
+
   // Auto-open the sheet panel whenever a pick starts, wherever it was triggered from (the panel
   // itself, if already open, just keeps showing).
   useEffect(() => {
@@ -210,11 +448,12 @@ function App() {
   }
 
   function goToEditorFresh() {
+    if (!dataset) return;
     setPendingImportEntries(undefined);
     setModelInputIds([]);
     setModelOutputIds([]);
     setIsSheetPanelOpen(false);
-    setModelCreated(true);
+    navigate(`/d/${dataset.datasetId}/editor`);
   }
 
   function triggerImportModel() {
@@ -227,8 +466,7 @@ function App() {
     event.target.value = ''; // so re-importing the same file path fires onChange again
     if (!file) return;
 
-    file
-      .text()
+    readModelFile(file)
       .then((text) => {
         // Not checked against the current dataset's id for now: a fresh page load gets a new
         // dataset id from the server even for the same uploaded file, which would otherwise
@@ -236,131 +474,282 @@ function App() {
         const imported = parseModelImport(text, OPERATION_KIND_IDS);
         setImportedModel({
           modelName: imported.modelName,
+          nrmName: imported.nrmName,
           entries: imported.entries,
           inputOperationIds: imported.inputOperationIds,
           outputOperationIds: imported.outputOperationIds,
         });
         setImportError(null);
+        if (dataset && datasetFile) {
+          const modelJson = JSON.stringify(
+            buildModelExport(
+              imported.entries,
+              imported.modelName,
+              dataset.datasetId,
+              imported.inputOperationIds,
+              imported.outputOperationIds,
+              imported.nrmName,
+            ),
+          );
+          cacheCurrentSession(dataset.datasetId, datasetFile.name, datasetFile, modelJson);
+        }
       })
       .catch((error) => {
         setImportedModel(null);
-        setImportError(error instanceof Error ? error.message : 'Falha ao importar o modelo.');
+        setImportError(inlineErrorMessage(error, 'Falha ao importar o modelo.') || null);
       });
   }
 
   function cancelImportedModel() {
     setImportedModel(null);
     setImportError(null);
+    if (dataset && datasetFile) {
+      cacheCurrentSession(dataset.datasetId, datasetFile.name, datasetFile, null);
+    }
+  }
+
+  function handleDatasetImportSuccess(importedDataset: DatasetImportResponse, file: File) {
+    setDataset(importedDataset);
+    setDatasetFile(file);
+    navigate(`/d/${importedDataset.datasetId}`);
+    startNewCachedSession(importedDataset.datasetId, file.name, file, null);
+  }
+
+  // The .nrm landing uploader's success path: sets both the dataset and the imported model at
+  // once, so the very next render already satisfies ChooseModelScreen's "dataset ready" check
+  // with importedModel non-null, landing straight on its Editar/Utilizar choice — same place a
+  // dataset import followed by a separate "Importar Modelo" would land, just in one step.
+  function handleReadyModelImportSuccess(importedDataset: DatasetImportResponse, file: File, model: ImportedModel) {
+    setImportError(null);
+    setDataset(importedDataset);
+    setDatasetFile(file);
+    setImportedModel(model);
+    navigate(`/d/${importedDataset.datasetId}`);
+    const modelJson = JSON.stringify(
+      buildModelExport(
+        model.entries,
+        model.modelName,
+        importedDataset.datasetId,
+        model.inputOperationIds,
+        model.outputOperationIds,
+        model.nrmName,
+      ),
+    );
+    startNewCachedSession(importedDataset.datasetId, file.name, file, modelJson);
   }
 
   function goToEditorWithImportedModel() {
-    if (!importedModel) return;
+    if (!importedModel || !dataset) return;
     setModelName(importedModel.modelName);
+    setNrmName(importedModel.nrmName);
     setPendingImportEntries(importedModel.entries);
     setModelInputIds(importedModel.inputOperationIds);
     setModelOutputIds(importedModel.outputOperationIds);
     setIsSheetPanelOpen(false);
-    setModelCreated(true);
+    navigate(`/d/${dataset.datasetId}/editor`);
   }
 
   function goToUtilizeWithImportedModel() {
-    if (!importedModel) return;
+    if (!importedModel || !dataset) return;
     setUtilizeModel(importedModel);
+    navigate(`/d/${dataset.datasetId}/utilizar`);
   }
 
   function exportModel() {
-    if (!dataset) return;
-    const model = buildModelExport(modelEntries, modelName, dataset.datasetId, modelInputIds, modelOutputIds);
-    const blob = new Blob([JSON.stringify(model, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${modelName.trim() || 'modelo'}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
+    if (!dataset || !datasetFile) return;
+    const model = buildModelExport(modelEntries, modelName, dataset.datasetId, modelInputIds, modelOutputIds, nrmName);
+    const fileName = nrmName.trim() || modelName.trim() || 'modelo';
+    buildNrmFile(datasetFile, model, fileName).then((blob) => {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${fileName}.nrm`;
+      link.click();
+      URL.revokeObjectURL(url);
+    });
   }
 
-  if (!dataset) {
-    return <LandingScreen theme={theme} onToggleTheme={toggleTheme} onImportSuccess={setDataset} />;
+  // The "Norma" footer's always-available way back to the very start, from any screen — resets
+  // every piece of state this component owns to its initial value, same as a fresh page load
+  // (just without actually reloading the page).
+  function goHome() {
+    setDataset(null);
+    setDatasetFile(null);
+    setModelName('');
+    setNrmName('');
+    setActiveSheetIndex(0);
+    setColumnPick(null);
+    setRangePick(null);
+    setColumnHighlights([]);
+    setRangeHighlights([]);
+    setCellHighlight(null);
+    setIsSaveModalOpen(false);
+    setIsSheetPanelOpen(false);
+    setModelEntries([]);
+    setModelInputIds([]);
+    setModelOutputIds([]);
+    setPendingImportEntries(undefined);
+    setImportError(null);
+    setImportedModel(null);
+    setUtilizeModel(null);
+    // Stops live-syncing into whichever entry was active — an explicit "start over" on the
+    // user's part, not a reason to delete it from "Sessões recentes" (that stays a deliberate
+    // "Limpar tudo", see discardAllEntries).
+    currentSessionIdRef.current = null;
+    navigate('/');
+    refreshRecentSessions();
   }
 
-  if (utilizeModel) {
-    return (
-      <UtilizeScreen
-        dataset={dataset}
-        utilizeModel={utilizeModel}
-        theme={theme}
-        onToggleTheme={toggleTheme}
-        onBack={() => setUtilizeModel(null)}
-      />
-    );
+  function handleBackToLanding() {
+    setDataset(null);
+    setDatasetFile(null);
+    currentSessionIdRef.current = null;
+    navigate('/');
+    refreshRecentSessions();
   }
 
-  if (!modelCreated) {
-    return (
-      <ChooseModelScreen
-        dataset={dataset}
-        importedModel={importedModel}
-        importError={importError}
-        theme={theme}
-        onToggleTheme={toggleTheme}
-        importFileInputRef={importFileInputRef}
-        onCreateFresh={goToEditorFresh}
-        onTriggerImportModel={triggerImportModel}
-        onImportModelFile={handleImportModelFile}
-        onEditImportedModel={goToEditorWithImportedModel}
-        onUtilizeImportedModel={goToUtilizeWithImportedModel}
-        onCancelImportedModel={cancelImportedModel}
-        onBackToLanding={() => setDataset(null)}
-      />
-    );
-  }
-
+  // Three screens, all URL-addressable (see CLAUDE.md's App.tsx screen-flow note — this replaces
+  // the plain state-switch it originally described): "/" for the landing upload, "/d/:datasetId"
+  // for the create/import choice (also where a .nrm's dataset+model land together, since
+  // importedModel is just a sub-state of this same route, not a route of its own), and
+  // "/d/:datasetId/editor" / "/d/:datasetId/utilizar" for the two screens reachable from it.
+  // Every actual screen component still reads the same lifted state as before — routing only
+  // decides which of them is on screen, not where their data lives.
   return (
-    <EditorScreen
-      dataset={dataset}
-      theme={theme}
-      onToggleTheme={toggleTheme}
-      onBackToChoose={() => setModelCreated(false)}
-      modelName={modelName}
-      onModelNameChange={setModelName}
-      pendingImportEntries={pendingImportEntries}
-      columnPick={columnPick}
-      onStartColumnPick={startColumnPick}
-      onFinishColumnPick={finishColumnPick}
-      onPickColumn={pickColumn}
-      rangePick={rangePick}
-      onStartRangePick={startRangePick}
-      onFinishRangePick={finishRangePick}
-      onPickRange={pickRange}
-      onColumnHighlightsChange={setColumnHighlights}
-      onRangeHighlightsChange={setRangeHighlights}
-      onCellHighlightChange={setCellHighlight}
-      onRevealInSheet={revealInSheet}
-      onEntriesChange={setModelEntries}
-      modelInputIds={modelInputIds}
-      modelOutputIds={modelOutputIds}
-      onModelInputIdsChange={setModelInputIds}
-      onModelOutputIdsChange={setModelOutputIds}
-      isSheetPanelOpen={isSheetPanelOpen}
-      onOpenSheetPanel={() => setIsSheetPanelOpen(true)}
-      onCloseSheetPanel={closeSheetPanel}
-      activeSheetIndex={activeSheetIndex}
-      onActiveSheetIndexChange={setActiveSheetIndex}
-      columnHighlights={columnHighlights}
-      rangeHighlights={rangeHighlights}
-      cellHighlight={cellHighlight}
-      isSaveModalOpen={isSaveModalOpen}
-      onOpenSaveModal={() => setIsSaveModalOpen(true)}
-      onCloseSaveModal={() => setIsSaveModalOpen(false)}
-      onExportModel={exportModel}
-      canExportModel={canExportModel}
-      exportHint={exportHint}
-      inputLabels={inputLabels}
-      outputLabels={outputLabels}
-      onSaveTestCase={saveTestCase}
-      canSaveTestCase={testInputEntries.length > 0}
-    />
+    <Routes>
+      <Route
+        path="/"
+        element={
+          <LandingScreen
+            theme={theme}
+            onToggleTheme={toggleTheme}
+            onImportSuccess={handleDatasetImportSuccess}
+            onReadyModelImportSuccess={handleReadyModelImportSuccess}
+            onGoHome={goHome}
+            onClearRecentSessions={discardAllEntries}
+            recentSessions={recentSessions.map((entry) => ({
+              id: entry.id,
+              datasetFileName: entry.datasetFileName,
+              nrmName: cachedNrmName(entry.modelJson),
+              hasModel: entry.modelJson !== null,
+              isResuming: resumingId === entry.id,
+              error: resumeError?.id === entry.id ? resumeError.message : null,
+              onResume: () => resumeSession(entry),
+            }))}
+          />
+        }
+      />
+      <Route
+        path="/d/:datasetId"
+        element={
+          <DatasetRoute dataset={dataset} isRestoring={isRestoring}>
+            {(activeDataset) => (
+              <ChooseModelScreen
+                dataset={activeDataset}
+                importedModel={importedModel}
+                importError={importError}
+                theme={theme}
+                onToggleTheme={toggleTheme}
+                importFileInputRef={importFileInputRef}
+                onCreateFresh={goToEditorFresh}
+                onTriggerImportModel={triggerImportModel}
+                onImportModelFile={handleImportModelFile}
+                onEditImportedModel={goToEditorWithImportedModel}
+                onUtilizeImportedModel={goToUtilizeWithImportedModel}
+                onCancelImportedModel={cancelImportedModel}
+                onBackToLanding={handleBackToLanding}
+                onGoHome={goHome}
+              />
+            )}
+          </DatasetRoute>
+        }
+      />
+      <Route
+        path="/d/:datasetId/editor"
+        element={
+          <DatasetRoute dataset={dataset} isRestoring={isRestoring}>
+            {(activeDataset) => (
+              <EditorScreen
+                dataset={activeDataset}
+                theme={theme}
+                onToggleTheme={toggleTheme}
+                onBackToChoose={() => navigate(`/d/${activeDataset.datasetId}`)}
+                modelName={modelName}
+                onModelNameChange={setModelName}
+                pendingImportEntries={pendingImportEntries}
+                columnPick={columnPick}
+                onStartColumnPick={startColumnPick}
+                onFinishColumnPick={finishColumnPick}
+                onPickColumn={pickColumn}
+                rangePick={rangePick}
+                onStartRangePick={startRangePick}
+                onFinishRangePick={finishRangePick}
+                onPickRange={pickRange}
+                onColumnHighlightsChange={setColumnHighlights}
+                onRangeHighlightsChange={setRangeHighlights}
+                onCellHighlightChange={setCellHighlight}
+                onRevealInSheet={revealInSheet}
+                onEntriesChange={setModelEntries}
+                modelInputIds={modelInputIds}
+                modelOutputIds={modelOutputIds}
+                onModelInputIdsChange={setModelInputIds}
+                onModelOutputIdsChange={setModelOutputIds}
+                isSheetPanelOpen={isSheetPanelOpen}
+                onOpenSheetPanel={() => setIsSheetPanelOpen(true)}
+                onCloseSheetPanel={closeSheetPanel}
+                activeSheetIndex={activeSheetIndex}
+                onActiveSheetIndexChange={setActiveSheetIndex}
+                columnHighlights={columnHighlights}
+                rangeHighlights={rangeHighlights}
+                cellHighlight={cellHighlight}
+                isSaveModalOpen={isSaveModalOpen}
+                onOpenSaveModal={() => setIsSaveModalOpen(true)}
+                onCloseSaveModal={() => setIsSaveModalOpen(false)}
+                onExportModel={exportModel}
+                nrmName={nrmName}
+                onNrmNameChange={setNrmName}
+                canExportModel={canExportModel}
+                exportHint={exportHint}
+                inputLabels={inputLabels}
+                outputLabels={outputLabels}
+                onSaveTestCase={saveTestCase}
+                canSaveTestCase={testInputEntries.length > 0}
+                onGoHome={goHome}
+              />
+            )}
+          </DatasetRoute>
+        }
+      />
+      <Route
+        path="/d/:datasetId/utilizar"
+        element={
+          <DatasetRoute dataset={dataset} isRestoring={isRestoring}>
+            {(activeDataset) =>
+              utilizeModel ? (
+                <UtilizeScreen
+                  dataset={activeDataset}
+                  utilizeModel={utilizeModel}
+                  theme={theme}
+                  onToggleTheme={toggleTheme}
+                  onBack={() => {
+                    setUtilizeModel(null);
+                    navigate(`/d/${activeDataset.datasetId}`);
+                  }}
+                  onGoHome={goHome}
+                />
+              ) : (
+                // No model actually loaded to utilize (e.g. a reload landed here directly) —
+                // same "nothing to recover" case DatasetRoute itself handles, just one level
+                // down: back to the choose screen for this same dataset instead of all the way
+                // to "/", since the dataset itself is still perfectly valid.
+                <Navigate to={`/d/${activeDataset.datasetId}`} replace />
+              )
+            }
+          </DatasetRoute>
+        }
+      />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }
 
