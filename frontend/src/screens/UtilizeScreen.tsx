@@ -27,13 +27,11 @@ export function UtilizeScreen({ dataset, utilizeModel, theme, onToggleTheme, onB
     <div className="app app--landing">
       <header className="app__topbar app__topbar--with-title">
         <nav className="app__breadcrumbs" aria-label="Breadcrumb">
-          <button type="button" className="app__breadcrumb-item" onClick={onBack}>
-            {dataset.filename}
-          </button>
-          <span className="app__breadcrumb-separator">/</span>
-          <span className="app__breadcrumb-item app__breadcrumb-item--current">
+          {/* A model is always loaded here, so the dataset's filename stays out of the top-left — the
+              model's name is the way back instead. */}
+          <button type="button" className="app__breadcrumb-item app__breadcrumb-item--current" onClick={onBack}>
             {utilizeModel.modelName || 'Modelo sem nome'}
-          </span>
+          </button>
         </nav>
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
       </header>

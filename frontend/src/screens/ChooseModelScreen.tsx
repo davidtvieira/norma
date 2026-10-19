@@ -54,9 +54,10 @@ export function ChooseModelScreen({
   return (
     <div className="app app--landing">
       <header className="app__topbar app__topbar--with-title">
-        <nav className="app__breadcrumbs" aria-label="Breadcrumb">
-          <span className="app__breadcrumb-item app__breadcrumb-item--current">{dataset.filename}</span>
-        </nav>
+        {/* Nothing in the top-left here: the filename / model name is already shown above the title,
+            so repeating it in the corner is just noise. The nav stays (empty) to keep the theme
+            toggle pinned to the right. */}
+        <nav className="app__breadcrumbs" aria-label="Breadcrumb" />
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
       </header>
 
