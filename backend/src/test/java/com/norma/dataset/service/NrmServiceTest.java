@@ -1,6 +1,6 @@
 package com.norma.dataset.service;
 
-import com.norma.dataset.dto.NrmImportResponse;
+import com.norma.dataset.dto.NrmImportStatus;
 import com.norma.dataset.dto.NrmInfo;
 import com.norma.dataset.exception.DatasetParsingException;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -25,19 +25,70 @@ class NrmServiceTest {
             {"version":1,"modelName":"M","datasetId":"d","inputOperationIds":[],"outputOperationIds":["a"],
              "operations":[{"id":"a","kind":"sum","name":"Soma","fields":{},"position":{"x":0,"y":0},
                "operations":[{"id":"b","kind":"lookup","name":"L","fields":{},"operations":[]}]}]}""";
+    // A "node" operation just returns its (literal) input, so no dataset content is needed to run it.
+    private static final String MODEL_WITH_INPUT = """
+            {"version":1,"modelName":"M","datasetId":"d","inputOperationIds":["b"],"outputOperationIds":["b"],
+             "operations":[{"id":"b","kind":"node","name":"Valor",
+               "fields":{"input":{"type":"literal","value":""}},"operations":[]}]}""";
     private static final String INFO = "{\"version\":1,\"name\":\"Vendas\",\"createdAt\":\"2026-10-19T13:04:00.000Z\"}";
 
-    private final NrmService nrmService = new NrmService(new DatasetParserService(new DatasetStore()));
+    private final DatasetStore datasetStore = new DatasetStore();
+    private final NrmService nrmService = new NrmService(
+            new DatasetParserService(datasetStore),
+            new ModelExecutionService(datasetStore, new ModelStore()),
+            new NrmStore());
 
     @Test
-    void importsAValidNrmAndReturnsItsDatasetAndInfo() throws IOException {
-        NrmImportResponse response = nrmService.importNrm(nrm("a.nrm", entries(MODEL, INFO)));
+    void importsAValidNrmAndReturnsOnlyItsStatusAndId() throws IOException {
+        NrmImportStatus response = nrmService.importNrm(nrm("a.nrm", entries(MODEL, INFO)));
 
-        assertThat(response.dataset().filename()).isEqualTo("dados.xlsx");
-        assertThat(response.dataset().sheets()).hasSize(1);
-        NrmInfo info = response.info();
-        assertThat(info.name()).isEqualTo("Vendas");
-        assertThat(info.createdAt().toString()).isEqualTo("2026-10-19T13:04:00Z");
+        assertThat(response.status()).isEqualTo("success");
+        assertThat(response.nrmId()).isNotBlank();
+    }
+
+    @Test
+    void anImportedNrmServesItsInputsRunsAndDatasetByItsOwnId() throws IOException {
+        NrmImportStatus imported = nrmService.importNrm(nrm("a.nrm", entries(MODEL_WITH_INPUT, INFO)));
+
+        assertThat(nrmService.getInputs(imported.nrmId()).inputs()).singleElement().satisfies(input -> {
+            assertThat(input.id()).isEqualTo("b");
+            assertThat(input.name()).isEqualTo("Valor");
+        });
+        assertThat(nrmService.run(imported.nrmId(), Map.of("b", "x"))).singleElement().satisfies(result -> {
+            assertThat(result.id()).isEqualTo("b");
+            assertThat(result.name()).isEqualTo("Valor");
+            assertThat(result.success()).isTrue();
+            assertThat(result.value()).isEqualTo("x");
+        });
+        assertThat(nrmService.getDataset(imported.nrmId()).sheets()).hasSize(1);
+    }
+
+    @Test
+    void anImportedNrmServesItsOriginalModelWithTheNrmName() throws IOException {
+        NrmImportStatus imported = nrmService.importNrm(nrm("a.nrm", entries(MODEL, INFO)));
+
+        var model = nrmService.getModel(imported.nrmId());
+
+        assertThat(model.path("modelName").asText()).isEqualTo("M");
+        assertThat(model.path("nrmName").asText()).isEqualTo("Vendas");
+        assertThat(model.path("operations").get(0).path("position").path("x").asInt()).isZero();
+        assertThat(model.path("operations").get(0).path("operations")).hasSize(1);
+        assertThatThrownBy(() -> nrmService.getModel("missing")).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void anImportedNrmWithoutAnOutputHasNoModelToUse() throws IOException {
+        NrmImportStatus imported = nrmService.importNrm(nrm("a.nrm", entries(MODEL.replace("[\"a\"]", "[]"), INFO)));
+
+        assertThat(nrmService.getDataset(imported.nrmId())).isNotNull();
+        assertThatThrownBy(() -> nrmService.getInputs(imported.nrmId())).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsAnUnknownNrmId() {
+        assertThatThrownBy(() -> nrmService.getInputs("missing")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> nrmService.run("missing", Map.of())).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> nrmService.getDataset("missing")).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

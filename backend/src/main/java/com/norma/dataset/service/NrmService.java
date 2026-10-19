@@ -1,10 +1,16 @@
 package com.norma.dataset.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.norma.dataset.dto.DatasetImportResponse;
-import com.norma.dataset.dto.NrmImportResponse;
+import com.norma.dataset.dto.DatasetImportResponse;
+import com.norma.dataset.dto.ModelInputsResponse;
+import com.norma.dataset.dto.ModelOperationInput;
+import com.norma.dataset.dto.ModelOperationResult;
+import com.norma.dataset.dto.ModelRegisterRequest;
+import com.norma.dataset.dto.NrmImportStatus;
 import com.norma.dataset.dto.NrmInfo;
 import com.norma.dataset.exception.DatasetParsingException;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -20,7 +26,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -45,13 +54,18 @@ public class NrmService {
     private static final long MAX_UNCOMPRESSED_BYTES = 50L * 1024 * 1024;
 
     private final DatasetParserService datasetParserService;
+    private final ModelExecutionService modelExecutionService;
+    private final NrmStore nrmStore;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public NrmService(DatasetParserService datasetParserService) {
+    public NrmService(
+            DatasetParserService datasetParserService, ModelExecutionService modelExecutionService, NrmStore nrmStore) {
         this.datasetParserService = datasetParserService;
+        this.modelExecutionService = modelExecutionService;
+        this.nrmStore = nrmStore;
     }
 
-    private record Contents(String spreadsheetName, byte[] spreadsheetBytes, NrmInfo info) {
+    private record Contents(String spreadsheetName, byte[] spreadsheetBytes, NrmInfo info, JsonNode model) {
     }
 
     /** Validates everything about the file without storing anything — used where only the model
@@ -62,12 +76,106 @@ public class NrmService {
         return contents.info();
     }
 
-    /** Validates the file, then parses and stores its dataset the same way a plain import would. */
-    public NrmImportResponse importNrm(MultipartFile file) {
+    /**
+     * Validates the file, then stores everything in it: its dataset (parsed the same way a plain
+     * import would), its model (registered the same way POST /dataset/{id}/model would — left
+     * unregistered when it has no usable output) and the .nrm itself, under the id returned.
+     */
+    public NrmImportStatus importNrm(MultipartFile file) {
         Contents contents = read(file);
         DatasetImportResponse dataset = datasetParserService.parse(
                 new ByteArrayInputStream(contents.spreadsheetBytes()), contents.spreadsheetName());
-        return new NrmImportResponse(dataset, contents.info());
+        String modelId = registerModel(dataset.datasetId(), contents.model());
+        String nrmId = nrmStore.put(new StoredNrm(dataset.datasetId(), modelId, contents.info(), contents.model()));
+        return NrmImportStatus.success(nrmId);
+    }
+
+    /** The imported .nrm's model's designated inputs — see {@link ModelExecutionService#getModelInputs}. */
+    public ModelInputsResponse getInputs(String nrmId) {
+        return modelExecutionService.getModelInputs(modelIdOf(get(nrmId)));
+    }
+
+    /** Runs the imported .nrm's model — see {@link ModelExecutionService#runModel}. */
+    public List<ModelOperationResult> run(String nrmId, Map<String, String> inputValues) {
+        StoredNrm nrm = get(nrmId);
+        return modelExecutionService.runModel(nrm.datasetId(), modelIdOf(nrm), inputValues);
+    }
+
+    /** The dataset (every sheet) stored from the imported .nrm's spreadsheet. */
+    public DatasetImportResponse getDataset(String nrmId) {
+        return datasetParserService.get(get(nrmId).datasetId());
+    }
+
+    /**
+     * The model JSON exactly as the imported .nrm held it (the operation tree, with names and canvas
+     * positions) — only what editing the model needs, so nothing else asks for it. The .nrm's own
+     * name from info.json, the source of truth for it, replaces whatever the model JSON carried.
+     */
+    public JsonNode getModel(String nrmId) {
+        StoredNrm nrm = get(nrmId);
+        ObjectNode model = nrm.model().deepCopy();
+        model.put("nrmName", nrm.info().name());
+        return model;
+    }
+
+    private StoredNrm get(String nrmId) {
+        return nrmStore.get(nrmId)
+                .orElseThrow(() -> new IllegalArgumentException("NRM not found. Please import the file again."));
+    }
+
+    private String modelIdOf(StoredNrm nrm) {
+        if (nrm.modelId() == null) {
+            throw new IllegalArgumentException("This .nrm has no model that can be used.");
+        }
+        return nrm.modelId();
+    }
+
+    /**
+     * Flattens the model JSON's operation tree (the nesting only mirrors the canvas, every
+     * reference lives in each operation's own fields) and registers it. Null when it has no
+     * output, or the registration is rejected (an input/output id matching no operation).
+     */
+    private String registerModel(String datasetId, JsonNode model) {
+        List<ModelOperationInput> operations = new ArrayList<>();
+        for (JsonNode node : model.path("operations")) {
+            flatten(node, operations);
+        }
+        List<String> inputIds = readIds(model, "inputOperationIds", "inputOperationId");
+        List<String> outputIds = readIds(model, "outputOperationIds", "outputOperationId");
+        if (operations.isEmpty() || outputIds.isEmpty()) {
+            return null;
+        }
+        try {
+            return modelExecutionService.registerModel(
+                    datasetId, new ModelRegisterRequest(model.path("modelName").asText(), operations, inputIds, outputIds));
+        } catch (IllegalArgumentException e) {
+            log.debug("Imported .nrm's model was not registered.", e);
+            return null;
+        }
+    }
+
+    private void flatten(JsonNode node, List<ModelOperationInput> out) {
+        Map<String, Object> fields = objectMapper.convertValue(node.path("fields"), new TypeReference<>() { });
+        out.add(new ModelOperationInput(
+                node.path("id").asText(), node.path("kind").asText(), fields, node.path("name").asText()));
+        for (JsonNode child : node.path("operations")) {
+            flatten(child, out);
+        }
+    }
+
+    /** The array field if present, else the older singular field wrapped in a list, else none. */
+    private List<String> readIds(JsonNode model, String arrayField, String legacyField) {
+        List<String> ids = new ArrayList<>();
+        if (model.path(arrayField).isArray()) {
+            model.path(arrayField).forEach(id -> {
+                if (id.isTextual()) {
+                    ids.add(id.asText());
+                }
+            });
+        } else if (model.path(legacyField).isTextual()) {
+            ids.add(model.path(legacyField).asText());
+        }
+        return ids;
     }
 
     private Contents read(MultipartFile file) {
@@ -138,8 +246,9 @@ public class NrmService {
             throw invalid("does not contain " + INFO_ENTRY_NAME + ".");
         }
 
-        validateModel(parseJson(modelBytes, "the model"));
-        return new Contents(spreadsheetName, spreadsheetBytes, parseInfo(parseJson(infoBytes, INFO_ENTRY_NAME)));
+        JsonNode model = parseJson(modelBytes, "the model");
+        validateModel(model);
+        return new Contents(spreadsheetName, spreadsheetBytes, parseInfo(parseJson(infoBytes, INFO_ENTRY_NAME)), model);
     }
 
     private byte[] readEntry(InputStream in, long remainingBudget) throws IOException {
