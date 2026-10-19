@@ -29,7 +29,7 @@ interface LandingScreenProps {
   onClearRecentSessions: () => void;
   /** Up to the 4 most recently uploaded/saved .nrm sessions (see App.tsx's
    * utils/sessionCache.ts-backed recentSessions), newest first. Empty when there's none — the
-   * whole "Sessões recentes" block below just doesn't render, same screen either way. */
+   * "Sessões recentes" row at the bottom is always there, showing an empty-state message. */
   recentSessions: RecentSessionEntryProps[];
 }
 
@@ -72,19 +72,21 @@ export function LandingScreen({
         </div>
       </div>
 
-      {recentSessions.length > 0 && (
-        <div className="recent-sessions">
-          <div className="recent-sessions__header">
-            <p className="recent-sessions__title">Sessões recentes</p>
-            <button
-              type="button"
-              className="recent-sessions__clear-button"
-              onClick={onClearRecentSessions}
-              disabled={recentSessions.some((entry) => entry.isResuming)}
-            >
-              Limpar tudo
-            </button>
-          </div>
+      <div className="recent-sessions">
+        <div className="recent-sessions__header">
+          <p className="recent-sessions__title">Sessões recentes</p>
+          <button
+            type="button"
+            className="recent-sessions__clear-button"
+            onClick={onClearRecentSessions}
+            disabled={recentSessions.length === 0 || recentSessions.some((entry) => entry.isResuming)}
+          >
+            Limpar tudo
+          </button>
+        </div>
+        {recentSessions.length === 0 ? (
+          <p className="recent-sessions__empty">Ainda não há sessões recentes.</p>
+        ) : (
           <div className="recent-sessions__list">
             {recentSessions.map((entry) => (
               <RecentSessionCard
@@ -98,8 +100,8 @@ export function LandingScreen({
               />
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       <AppFooter onGoHome={onGoHome} />
     </div>

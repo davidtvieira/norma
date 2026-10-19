@@ -8,21 +8,20 @@
 .recent-session-card__button {
   width: 100%;
   padding: 0.875rem 1rem;
-  border: 1.5px solid var(--color-border);
+  border: none;
   border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-sm);
+  background: transparent;
   color: var(--color-text);
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+  transition: background-color 0.2s ease;
 }
 
 .recent-session-card__button:hover:not(:disabled) {
-  border-color: var(--color-primary);
-  background: var(--color-surface-hover);
-  box-shadow: var(--shadow-md);
+  /* A faint tint of the text color over whatever's behind, so it reads the same in both themes
+     without turning the flat tile back into a box. */
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
 }
 
 .recent-session-card__button:disabled {

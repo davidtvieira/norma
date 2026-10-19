@@ -164,8 +164,8 @@
   flex-direction: column;
   gap: 0.5rem;
   width: 100%;
+  margin-top: 2rem;
   padding: 1rem 2.5rem;
-  background: color-mix(in srgb, var(--color-bg) 96%, var(--color-text));
   border-top: 1px solid var(--color-border);
 }
 
@@ -173,13 +173,13 @@
   display: flex;
   flex-direction: row;
   flex-wrap: nowrap;
-  gap: 0.75rem;
   overflow-x: auto;
 }
 
 .recent-sessions__list > .recent-session-card {
   flex: 1 1 0;
-  min-width: 280px;
+  min-width: 220px;
+  max-width: 320px;
 }
 
 .recent-sessions__header {
@@ -209,6 +209,13 @@
 .recent-sessions__clear-button:disabled {
   cursor: default;
   opacity: 0.7;
+}
+
+.recent-sessions__empty {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 300;
+  color: var(--color-text-muted);
 }
 
 .recent-sessions__title {
@@ -246,21 +253,37 @@
   .app__landing-right {
     flex: 0 0 auto;
     width: 100%;
+    justify-content: center;
     padding: 0 1.5rem;
+  }
+
+  .app__landing-content {
+    margin-right: 0;
   }
 
   .app__intro {
     text-align: center;
     max-width: none;
   }
-    justify-content: center;
+
+  /* Recents stack in a column instead of a sideways-scrolling row. */
+  .recent-sessions {
+    padding: 1rem 1.5rem;
+  }
+
+  .recent-sessions__list {
+    flex-direction: column;
+    overflow-x: visible;
+  }
+
+  .recent-sessions__list > .recent-session-card {
+    flex: 0 0 auto;
+    min-width: 0;
+    max-width: none;
+  }
 }
 
 .app__create-model-body {
-  .app__landing-content {
-    margin-right: 0;
-  }
-
   flex: 1;
   display: flex;
   align-items: center;
