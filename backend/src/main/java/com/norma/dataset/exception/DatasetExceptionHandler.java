@@ -21,7 +21,7 @@ public class DatasetExceptionHandler {
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ApiErrorResponse> handleMaxUploadSize(MaxUploadSizeExceededException ex) {
-        return buildResponse(HttpStatus.PAYLOAD_TOO_LARGE, "O ficheiro enviado excede o tamanho máximo permitido.");
+        return buildResponse(HttpStatus.PAYLOAD_TOO_LARGE, "The uploaded file exceeds the maximum allowed size.");
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

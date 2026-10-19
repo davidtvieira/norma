@@ -14,6 +14,7 @@ import com.norma.dataset.dto.SumResponse;
 import com.norma.dataset.dto.TranslatorRequest;
 import com.norma.dataset.dto.TranslatorResponse;
 import com.norma.dataset.service.DatasetOperationService;
+import com.norma.dataset.service.OperationTypes;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
@@ -30,15 +31,6 @@ import java.util.List;
         + "for registering/running a whole model at once")
 public class DatasetOperationController {
 
-    private static final List<OperationType> OPERATION_TYPES = List.of(
-            new OperationType("lookup", "Lookup"),
-            new OperationType("sum", "Sum"),
-            new OperationType("counter", "Counter"),
-            new OperationType("node", "Node"),
-            new OperationType("find", "Find"),
-            new OperationType("translator", "Translator")
-    );
-
     private final DatasetOperationService datasetOperationService;
 
     public DatasetOperationController(DatasetOperationService datasetOperationService) {
@@ -52,7 +44,7 @@ public class DatasetOperationController {
     )
     @GetMapping("/api/v1/dataset/operations")
     public ResponseEntity<List<OperationType>> listOperationTypes() {
-        return ResponseEntity.ok(OPERATION_TYPES);
+        return ResponseEntity.ok(OperationTypes.ALL);
     }
 
     @Operation(

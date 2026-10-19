@@ -204,7 +204,7 @@ class DatasetOperationServiceTest {
     void skipsNonNumericAndBlankCellsWhenSumming() {
         SheetData sales = new SheetData("Vendas", 3, List.of(
                 new RowData(0, List.of(new CellData(0, 10L))),
-                new RowData(1, List.of(new CellData(0, "não numérico"))),
+                new RowData(1, List.of(new CellData(0, "non-numeric"))),
                 new RowData(2, List.of(new CellData(0, null)))
         ));
         String datasetId = storeDataset(new DatasetImportResponse("dataset-sum-2", "test.xlsx", Instant.now(), List.of(sales)));

@@ -47,7 +47,7 @@ public class DatasetOperationService {
     public LookupResponse lookup(LookupRequest request) {
         DatasetImportResponse dataset = datasetStore.get(request.datasetId())
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Conjunto de dados não encontrado. Volte a importar o ficheiro."));
+                        "Dataset not found. Please import the file again."));
 
         SheetData searchSheet = OperationSupport.sheetAt(dataset, request.searchSheetIndex(), "onde procurar");
         SheetData resultSheet = OperationSupport.sheetAt(dataset, request.resultSheetIndex(), "a devolver");
@@ -82,7 +82,7 @@ public class DatasetOperationService {
     public SumResponse sum(SumRequest request) {
         DatasetImportResponse dataset = datasetStore.get(request.datasetId())
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Conjunto de dados não encontrado. Volte a importar o ficheiro."));
+                        "Dataset not found. Please import the file again."));
 
         SheetData sheet = OperationSupport.sheetAt(dataset, request.sheetIndex(), "a somar");
         OperationSupport.validateRange(request.startRow(), request.endRow(), request.startColumn(), request.endColumn());
@@ -94,7 +94,7 @@ public class DatasetOperationService {
     public FindResponse find(FindRequest request) {
         DatasetImportResponse dataset = datasetStore.get(request.datasetId())
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Conjunto de dados não encontrado. Volte a importar o ficheiro."));
+                        "Dataset not found. Please import the file again."));
 
         SheetData sheet = OperationSupport.sheetAt(dataset, request.sheetIndex(), "onde procurar");
         OperationSupport.validateRange(request.startRow(), request.endRow(), request.startColumn(), request.endColumn());
@@ -114,7 +114,7 @@ public class DatasetOperationService {
     public CounterResponse counter(CounterRequest request) {
         List<String> values = request.values() == null ? List.of() : request.values();
         if (values.isEmpty()) {
-            throw new IllegalArgumentException("O contador não tem nenhuma entrada.");
+            throw new IllegalArgumentException("The counter has no inputs.");
         }
 
         double total = 0;

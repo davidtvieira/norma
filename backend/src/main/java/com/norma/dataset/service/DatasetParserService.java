@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -39,7 +40,17 @@ public class DatasetParserService {
     }
 
     public DatasetImportResponse parse(MultipartFile file) {
-        try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
+        try {
+            return parse(file.getInputStream(), file.getOriginalFilename());
+        } catch (IOException e) {
+            throw new DatasetParsingException("Failed to process the data file: " + file.getOriginalFilename(), e);
+        }
+    }
+
+    /** Same as {@link #parse(MultipartFile)}, for a spreadsheet that didn't arrive as an upload of
+     * its own (e.g. the one bundled inside a .nrm — see {@link NrmService}). */
+    public DatasetImportResponse parse(InputStream content, String filename) {
+        try (Workbook workbook = WorkbookFactory.create(content)) {
             FormulaEvaluator evaluator = workbook.getCreationHelper().createFormulaEvaluator();
 
             List<SheetData> sheets = new ArrayList<>();
@@ -48,11 +59,11 @@ public class DatasetParserService {
             }
 
             DatasetImportResponse response = new DatasetImportResponse(
-                    UUID.randomUUID().toString(), file.getOriginalFilename(), Instant.now(), sheets);
+                    UUID.randomUUID().toString(), filename, Instant.now(), sheets);
             datasetStore.put(response);
             return response;
         } catch (IOException | RuntimeException e) {
-            throw new DatasetParsingException("Falha ao processar o ficheiro de dados: " + file.getOriginalFilename(), e);
+            throw new DatasetParsingException("Failed to process the data file: " + filename, e);
         }
     }
 
@@ -102,6 +113,16 @@ public class DatasetParserService {
     }
 
     /**
+     * Looks up a previously imported dataset by its id — what a reloaded page uses to get its
+     * dataset back from the URL's id instead of re-uploading the file. Unknown ids (e.g. after a
+     * backend restart) are a request error, same as {@link #delete}.
+     */
+    public DatasetImportResponse get(String datasetId) {
+        return datasetStore.get(datasetId).orElseThrow(
+                () -> new IllegalArgumentException("Dataset not found. Please import the file again."));
+    }
+
+    /**
      * Removes a previously imported dataset (and, transitively, anything about it a caller might
      * still hold onto — a model registered against it stays in {@link ModelStore} but can no
      * longer be run, since {@link ModelExecutionService#runModel} re-fetches the dataset by id on
@@ -110,7 +131,7 @@ public class DatasetParserService {
      */
     public void delete(String datasetId) {
         if (!datasetStore.remove(datasetId)) {
-            throw new IllegalArgumentException("Conjunto de dados não encontrado. Volte a importar o ficheiro.");
+            throw new IllegalArgumentException("Dataset not found. Please import the file again.");
         }
     }
 }

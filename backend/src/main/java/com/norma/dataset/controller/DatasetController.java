@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -41,9 +42,21 @@ public class DatasetController {
     @PostMapping(value = "/api/v1/dataset/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<DatasetImportResponse> importDataset(@RequestParam("file") MultipartFile file) {
         if (file.isEmpty()) {
-            throw new IllegalArgumentException("O ficheiro enviado não pode estar vazio.");
+            throw new IllegalArgumentException("The uploaded file cannot be empty.");
         }
         return ResponseEntity.ok(datasetParserService.parse(file));
+    }
+
+    @Operation(
+            summary = "Get an imported dataset",
+            description = "Returns a previously imported dataset (as returned by the import endpoint) by its id."
+    )
+    @ApiResponse(responseCode = "200", description = "Dataset found",
+            content = @Content(schema = @Schema(implementation = DatasetImportResponse.class)))
+    @ApiResponse(responseCode = "400", description = "No dataset exists with the given id")
+    @GetMapping("/api/v1/dataset/{datasetId}")
+    public ResponseEntity<DatasetImportResponse> getDataset(@PathVariable String datasetId) {
+        return ResponseEntity.ok(datasetParserService.get(datasetId));
     }
 
     @Operation(

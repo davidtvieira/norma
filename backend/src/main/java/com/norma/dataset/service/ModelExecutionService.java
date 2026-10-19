@@ -52,27 +52,27 @@ public class ModelExecutionService {
     public String registerModel(String datasetId, ModelRegisterRequest request) {
         datasetStore.get(datasetId)
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Conjunto de dados não encontrado. Volte a importar o ficheiro."));
+                        "Dataset not found. Please import the file again."));
 
         List<ModelOperationInput> operations = request.operations();
         if (operations == null || operations.isEmpty()) {
-            throw new IllegalArgumentException("O modelo não tem operações.");
+            throw new IllegalArgumentException("The model has no operations.");
         }
         List<String> outputOperationIds = request.outputOperationIds() == null ? List.of() : request.outputOperationIds();
         if (outputOperationIds.isEmpty()) {
-            throw new IllegalArgumentException("O modelo não tem um output definido.");
+            throw new IllegalArgumentException("The model has no output defined.");
         }
 
         Set<String> ids = operations.stream().map(ModelOperationInput::id).collect(Collectors.toSet());
         for (String outputOperationId : outputOperationIds) {
             if (!ids.contains(outputOperationId)) {
-                throw new IllegalArgumentException("Um dos outputs indicados não corresponde a nenhuma operação do modelo.");
+                throw new IllegalArgumentException("One of the given outputs does not match any operation in the model.");
             }
         }
         List<String> inputOperationIds = request.inputOperationIds() == null ? List.of() : request.inputOperationIds();
         for (String inputOperationId : inputOperationIds) {
             if (!ids.contains(inputOperationId)) {
-                throw new IllegalArgumentException("Um dos inputs indicados não corresponde a nenhuma operação do modelo.");
+                throw new IllegalArgumentException("One of the given inputs does not match any operation in the model.");
             }
         }
 
@@ -94,15 +94,15 @@ public class ModelExecutionService {
     public List<ModelOperationResult> runModel(String datasetId, String modelId, Map<String, String> inputValues) {
         StoredModel model = modelStore.get(modelId)
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Modelo não encontrado. Volte a preparar o modelo antes de o correr."));
+                        "Model not found. Please prepare the model again before running it."));
 
         if (!model.datasetId().equals(datasetId)) {
-            throw new IllegalArgumentException("Este modelo não pertence ao conjunto de dados indicado.");
+            throw new IllegalArgumentException("This model does not belong to the given dataset.");
         }
 
         DatasetImportResponse dataset = datasetStore.get(datasetId)
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Conjunto de dados não encontrado. Volte a importar o ficheiro."));
+                        "Dataset not found. Please import the file again."));
 
         List<ModelOperationInput> operations = withInputOverride(model, inputValues);
 
@@ -126,9 +126,9 @@ public class ModelExecutionService {
     public void deleteModel(String datasetId, String modelId) {
         StoredModel model = modelStore.get(modelId)
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Modelo não encontrado. Volte a preparar o modelo antes de o eliminar."));
+                        "Model not found. Please prepare the model again before deleting it."));
         if (!model.datasetId().equals(datasetId)) {
-            throw new IllegalArgumentException("Este modelo não pertence ao conjunto de dados indicado.");
+            throw new IllegalArgumentException("This model does not belong to the given dataset.");
         }
         modelStore.remove(modelId);
     }
@@ -188,12 +188,12 @@ public class ModelExecutionService {
             Map<String, ModelOperationResult> resolved) {
 
         if (cyclicIds.contains(id)) {
-            return new ModelOperationResult(id, false, null, "Referência circular entre operações.");
+            return new ModelOperationResult(id, false, null, "Circular reference between operations.");
         }
 
         ModelOperationInput operation = byId.get(id);
         if (operation == null) {
-            return new ModelOperationResult(id, false, null, "Operação de referência não encontrada.");
+            return new ModelOperationResult(id, false, null, "Referenced operation not found.");
         }
 
         try {
@@ -205,7 +205,7 @@ public class ModelExecutionService {
                 case "node" -> new ModelOperationResult(id, true, inputValue, null);
                 case "find" -> computeFind(operation, dataset, inputValue);
                 case "translator" -> computeTranslator(operation, inputValue);
-                default -> new ModelOperationResult(id, false, null, "Tipo de operação desconhecido: " + operation.kind());
+                default -> new ModelOperationResult(id, false, null, "Unknown operation type: " + operation.kind());
             };
         } catch (IllegalArgumentException ex) {
             return new ModelOperationResult(id, false, null, ex.getMessage());
@@ -253,15 +253,15 @@ public class ModelExecutionService {
         }
 
         if (!(source.get("operationId") instanceof String referencedId)) {
-            throw new IllegalArgumentException("Refere uma operação que não existe no modelo.");
+            throw new IllegalArgumentException("References an operation that does not exist in the model.");
         }
         if (!byId.containsKey(referencedId)) {
-            throw new IllegalArgumentException("Refere uma operação que não existe no modelo.");
+            throw new IllegalArgumentException("References an operation that does not exist in the model.");
         }
 
         ModelOperationResult referenced = resolveOperation(referencedId, dataset, byId, cyclicIds, resolved);
         if (!referenced.success() || referenced.value() == null) {
-            throw new IllegalArgumentException("A operação de referência não produziu um resultado.");
+            throw new IllegalArgumentException("The referenced operation did not produce a result.");
         }
         return String.valueOf(referenced.value());
     }
@@ -318,7 +318,7 @@ public class ModelExecutionService {
             Map<String, ModelOperationResult> resolved) {
 
         if (!(fields.get(fieldName) instanceof Map<?, ?> source)) {
-            throw new IllegalArgumentException("Campo obrigatório em falta ou inválido: " + fieldName);
+            throw new IllegalArgumentException("Required field missing or invalid: " + fieldName);
         }
         return resolveValueSource(asStringKeyedMap(source), dataset, byId, cyclicIds, resolved);
     }
@@ -354,7 +354,7 @@ public class ModelExecutionService {
             }
             return parsed;
         } catch (NumberFormatException ex) {
-            throw new IllegalArgumentException("Valor de " + kind + " inválido em " + fieldName + ": " + original);
+            throw new IllegalArgumentException("Invalid " + kind + " value in " + fieldName + ": " + original);
         }
     }
 
@@ -425,12 +425,12 @@ public class ModelExecutionService {
      */
     private List<TranslatorRule> extractRules(Map<String, Object> fields) {
         if (!(fields.get("rules") instanceof List<?> rawRules)) {
-            throw new IllegalArgumentException("Campo obrigatório em falta ou inválido: rules");
+            throw new IllegalArgumentException("Required field missing or invalid: rules");
         }
         List<TranslatorRule> rules = new ArrayList<>();
         for (Object rawRule : rawRules) {
             if (!(rawRule instanceof Map<?, ?> ruleMap)) {
-                throw new IllegalArgumentException("Uma das regras do tradutor está mal formada.");
+                throw new IllegalArgumentException("One of the translator rules is malformed.");
             }
             Map<String, Object> asMap = asStringKeyedMap(ruleMap);
             Object from = asMap.get("from");
@@ -456,13 +456,13 @@ public class ModelExecutionService {
 
         Map<String, Object> fields = fieldsOf(operation);
         if (!(fields.get("inputs") instanceof List<?> inputs) || inputs.isEmpty()) {
-            throw new IllegalArgumentException("O contador não tem nenhuma entrada.");
+            throw new IllegalArgumentException("The counter has no inputs.");
         }
 
         double total = 0;
         for (Object rawSource : inputs) {
             if (!(rawSource instanceof Map<?, ?> source)) {
-                throw new IllegalArgumentException("Uma das entradas do contador está mal formada.");
+                throw new IllegalArgumentException("One of the counter inputs is malformed.");
             }
             String value = resolveValueSource(asStringKeyedMap(source), dataset, byId, cyclicIds, resolved);
             total += OperationSupport.parseCounterEntry(value);
@@ -558,7 +558,7 @@ public class ModelExecutionService {
 
     private int intField(Map<String, Object> fields, String key) {
         if (!(fields.get(key) instanceof Number number)) {
-            throw new IllegalArgumentException("Campo obrigatório em falta ou inválido: " + key);
+            throw new IllegalArgumentException("Required field missing or invalid: " + key);
         }
         return number.intValue();
     }
@@ -566,7 +566,7 @@ public class ModelExecutionService {
     @SuppressWarnings("unchecked")
     private Map<String, Object> mapField(Map<String, Object> fields, String key) {
         if (!(fields.get(key) instanceof Map<?, ?> value)) {
-            throw new IllegalArgumentException("Campo obrigatório em falta ou inválido: " + key);
+            throw new IllegalArgumentException("Required field missing or invalid: " + key);
         }
         return (Map<String, Object>) value;
     }

@@ -41,7 +41,7 @@ final class OperationSupport {
             if ("tokenEquals".equalsIgnoreCase(raw)) {
                 return TOKEN_EQUALS;
             }
-            throw new IllegalArgumentException("Tipo de comparação inválido: " + raw);
+            throw new IllegalArgumentException("Invalid comparison type: " + raw);
         }
     }
 
@@ -54,7 +54,7 @@ final class OperationSupport {
     static SheetData sheetAt(DatasetImportResponse dataset, int sheetIndex, String role) {
         List<SheetData> sheets = dataset.sheets();
         if (sheets == null || sheetIndex < 0 || sheetIndex >= sheets.size()) {
-            throw new IllegalArgumentException("Índice de tabela inválido (" + role + "): " + sheetIndex);
+            throw new IllegalArgumentException("Invalid table index (" + role + "): " + sheetIndex);
         }
         return sheets.get(sheetIndex);
     }
@@ -72,10 +72,10 @@ final class OperationSupport {
 
     static void validateRange(int startRow, int endRow, int startColumn, int endColumn) {
         if (startRow < 0 || startColumn < 0) {
-            throw new IllegalArgumentException("O intervalo não pode começar numa linha ou coluna negativa.");
+            throw new IllegalArgumentException("The range cannot start at a negative row or column.");
         }
         if (endRow < startRow || endColumn < startColumn) {
-            throw new IllegalArgumentException("O fim do intervalo não pode ser anterior ao início.");
+            throw new IllegalArgumentException("The end of the range cannot be before its start.");
         }
     }
 
@@ -164,16 +164,16 @@ final class OperationSupport {
     static List<TranslatorRule> validateTranslatorRules(List<TranslatorRule> rules) {
         List<TranslatorRule> nonNullRules = rules == null ? List.of() : rules;
         if (nonNullRules.isEmpty()) {
-            throw new IllegalArgumentException("O tradutor não tem nenhuma regra.");
+            throw new IllegalArgumentException("The translator has no rules.");
         }
         Set<String> seenSources = new HashSet<>();
         for (TranslatorRule rule : nonNullRules) {
             String from = rule.from() == null ? "" : rule.from().trim();
             if (from.isEmpty()) {
-                throw new IllegalArgumentException("Uma das regras do tradutor não tem valor de origem.");
+                throw new IllegalArgumentException("One of the translator rules has no source value.");
             }
             if (!seenSources.add(from.toLowerCase())) {
-                throw new IllegalArgumentException("Duas regras do tradutor não podem ter o mesmo valor de origem: " + from);
+                throw new IllegalArgumentException("Two translator rules cannot have the same source value: " + from);
             }
         }
         return nonNullRules;
@@ -190,7 +190,7 @@ final class OperationSupport {
                 .filter(rule -> rule.from() != null && rule.from().trim().equalsIgnoreCase(normalizedInput))
                 .findFirst()
                 .map(TranslatorRule::to)
-                .orElseThrow(() -> new IllegalArgumentException("Não existe nenhuma regra para o valor: " + normalizedInput));
+                .orElseThrow(() -> new IllegalArgumentException("No rule exists for the value: " + normalizedInput));
     }
 
     static double parseCounterEntry(String value) {
@@ -201,7 +201,7 @@ final class OperationSupport {
         try {
             return Double.parseDouble(trimmed.replace(',', '.'));
         } catch (NumberFormatException ex) {
-            throw new IllegalArgumentException("O contador tem uma entrada que não é numérica: " + trimmed);
+            throw new IllegalArgumentException("The counter has an input that is not numeric: " + trimmed);
         }
     }
 

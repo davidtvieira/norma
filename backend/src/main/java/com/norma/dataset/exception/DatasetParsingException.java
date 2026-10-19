@@ -5,6 +5,10 @@ package com.norma.dataset.exception;
  */
 public class DatasetParsingException extends RuntimeException {
 
+    public DatasetParsingException(String message) {
+        super(message);
+    }
+
     public DatasetParsingException(String message, Throwable cause) {
         super(message, cause);
     }

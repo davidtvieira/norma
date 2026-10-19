@@ -47,6 +47,15 @@ class DatasetParserServiceTest {
     }
 
     @Test
+    void getsAnImportedDatasetByIdAndRejectsAnUnknownOne() throws IOException {
+        DatasetImportResponse imported = datasetParserService.parse(new MockMultipartFile(
+                "file", "data_import.xlsx", "application/octet-stream", buildWorkbookBytes()));
+
+        assertThat(datasetParserService.get(imported.datasetId())).isEqualTo(imported);
+        assertThatThrownBy(() -> datasetParserService.get("nope")).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void parsesLegacyXlsFilesTheSameWayAsXlsx() throws IOException {
         MockMultipartFile file = new MockMultipartFile(
                 "file", "data_import.xls", "application/vnd.ms-excel",
