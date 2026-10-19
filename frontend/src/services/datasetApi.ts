@@ -24,6 +24,8 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 const INVALID_NRM_MESSAGE = 'Ficheiro .nrm inválido.';
 const UNREACHABLE_MESSAGE = 'Não foi possível contactar o servidor.';
 
+const COMMUNICATION_ERROR_MESSAGE = 'Erro de comunicação com a API.';
+const GATEWAY_STATUSES = new Set([502, 503, 504]);
 /** fetch, except a request that never got an HTTP response at all (backend down, network error)
  * is reported to the toasts too, with a readable message instead of the browser's own. */
 async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
@@ -40,6 +42,13 @@ async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<R
  * server's message if any, else the title with the HTTP status — what callers have always got. */
 async function apiError(response: Response, title: string): Promise<ApiError> {
   const errorBody = await response.json().catch(() => null);
+  // A gateway answering for a backend it couldn't reach (Bad Gateway, Service Unavailable, Gateway
+  // Timeout): same situation as apiFetch's no-response case, and whatever text the proxy sent
+  // ("Bad Gateway", an HTML page...) says nothing useful to the user.
+  if (GATEWAY_STATUSES.has(response.status)) {
+    reportApiError({ title: COMMUNICATION_ERROR_MESSAGE });
+    return new ApiError(COMMUNICATION_ERROR_MESSAGE);
+  }
   const serverMessage: string | undefined = errorBody?.message;
   reportApiError({ title, detail: serverMessage ?? `Estado ${response.status}` });
   return new ApiError(serverMessage ?? `${title} (estado ${response.status})`);
