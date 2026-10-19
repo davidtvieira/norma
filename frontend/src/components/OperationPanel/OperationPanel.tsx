@@ -63,6 +63,10 @@ const TEST_STAGGER_DELAY_MS = 120;
  * stagger itself has finished, before fading away on its own — just long enough to actually
  * register as "done" rather than the bar vanishing the instant it fills. */
 const TEST_PROGRESS_LINGER_MS = 500;
+/** How long TestValuesModal's "Correr teste" shows its loading state before the test actually
+ * starts (see runTestFromModal) — so a click visibly registers instead of the modal vanishing
+ * the instant it's pressed. */
+const TEST_START_DELAY_MS = 1000;
 
 /** Simple cascading grid placement for a node restored without a saved position (see
  * initialEntries) — anchored at a fixed canvas-local origin regardless of the current pan/zoom,
@@ -746,12 +750,17 @@ export function OperationPanel({
   // teste" — can cancel whatever's left of a previous stagger instead of letting it keep firing
   // requests for a test that's already been superseded or cleared.
   const testStaggerTimeoutsRef = useRef<number[]>([]);
+  // The pending "Correr teste" loading delay (see runTestFromModal) — kept so it can be cancelled
+  // if the panel goes away mid-delay.
+  const startTestTimeoutRef = useRef<number | null>(null);
+  const [isStartingTest, setIsStartingTest] = useState(false);
 
   useEffect(() => {
     return () => {
       for (const timeoutId of testStaggerTimeoutsRef.current) {
         window.clearTimeout(timeoutId);
       }
+      if (startTestTimeoutRef.current !== null) window.clearTimeout(startTestTimeoutRef.current);
     };
   }, []);
 
@@ -1528,10 +1537,19 @@ export function OperationPanel({
   // Only closes the modal once the run actually starts — if it's blocked (see runModelTest's own
   // empty-input check), the modal stays open with the warning showing right where the user can
   // still fix the offending field, instead of closing and leaving them to go find it again.
+  //
+  // Waits TEST_START_DELAY_MS first, with the modal showing a loading state, so the click visibly
+  // registers before the modal closes and the run's own progress bar takes over.
   function runTestFromModal() {
-    if (runModelTest()) {
-      setIsTestModalOpen(false);
-    }
+    if (isStartingTest) return;
+    setIsStartingTest(true);
+    startTestTimeoutRef.current = window.setTimeout(() => {
+      startTestTimeoutRef.current = null;
+      setIsStartingTest(false);
+      if (runModelTest()) {
+        setIsTestModalOpen(false);
+      }
+    }, TEST_START_DELAY_MS);
   }
 
   function triggerImportTest() {
@@ -2610,6 +2628,7 @@ export function OperationPanel({
         inputs={testInputEntries}
         onChangeValue={updateTestValue}
         onRun={runTestFromModal}
+        isRunning={isStartingTest}
         warning={granularTestWarning}
         importError={testLoadError}
       />

@@ -128,3 +128,26 @@
   background: var(--color-surface-hover);
   color: var(--color-primary-hover);
 }
+
+.test-values-modal__run-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.test-values-modal__spinner {
+  display: inline-block;
+  width: 0.9rem;
+  height: 0.9rem;
+  border: 2px solid color-mix(in srgb, var(--color-surface) 40%, transparent);
+  border-top-color: var(--color-surface);
+  border-radius: 50%;
+  animation: test-values-modal-spin 0.8s linear infinite;
+}
+
+@keyframes test-values-modal-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

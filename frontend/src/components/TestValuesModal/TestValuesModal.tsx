@@ -12,6 +12,9 @@ interface TestValuesModalProps {
   inputs: TestValueEntry[];
   onChangeValue: (id: string, value: string) => void;
   onRun: () => void;
+  /** True while "Correr teste" is in its loading delay (see OperationPanel's runTestFromModal) —
+   * shows a spinner on the button and locks the form until the run actually starts. */
+  isRunning: boolean;
   /** Set when the last "Correr teste" click was blocked because one of the inputs above is still
    * empty (see OperationPanel's runModelTest) — shown right here rather than elsewhere on the
    * canvas, which this overlay covers entirely while open. Null clears it. */
@@ -35,7 +38,7 @@ interface TestValuesModalProps {
  * here — that's the canvas toolbar's own toggle (see OperationPanel), reachable without needing
  * this modal open at all.
  */
-export function TestValuesModal({ open, onClose, inputs, onChangeValue, onRun, warning, importError }: TestValuesModalProps) {
+export function TestValuesModal({ open, onClose, inputs, onChangeValue, onRun, isRunning, warning, importError }: TestValuesModalProps) {
   if (!open) return null;
 
   // "Correr teste" stays disabled until every field actually has something in it — this is a
@@ -46,7 +49,7 @@ export function TestValuesModal({ open, onClose, inputs, onChangeValue, onRun, w
   const allFilled = inputs.every((input) => input.value.trim() !== '');
 
   return (
-    <div className="test-values-modal__overlay" onClick={onClose}>
+    <div className="test-values-modal__overlay" onClick={isRunning ? undefined : onClose}>
       <div
         className="test-values-modal"
         role="dialog"
@@ -68,6 +71,7 @@ export function TestValuesModal({ open, onClose, inputs, onChangeValue, onRun, w
                 className="test-values-modal__input"
                 value={input.value}
                 onChange={(event) => onChangeValue(input.id, event.target.value)}
+                disabled={isRunning}
                 placeholder="Introduza um valor"
               />
             </div>
@@ -78,17 +82,24 @@ export function TestValuesModal({ open, onClose, inputs, onChangeValue, onRun, w
         {importError && <p className="test-values-modal__hint">{importError}</p>}
 
         <div className="test-values-modal__actions">
-          <button type="button" className="test-values-modal__button test-values-modal__button--secondary" onClick={onClose}>
+          <button type="button" className="test-values-modal__button test-values-modal__button--secondary" onClick={onClose} disabled={isRunning}>
             Cancelar
           </button>
           <button
             type="button"
             className="test-values-modal__button test-values-modal__run-button"
             onClick={onRun}
-            disabled={!allFilled}
+            disabled={!allFilled || isRunning}
+            aria-busy={isRunning}
             title={allFilled ? undefined : 'Preencha todos os inputs antes de correr o teste.'}
           >
-            Correr teste
+            {isRunning ? (
+              <>
+                <span className="test-values-modal__spinner" aria-hidden="true" />A correr…
+              </>
+            ) : (
+              'Correr teste'
+            )}
           </button>
         </div>
       </div>
