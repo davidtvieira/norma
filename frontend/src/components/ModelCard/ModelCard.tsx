@@ -34,6 +34,20 @@ interface ModelCardProps {
   onBack: () => void;
 }
 
+/** The least time a run shows its loading state ("A calcular…") for, even when the response comes
+ * back faster — so a click visibly registers instead of the result flashing in instantly. */
+const RUN_MIN_DURATION_MS = 1000;
+
+/** Resolves/rejects with `promise`'s own outcome, but not before `ms` have passed. */
+async function withMinimumDelay<T>(promise: Promise<T>, ms: number): Promise<T> {
+  const delay = new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+  try {
+    return await promise;
+  } finally {
+    await delay;
+  }
+}
+
 /**
  * A model previously built in the editor and re-imported to be used, not edited: the model's
  * name, one editable field per designated input (there can be more than one), and one live result
@@ -107,7 +121,7 @@ export function ModelCard({ dataset, modelName, entries, inputOperationIds, outp
 
   // Which of the two IO panels currently takes up most of the screen — the other collapses to a
   // small clickable square. Starts on "input" (nothing to show on the output side yet), and
-  // clicking "Correr modelo" swaps it to "output" so the result is what's immediately visible.
+  // a finished "Correr modelo" run swaps it to "output" so the result is what's immediately visible.
   // Purely a display toggle from then on: clicking either collapsed square swaps it back, without
   // triggering a run or touching any input value — only "Correr modelo" itself does that (see run()
   // below).
@@ -137,15 +151,18 @@ export function ModelCard({ dataset, modelName, entries, inputOperationIds, outp
     if (!modelId) return;
     const runId = ++runIdRef.current;
     setIsRunning(true);
-    setExpandedSide('output');
 
-    runModel(dataset.datasetId, modelId, inputValues)
+    withMinimumDelay(runModel(dataset.datasetId, modelId, inputValues), RUN_MIN_DURATION_MS)
       .then((response) => {
         if (runId !== runIdRef.current) return;
         setResults(response);
         setRunError(null);
         setIsRunning(false);
         setHasRun(true);
+        // Only swaps to the output side once the run has finished — until then the input side
+        // stays up, with the button showing "A calcular…", rather than showing an output panel
+        // that's still loading.
+        setExpandedSide('output');
       })
       .catch((error) => {
         if (runId !== runIdRef.current) return;
@@ -153,6 +170,7 @@ export function ModelCard({ dataset, modelName, entries, inputOperationIds, outp
         setRunError(inlineErrorMessage(error, 'Falha ao correr o modelo.') || null);
         setIsRunning(false);
         setHasRun(true);
+        setExpandedSide('output');
       });
   }
 
@@ -322,6 +340,9 @@ export function ModelCard({ dataset, modelName, entries, inputOperationIds, outp
                 type="button"
                 className="model-card__io-panel-collapsed"
                 onClick={() => setExpandedSide('output')}
+                // Nothing to look at until a run has finished.
+                disabled={!hasRun}
+                title={hasRun ? undefined : 'Corra o modelo para ver o resultado.'}
               >
                 Outputs ({outputEntries.length})
               </button>
