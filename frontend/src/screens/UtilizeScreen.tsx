@@ -1,19 +1,26 @@
 import { AppFooter } from '../components/AppFooter/AppFooter';
 import { ModelCard } from '../components/ModelCard/ModelCard';
 import { ThemeToggle } from '../components/ThemeToggle/ThemeToggle';
-import type { DatasetImportResponse } from '../types/dataset';
-import type { SerializableEntry } from '../utils/modelSerialization';
+import type { DatasetHandle } from '../types/dataset';
+import type { ModelInputFieldPayload } from '../types/modelCalculation';
 import type { Theme } from '../hooks/useTheme';
 
 export interface UtilizeModel {
   modelName: string;
-  entries: SerializableEntry[];
-  inputOperationIds: string[];
-  outputOperationIds: string[];
+  /** The backend-registered model's id (empty when the model has no output, so there's nothing to
+   * register) plus its inputs — never its operations or outputs. */
+  modelId: string;
+  /** Set instead of modelId's registration when the model came with an imported .nrm: the .nrm's id,
+   * by which its inputs and runs are addressed. */
+  nrmId?: string;
+  /** The real dataset id a non-.nrm model was registered against (the screen's `dataset` id can be a
+   * .nrm's, see DatasetHandle) — what runs address it by. */
+  datasetId?: string;
+  inputs: ModelInputFieldPayload[];
 }
 
 interface UtilizeScreenProps {
-  dataset: DatasetImportResponse;
+  dataset: DatasetHandle;
   utilizeModel: UtilizeModel;
   theme: Theme;
   onToggleTheme: () => void;
@@ -38,11 +45,11 @@ export function UtilizeScreen({ dataset, utilizeModel, theme, onToggleTheme, onB
 
       <div className="app__utilize-body">
         <ModelCard
-          dataset={dataset}
+          dataset={utilizeModel.datasetId ? { ...dataset, datasetId: utilizeModel.datasetId } : dataset}
           modelName={utilizeModel.modelName}
-          entries={utilizeModel.entries}
-          inputOperationIds={utilizeModel.inputOperationIds}
-          outputOperationIds={utilizeModel.outputOperationIds}
+          modelId={utilizeModel.modelId}
+          nrmId={utilizeModel.nrmId}
+          inputs={utilizeModel.inputs}
           onBack={onBack}
         />
       </div>

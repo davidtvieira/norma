@@ -1,7 +1,7 @@
 import type { ChangeEvent, RefObject } from 'react';
 import { AppFooter } from '../components/AppFooter/AppFooter';
 import { ThemeToggle } from '../components/ThemeToggle/ThemeToggle';
-import type { DatasetImportResponse } from '../types/dataset';
+import type { DatasetHandle } from '../types/dataset';
 import type { Theme } from '../hooks/useTheme';
 import type { SerializableEntry } from '../utils/modelSerialization';
 
@@ -9,13 +9,20 @@ export interface ImportedModel {
   modelName: string;
   /** The .nrm's own name — empty when the model came from a bare .json or an unnamed .nrm. */
   nrmName: string;
-  entries: SerializableEntry[];
-  inputOperationIds: string[];
-  outputOperationIds: string[];
+  /** The operations and the designated inputs/outputs — present for a model parsed in the browser
+   * (a bare model .json, or one restored from the cache). Absent for a model that arrived with an
+   * imported .nrm: that one stays on the backend under `nrmId` and is only fetched if opened for
+   * editing. */
+  entries?: SerializableEntry[];
+  inputOperationIds?: string[];
+  outputOperationIds?: string[];
+  /** Set only for a model that arrived with an imported .nrm (already registered on the backend
+   * under this .nrm id). */
+  nrmId?: string;
 }
 
 interface ChooseModelScreenProps {
-  dataset: DatasetImportResponse;
+  dataset: DatasetHandle;
   importedModel: ImportedModel | null;
   importError: string | null;
   theme: Theme;

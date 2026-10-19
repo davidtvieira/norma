@@ -1,7 +1,7 @@
 import { strToU8, unzip, zipSync } from 'fflate';
 import { importNrm, validateNrm } from '../services/datasetApi';
-import type { DatasetImportResponse } from '../types/dataset';
-import { parseModelImport, type ExportedModel, type SerializableEntry } from './modelSerialization';
+import type { NrmImportStatusPayload } from '../types/nrm';
+import type { ExportedModel } from './modelSerialization';
 
 export class NrmImportError extends Error {}
 
@@ -156,39 +156,30 @@ export async function readModelFile(file: File): Promise<string> {
 }
 
 export interface NrmImportResult {
-  dataset: DatasetImportResponse;
+  dataset: NrmImportStatusPayload;
   datasetFile: File;
+  /** The model JSON text exactly as the .nrm held it, unparsed — only kept for the session cache.
+   * The model itself stays on the backend (see ImportedModel.nrmId) until it is opened for editing. */
+  modelText: string;
   model: {
+    /** The .nrm's name — the model itself isn't read here, so it stands in for the model's name too. */
     modelName: string;
     nrmName: string;
-    entries: SerializableEntry[];
-    inputOperationIds: string[];
-    outputOperationIds: string[];
+    nrmId: string;
   };
 }
 
 /**
- * The full .nrm -> ready-to-use-state pipeline: have the backend validate the file's content and
- * import its dataset half, unzip it locally for the dataset's bytes, parse the model half — in one call so both ReadyModelUploader (a freshly picked file)
- * and a "recent" entry (the exact same bytes replayed from utils/recentModels.ts) share one
- * implementation instead of two copies of the same three steps.
+ * The .nrm -> ready-to-use-state pipeline: have the backend validate the file and store everything
+ * in it (dataset, model, the .nrm itself), and unzip it locally only for the dataset's bytes and
+ * the .nrm's name. The model is deliberately not parsed here: nothing in the browser needs it until
+ * it is opened for editing, when it is fetched from the backend by the .nrm's id.
  */
-export async function importNrmFile(file: File, knownKindIds: Set<string>): Promise<NrmImportResult> {
-  const { dataset, info: backendInfo } = await importNrm(file);
-  const { datasetFile, modelText } = await extractNrmFile(file);
-  const imported = parseModelImport(modelText, knownKindIds);
-  return {
-    dataset,
-    datasetFile,
-    model: {
-      modelName: imported.modelName,
-      // info.json is the source of truth; a .nrm without one falls back to the name carried in its
-      // model JSON, then to its own filename, so it always has something to identify it by in
-      // "Sessões recentes".
-      nrmName: backendInfo.name || imported.nrmName || file.name.replace(/\.nrm$/i, ''),
-      entries: imported.entries,
-      inputOperationIds: imported.inputOperationIds,
-      outputOperationIds: imported.outputOperationIds,
-    },
-  };
+export async function importNrmFile(file: File): Promise<NrmImportResult> {
+  const dataset = await importNrm(file);
+  const { datasetFile, modelText, info } = await extractNrmFile(file);
+  // info.json is the source of truth; a .nrm without one falls back to its own filename, so it
+  // always has something to identify it by in "Sessões recentes".
+  const nrmName = info?.name || file.name.replace(/\.nrm$/i, '');
+  return { dataset, datasetFile, modelText, model: { modelName: nrmName, nrmName, nrmId: dataset.nrmId } };
 }

@@ -2,8 +2,7 @@ import { inlineErrorMessage } from '../../services/apiErrors';
 import { useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent } from 'react';
 import { importNrmFile } from '../../utils/nrmSerialization';
-import { OPERATION_KIND_IDS } from '../OperationPanel/kinds/registry';
-import type { DatasetImportResponse } from '../../types/dataset';
+import type { NrmImportStatusPayload } from '../../types/nrm';
 import type { ImportedModel } from '../../screens/ChooseModelScreen';
 import './ReadyModelUploader.css';
 
@@ -11,7 +10,7 @@ interface ReadyModelUploaderProps {
   /** Also hands back the dataset file extracted from the .nrm (not just the parsed dataset), same
    * reason as DatasetUploader's own onImportSuccess — so it's available again if "Guardar modelo"
    * re-exports this model later. */
-  onImportSuccess: (dataset: DatasetImportResponse, datasetFile: File, model: ImportedModel) => void;
+  onImportSuccess: (dataset: NrmImportStatusPayload, datasetFile: File, model: ImportedModel, modelText: string) => void;
 }
 
 /**
@@ -35,8 +34,8 @@ export function ReadyModelUploader({ onImportSuccess }: ReadyModelUploaderProps)
     setHasError(false);
 
     try {
-      const { dataset, datasetFile, model } = await importNrmFile(file, OPERATION_KIND_IDS);
-      onImportSuccess(dataset, datasetFile, model);
+      const { dataset, datasetFile, model, modelText } = await importNrmFile(file);
+      onImportSuccess(dataset, datasetFile, model, modelText);
     } catch (error) {
       setErrorMessage(inlineErrorMessage(error, 'Falha ao importar o modelo pronto.') || null);
       setHasError(true);

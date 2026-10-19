@@ -2,14 +2,14 @@ import { inlineErrorMessage } from '../../services/apiErrors';
 import { useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent } from 'react';
 import { importDataset } from '../../services/datasetApi';
-import type { DatasetImportResponse } from '../../types/dataset';
+import type { DatasetImportStatus } from '../../types/dataset';
 import './DatasetUploader.css';
 
 interface DatasetUploaderProps {
   /** Also hands back the raw file (not just the parsed dataset) so it can be re-zipped into a
    * .nrm later without needing the backend to serve the original bytes back (see App.tsx's
    * datasetFile and the "Guardar modelo" export). */
-  onImportSuccess: (dataset: DatasetImportResponse, file: File) => void;
+  onImportSuccess: (dataset: DatasetImportStatus, file: File) => void;
 }
 
 /**

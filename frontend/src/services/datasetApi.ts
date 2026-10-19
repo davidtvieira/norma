@@ -1,14 +1,15 @@
 import { ApiError, reportApiError } from './apiErrors';
 import type { CounterRequestPayload, CounterResponsePayload } from '../types/counter';
-import type { DatasetImportResponse } from '../types/dataset';
+import type { DatasetImportResponse, DatasetImportStatus } from '../types/dataset';
 import type { FindRequestPayload, FindResponsePayload } from '../types/find';
 import type { LookupRequestPayload, LookupResponsePayload } from '../types/lookup';
 import type {
+  ModelInputsPayload,
   ModelOperationInputPayload,
   ModelOperationResultPayload,
   ModelRegisterResponsePayload,
 } from '../types/modelCalculation';
-import type { NrmImportResponsePayload, NrmInfoPayload } from '../types/nrm';
+import type { NrmImportStatusPayload, NrmInfoPayload } from '../types/nrm';
 import type { NodeRequestPayload, NodeResponsePayload } from '../types/node';
 import type { OperationType } from '../types/operation';
 import type { SumRequestPayload, SumResponsePayload } from '../types/sum';
@@ -23,9 +24,9 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
 const INVALID_NRM_MESSAGE = 'Ficheiro .nrm inválido.';
 const UNREACHABLE_MESSAGE = 'Não foi possível contactar o servidor.';
-
 const COMMUNICATION_ERROR_MESSAGE = 'Erro de comunicação com a API.';
 const GATEWAY_STATUSES = new Set([502, 503, 504]);
+
 /** fetch, except a request that never got an HTTP response at all (backend down, network error)
  * is reported to the toasts too, with a readable message instead of the browser's own. */
 async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
@@ -41,7 +42,6 @@ async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<R
  * the server's own message, when it sent one, is the detail. The returned Error's message is the
  * server's message if any, else the title with the HTTP status — what callers have always got. */
 async function apiError(response: Response, title: string): Promise<ApiError> {
-  const errorBody = await response.json().catch(() => null);
   // A gateway answering for a backend it couldn't reach (Bad Gateway, Service Unavailable, Gateway
   // Timeout): same situation as apiFetch's no-response case, and whatever text the proxy sent
   // ("Bad Gateway", an HTML page...) says nothing useful to the user.
@@ -49,15 +49,17 @@ async function apiError(response: Response, title: string): Promise<ApiError> {
     reportApiError({ title: COMMUNICATION_ERROR_MESSAGE });
     return new ApiError(COMMUNICATION_ERROR_MESSAGE);
   }
+  const errorBody = await response.json().catch(() => null);
   const serverMessage: string | undefined = errorBody?.message;
   reportApiError({ title, detail: serverMessage ?? `Estado ${response.status}` });
   return new ApiError(serverMessage ?? `${title} (estado ${response.status})`);
 }
 
 /**
- * Uploads a dataset file to the backend and returns the parsed sheet JSON.
+ * Uploads a dataset file to the backend, which parses and stores it, returning only the import's
+ * status and the dataset's id (the sheets are read on demand, see getDataset).
  */
-export async function importDataset(file: File): Promise<DatasetImportResponse> {
+export async function importDataset(file: File): Promise<DatasetImportStatus> {
   const formData = new FormData();
   formData.append('file', file);
 
@@ -74,9 +76,22 @@ export async function importDataset(file: File): Promise<DatasetImportResponse> 
 }
 
 /**
- * Fetches an already-imported dataset by its id — what a reloaded page uses to get its dataset
- * back from the URL. Deliberately not reported to the toasts: an id the backend no longer knows
- * (it restarted) is an expected outcome there, handled by re-importing the cached file instead.
+ * Checks that an already-imported dataset is still stored, by its id, without fetching its sheets
+ * — what a reloaded page uses to find out whether its URL's dataset survived. Deliberately not
+ * reported to the toasts: an id the backend no longer knows (it restarted) is an expected outcome
+ * there, handled by re-importing the cached file instead.
+ */
+export async function checkDataset(datasetId: string): Promise<DatasetImportStatus> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/dataset/${encodeURIComponent(datasetId)}/status`);
+  if (!response.ok) {
+    throw new Error(`Conjunto de dados não encontrado (estado ${response.status})`);
+  }
+  return response.json();
+}
+
+/**
+ * Fetches an imported dataset's contents (filename and every sheet) by its id — only needed by
+ * the screen that actually displays them (the editor).
  */
 export async function getDataset(datasetId: string): Promise<DatasetImportResponse> {
   const response = await fetch(`${API_BASE_URL}/api/v1/dataset/${encodeURIComponent(datasetId)}`);
@@ -108,7 +123,7 @@ async function postNrm<T>(path: string, file: File): Promise<T> {
  * Uploads a .nrm to the backend, which validates its actual content (the frontend only ever
  * checks the extension) and, if valid, parses and stores its dataset like importDataset does.
  */
-export function importNrm(file: File): Promise<NrmImportResponsePayload> {
+export function importNrm(file: File): Promise<NrmImportStatusPayload> {
   return postNrm('/api/v1/nrm/import', file);
 }
 
@@ -255,8 +270,8 @@ export async function translateValue(payload: TranslatorRequestPayload): Promise
  * Registers a model against a previously imported dataset, once, so it can be run repeatedly
  * afterwards (see runModel) without resending its operations on every run — only the model's id,
  * kept server-side, and (on each run) the values a caller supplies for its designated input
- * operations, if it has any (a model can have several, each filled in separately). Used only when
- * utilizing an already-built model (ModelCard) — the editing page (OperationPanel) keeps calling
+ * operations, if it has any (a model can have several, each filled in separately). Called when the
+ * user picks Utilizar on an already-built model (see App.tsx's prepareUtilize) — the editing page (OperationPanel) keeps calling
  * the individual /api/v1/dataset/operation/{lookup,sum,counter,node} endpoints per operation as
  * it's being built, where a live per-field result is what's wanted.
  */
@@ -277,6 +292,87 @@ export async function registerModel(
     throw await apiError(response, 'Falha ao preparar o modelo');
   }
 
+  return response.json();
+}
+
+/**
+ * Fetches what someone utilizing a registered model needs before running it — just its inputs to
+ * fill in, without any of the operations behind them. Outputs only come back with a run.
+ */
+export async function getModelInputs(modelId: string, { silent = false } = {}): Promise<ModelInputsPayload> {
+  const url = `${API_BASE_URL}/api/v1/model/${encodeURIComponent(modelId)}/inputs`;
+  if (silent) {
+    // For asking whether a model is still registered, where "no" is an expected outcome (the
+    // backend restarted) the caller handles by registering it again — so no toast for it.
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Modelo não encontrado (estado ${response.status})`);
+    }
+    return response.json();
+  }
+
+  const response = await apiFetch(url);
+
+  if (!response.ok) {
+    throw await apiError(response, 'Falha ao obter as entradas do modelo');
+  }
+
+  return response.json();
+}
+
+/**
+ * Same as getModelInputs, for a model that came with an imported .nrm — addressed by the .nrm's id.
+ */
+export async function getNrmInputs(nrmId: string, { silent = false } = {}): Promise<ModelInputsPayload> {
+  const url = `${API_BASE_URL}/api/v1/nrm/${encodeURIComponent(nrmId)}/inputs`;
+  if (silent) {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`NRM não encontrado (estado ${response.status})`);
+    }
+    return response.json();
+  }
+
+  const response = await apiFetch(url);
+  if (!response.ok) {
+    throw await apiError(response, 'Falha ao obter as entradas do modelo');
+  }
+  return response.json();
+}
+
+/** Runs an imported .nrm's model by the .nrm's id — the dataset and model are already known to it. */
+export async function runNrm(nrmId: string, inputValues: Record<string, string>): Promise<ModelOperationResultPayload[]> {
+  const response = await apiFetch(`${API_BASE_URL}/api/v1/nrm/${encodeURIComponent(nrmId)}/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ inputValues }),
+  });
+
+  if (!response.ok) {
+    throw await apiError(response, 'Falha ao correr o modelo');
+  }
+
+  return response.json();
+}
+
+/**
+ * An imported .nrm's model JSON (the same text the file held, ready for parseModelImport), by the
+ * .nrm's id — only fetched when the model is opened for editing; using it never needs it.
+ */
+export async function getNrmModel(nrmId: string): Promise<string> {
+  const response = await apiFetch(`${API_BASE_URL}/api/v1/nrm/${encodeURIComponent(nrmId)}/model`);
+  if (!response.ok) {
+    throw await apiError(response, 'Falha ao obter o modelo');
+  }
+  return response.text();
+}
+
+/** An imported .nrm's dataset (filename and every sheet), by the .nrm's id. */
+export async function getNrmDataset(nrmId: string): Promise<DatasetImportResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/nrm/${encodeURIComponent(nrmId)}/dataset`);
+  if (!response.ok) {
+    throw new Error(`Conjunto de dados não encontrado (estado ${response.status})`);
+  }
   return response.json();
 }
 

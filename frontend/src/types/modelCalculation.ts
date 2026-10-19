@@ -12,6 +12,8 @@ export interface ModelOperationInputPayload {
   id: string;
   kind: string;
   fields: Record<string, unknown>;
+  /** Display name, only so the backend can label this operation if it's a designated input/output. */
+  name?: string;
 }
 
 export interface ModelOperationResultPayload {
@@ -19,6 +21,8 @@ export interface ModelOperationResultPayload {
   success: boolean;
   value: unknown;
   error: string | null;
+  /** The operation's display name — only set on a run's designated outputs. */
+  name?: string | null;
 }
 
 export interface ModelRegisterRequestPayload {
@@ -30,4 +34,18 @@ export interface ModelRegisterRequestPayload {
 
 export interface ModelRegisterResponsePayload {
   modelId: string;
+  inputs: ModelInputFieldPayload[];
+}
+
+/** One designated input of a registered model (GET .../model/{modelId}/inputs) — just enough to
+ * render it; `value` is its starting literal. Never carries the operation's configuration. */
+export interface ModelInputFieldPayload {
+  id: string;
+  name: string;
+  kind: string;
+  value: string;
+}
+
+export interface ModelInputsPayload {
+  inputs: ModelInputFieldPayload[];
 }

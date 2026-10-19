@@ -3,7 +3,8 @@ import { DatasetUploader } from '../components/DatasetUploader/DatasetUploader';
 import { ReadyModelUploader } from '../components/ReadyModelUploader/ReadyModelUploader';
 import { RecentSessionCard } from '../components/RecentSessionCard/RecentSessionCard';
 import { ThemeToggle } from '../components/ThemeToggle/ThemeToggle';
-import type { DatasetImportResponse } from '../types/dataset';
+import type { DatasetImportStatus } from '../types/dataset';
+import type { NrmImportStatusPayload } from '../types/nrm';
 import type { Theme } from '../hooks/useTheme';
 import type { ImportedModel } from './ChooseModelScreen';
 
@@ -22,8 +23,8 @@ export interface RecentSessionEntryProps {
 interface LandingScreenProps {
   theme: Theme;
   onToggleTheme: () => void;
-  onImportSuccess: (dataset: DatasetImportResponse, file: File) => void;
-  onReadyModelImportSuccess: (dataset: DatasetImportResponse, datasetFile: File, model: ImportedModel) => void;
+  onImportSuccess: (dataset: DatasetImportStatus, file: File) => void;
+  onReadyModelImportSuccess: (dataset: NrmImportStatusPayload, datasetFile: File, model: ImportedModel, modelText: string) => void;
   onGoHome: () => void;
   /** "Limpar tudo" — discards every entry in recentSessions at once. */
   onClearRecentSessions: () => void;
