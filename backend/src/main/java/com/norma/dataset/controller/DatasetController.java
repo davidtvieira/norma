@@ -1,6 +1,7 @@
 package com.norma.dataset.controller;
 
 import com.norma.dataset.dto.DatasetImportResponse;
+import com.norma.dataset.dto.DatasetImportStatus;
 import com.norma.dataset.service.DatasetParserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -36,20 +37,34 @@ public class DatasetController {
                     content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE)
             )
     )
-    @ApiResponse(responseCode = "200", description = "Dataset parsed successfully",
-            content = @Content(schema = @Schema(implementation = DatasetImportResponse.class)))
+    @ApiResponse(responseCode = "200", description = "Dataset parsed and stored",
+            content = @Content(schema = @Schema(implementation = DatasetImportStatus.class)))
     @ApiResponse(responseCode = "422", description = "File could not be parsed")
     @PostMapping(value = "/api/v1/dataset/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<DatasetImportResponse> importDataset(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<DatasetImportStatus> importDataset(@RequestParam("file") MultipartFile file) {
         if (file.isEmpty()) {
             throw new IllegalArgumentException("The uploaded file cannot be empty.");
         }
-        return ResponseEntity.ok(datasetParserService.parse(file));
+        return ResponseEntity.ok(DatasetImportStatus.success(datasetParserService.parse(file).datasetId()));
+    }
+
+    @Operation(
+            summary = "Check an imported dataset",
+            description = "Returns the same status and id as the import endpoint if a dataset with the given id "
+                    + "is still stored, without sending its sheets."
+    )
+    @ApiResponse(responseCode = "200", description = "Dataset found",
+            content = @Content(schema = @Schema(implementation = DatasetImportStatus.class)))
+    @ApiResponse(responseCode = "400", description = "No dataset exists with the given id")
+    @GetMapping("/api/v1/dataset/{datasetId}/status")
+    public ResponseEntity<DatasetImportStatus> getDatasetStatus(@PathVariable String datasetId) {
+        return ResponseEntity.ok(DatasetImportStatus.success(datasetParserService.get(datasetId).datasetId()));
     }
 
     @Operation(
             summary = "Get an imported dataset",
-            description = "Returns a previously imported dataset (as returned by the import endpoint) by its id."
+            description = "Returns a previously imported dataset (filename and every sheet's rows) by the id the import "
+                    + "endpoint returned."
     )
     @ApiResponse(responseCode = "200", description = "Dataset found",
             content = @Content(schema = @Schema(implementation = DatasetImportResponse.class)))
