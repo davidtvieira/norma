@@ -105,7 +105,7 @@ export function DatasetUploader({ onImportSuccess }: DatasetUploaderProps) {
         <p className="dataset-uploader__title">
           {isUploading ? 'A carregar…' : 'Carregue o seu conjunto de dados'}
         </p>
-        <p className="dataset-uploader__hint">Arraste e largue um ficheiro .xlsx ou .xls, ou clique para procurar</p>
+        <p className="dataset-uploader__hint">Arraste e largue um ficheiro .xlsx ou .xls para criar um modelo inteligente, ou clique para procurar</p>
 
         <input
           id="dataset-file-input"

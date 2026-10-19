@@ -86,6 +86,9 @@
 }
 
 .app__landing-body {
+  /* The side margin shared by the intro text (left) and the upload column (right), so the two
+     always sit the same distance from their own edge of the screen. */
+  --landing-gutter: 2.5rem;
   flex: 1;
   display: flex;
   flex-direction: row;
@@ -101,20 +104,21 @@
   flex: 1 1 50%;
   display: flex;
   align-items: center;
-  padding: 1.5rem 2.5rem;
+  padding: 1.5rem var(--landing-gutter);
 }
 
 .app__landing-right {
   flex: 1 1 50%;
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 1.5rem;
+  justify-content: flex-end;
+  padding: 1.5rem 0 1.5rem 1.5rem;
 }
 
 .app__landing-content {
   width: 100%;
   max-width: 460px;
+  margin-right: var(--landing-gutter);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -249,9 +253,14 @@
     text-align: center;
     max-width: none;
   }
+    justify-content: center;
 }
 
 .app__create-model-body {
+  .app__landing-content {
+    margin-right: 0;
+  }
+
   flex: 1;
   display: flex;
   align-items: center;
