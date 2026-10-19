@@ -4,6 +4,10 @@ interface SaveModalProps {
   open: boolean;
   onClose: () => void;
   onExport: () => void;
+  nrmName: string;
+  onNrmNameChange: (name: string) => void;
+  /** Shown as the name field's placeholder — what the file is called if left blank. */
+  nrmNamePlaceholder: string;
   canExport: boolean;
   /** What's still missing before canExport is true — null once it is. An input is only ever
    * something to fix here if the model actually has an operation eligible to be one (see
@@ -20,10 +24,12 @@ interface SaveModalProps {
 
 /**
  * Reachable from the "Guardar modelo" button. Saving the model to the backend isn't wired up
- * yet, but exporting it as a JSON file (see utils/modelSerialization.ts) already is — the same
- * file can later be re-imported via "Importar Modelo para este conjunto de dados".
+ * yet, but exporting it as a .nrm file (see utils/nrmSerialization.ts) already is — a zip
+ * bundling the model JSON together with the dataset's own spreadsheet, so the one saved file is
+ * also enough to reopen it later via "Importar Modelo" without the dataset having to be
+ * re-imported separately first.
  */
-export function SaveModal({ open, onClose, onExport, canExport, exportHint, inputLabels, outputLabels }: SaveModalProps) {
+export function SaveModal({ open, onClose, onExport, nrmName, onNrmNameChange, nrmNamePlaceholder, canExport, exportHint, inputLabels, outputLabels }: SaveModalProps) {
   if (!open) return null;
 
   return (
@@ -33,9 +39,20 @@ export function SaveModal({ open, onClose, onExport, canExport, exportHint, inpu
           Guardar modelo
         </h2>
         <p className="save-modal__body">
-          Ainda não é possível guardar o modelo diretamente na plataforma. Pode, no entanto, exportá-lo como ficheiro JSON e
-          voltar a importá-lo mais tarde.
+          Ainda não é possível guardar o modelo diretamente na plataforma. Pode, no entanto, exportá-lo como ficheiro .nrm
+          (inclui o conjunto de dados) e voltar a importá-lo mais tarde.
         </p>
+
+        <label className="save-modal__name">
+          <span className="save-modal__io-label">Nome do ficheiro (.nrm)</span>
+          <input
+            type="text"
+            className="save-modal__name-input"
+            value={nrmName}
+            placeholder={nrmNamePlaceholder}
+            onChange={(event) => onNrmNameChange(event.target.value)}
+          />
+        </label>
 
         <div className="save-modal__io">
           <IoGroup label="Input" values={inputLabels} />
@@ -56,7 +73,7 @@ export function SaveModal({ open, onClose, onExport, canExport, exportHint, inpu
             }}
             disabled={!canExport}
           >
-            Exportar modelo (JSON)
+            Exportar modelo (.nrm)
           </button>
         </div>
       </div>

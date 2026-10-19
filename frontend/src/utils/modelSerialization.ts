@@ -46,6 +46,10 @@ export interface ExportedOperationNode {
 export interface ExportedModel {
   version: 1;
   modelName: string;
+  /** The .nrm file's own name (distinct from modelName and the dataset's filename) — what the
+   * landing screen's "Sessões recentes" identifies a session by. Absent on a model exported
+   * before .nrm files had names (readNrmName falls back to the file's own name for those). */
+  nrmName?: string;
   datasetId: string;
   /**
    * The operations whose literal values are what a caller of the model fills in (possibly
@@ -112,12 +116,14 @@ export function buildModelExport(
   datasetId: string,
   inputOperationIds: string[],
   outputOperationIds: string[],
+  nrmName = '',
 ): ExportedModel {
   const confirmedEntries = entries.filter((entry) => entry.confirmed);
   const roots = confirmedEntries.filter((entry) => !isLinkedChild(entry, confirmedEntries));
   return {
     version: MODEL_EXPORT_VERSION,
     modelName,
+    ...(nrmName.trim() ? { nrmName: nrmName.trim() } : {}),
     datasetId,
     inputOperationIds,
     outputOperationIds,
@@ -199,7 +205,10 @@ function readOperationIds(model: Record<string, unknown>, arrayField: string, le
  * OperationPanel keeps internally. No relationship is lost by flattening — the parent/child
  * nesting in the JSON only ever mirrors the reference each entry's own fields already carry.
  */
-export function parseModelImport(raw: string, knownKindIds: Set<string>): ExportedModel & { entries: SerializableEntry[] } {
+export function parseModelImport(
+  raw: string,
+  knownKindIds: Set<string>,
+): ExportedModel & { nrmName: string; entries: SerializableEntry[] } {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -223,6 +232,7 @@ export function parseModelImport(raw: string, knownKindIds: Set<string>): Export
   const rawModel = model as unknown as Record<string, unknown>;
   return {
     ...model,
+    nrmName: typeof model.nrmName === 'string' ? model.nrmName.trim() : '',
     inputOperationIds: readOperationIds(rawModel, 'inputOperationIds', 'inputOperationId'),
     outputOperationIds: readOperationIds(rawModel, 'outputOperationIds', 'outputOperationId'),
     entries,

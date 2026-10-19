@@ -1,3 +1,4 @@
+import { AppFooter } from '../components/AppFooter/AppFooter';
 import { OperationPanel } from '../components/OperationPanel/OperationPanel';
 import { SaveModal } from '../components/SaveModal/SaveModal';
 import { SheetViewer } from '../components/SheetViewer/SheetViewer';
@@ -51,6 +52,8 @@ interface EditorScreenProps {
   onOpenSaveModal: () => void;
   onCloseSaveModal: () => void;
   onExportModel: () => void;
+  nrmName: string;
+  onNrmNameChange: (name: string) => void;
   canExportModel: boolean;
   exportHint: string | null;
   inputLabels: string[] | null;
@@ -62,6 +65,7 @@ interface EditorScreenProps {
    * so this doesn't need write access to the canvas' own state to do it). */
   onSaveTestCase: () => void;
   canSaveTestCase: boolean;
+  onGoHome: () => void;
 }
 
 /** The main editor: model name, the operation canvas, "Guardar modelo", and the off-canvas sheet
@@ -103,12 +107,15 @@ export function EditorScreen({
   onOpenSaveModal,
   onCloseSaveModal,
   onExportModel,
+  nrmName,
+  onNrmNameChange,
   canExportModel,
   exportHint,
   inputLabels,
   outputLabels,
   onSaveTestCase,
   canSaveTestCase,
+  onGoHome,
 }: EditorScreenProps) {
   return (
     <div className="app">
@@ -170,9 +177,7 @@ export function EditorScreen({
         </div>
       </main>
 
-      <footer className="app__footer">
-        <h1 className="app__brand">Norma</h1>
-      </footer>
+      <AppFooter onGoHome={onGoHome} />
 
       <div
         className={isSheetPanelOpen ? 'sheet-panel__backdrop sheet-panel__backdrop--visible' : 'sheet-panel__backdrop'}
@@ -207,6 +212,9 @@ export function EditorScreen({
         open={isSaveModalOpen}
         onClose={onCloseSaveModal}
         onExport={onExportModel}
+        nrmName={nrmName}
+        onNrmNameChange={onNrmNameChange}
+        nrmNamePlaceholder={modelName.trim() || 'modelo'}
         canExport={canExportModel}
         exportHint={exportHint}
         inputLabels={inputLabels}

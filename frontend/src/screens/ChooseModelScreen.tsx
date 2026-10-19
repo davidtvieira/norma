@@ -1,4 +1,5 @@
 import type { ChangeEvent, RefObject } from 'react';
+import { AppFooter } from '../components/AppFooter/AppFooter';
 import { ThemeToggle } from '../components/ThemeToggle/ThemeToggle';
 import type { DatasetImportResponse } from '../types/dataset';
 import type { Theme } from '../hooks/useTheme';
@@ -6,6 +7,8 @@ import type { SerializableEntry } from '../utils/modelSerialization';
 
 export interface ImportedModel {
   modelName: string;
+  /** The .nrm's own name — empty when the model came from a bare .json or an unnamed .nrm. */
+  nrmName: string;
   entries: SerializableEntry[];
   inputOperationIds: string[];
   outputOperationIds: string[];
@@ -25,6 +28,7 @@ interface ChooseModelScreenProps {
   onUtilizeImportedModel: () => void;
   onCancelImportedModel: () => void;
   onBackToLanding: () => void;
+  onGoHome: () => void;
 }
 
 /**
@@ -45,6 +49,7 @@ export function ChooseModelScreen({
   onUtilizeImportedModel,
   onCancelImportedModel,
   onBackToLanding,
+  onGoHome,
 }: ChooseModelScreenProps) {
   return (
     <div className="app app--landing">
@@ -85,7 +90,7 @@ export function ChooseModelScreen({
                 <input
                   ref={importFileInputRef}
                   type="file"
-                  accept="application/json"
+                  accept="application/json,.nrm"
                   className="app__import-model-file-input"
                   onChange={onImportModelFile}
                 />
@@ -105,9 +110,7 @@ export function ChooseModelScreen({
         </div>
       </div>
 
-      <footer className="app__footer">
-        <h1 className="app__brand">Norma</h1>
-      </footer>
+      <AppFooter onGoHome={onGoHome} />
     </div>
   );
 }

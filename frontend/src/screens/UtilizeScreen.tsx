@@ -1,3 +1,4 @@
+import { AppFooter } from '../components/AppFooter/AppFooter';
 import { ModelCard } from '../components/ModelCard/ModelCard';
 import { ThemeToggle } from '../components/ThemeToggle/ThemeToggle';
 import type { DatasetImportResponse } from '../types/dataset';
@@ -17,10 +18,11 @@ interface UtilizeScreenProps {
   theme: Theme;
   onToggleTheme: () => void;
   onBack: () => void;
+  onGoHome: () => void;
 }
 
 /** A model being run (not edited): breadcrumb back to the dataset, and ModelCard itself. */
-export function UtilizeScreen({ dataset, utilizeModel, theme, onToggleTheme, onBack }: UtilizeScreenProps) {
+export function UtilizeScreen({ dataset, utilizeModel, theme, onToggleTheme, onBack, onGoHome }: UtilizeScreenProps) {
   return (
     <div className="app app--landing">
       <header className="app__topbar app__topbar--with-title">
@@ -47,9 +49,7 @@ export function UtilizeScreen({ dataset, utilizeModel, theme, onToggleTheme, onB
         />
       </div>
 
-      <footer className="app__footer">
-        <h1 className="app__brand">Norma</h1>
-      </footer>
+      <AppFooter onGoHome={onGoHome} />
     </div>
   );
 }
