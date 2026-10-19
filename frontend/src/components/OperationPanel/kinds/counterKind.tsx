@@ -1,3 +1,4 @@
+import { inlineErrorMessage } from '../../../services/apiErrors';
 import { useEffect, useState } from 'react';
 import { counterValues } from '../../../services/datasetApi';
 import { literalSource, type ValueSource } from '../../../types/valueSource';
@@ -274,7 +275,7 @@ function CounterResult({ resolvedInputs, hasUnsetInput, testSignal, resetSignal,
       })
       .catch((error) => {
         if (!cancelled) {
-          setState({ status: 'error', message: error instanceof Error ? error.message : 'Falha ao somar as entradas.' });
+          setState({ status: 'error', message: inlineErrorMessage(error, 'Falha ao somar as entradas.') });
           onResultChange(null);
         }
       });
@@ -299,6 +300,8 @@ function CounterResult({ resolvedInputs, hasUnsetInput, testSignal, resetSignal,
   }
 
   if (state.status === 'error') {
+    // Empty for an API failure — its toast already says so (see inlineErrorMessage).
+    if (!state.message) return null;
     return <p className="operation-entry__result operation-entry__result--empty">{state.message}</p>;
   }
 

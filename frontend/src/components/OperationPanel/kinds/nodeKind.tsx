@@ -1,3 +1,4 @@
+import { inlineErrorMessage } from '../../../services/apiErrors';
 import { useEffect, useState } from 'react';
 import { nodeValue } from '../../../services/datasetApi';
 import { literalSource, type ValueSource } from '../../../types/valueSource';
@@ -157,7 +158,7 @@ function NodeResult({ resolvedInput, testSignal, resetSignal, onResultChange }: 
       })
       .catch((error) => {
         if (!cancelled) {
-          setState({ status: 'error', message: error instanceof Error ? error.message : 'Falha ao processar o valor.' });
+          setState({ status: 'error', message: inlineErrorMessage(error, 'Falha ao processar o valor.') });
           onResultChange(null);
         }
       });
@@ -186,6 +187,8 @@ function NodeResult({ resolvedInput, testSignal, resetSignal, onResultChange }: 
   }
 
   if (state.status === 'error') {
+    // Empty for an API failure — its toast already says so (see inlineErrorMessage).
+    if (!state.message) return null;
     return <p className="operation-entry__result operation-entry__result--empty">{state.message}</p>;
   }
 

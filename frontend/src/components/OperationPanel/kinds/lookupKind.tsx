@@ -1,3 +1,4 @@
+import { inlineErrorMessage } from '../../../services/apiErrors';
 import { useEffect, useRef, useState } from 'react';
 import type { CellValue } from '../../../types/dataset';
 import { lookupValue } from '../../../services/datasetApi';
@@ -472,7 +473,7 @@ function LookupResult({
       .catch((error) => {
         if (!cancelled) {
           handledForSignalRef.current = testSignal;
-          setState({ status: 'error', message: error instanceof Error ? error.message : 'Falha ao procurar o valor.' });
+          setState({ status: 'error', message: inlineErrorMessage(error, 'Falha ao procurar o valor.') });
           onResultChange(null);
         }
       });
@@ -494,6 +495,8 @@ function LookupResult({
   }
 
   if (state.status === 'error') {
+    // Empty for an API failure — its toast already says so (see inlineErrorMessage).
+    if (!state.message) return null;
     return <p className="operation-entry__result operation-entry__result--empty">{state.message}</p>;
   }
 

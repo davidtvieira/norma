@@ -1,3 +1,4 @@
+import { inlineErrorMessage } from '../../../services/apiErrors';
 import { useEffect, useRef, useState } from 'react';
 import { findMatch } from '../../../services/datasetApi';
 import type { CellRange } from '../../../types/cellRange';
@@ -253,7 +254,7 @@ function FindResult({ datasetId, query, sheetIndex, range, testSignal, resetSign
       .catch((error) => {
         if (!cancelled) {
           handledForSignalRef.current = testSignal;
-          setState({ status: 'error', message: error instanceof Error ? error.message : 'Falha ao procurar a posição.' });
+          setState({ status: 'error', message: inlineErrorMessage(error, 'Falha ao procurar a posição.') });
           onResultChange(null);
         }
       });
@@ -275,6 +276,8 @@ function FindResult({ datasetId, query, sheetIndex, range, testSignal, resetSign
   }
 
   if (state.status === 'error') {
+    // Empty for an API failure — its toast already says so (see inlineErrorMessage).
+    if (!state.message) return null;
     return <p className="operation-entry__result operation-entry__result--empty">{state.message}</p>;
   }
 

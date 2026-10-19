@@ -1,3 +1,4 @@
+import { inlineErrorMessage } from '../../services/apiErrors';
 import { useEffect, useRef, useState } from 'react';
 import type { DatasetImportResponse } from '../../types/dataset';
 import type { OperationFields } from '../OperationPanel/operationKind';
@@ -81,7 +82,7 @@ export function ModelCard({ dataset, modelName, entries, inputOperationIds, outp
       })
       .catch((error) => {
         if (!cancelled) {
-          setRegisterError(error instanceof Error ? error.message : 'Falha ao preparar o modelo.');
+          setRegisterError(inlineErrorMessage(error, 'Falha ao preparar o modelo.') || null);
         }
       });
 
@@ -149,7 +150,7 @@ export function ModelCard({ dataset, modelName, entries, inputOperationIds, outp
       .catch((error) => {
         if (runId !== runIdRef.current) return;
         setResults(null);
-        setRunError(error instanceof Error ? error.message : 'Falha ao correr o modelo.');
+        setRunError(inlineErrorMessage(error, 'Falha ao correr o modelo.') || null);
         setIsRunning(false);
         setHasRun(true);
       });

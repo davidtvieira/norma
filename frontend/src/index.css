@@ -20,6 +20,7 @@
   --color-secondary-contrast: #ffffff;
 
   --color-error: #b3413a;
+  --color-error-contrast: #ffffff;
 
   /* Action: "this is running/active/output" — the operation canvas' own test play/stop icon,
      an operation's own output box, and a lit-up edge (see OperationPanel.css) all share this one
@@ -68,6 +69,7 @@
     --color-secondary-contrast: #241505;
 
     --color-error: #e0857e;
+    --color-error-contrast: #2a0f0d;
 
     /* --color-action itself stays the same literal orange as light mode (see its own note above)
        — only its contrast text/icon color swaps here, back to the dark tone that already reads
@@ -98,6 +100,7 @@
   --color-secondary-contrast: #241505;
 
   --color-error: #e0857e;
+  --color-error-contrast: #2a0f0d;
 
   /* --color-action itself stays the same literal orange as light mode (see its own note above) —
      only its contrast text/icon color swaps here, back to the dark tone that already reads well

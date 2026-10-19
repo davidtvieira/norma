@@ -1,3 +1,4 @@
+import { ApiError, reportApiError } from './apiErrors';
 import type { CounterRequestPayload, CounterResponsePayload } from '../types/counter';
 import type { DatasetImportResponse } from '../types/dataset';
 import type { FindRequestPayload, FindResponsePayload } from '../types/find';
@@ -7,6 +8,7 @@ import type {
   ModelOperationResultPayload,
   ModelRegisterResponsePayload,
 } from '../types/modelCalculation';
+import type { NrmImportResponsePayload, NrmInfoPayload } from '../types/nrm';
 import type { NodeRequestPayload, NodeResponsePayload } from '../types/node';
 import type { OperationType } from '../types/operation';
 import type { SumRequestPayload, SumResponsePayload } from '../types/sum';
@@ -19,6 +21,30 @@ import type { TranslatorRequestPayload, TranslatorResponsePayload } from '../typ
  */
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
+const INVALID_NRM_MESSAGE = 'Ficheiro .nrm inválido.';
+const UNREACHABLE_MESSAGE = 'Não foi possível contactar o servidor.';
+
+/** fetch, except a request that never got an HTTP response at all (backend down, network error)
+ * is reported to the toasts too, with a readable message instead of the browser's own. */
+async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (error) {
+    reportApiError({ title: UNREACHABLE_MESSAGE });
+    throw new ApiError(UNREACHABLE_MESSAGE, { cause: error });
+  }
+}
+
+/** Builds (and reports to the toasts) the error for a non-OK response: `title` says what failed,
+ * the server's own message, when it sent one, is the detail. The returned Error's message is the
+ * server's message if any, else the title with the HTTP status — what callers have always got. */
+async function apiError(response: Response, title: string): Promise<ApiError> {
+  const errorBody = await response.json().catch(() => null);
+  const serverMessage: string | undefined = errorBody?.message;
+  reportApiError({ title, detail: serverMessage ?? `Estado ${response.status}` });
+  return new ApiError(serverMessage ?? `${title} (estado ${response.status})`);
+}
+
 /**
  * Uploads a dataset file to the backend and returns the parsed sheet JSON.
  */
@@ -26,17 +52,61 @@ export async function importDataset(file: File): Promise<DatasetImportResponse> 
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await fetch(`${API_BASE_URL}/api/v1/dataset/import`, {
+  const response = await apiFetch(`${API_BASE_URL}/api/v1/dataset/import`, {
     method: 'POST',
     body: formData,
   });
 
   if (!response.ok) {
-    const errorBody = await response.json().catch(() => null);
-    throw new Error(errorBody?.message ?? `Falha ao importar o conjunto de dados (estado ${response.status})`);
+    throw await apiError(response, 'Falha ao importar o conjunto de dados');
   }
 
   return response.json();
+}
+
+/**
+ * Fetches an already-imported dataset by its id — what a reloaded page uses to get its dataset
+ * back from the URL. Deliberately not reported to the toasts: an id the backend no longer knows
+ * (it restarted) is an expected outcome there, handled by re-importing the cached file instead.
+ */
+export async function getDataset(datasetId: string): Promise<DatasetImportResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/dataset/${encodeURIComponent(datasetId)}`);
+  if (!response.ok) {
+    throw new Error(`Conjunto de dados não encontrado (estado ${response.status})`);
+  }
+  return response.json();
+}
+
+async function postNrm<T>(path: string, file: File): Promise<T> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await apiFetch(`${API_BASE_URL}${path}`, { method: 'POST', body: formData });
+
+  if (!response.ok) {
+    // The backend's reason (see its NrmService) stays out of the UI on purpose — a rejected .nrm
+    // just reads as invalid, whatever exactly was wrong with it.
+    const errorBody = await response.json().catch(() => null);
+    console.warn('.nrm rejeitado pelo backend:', response.status, errorBody?.message ?? errorBody);
+    reportApiError({ title: INVALID_NRM_MESSAGE });
+    throw new ApiError(INVALID_NRM_MESSAGE);
+  }
+
+  return response.json();
+}
+
+/**
+ * Uploads a .nrm to the backend, which validates its actual content (the frontend only ever
+ * checks the extension) and, if valid, parses and stores its dataset like importDataset does.
+ */
+export function importNrm(file: File): Promise<NrmImportResponsePayload> {
+  return postNrm('/api/v1/nrm/import', file);
+}
+
+/** Same content validation as importNrm, but stores nothing — for when only the model half of the
+ * .nrm is wanted. */
+export function validateNrm(file: File): Promise<NrmInfoPayload> {
+  return postNrm('/api/v1/nrm/validate', file);
 }
 
 /**
@@ -44,11 +114,10 @@ export async function importDataset(file: File): Promise<DatasetImportResponse> 
  * doesn't hardcode operation names that only the backend should own.
  */
 export async function listOperationTypes(): Promise<OperationType[]> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/dataset/operations`);
+  const response = await apiFetch(`${API_BASE_URL}/api/v1/dataset/operations`);
 
   if (!response.ok) {
-    const errorBody = await response.json().catch(() => null);
-    throw new Error(errorBody?.message ?? `Falha ao obter os tipos de operação (estado ${response.status})`);
+    throw await apiError(response, 'Falha ao obter os tipos de operação');
   }
 
   return response.json();
@@ -60,15 +129,14 @@ export async function listOperationTypes(): Promise<OperationType[]> {
  * only sends the inputs and renders the returned value.
  */
 export async function lookupValue(payload: LookupRequestPayload): Promise<LookupResponsePayload> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/dataset/operation/lookup`, {
+  const response = await apiFetch(`${API_BASE_URL}/api/v1/dataset/operation/lookup`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
-    const errorBody = await response.json().catch(() => null);
-    throw new Error(errorBody?.message ?? `Falha ao procurar o valor (estado ${response.status})`);
+    throw await apiError(response, 'Falha ao procurar o valor');
   }
 
   return response.json();
@@ -81,15 +149,14 @@ export async function lookupValue(payload: LookupRequestPayload): Promise<Lookup
  * the frontend only renders the returned row/column index.
  */
 export async function findMatch(payload: FindRequestPayload): Promise<FindResponsePayload> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/dataset/operation/find`, {
+  const response = await apiFetch(`${API_BASE_URL}/api/v1/dataset/operation/find`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
-    const errorBody = await response.json().catch(() => null);
-    throw new Error(errorBody?.message ?? `Falha ao procurar a posição (estado ${response.status})`);
+    throw await apiError(response, 'Falha ao procurar a posição');
   }
 
   return response.json();
@@ -101,15 +168,14 @@ export async function findMatch(payload: FindRequestPayload): Promise<FindRespon
  * API — the frontend only sends the inputs and renders the returned total.
  */
 export async function sumColumn(payload: SumRequestPayload): Promise<SumResponsePayload> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/dataset/operation/sum`, {
+  const response = await apiFetch(`${API_BASE_URL}/api/v1/dataset/operation/sum`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
-    const errorBody = await response.json().catch(() => null);
-    throw new Error(errorBody?.message ?? `Falha ao somar a coluna (estado ${response.status})`);
+    throw await apiError(response, 'Falha ao somar a coluna');
   }
 
   return response.json();
@@ -122,15 +188,14 @@ export async function sumColumn(payload: SumRequestPayload): Promise<SumResponse
  * range is sent, only the values — the API just does the actual addition.
  */
 export async function counterValues(payload: CounterRequestPayload): Promise<CounterResponsePayload> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/dataset/operation/counter`, {
+  const response = await apiFetch(`${API_BASE_URL}/api/v1/dataset/operation/counter`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
-    const errorBody = await response.json().catch(() => null);
-    throw new Error(errorBody?.message ?? `Falha ao somar as entradas (estado ${response.status})`);
+    throw await apiError(response, 'Falha ao somar as entradas');
   }
 
   return response.json();
@@ -142,15 +207,14 @@ export async function counterValues(payload: CounterRequestPayload): Promise<Cou
  * the same way any other kind's is) goes through the API, same as every other kind's.
  */
 export async function nodeValue(payload: NodeRequestPayload): Promise<NodeResponsePayload> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/dataset/operation/node`, {
+  const response = await apiFetch(`${API_BASE_URL}/api/v1/dataset/operation/node`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
-    const errorBody = await response.json().catch(() => null);
-    throw new Error(errorBody?.message ?? `Falha ao processar o valor (estado ${response.status})`);
+    throw await apiError(response, 'Falha ao processar o valor');
   }
 
   return response.json();
@@ -165,15 +229,14 @@ export async function nodeValue(payload: NodeRequestPayload): Promise<NodeRespon
  * see TranslatorResponsePayload's own note.
  */
 export async function translateValue(payload: TranslatorRequestPayload): Promise<TranslatorResponsePayload> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/dataset/operation/translator`, {
+  const response = await apiFetch(`${API_BASE_URL}/api/v1/dataset/operation/translator`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
-    const errorBody = await response.json().catch(() => null);
-    throw new Error(errorBody?.message ?? `Falha ao traduzir o valor (estado ${response.status})`);
+    throw await apiError(response, 'Falha ao traduzir o valor');
   }
 
   return response.json();
@@ -195,15 +258,14 @@ export async function registerModel(
   inputOperationIds: string[],
   outputOperationIds: string[],
 ): Promise<ModelRegisterResponsePayload> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/dataset/${encodeURIComponent(datasetId)}/model`, {
+  const response = await apiFetch(`${API_BASE_URL}/api/v1/dataset/${encodeURIComponent(datasetId)}/model`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, operations, inputOperationIds, outputOperationIds }),
   });
 
   if (!response.ok) {
-    const errorBody = await response.json().catch(() => null);
-    throw new Error(errorBody?.message ?? `Falha ao preparar o modelo (estado ${response.status})`);
+    throw await apiError(response, 'Falha ao preparar o modelo');
   }
 
   return response.json();
@@ -221,7 +283,7 @@ export async function runModel(
   modelId: string,
   inputValues: Record<string, string>,
 ): Promise<ModelOperationResultPayload[]> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE_URL}/api/v1/dataset/${encodeURIComponent(datasetId)}/model/${encodeURIComponent(modelId)}/run`,
     {
       method: 'POST',
@@ -231,8 +293,7 @@ export async function runModel(
   );
 
   if (!response.ok) {
-    const errorBody = await response.json().catch(() => null);
-    throw new Error(errorBody?.message ?? `Falha ao correr o modelo (estado ${response.status})`);
+    throw await apiError(response, 'Falha ao correr o modelo');
   }
 
   return response.json();

@@ -1,3 +1,4 @@
+import { inlineErrorMessage } from '../../../services/apiErrors';
 import { useEffect, useRef, useState } from 'react';
 import { translateValue } from '../../../services/datasetApi';
 import { literalSource, type ValueSource } from '../../../types/valueSource';
@@ -272,7 +273,7 @@ function TranslatorResult({ resolvedInput, rules, testSignal, resetSignal, onRes
       .catch((error) => {
         if (!cancelled) {
           handledForSignalRef.current = testSignal;
-          setState({ status: 'error', message: error instanceof Error ? error.message : 'Falha ao traduzir o valor.' });
+          setState({ status: 'error', message: inlineErrorMessage(error, 'Falha ao traduzir o valor.') });
           onResultChange(null);
         }
       });
@@ -298,6 +299,8 @@ function TranslatorResult({ resolvedInput, rules, testSignal, resetSignal, onRes
   }
 
   if (state.status === 'error') {
+    // Empty for an API failure — its toast already says so (see inlineErrorMessage).
+    if (!state.message) return null;
     return <p className="operation-entry__result operation-entry__result--empty">{state.message}</p>;
   }
 
