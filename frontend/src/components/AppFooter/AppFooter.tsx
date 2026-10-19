@@ -6,9 +6,9 @@ interface AppFooterProps {
   onGoHome: () => void;
 }
 
-/** The "Norma" brand mark shown at the bottom of every screen — clicking it is this app's only
- * always-available way back to the very start, regardless of how deep the current screen is
- * (editor, utilize, choose-model). */
+/** The "Norma" brand mark shown at the bottom of every screen, flanked by a line on each side
+ * running the full width — clicking it is this app's only always-available way back to the very
+ * start, regardless of how deep the current screen is (editor, utilize, choose-model). */
 export function AppFooter({ onGoHome }: AppFooterProps) {
   return (
     <footer className="app__footer">

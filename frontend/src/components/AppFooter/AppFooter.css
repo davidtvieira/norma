@@ -10,3 +10,18 @@
 .app__brand--link:focus-visible {
   color: var(--color-primary);
 }
+
+/* The brand sits in the middle of a rule running edge to edge: a line on each side. */
+footer.app__footer {
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem 0;
+}
+
+.app__footer::before,
+.app__footer::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+}
