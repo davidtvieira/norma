@@ -2,6 +2,7 @@ package com.norma.dataset.service;
 
 import com.norma.dataset.dto.CellData;
 import com.norma.dataset.dto.DatasetImportResponse;
+import com.norma.dataset.dto.ModelInputsResponse;
 import com.norma.dataset.dto.ModelOperationInput;
 import com.norma.dataset.dto.ModelOperationResult;
 import com.norma.dataset.dto.ModelRegisterRequest;
@@ -885,6 +886,44 @@ class ModelExecutionServiceTest {
                 new DatasetImportResponse("dataset-other", "other.xlsx", Instant.now(), List.of()));
 
         assertThatThrownBy(() -> modelExecutionService.deleteModel(otherDatasetId, modelId))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void describesOnlyTheDesignatedInputsAndNamesOutputsOnRun() {
+        String datasetId = twoSheetDataset();
+        ModelOperationInput lookup = new ModelOperationInput("op-1", "lookup", Map.of(
+                "startRow", literalInput("0"),
+                "input", literalInput("2"),
+                "sheetIndex", 0,
+                "searchColumn", literalInput("0"),
+                "resultColumn", 1), "Client id");
+        ModelOperationInput internal = new ModelOperationInput("op-2", "lookup", Map.of(
+                "input", referenceInput("op-1"), "sheetIndex", 1), "Internal step");
+        ModelOperationInput output = new ModelOperationInput("op-3", "lookup", Map.of(
+                "input", referenceInput("op-2"), "sheetIndex", 1), "Product");
+        String modelId = modelExecutionService.registerModel(datasetId, new ModelRegisterRequest(
+                "Test model", List.of(lookup, internal, output), List.of("op-1"), List.of("op-3")));
+
+        ModelInputsResponse io = modelExecutionService.getModelInputs(modelId);
+
+        assertThat(io.inputs()).singleElement().satisfies(input -> {
+            assertThat(input.id()).isEqualTo("op-1");
+            assertThat(input.name()).isEqualTo("Client id");
+            assertThat(input.kind()).isEqualTo("lookup");
+            assertThat(input.value()).isEqualTo("2");
+        });
+        assertThat(modelExecutionService.runModel(datasetId, modelId, Map.of("op-1", "2")))
+                .singleElement()
+                .satisfies(result -> {
+                    assertThat(result.id()).isEqualTo("op-3");
+                    assertThat(result.name()).isEqualTo("Product");
+                });
+    }
+
+    @Test
+    void rejectsDescribingAnUnknownModel() {
+        assertThatThrownBy(() -> modelExecutionService.getModelInputs("missing-model"))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 }

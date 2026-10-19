@@ -1,6 +1,8 @@
 package com.norma.dataset.service;
 
 import com.norma.dataset.dto.DatasetImportResponse;
+import com.norma.dataset.dto.ModelInputField;
+import com.norma.dataset.dto.ModelInputsResponse;
 import com.norma.dataset.dto.ModelOperationInput;
 import com.norma.dataset.dto.ModelOperationResult;
 import com.norma.dataset.dto.ModelRegisterRequest;
@@ -114,8 +116,45 @@ public class ModelExecutionService {
         Set<String> cyclicIds = findCyclicIds(buildReferenceGraph(operations));
         Map<String, ModelOperationResult> resolved = new HashMap<>();
         return model.outputOperationIds().stream()
-                .map(outputOperationId -> resolveOperation(outputOperationId, dataset, byId, cyclicIds, resolved))
+                .map(outputOperationId -> resolveOperation(outputOperationId, dataset, byId, cyclicIds, resolved)
+                        .withName(nameOf(byId.get(outputOperationId))))
                 .toList();
+    }
+
+    /**
+     * Describes a registered model to whoever utilizes it: its designated inputs (id, name, kind
+     * and the literal they were registered with), in the order they were registered — without
+     * exposing any other operation, any operation's configuration, or its outputs (those only
+     * come back with a run).
+     */
+    public ModelInputsResponse getModelInputs(String modelId) {
+        StoredModel model = modelStore.get(modelId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Model not found. Please prepare the model again before using it."));
+
+        Map<String, ModelOperationInput> byId = new LinkedHashMap<>();
+        for (ModelOperationInput operation : model.operations()) {
+            byId.put(operation.id(), operation);
+        }
+        List<ModelInputField> inputs = model.inputOperationIds().stream()
+                .map(byId::get)
+                .map(operation -> new ModelInputField(
+                        operation.id(), nameOf(operation), operation.kind(), literalInputOf(operation)))
+                .toList();
+        return new ModelInputsResponse(inputs);
+    }
+
+    private String nameOf(ModelOperationInput operation) {
+        return operation.name() == null ? "" : operation.name();
+    }
+
+    private String literalInputOf(ModelOperationInput operation) {
+        if (fieldsOf(operation).get("input") instanceof Map<?, ?> source
+                && "literal".equals(source.get("type"))
+                && source.get("value") instanceof String value) {
+            return value;
+        }
+        return "";
     }
 
     /**
@@ -160,7 +199,7 @@ public class ModelExecutionService {
     private ModelOperationInput withLiteralInput(ModelOperationInput operation, String value) {
         Map<String, Object> fields = new HashMap<>(fieldsOf(operation));
         fields.put("input", Map.of("type", "literal", "value", value));
-        return new ModelOperationInput(operation.id(), operation.kind(), fields);
+        return new ModelOperationInput(operation.id(), operation.kind(), fields, operation.name());
     }
 
     private ModelOperationResult resolveOperation(
