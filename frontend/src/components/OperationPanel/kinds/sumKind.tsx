@@ -2,11 +2,13 @@ import { inlineErrorMessage } from '../../../services/apiErrors';
 import { useEffect, useRef, useState } from 'react';
 import { sumColumn } from '../../../services/datasetApi';
 import type { CellRange } from '../../../types/cellRange';
-import { RangePickerField, TableSelect } from '../fields';
+import { IteratorSheetToggle, RangePickerField, TableSelect } from '../fields';
 import type { OperationFields, OperationKind } from '../operationKind';
 
 interface SumFields {
   sheetIndex: number | '';
+  // Run on the model's iterator's sheet instead of sheetIndex — see IteratorSheetToggle.
+  useIteratorSheet: boolean;
   range: CellRange | null;
 }
 
@@ -19,6 +21,7 @@ export const sumKind: OperationKind = {
 
   createFields: (dataset): OperationFields => ({
     sheetIndex: dataset.sheets.length === 1 ? 0 : '',
+    useIteratorSheet: false,
     range: null,
   } satisfies SumFields),
 
@@ -69,17 +72,26 @@ export const sumKind: OperationKind = {
     );
   },
 
-  renderBody: ({ fields, datasetId, testSignal, resetSignal, onResultChange }) => {
+  renderBody: ({ fields, updateFields, datasetId, testSignal, resetSignal, iteratorSheet, onResultChange }) => {
     const f = asSumFields(fields);
+    const sheetIndex = f.useIteratorSheet && iteratorSheet !== null ? iteratorSheet : f.sheetIndex;
     return (
-      <SumResult
-        datasetId={datasetId}
-        sheetIndex={f.sheetIndex as number}
-        range={f.range as CellRange}
-        testSignal={testSignal}
-        resetSignal={resetSignal}
-        onResultChange={onResultChange}
-      />
+      <>
+        <IteratorSheetToggle
+          iteratorSheet={iteratorSheet}
+          checked={f.useIteratorSheet}
+          onChange={(useIteratorSheet) => updateFields({ useIteratorSheet })}
+        />
+
+        <SumResult
+          datasetId={datasetId}
+          sheetIndex={sheetIndex as number}
+          range={f.range as CellRange}
+          testSignal={testSignal}
+          resetSignal={resetSignal}
+          onResultChange={onResultChange}
+        />
+      </>
     );
   },
 

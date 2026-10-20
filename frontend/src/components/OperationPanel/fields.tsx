@@ -41,6 +41,42 @@ export function TableSelect({ label, dataset, sheetIndex, onSelect }: TableSelec
   );
 }
 
+interface IteratorSheetToggleProps {
+  /** The sheet the model's iterator is currently previewing, or null when the model has no
+   * iterator — in which case there's nothing to offer and nothing is rendered. */
+  iteratorSheet: number | null;
+  label?: string;
+  hint?: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}
+
+/**
+ * "Use the iterator's sheet": when on, the operation's sheet follows whichever sheet the model's
+ * iterator is on instead of its own fixed table (for a lookup, only where it searches — see its own
+ * label/hint), keeping its columns/range exactly as picked (against the sample table) and blindly
+ * applying them to every iterated sheet. Offered at the top of a
+ * sheet-based operation's body (lookup/sum/find), only while the model actually has an iterator.
+ */
+export function IteratorSheetToggle({
+  iteratorSheet,
+  label = 'Usar a página do iterador',
+  hint,
+  checked,
+  onChange,
+}: IteratorSheetToggleProps) {
+  if (iteratorSheet === null) return null;
+  return (
+    <div className="operation-entry__field">
+      <label className="operation-entry__checkbox">
+        <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+        {label}
+      </label>
+      {hint && <p className="operation-entry__chain-status">{hint}</p>}
+    </div>
+  );
+}
+
 interface ColumnPickerFieldProps {
   label: string;
   value: number | '';

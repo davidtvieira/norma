@@ -58,6 +58,12 @@ export interface OperationBodyContext {
   /** Every one of the operation's chainable inputs, resolved in field order — for a kind with
    * several (e.g. counter's "inputs" list) rather than just one. */
   resolvedInputs: ResolvedInput[];
+  /** The sheet the model's iterator is on (the one it previews while editing; every sheet of its
+   * range in a real run), or null when the model has no iterator. Sheet-based kinds use it in
+   * place of their own sheetIndex when their `useIteratorSheet` field is on. */
+  iteratorSheet: number | null;
+  /** The dataset's sheet names, by sheet index. */
+  sheetNames: string[];
   /** Other confirmed operations the input field's reference picker can offer. */
   referenceOptions: ReferenceOption[];
   /** Reports this operation's own result so a later operation can reference it; null clears it.

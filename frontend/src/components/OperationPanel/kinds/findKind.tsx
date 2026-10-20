@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { findMatch } from '../../../services/datasetApi';
 import type { CellRange } from '../../../types/cellRange';
 import { literalSource, type ValueSource } from '../../../types/valueSource';
-import { RangePickerField, TableSelect, ValueSourceField } from '../fields';
+import { IteratorSheetToggle, RangePickerField, TableSelect, ValueSourceField } from '../fields';
 import type { OperationFields, OperationKind } from '../operationKind';
 
 interface FindFields {
@@ -11,6 +11,8 @@ interface FindFields {
   // as lookup's own chainable query.
   input: ValueSource;
   sheetIndex: number | '';
+  // Run on the model's iterator's sheet instead of sheetIndex — see IteratorSheetToggle.
+  useIteratorSheet: boolean;
   // Unlike lookup (a single search column, reading a value from a separate result column), find
   // scans a whole rectangular range for the match and reports where it landed — there's no
   // separate result column, the position itself is the result.
@@ -27,6 +29,7 @@ export const findKind: OperationKind = {
   createFields: (dataset): OperationFields => ({
     input: literalSource(''),
     sheetIndex: dataset.sheets.length === 1 ? 0 : '',
+    useIteratorSheet: false,
     range: null,
   } satisfies FindFields),
 
@@ -101,12 +104,20 @@ export const findKind: OperationKind = {
     onMatchChange,
     resolvedInput,
     referenceOptions,
+    iteratorSheet,
     onResultChange,
   }) => {
     const f = asFindFields(fields);
+    const sheetIndex = f.useIteratorSheet && iteratorSheet !== null ? iteratorSheet : f.sheetIndex;
     const query = resolvedInput.status === 'ready' ? resolvedInput.value : '';
     return (
       <>
+        <IteratorSheetToggle
+          iteratorSheet={iteratorSheet}
+          checked={f.useIteratorSheet}
+          onChange={(useIteratorSheet) => updateFields({ useIteratorSheet })}
+        />
+
         <ValueSourceField
           label="Valor a procurar"
           placeholder="Introduza um valor"
@@ -120,7 +131,7 @@ export const findKind: OperationKind = {
         <FindResult
           datasetId={datasetId}
           query={query}
-          sheetIndex={f.sheetIndex as number}
+          sheetIndex={sheetIndex as number}
           range={f.range as CellRange}
           testSignal={testSignal}
           resetSignal={resetSignal}

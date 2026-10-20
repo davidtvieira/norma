@@ -9,6 +9,8 @@ interface AddOperationModalProps {
   open: boolean;
   onClose: () => void;
   kinds: OperationKindOption[];
+  /** Kinds that can't be added right now (e.g. a second iterator) — shown but disabled. */
+  disabledKindIds?: string[];
   onPick: (kindId: string) => void;
 }
 
@@ -18,7 +20,7 @@ interface AddOperationModalProps {
  * configured in place exactly like before (table/column/range pickers on the node itself), so
  * the canvas doesn't need to host that configuration inside the modal too.
  */
-export function AddOperationModal({ open, onClose, kinds, onPick }: AddOperationModalProps) {
+export function AddOperationModal({ open, onClose, kinds, disabledKindIds = [], onPick }: AddOperationModalProps) {
   if (!open) return null;
 
   function pick(kindId: string) {
@@ -42,7 +44,14 @@ export function AddOperationModal({ open, onClose, kinds, onPick }: AddOperation
 
         <div className="add-operation-modal__kinds">
           {kinds.map((kind) => (
-            <button key={kind.id} type="button" className="add-operation-modal__kind-option" onClick={() => pick(kind.id)}>
+            <button
+              key={kind.id}
+              type="button"
+              className="add-operation-modal__kind-option"
+              disabled={disabledKindIds.includes(kind.id)}
+              title={disabledKindIds.includes(kind.id) ? 'O modelo já tem uma operação deste tipo.' : undefined}
+              onClick={() => pick(kind.id)}
+            >
               {kind.label}
             </button>
           ))}

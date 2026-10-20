@@ -10,6 +10,7 @@ import { getInputSource, getInputSources, literalSource, remapValueSourceReferen
 import type { SerializableEntry } from '../../utils/modelSerialization';
 import { parseTestCaseFile } from '../../utils/testCaseSerialization';
 import type { OperationFields, ReferenceOption } from './operationKind';
+import { iteratorPreviewSheet } from './kinds/iteratorKind';
 import { KINDS, KINDS_BY_ID } from './kinds/registry';
 import { AddOperationModal } from '../AddOperationModal/AddOperationModal';
 import { TestValuesModal } from '../TestValuesModal/TestValuesModal';
@@ -511,6 +512,7 @@ const KIND_LABELS: Record<string, string> = {
   find: 'Localizar',
   translator: 'Tradutor',
   selector: 'Seletor',
+  iterator: 'Iterador',
 };
 
 interface OperationEntryState {
@@ -909,6 +911,10 @@ export function OperationPanel({
       return next;
     });
   }
+  // A model can have at most one iterator (see the add modal's disabledKindIds); while editing, the
+  // sheet it previews is what every operation set to use the iterator's sheet runs on.
+  const iteratorEntry = entries.find((entry) => entry.kindId === 'iterator') ?? null;
+  const iteratorSheet = iteratorEntry && iteratorEntry.confirmed ? iteratorPreviewSheet(iteratorEntry.fields) : null;
   const resolvedInputsByEntry = resolveOperationInputs(entries, results);
   // Which edges (see the `edges` computation below, keyed the same way — "fromId-toId") are lit
   // up as data has flowed through them — lit by flashEdgesFrom the moment the operation an edge
@@ -1324,7 +1330,10 @@ export function OperationPanel({
   function copySelection() {
     if (selectedIds.length === 0) return;
     const selectedSet = new Set(selectedIds);
-    setClipboard(entries.filter((entry) => selectedSet.has(entry.id)).map((entry) => structuredClone(entry)));
+    // An iterator is never copied: a model has exactly one, and a paste would add a second.
+    const copied = entries.filter((entry) => selectedSet.has(entry.id) && entry.kindId !== 'iterator');
+    if (copied.length === 0) return;
+    setClipboard(copied.map((entry) => structuredClone(entry)));
   }
 
   // "Eliminar" in the selection bar — same per-entry cleanup as a single removeEntry, just for
@@ -1651,6 +1660,11 @@ export function OperationPanel({
     setEntries((current) => current.map((entry) => (staged.has(entry.id) ? { ...entry, confirmed: true } : entry)));
     onOperationConfirmed();
     setStagingEntryIds([]);
+    // Adding the iterator leaves the model with a single output (each round's stop) — keep the
+    // first one already chosen.
+    if (entries.some((entry) => staged.has(entry.id) && entry.kindId === 'iterator') && modelOutputIds.length > 1) {
+      onModelOutputIdsChange(modelOutputIds.slice(0, 1));
+    }
   }
 
   const hasDraftInProgress = entries.some((entry) => !entry.confirmed);
@@ -1800,7 +1814,13 @@ export function OperationPanel({
         isModelOutput={modelOutputIds.includes(entry.id)}
         onToggleModelOutput={() =>
           onModelOutputIdsChange(
-            modelOutputIds.includes(entry.id) ? modelOutputIds.filter((id) => id !== entry.id) : [...modelOutputIds, entry.id],
+            modelOutputIds.includes(entry.id)
+              ? modelOutputIds.filter((id) => id !== entry.id)
+              // With an iterator the one output is each round's stop, so picking a new one
+              // replaces the old instead of adding a second.
+              : iteratorEntry
+                ? [entry.id]
+                : [...modelOutputIds, entry.id],
           )
         }
         isModalOpen={modalEntryId === entry.id}
@@ -1827,6 +1847,8 @@ export function OperationPanel({
           resolvedInput: resolvedInputsByEntry[entry.id][0],
           resolvedInputs: resolvedInputsByEntry[entry.id],
           referenceOptions: referenceOptionsFor(entry.id),
+          iteratorSheet,
+          sheetNames: dataset.sheets.map((sheet) => sheet.sheetName),
           onResultChange: (value, failed = false) => {
             setResults((current) => ({ ...current, [entry.id]: value }));
             setEntryFailed(entry.id, failed);
@@ -2062,7 +2084,7 @@ export function OperationPanel({
                 already chosen — a batch is always one kind (see stagingKindId above), so this
                 skips the kind picker entirely rather than asking again for something already
                 decided. */}
-            {stagingKindId && (
+            {stagingKindId && stagingKindId !== 'iterator' && (
               <button
                 type="button"
                 className="add-operation-panel__add-more"
@@ -2094,6 +2116,8 @@ export function OperationPanel({
         open={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         kinds={KINDS.map((kind) => ({ id: kind.id, label: labelForKind(kind.id) }))}
+        // A model has one iterator — it's the always-first loop around everything else.
+        disabledKindIds={iteratorEntry ? ['iterator'] : []}
         onPick={addToStaging}
       />
     );

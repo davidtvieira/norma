@@ -7,7 +7,7 @@ import { literalSource, type ValueSource } from '../../../types/valueSource';
 import type { LookupMatchMode } from '../../../types/lookup';
 import type { OperationHighlight } from '../../../types/highlight';
 import type { ResolvedInput } from '../../../utils/resolveOperationInputs';
-import { ColumnPickerField, TableSelect, ValueSourceField } from '../fields';
+import { ColumnPickerField, IteratorSheetToggle, TableSelect, ValueSourceField } from '../fields';
 import type { OperationFields, OperationKind } from '../operationKind';
 
 interface LookupFields {
@@ -16,6 +16,9 @@ interface LookupFields {
   // Search and result columns always come from the same table — a lookup matches a row in one
   // table by its search column and reads the result from another column of that same row.
   sheetIndex: number | '';
+  // Run on the model's iterator's sheet instead of sheetIndex (which stays the sample table the
+  // columns were picked against) — see IteratorSheetToggle.
+  useIteratorSheet: boolean;
   // Chainable, same as `input` — typed directly, chained from a find operation's own combined
   // "rowIndex,columnIndex" result (see parseColumnIndex below, letting a lookup search whichever
   // column a find elsewhere in the model landed on), or picked directly by clicking a column
@@ -77,6 +80,7 @@ export const lookupKind: OperationKind = {
   createFields: (dataset): OperationFields => ({
     input: literalSource(''),
     sheetIndex: dataset.sheets.length === 1 ? 0 : '',
+    useIteratorSheet: false,
     searchColumn: literalSource(''),
     resultColumn: '',
     startRow: literalSource('0'),
@@ -172,9 +176,13 @@ export const lookupKind: OperationKind = {
     onMatchChange,
     resolvedInputs,
     referenceOptions,
+    iteratorSheet,
     onResultChange,
   }) => {
     const f = asLookupFields(fields);
+    // Only the *search* follows the iterator; the value is still read from the sheet picked when the
+    // operation was created (f.sheetIndex).
+    const searchSheetIndex = f.useIteratorSheet && iteratorSheet !== null ? iteratorSheet : f.sheetIndex;
     // "input" (the query), "searchColumn" and "startRow" are all chainable fields on this kind,
     // declared in this order in createFields — resolvedInputs mirrors that order (see
     // getInputSources).
@@ -202,6 +210,14 @@ export const lookupKind: OperationKind = {
 
     return (
       <>
+        <IteratorSheetToggle
+          iteratorSheet={iteratorSheet}
+          label="Procurar na página do iterador"
+          hint="O valor devolvido continua a vir da tabela escolhida ao criar a operação."
+          checked={f.useIteratorSheet}
+          onChange={(useIteratorSheet) => updateFields({ useIteratorSheet })}
+        />
+
         <ValueSourceField
           label="Linha inicial"
           placeholder="Índice da linha"
@@ -270,6 +286,7 @@ export const lookupKind: OperationKind = {
           datasetId={datasetId}
           query={query}
           sheetIndex={f.sheetIndex as number}
+          searchSheetIndex={searchSheetIndex as number}
           searchColumn={searchColumn}
           resultColumn={f.resultColumn as number}
           startRow={startRow}
@@ -331,7 +348,10 @@ export const lookupKind: OperationKind = {
 interface LookupResultProps {
   datasetId: string;
   query: string;
+  /** The sheet the value is read from — the one picked when the operation was created. */
   sheetIndex: number;
+  /** The sheet the match is searched in: sheetIndex, unless the iterator's page is in use. */
+  searchSheetIndex: number;
   /** Null while the (possibly chained) search column hasn't resolved to a valid index yet — same
    * "nothing to test" treatment as an empty query. */
   searchColumn: number | null;
@@ -376,6 +396,7 @@ function LookupResult({
   datasetId,
   query,
   sheetIndex,
+  searchSheetIndex,
   searchColumn,
   resultColumn,
   startRow,
@@ -448,7 +469,7 @@ function LookupResult({
             const promise = lookupValue({
               datasetId,
               query,
-              searchSheetIndex: sheetIndex,
+              searchSheetIndex,
               searchColumn,
               resultSheetIndex: sheetIndex,
               resultColumn,
@@ -484,7 +505,7 @@ function LookupResult({
       onResultChange(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [testSignal, query, sheetIndex, searchColumn, resultColumn, startRow, matchMode, tokenIgnoreSpaces, tokenIgnoreDashes]);
+  }, [testSignal, query, sheetIndex, searchSheetIndex, searchColumn, resultColumn, startRow, matchMode, tokenIgnoreSpaces, tokenIgnoreDashes]);
 
   if (state.status === 'idle') {
     return null;
