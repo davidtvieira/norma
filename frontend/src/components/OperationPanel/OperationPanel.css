@@ -1203,6 +1203,17 @@
   border-color: #f0a150;
 }
 
+.operation-card--failed,
+.operation-card--tested.operation-card--failed {
+  border-width: 3px;
+  border-color: var(--color-error);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-error) 45%, transparent), 0 0 18px 4px color-mix(in srgb, var(--color-error) 55%, transparent);
+}
+
+.operation-card--failed .operation-card__name {
+  color: var(--color-error);
+}
+
 .operation-card__header {
   display: flex;
   align-items: center;

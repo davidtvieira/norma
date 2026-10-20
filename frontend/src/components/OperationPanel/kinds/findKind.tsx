@@ -171,7 +171,7 @@ interface FindResultProps {
   /** Incremented by "Limpar teste" — clears the shown result back to not-tested on demand. */
   resetSignal: number;
   onMatchChange: (rowIndex: number | null, columnIndex?: number | null) => void;
-  onResultChange: (value: string | null) => void;
+  onResultChange: (value: string | null, failed?: boolean) => void;
 }
 
 type FindRequestState =
@@ -255,7 +255,7 @@ function FindResult({ datasetId, query, sheetIndex, range, testSignal, resetSign
         if (!cancelled) {
           handledForSignalRef.current = testSignal;
           setState({ status: 'error', message: inlineErrorMessage(error, 'Falha ao procurar a posição.') });
-          onResultChange(null);
+          onResultChange(null, true);
         }
       });
 

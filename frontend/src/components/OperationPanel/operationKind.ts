@@ -60,8 +60,10 @@ export interface OperationBodyContext {
   resolvedInputs: ResolvedInput[];
   /** Other confirmed operations the input field's reference picker can offer. */
   referenceOptions: ReferenceOption[];
-  /** Reports this operation's own result so a later operation can reference it; null clears it. */
-  onResultChange: (value: string | null) => void;
+  /** Reports this operation's own result so a later operation can reference it; null clears it.
+   * `failed` marks a null that is an error (the API rejected it, a broken reference, ...) rather
+   * than just "no result yet" — the card turns red while it's set, until the next report. */
+  onResultChange: (value: string | null, failed?: boolean) => void;
   /**
    * Incremented by "Testar modelo" (see OperationPanel) — the one thing that should make a kind's
    * result component actually call its endpoint. Configuring the operation further (typing a

@@ -173,7 +173,7 @@ interface TranslatorResultProps {
   rules: TranslatorRule[];
   testSignal: number;
   resetSignal: number;
-  onResultChange: (value: string | null) => void;
+  onResultChange: (value: string | null, failed?: boolean) => void;
 }
 
 type TranslatorRequestState =
@@ -224,13 +224,13 @@ function TranslatorResult({ resolvedInput, rules, testSignal, resetSignal, onRes
 
     if (resolvedInput.status === 'cycle') {
       setState({ status: 'error', message: 'Referência circular entre operações.' });
-      onResultChange(null);
+      onResultChange(null, true);
       return;
     }
 
     if (resolvedInput.status === 'missing') {
       setState({ status: 'error', message: 'Essa operação já não existe.' });
-      onResultChange(null);
+      onResultChange(null, true);
       return;
     }
 
@@ -274,7 +274,7 @@ function TranslatorResult({ resolvedInput, rules, testSignal, resetSignal, onRes
         if (!cancelled) {
           handledForSignalRef.current = testSignal;
           setState({ status: 'error', message: inlineErrorMessage(error, 'Falha ao traduzir o valor.') });
-          onResultChange(null);
+          onResultChange(null, true);
         }
       });
 

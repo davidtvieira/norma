@@ -83,7 +83,7 @@ interface CounterInputsProps {
   resolvedInputs: ResolvedInput[];
   testSignal: number;
   resetSignal: number;
-  onResultChange: (value: string | null) => void;
+  onResultChange: (value: string | null, failed?: boolean) => void;
 }
 
 /**
@@ -186,7 +186,7 @@ interface CounterResultProps {
   hasUnsetInput: boolean;
   testSignal: number;
   resetSignal: number;
-  onResultChange: (value: string | null) => void;
+  onResultChange: (value: string | null, failed?: boolean) => void;
 }
 
 type CounterRequestState =
@@ -237,13 +237,13 @@ function CounterResult({ resolvedInputs, hasUnsetInput, testSignal, resetSignal,
 
     if (resolvedInputs.some((input) => input.status === 'cycle')) {
       setState({ status: 'error', message: 'Referência circular entre operações.' });
-      onResultChange(null);
+      onResultChange(null, true);
       return;
     }
 
     if (resolvedInputs.some((input) => input.status === 'missing')) {
       setState({ status: 'error', message: 'Uma das entradas já não existe.' });
-      onResultChange(null);
+      onResultChange(null, true);
       return;
     }
 
@@ -276,7 +276,7 @@ function CounterResult({ resolvedInputs, hasUnsetInput, testSignal, resetSignal,
       .catch((error) => {
         if (!cancelled) {
           setState({ status: 'error', message: inlineErrorMessage(error, 'Falha ao somar as entradas.') });
-          onResultChange(null);
+          onResultChange(null, true);
         }
       });
 

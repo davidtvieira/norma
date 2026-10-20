@@ -87,7 +87,7 @@ interface NodeResultProps {
   resolvedInput: ResolvedInput;
   testSignal: number;
   resetSignal: number;
-  onResultChange: (value: string | null) => void;
+  onResultChange: (value: string | null, failed?: boolean) => void;
 }
 
 type NodeRequestState =
@@ -124,13 +124,13 @@ function NodeResult({ resolvedInput, testSignal, resetSignal, onResultChange }: 
 
     if (resolvedInput.status === 'cycle') {
       setState({ status: 'error', message: 'Referência circular entre operações.' });
-      onResultChange(null);
+      onResultChange(null, true);
       return;
     }
 
     if (resolvedInput.status === 'missing') {
       setState({ status: 'error', message: 'Essa operação já não existe.' });
-      onResultChange(null);
+      onResultChange(null, true);
       return;
     }
 
@@ -159,7 +159,7 @@ function NodeResult({ resolvedInput, testSignal, resetSignal, onResultChange }: 
       .catch((error) => {
         if (!cancelled) {
           setState({ status: 'error', message: inlineErrorMessage(error, 'Falha ao processar o valor.') });
-          onResultChange(null);
+          onResultChange(null, true);
         }
       });
 

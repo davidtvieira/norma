@@ -349,7 +349,7 @@ interface LookupResultProps {
   /** Incremented by "Limpar teste" — clears the shown result back to not-tested on demand. */
   resetSignal: number;
   onMatchChange: (rowIndex: number | null) => void;
-  onResultChange: (value: string | null) => void;
+  onResultChange: (value: string | null, failed?: boolean) => void;
 }
 
 type LookupRequestState =
@@ -474,7 +474,7 @@ function LookupResult({
         if (!cancelled) {
           handledForSignalRef.current = testSignal;
           setState({ status: 'error', message: inlineErrorMessage(error, 'Falha ao procurar o valor.') });
-          onResultChange(null);
+          onResultChange(null, true);
         }
       });
 

@@ -290,6 +290,9 @@ interface ConfirmedOperationCardProps {
    * match (see .operation-card--tested), and doubles as TestUpToHereButton's own isTested (its
    * play icon becomes a "clear this chain's test" icon once this is true). */
   isTested: boolean;
+  /** Whether this operation's last test failed (see OperationBodyContext's onResultChange) —
+   * turns the card red (see .operation-card--failed). */
+  hasFailed: boolean;
   /** Runs "Testar modelo" scoped to just this operation's own dependency chain — see
    * TestUpToHereButton/runModelTest(upToEntryId). */
   onTestUpToHere: () => void;
@@ -358,6 +361,7 @@ function ConfirmedOperationCard({
   onMouseEnter,
   onMouseLeave,
   isTested,
+  hasFailed,
   onTestUpToHere,
   onClearTest,
   hasEmptyInput,
@@ -422,6 +426,7 @@ function ConfirmedOperationCard({
       className={[
         'operation-card',
         isTested ? 'operation-card--tested' : '',
+        hasFailed ? 'operation-card--failed' : '',
         // Clicking the card no longer opens its modal while editing (see OperationPanel's own
         // onNodeClick) — this drops the pointer cursor .operation-card otherwise hints that with,
         // so hovering it in "Editar" mode shows the same grab cursor dragging it already does
@@ -846,6 +851,7 @@ export function OperationPanel({
     setTestProgress({ done: 0, total: confirmedIds.length });
     confirmedIds.forEach((id, index) => {
       const timeoutId = window.setTimeout(() => {
+        setEntryFailed(id, false);
         setTestSignals((current) => ({ ...current, [id]: (current[id] ?? 0) + 1 }));
         setTestProgress((current) => (current ? { ...current, done: current.done + 1 } : current));
       }, index * TEST_STAGGER_DELAY_MS);
@@ -890,6 +896,19 @@ export function OperationPanel({
   // frontend-only stand-in for a chain: another operation's "input" field can reference an id
   // here instead of a typed value. Null means "no value yet" (loading, error, or not found).
   const [results, setResults] = useState<Record<string, string | null>>({});
+  // Entries whose last reported result was an error (see onResultChange's `failed`) — their cards
+  // turn red. Cleared when the entry reports anything else, when a new test of it starts, and
+  // whenever its test state is cleared.
+  const [failedIds, setFailedIds] = useState<Set<string>>(new Set());
+  function setEntryFailed(id: string, failed: boolean) {
+    setFailedIds((current) => {
+      if (current.has(id) === failed) return current;
+      const next = new Set(current);
+      if (failed) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
   const resolvedInputsByEntry = resolveOperationInputs(entries, results);
   // Which edges (see the `edges` computation below, keyed the same way — "fromId-toId") are lit
   // up as data has flowed through them — lit by flashEdgesFrom the moment the operation an edge
@@ -1470,6 +1489,12 @@ export function OperationPanel({
   // bumping together here, not just the one.
   function clearTestStateForIds(ids: Set<string>) {
     if (ids.size === 0) return;
+    setFailedIds((current) => {
+      if (![...ids].some((id) => current.has(id))) return current;
+      const next = new Set(current);
+      for (const id of ids) next.delete(id);
+      return next;
+    });
     setTestSignals((current) => {
       const next = { ...current };
       let changed = false;
@@ -1751,6 +1776,7 @@ export function OperationPanel({
         onMouseEnter={() => setHoveredOperationId(entry.id)}
         onMouseLeave={() => setHoveredOperationId((current) => (current === entry.id ? null : current))}
         isTested={(testSignals[entry.id] ?? 0) > 0}
+        hasFailed={failedIds.has(entry.id)}
         onTestUpToHere={() => runModelTest(entry.id)}
         onClearTest={() => clearChainTest(entry.id)}
         hasEmptyInput={chainHasEmptyInput(entry.id, entries)}
@@ -1801,8 +1827,9 @@ export function OperationPanel({
           resolvedInput: resolvedInputsByEntry[entry.id][0],
           resolvedInputs: resolvedInputsByEntry[entry.id],
           referenceOptions: referenceOptionsFor(entry.id),
-          onResultChange: (value) => {
+          onResultChange: (value, failed = false) => {
             setResults((current) => ({ ...current, [entry.id]: value }));
+            setEntryFailed(entry.id, failed);
             // Only an actual value passing through counts as "data flowed" — onResultChange also
             // fires with null for every reset/no-op case (clearing an input, "Limpar teste",
             // opening "Editar", or just nothing resolved yet), which used to flash every edge

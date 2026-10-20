@@ -85,7 +85,7 @@ interface SelectorFieldsEditorProps {
   resolvedInputs: ResolvedInput[];
   testSignal: number;
   resetSignal: number;
-  onResultChange: (value: string | null) => void;
+  onResultChange: (value: string | null, failed?: boolean) => void;
 }
 
 /**
@@ -186,7 +186,7 @@ interface SelectorResultProps {
   hasUnsetInput: boolean;
   testSignal: number;
   resetSignal: number;
-  onResultChange: (value: string | null) => void;
+  onResultChange: (value: string | null, failed?: boolean) => void;
 }
 
 type SelectorRequestState =
@@ -228,7 +228,7 @@ function SelectorResult({ resolvedInputs, hasUnsetInput, testSignal, resetSignal
 
     if (resolvedInputs.some((input) => input.status === 'cycle')) {
       setState({ status: 'error', message: 'Referência circular entre operações.' });
-      onResultChange(null);
+      onResultChange(null, true);
       return;
     }
 
@@ -236,7 +236,7 @@ function SelectorResult({ resolvedInputs, hasUnsetInput, testSignal, resetSignal
 
     if (indexInput.status === 'missing') {
       setState({ status: 'error', message: 'O índice já não existe.' });
-      onResultChange(null);
+      onResultChange(null, true);
       return;
     }
 
@@ -255,7 +255,7 @@ function SelectorResult({ resolvedInputs, hasUnsetInput, testSignal, resetSignal
 
     if (selected?.status === 'missing') {
       setState({ status: 'error', message: 'A entrada selecionada já não existe.' });
-      onResultChange(null);
+      onResultChange(null, true);
       return;
     }
 
@@ -281,7 +281,7 @@ function SelectorResult({ resolvedInputs, hasUnsetInput, testSignal, resetSignal
       .catch((error) => {
         if (!cancelled) {
           setState({ status: 'error', message: inlineErrorMessage(error, 'Falha ao selecionar a entrada.') });
-          onResultChange(null);
+          onResultChange(null, true);
         }
       });
 

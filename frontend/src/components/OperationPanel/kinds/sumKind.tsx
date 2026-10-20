@@ -106,7 +106,7 @@ interface SumResultProps {
   testSignal: number;
   /** Incremented by "Limpar teste" — clears the shown result back to not-tested on demand. */
   resetSignal: number;
-  onResultChange: (value: string | null) => void;
+  onResultChange: (value: string | null, failed?: boolean) => void;
 }
 
 type SumRequestState =
@@ -176,7 +176,7 @@ function SumResult({ datasetId, sheetIndex, range, testSignal, resetSignal, onRe
       .catch((error) => {
         if (!cancelled) {
           setState({ status: 'error', message: inlineErrorMessage(error, 'Falha ao somar o intervalo.') });
-          onResultChange(null);
+          onResultChange(null, true);
         }
       });
 
