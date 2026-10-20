@@ -332,21 +332,13 @@
 
 .model-card__run-button {
   padding: 0.6rem 1.5rem;
-  /* The accent (orange) button: running the model is this screen's one "go" action. */
-  border: 1px solid var(--color-action);
+  border: 1px solid transparent;
   border-radius: 999px;
-  background: var(--color-action);
-  color: var(--color-action-contrast);
   cursor: pointer;
   font: inherit;
   font-size: 0.9rem;
   font-weight: 600;
   transition: background-color 0.2s ease, border-color 0.2s ease;
-}
-
-.model-card__run-button:hover:not(:disabled) {
-  background: var(--color-action-hover);
-  border-color: var(--color-action-hover);
 }
 
 .model-card__run-button:disabled {

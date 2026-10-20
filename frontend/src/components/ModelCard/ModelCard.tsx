@@ -355,7 +355,7 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, onBack }
             </button>
             <button
               type="button"
-              className="model-card__run-button"
+              className="model-card__run-button action-button"
               onClick={run}
               disabled={isRunning || !allInputsFilled}
             >

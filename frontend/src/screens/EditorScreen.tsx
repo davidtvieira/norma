@@ -170,7 +170,7 @@ export function EditorScreen({
             >
               Guardar teste
             </button>
-            <button type="button" className="app__save-button" onClick={onOpenSaveModal}>
+            <button type="button" className="app__save-button action-button" onClick={onOpenSaveModal}>
               Guardar modelo
             </button>
           </div>

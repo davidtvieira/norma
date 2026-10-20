@@ -45,7 +45,7 @@ export function NrmFileScreen({ datasetFileName, importedModel, importError, the
             </div>
           </dl>
           <div className="app__create-model-actions">
-            <button type="button" className="app__create-model-button" onClick={onEdit}>
+            <button type="button" className="app__create-model-button action-button" onClick={onEdit}>
               Editar
             </button>
             <button type="button" className="app__create-model-button app__create-model-button--secondary" onClick={onUtilize}>

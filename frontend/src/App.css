@@ -362,20 +362,13 @@
 
 .app__create-model-button {
   padding: 0.75rem 1.75rem;
-  border: 1px solid var(--color-primary);
+  border: 1px solid transparent;
   border-radius: 999px;
-  background: var(--color-primary);
-  color: var(--color-primary-contrast);
   cursor: pointer;
   font: inherit;
   font-size: 0.95rem;
   font-weight: 600;
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
-}
-
-.app__create-model-button:hover {
-  background: var(--color-primary-hover);
-  border-color: var(--color-primary-hover);
 }
 
 .app__create-model-button--secondary {
@@ -433,20 +426,13 @@
 .app__save-button {
   align-self: flex-end;
   padding: 0.65rem 1.4rem;
-  border: 1px solid var(--color-primary);
+  border: 1px solid transparent;
   border-radius: 999px;
-  background: var(--color-primary);
-  color: var(--color-primary-contrast);
   cursor: pointer;
   font: inherit;
   font-size: 0.9rem;
   font-weight: 600;
   transition: background-color 0.2s ease, border-color 0.2s ease;
-}
-
-.app__save-button:hover:not(:disabled) {
-  background: var(--color-primary-hover);
-  border-color: var(--color-primary-hover);
 }
 
 .app__save-button:disabled {
@@ -604,4 +590,19 @@
 .app__nrm-details dd {
   margin: 0;
   color: var(--color-text);
+}
+
+/* The action button: the orange call-to-action ("Criar Modelo", "Editar", "Guardar modelo",
+   "Correr modelo"). Orange in both themes (--color-action doesn't swap), unlike the primary color
+   that turns grey in dark mode. Add it next to the button's own sizing class; the
+   `button.` prefix makes it win over that class regardless of stylesheet order. */
+button.action-button {
+  border-color: var(--color-action);
+  background: var(--color-action);
+  color: var(--color-action-contrast);
+}
+
+button.action-button:hover:not(:disabled) {
+  background: var(--color-action-hover);
+  border-color: var(--color-action-hover);
 }
