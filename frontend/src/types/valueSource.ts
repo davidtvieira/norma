@@ -45,29 +45,30 @@ function isValueSource(value: unknown): value is ValueSource {
 }
 
 /**
- * Reads every chainable value source a kind's fields hold. A kind with a *list* of them (e.g.
- * counter's "inputs") is returned as-is, empty list included — an empty list is a meaningful "no
- * inputs yet" state there, not "nothing chainable here at all". Otherwise, every OTHER field
- * that's itself a value source is collected, in object-key order — not just "input" (lookup's
- * query, node's/find's value, ...), but any additional named chainable field a kind adds too
- * (e.g. lookup's own "searchColumn", dynamically chainable off another operation's result, most
- * notably a find's). A kind with no chainable field anywhere falls back to a single empty
- * literal, so callers can always assume at least one entry in that case.
+ * Reads every chainable value source a kind's fields hold, in object-key order: a field that is
+ * itself a value source (lookup's "input", node's/find's value, lookup's "searchColumn", ...)
+ * contributes one, and a field holding a *list* of them (counter's "inputs") contributes each
+ * element. A kind may have both — a selector's "index" followed by its "inputs" — in which case
+ * its single fields and list elements appear in the order its fields are declared (the kind
+ * itself is responsible for declaring them in a fixed order). A list that's empty is still a
+ * meaningful "no inputs yet" state, not "nothing chainable here at all", so a kind whose only
+ * chainable field is an empty list returns []. A kind with no chainable field anywhere falls
+ * back to a single empty literal, so callers can always assume at least one entry in that case.
  */
 export function getInputSources(fields: object): ValueSource[] {
-  const f = fields as Record<string, unknown>;
-
-  if (Array.isArray(f.inputs)) {
-    return f.inputs as ValueSource[];
-  }
-
   const sources: ValueSource[] = [];
-  for (const value of Object.values(f)) {
-    if (isValueSource(value)) {
+  let hasList = false;
+  for (const [key, value] of Object.entries(fields as Record<string, unknown>)) {
+    if (Array.isArray(value)) {
+      // Only a list of value sources (or the "inputs" list, even while empty) is chainable —
+      // not any array a kind happens to hold, e.g. translator's "rules".
+      if (key === 'inputs' || (value.length > 0 && value.every(isValueSource))) hasList = true;
+      sources.push(...value.filter(isValueSource));
+    } else if (isValueSource(value)) {
       sources.push(value);
     }
   }
-  return sources.length > 0 ? sources : [literalSource('')];
+  return sources.length > 0 || hasList ? sources : [literalSource('')];
 }
 
 /**

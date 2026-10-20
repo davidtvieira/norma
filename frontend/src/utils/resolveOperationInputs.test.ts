@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getDependencyChain, getDependents, resolveOperationInputs, type ChainableEntry } from './resolveOperationInputs';
-import { literalSource, type ValueSource } from '../types/valueSource';
+import { getInputSources, literalSource, type ValueSource } from '../types/valueSource';
 
 function reference(operationId: string): ValueSource {
   return { type: 'reference', operationId };
@@ -199,5 +199,39 @@ describe('getDependencyChain', () => {
     ];
 
     expect(getDependencyChain('op-a', entries)).toEqual(new Set(['op-a', 'op-b']));
+  });
+});
+
+describe('selector-like fields (a single chainable index plus a list of inputs)', () => {
+  it('reads the index first, then every input, in field order', () => {
+    const fields = { index: reference('op-i'), inputs: [literalSource('a'), reference('op-b')] };
+
+    expect(getInputSources(fields)).toEqual([reference('op-i'), literalSource('a'), reference('op-b')]);
+  });
+
+  it('still returns [] for a kind whose only chainable field is an empty inputs list', () => {
+    expect(getInputSources({ inputs: [] })).toEqual([]);
+  });
+
+  it('does not treat an unrelated array field (translator rules) as a chainable list', () => {
+    expect(getInputSources({ input: literalSource('x'), rules: [] })).toEqual([literalSource('x')]);
+  });
+
+  it('resolves the index and inputs in order and detects a cycle through the index', () => {
+    const entries = [
+      entry('op-i', { input: literalSource('1') }),
+      entry('op-sel', { index: reference('op-i'), inputs: [literalSource('a'), literalSource('b')] }),
+      entry('op-loop', { index: reference('op-loop'), inputs: [literalSource('a')] }),
+    ];
+
+    const resolved = resolveOperationInputs(entries, { 'op-i': '1' });
+
+    expect(resolved['op-sel']).toEqual([
+      { status: 'ready', value: '1' },
+      { status: 'ready', value: 'a' },
+      { status: 'ready', value: 'b' },
+    ]);
+    expect(resolved['op-loop'].every((input) => input.status === 'cycle')).toBe(true);
+    expect(getDependencyChain('op-sel', entries)).toEqual(new Set(['op-sel', 'op-i']));
   });
 });

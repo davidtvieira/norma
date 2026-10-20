@@ -9,6 +9,7 @@ import type {
   ModelOperationResultPayload,
   ModelRegisterResponsePayload,
 } from '../types/modelCalculation';
+import type { SelectorRequestPayload, SelectorResponsePayload } from '../types/selector';
 import type { NrmImportStatusPayload, NrmInfoPayload } from '../types/nrm';
 import type { NodeRequestPayload, NodeResponsePayload } from '../types/node';
 import type { OperationType } from '../types/operation';
@@ -399,6 +400,25 @@ export async function runModel(
 
   if (!response.ok) {
     throw await apiError(response, 'Falha ao correr o modelo');
+  }
+
+  return response.json();
+}
+
+/**
+ * Picks one of the given already-resolved values by zero-based index — the actual selection (and
+ * its "index must be a whole number inside the values" validation) happens on the API, same as
+ * every other kind's own computation. No dataset dependency, same as counter/node.
+ */
+export async function selectValue(payload: SelectorRequestPayload): Promise<SelectorResponsePayload> {
+  const response = await apiFetch(`${API_BASE_URL}/api/v1/dataset/operation/selector`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw await apiError(response, 'Falha ao selecionar o valor');
   }
 
   return response.json();

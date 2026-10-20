@@ -505,6 +505,7 @@ const KIND_LABELS: Record<string, string> = {
   node: 'Nó',
   find: 'Localizar',
   translator: 'Tradutor',
+  selector: 'Seletor',
 };
 
 interface OperationEntryState {
