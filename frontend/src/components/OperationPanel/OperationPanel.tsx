@@ -1984,8 +1984,11 @@ export function OperationPanel({
   // (see modelInputIds/modelOutputIds) gets its own highlight color(s) here too, same distinction
   // ConfirmedOperationCard's own IoToggle pills already make on the card itself.
   function renderMinimap(): ReactNode {
-    const confirmed = entries.filter((entry) => entry.confirmed);
-    if (confirmed.length === 0 || !viewportSize.width || !viewportSize.height) return null;
+    // While the inputs are collapsed on the canvas (see inputsHidden), the minimap collapses them
+    // the same way: the hidden ones drop out and the stand-in group shows as one input-colored dot.
+    const confirmed = entries.filter((entry) => entry.confirmed && !hiddenInputIds.has(entry.id));
+    const groupDot = inputsGroup ? { x: inputsGroup.x, y: inputsGroup.y } : null;
+    if (confirmed.length + (groupDot ? 1 : 0) === 0 || !viewportSize.width || !viewportSize.height) return null;
 
     // The viewport's own currently-visible rectangle, converted from screen pixels back into the
     // same canvas-local coordinate space node positions already live in (undoing the surface's
@@ -2002,11 +2005,11 @@ export function OperationPanel({
     let minY = viewportRect.top;
     let maxX = viewportRect.left + viewportRect.width;
     let maxY = viewportRect.top + viewportRect.height;
-    for (const entry of confirmed) {
-      minX = Math.min(minX, entry.position.x);
-      minY = Math.min(minY, entry.position.y);
-      maxX = Math.max(maxX, entry.position.x + NODE_WIDTH);
-      maxY = Math.max(maxY, entry.position.y + MINIMAP_NODE_HEIGHT);
+    for (const position of [...confirmed.map((entry) => entry.position), ...(groupDot ? [groupDot] : [])]) {
+      minX = Math.min(minX, position.x);
+      minY = Math.min(minY, position.y);
+      maxX = Math.max(maxX, position.x + NODE_WIDTH);
+      maxY = Math.max(maxY, position.y + MINIMAP_NODE_HEIGHT);
     }
     minX -= MINIMAP_PADDING;
     minY -= MINIMAP_PADDING;
@@ -2036,6 +2039,18 @@ export function OperationPanel({
           handleMinimapPointer(event);
         }}
       >
+        {groupDot && (
+          <div
+            className="operation-canvas__minimap-node operation-canvas__minimap-node--input operation-canvas__minimap-node--group"
+            title={`Entradas (${hiddenInputs.length})`}
+            style={{
+              left: toMinimap(groupDot.x, groupDot.y).x,
+              top: toMinimap(groupDot.x, groupDot.y).y,
+              width: Math.max(3, NODE_WIDTH * scale),
+              height: Math.max(3, MINIMAP_NODE_HEIGHT * scale),
+            }}
+          />
+        )}
         {confirmed.map((entry) => {
           const point = toMinimap(entry.position.x, entry.position.y);
           const isModelInput = modelInputIds.includes(entry.id);

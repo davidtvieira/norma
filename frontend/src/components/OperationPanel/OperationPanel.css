@@ -1540,3 +1540,8 @@
   gap: 0.5rem;
   margin-top: 1rem;
 }
+
+/* The minimap's dot for the collapsed inputs node — filled orange like the node itself. */
+.operation-canvas__minimap-node--group {
+  background: var(--color-secondary);
+}
