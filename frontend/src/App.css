@@ -379,14 +379,17 @@
 }
 
 .app__create-model-button--secondary {
-  background: transparent;
-  color: var(--color-primary);
+  /* A soft tint of the primary color with a hairline border and normal text — quieter than the
+     filled primary button beside it, without the thin colored outline it used to have. */
+  background: color-mix(in srgb, var(--color-primary) 14%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-primary) 35%, transparent);
+  color: var(--color-text);
 }
 
 .app__create-model-button--secondary:hover {
-  background: var(--color-surface-hover);
-  border-color: var(--color-primary-hover);
-  color: var(--color-primary-hover);
+  background: color-mix(in srgb, var(--color-primary) 26%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-primary) 60%, transparent);
+  color: var(--color-text);
 }
 
 .app__create-model-button--back {
