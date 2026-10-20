@@ -575,3 +575,24 @@
     width: 100vw;
   }
 }
+
+/* The model / dataset lines on the Norma file page (see screens/NrmFileScreen.tsx). */
+.app__nrm-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0 0 1.5rem;
+  text-align: center;
+}
+
+.app__nrm-details dt {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.app__nrm-details dd {
+  margin: 0;
+  color: var(--color-text);
+}

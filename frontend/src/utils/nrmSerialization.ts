@@ -162,11 +162,23 @@ export interface NrmImportResult {
    * The model itself stays on the backend (see ImportedModel.nrmId) until it is opened for editing. */
   modelText: string;
   model: {
-    /** The .nrm's name — the model itself isn't read here, so it stands in for the model's name too. */
+    /** The model's own name, read straight off the model JSON's top-level field (the operations
+     * stay unparsed) — falls back to the .nrm's name when the model has none. */
     modelName: string;
     nrmName: string;
     nrmId: string;
   };
+}
+
+/** The model JSON's top-level `modelName`, or '' when it is missing or the text isn't readable. */
+function modelNameOf(modelText: string): string {
+  try {
+    const parsed: unknown = JSON.parse(modelText);
+    const name = (parsed as { modelName?: unknown } | null)?.modelName;
+    return typeof name === 'string' ? name.trim() : '';
+  } catch {
+    return '';
+  }
 }
 
 /**
@@ -181,5 +193,5 @@ export async function importNrmFile(file: File): Promise<NrmImportResult> {
   // info.json is the source of truth; a .nrm without one falls back to its own filename, so it
   // always has something to identify it by in "Sessões recentes".
   const nrmName = info?.name || file.name.replace(/\.nrm$/i, '');
-  return { dataset, datasetFile, modelText, model: { modelName: nrmName, nrmName, nrmId: dataset.nrmId } };
+  return { dataset, datasetFile, modelText, model: { modelName: modelNameOf(modelText) || nrmName, nrmName, nrmId: dataset.nrmId } };
 }

@@ -753,7 +753,7 @@ function App() {
             {(activeDataset) =>
               activeDataset.nrmId && importedModel?.nrmId ? (
                 <NrmFileScreen
-                  dataset={activeDataset}
+                  datasetFileName={datasetFile?.name ?? activeDataset.filename}
                   importedModel={importedModel}
                   importError={importError}
                   theme={theme}
