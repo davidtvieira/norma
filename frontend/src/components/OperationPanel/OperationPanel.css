@@ -1010,6 +1010,10 @@
    panned/zoomed. Its own corner rather than one of .operation-canvas__floating-toolbar's, so it
    shares that rule's z-index/stacking reasoning without inheriting its top-anchored position. */
 .operation-canvas__minimap {
+  /* content-box, unlike the global border-box: the width/height set inline are the inner area the
+     node/viewport math maps into, so the 1px border mustn't eat into it (it clipped the right and
+     bottom edges of the viewport outline). */
+  box-sizing: content-box;
   position: absolute;
   right: 0.75rem;
   bottom: 0.75rem;
