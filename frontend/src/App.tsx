@@ -658,12 +658,14 @@ function App() {
   // "Guardar modelo": the .nrm bundles the model with the dataset's own spreadsheet; the .json is
   // the bare model only (same JSON that sits inside the .nrm), importable later through
   // "Importar Modelo" on a dataset that's already loaded.
-  function exportModel(format: ModelExportFormat) {
+  function exportModel(format: ModelExportFormat, includeDataset: boolean) {
     if (!dataset) return;
     const model = buildModelExport(modelEntries, modelName, dataset.datasetId, modelInputIds, modelOutputIds, nrmName);
     const fileName = nrmName.trim() || modelName.trim() || 'modelo';
     if (format === 'json') {
       downloadBlob(new Blob([JSON.stringify(model, null, 2)], { type: 'application/json' }), `${fileName}.json`);
+      // The original spreadsheet as its own download, for whoever wants the data next to the bare model.
+      if (includeDataset && datasetFile) downloadBlob(datasetFile, datasetFile.name);
       return;
     }
     if (!datasetFile) return;

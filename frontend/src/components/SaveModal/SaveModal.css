@@ -198,3 +198,15 @@
 .save-modal__split-item:hover {
   background: var(--color-surface-hover);
 }
+
+/* "Exportar também os dados" tick box under the .json item in the export menu. */
+.save-modal__split-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  color: var(--color-text);
+  cursor: pointer;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
