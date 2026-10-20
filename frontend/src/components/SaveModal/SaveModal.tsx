@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import './SaveModal.css';
 
-/** What "Guardar modelo" can export: the full .nrm bundle (model + dataset), or just the model .json. */
-export type ModelExportFormat = 'nrm' | 'json';
+/** What "Guardar modelo" can export: the full .nrm bundle (model + dataset), just the model .json, or just the dataset's original spreadsheet. */
+export type ModelExportFormat = 'nrm' | 'json' | 'dataset';
 
 interface SaveModalProps {
   open: boolean;
@@ -136,6 +136,9 @@ function ExportButton({ disabled, onExport }: ExportButtonProps) {
           </button>
           <button type="button" role="menuitem" className="save-modal__split-item" onClick={() => pick('json')}>
             Só o modelo (.json)
+          </button>
+          <button type="button" role="menuitem" className="save-modal__split-item" onClick={() => pick('dataset')}>
+            Só os dados (ficheiro original)
           </button>
         </div>
       )}

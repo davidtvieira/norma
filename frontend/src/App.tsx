@@ -660,6 +660,10 @@ function App() {
   // "Importar Modelo" on a dataset that's already loaded.
   function exportModel(format: ModelExportFormat) {
     if (!dataset) return;
+    if (format === 'dataset') {
+      if (datasetFile) downloadBlob(datasetFile, datasetFile.name);
+      return;
+    }
     const model = buildModelExport(modelEntries, modelName, dataset.datasetId, modelInputIds, modelOutputIds, nrmName);
     const fileName = nrmName.trim() || modelName.trim() || 'modelo';
     if (format === 'json') {
