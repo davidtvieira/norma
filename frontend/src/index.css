@@ -127,3 +127,11 @@ body {
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
+
+/* Theme switch (see useTheme's toggleTheme): the new theme's snapshot is revealed by a circle
+   animated from script, so the browser's default cross-fade has to be off. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}

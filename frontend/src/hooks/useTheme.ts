@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { flushSync } from 'react-dom';
 
 export type Theme = 'light' | 'dark';
 
@@ -33,7 +34,31 @@ export function useTheme() {
   }, [theme]);
 
   function toggleTheme() {
-    setTheme((current) => (current === 'light' ? 'dark' : 'light'));
+    const next: Theme = theme === 'light' ? 'dark' : 'light';
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!document.startViewTransition || reduceMotion) {
+      setTheme(next);
+      return;
+    }
+
+    // The new theme is revealed as a circle growing from the top-right corner (where the toggle
+    // sits) until it covers the whole screen. The browser snapshots the old page, the callback
+    // switches the theme, and the new snapshot is clipped by an expanding circle on top.
+    const transition = document.startViewTransition(() => {
+      flushSync(() => setTheme(next));
+      document.documentElement.setAttribute('data-theme', next);
+    });
+    const radius = Math.hypot(window.innerWidth, window.innerHeight);
+    transition.ready
+      .then(() => {
+        document.documentElement.animate(
+          { clipPath: [`circle(0px at 100% 0)`, `circle(${radius}px at 100% 0)`] },
+          { duration: 600, easing: 'ease-in-out', pseudoElement: '::view-transition-new(root)' },
+        );
+      })
+      .catch(() => {
+        // A skipped transition (e.g. the tab was hidden) just changes the theme instantly.
+      });
   }
 
   return { theme, toggleTheme };
