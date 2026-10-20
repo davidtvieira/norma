@@ -619,3 +619,85 @@ button.action-button-secondary:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--color-action) 75%, transparent);
   background: color-mix(in srgb, var(--color-action) 28%, var(--color-surface));
 }
+
+/* ---------------------------------------------------------------------------------------------
+   One button language for the editor canvas, using the same three flavors as the front screens:
+     action    — solid orange, white text      (the decisive step: confirm, run, save, edit mode)
+     primary   — solid theme color             (starts something: "+ Adicionar operação")
+     secondary — soft tint of the theme color  (everything else)
+   Icon-only ghost buttons (card edit/reveal/test, close ×, model-name edit) stay bare on purpose.
+   `button.` in front of each class makes these win over the per-component rules regardless of
+   stylesheet order; sizes, paddings and radii stay with the components.
+   --------------------------------------------------------------------------------------------- */
+button.operation-canvas__test-button:not(.operation-canvas__test-button--cancel),
+button.operation-entry__confirm-button,
+button.value-source-modal__confirm-button,
+button.add-operation-panel__confirm-all,
+button.operation-canvas__tool-button--active,
+button.operation-card__io-toggle--active {
+  border-color: var(--color-action);
+  background: var(--color-action);
+  color: #fff;
+}
+
+button.operation-canvas__test-button:not(.operation-canvas__test-button--cancel):hover:not(:disabled),
+button.operation-entry__confirm-button:hover:not(:disabled),
+button.value-source-modal__confirm-button:hover:not(:disabled),
+button.add-operation-panel__confirm-all:hover:not(:disabled),
+button.operation-canvas__tool-button--active:hover:not(:disabled),
+button.operation-card__io-toggle--active:hover:not(:disabled) {
+  border-color: var(--color-action-hover);
+  background: var(--color-action-hover);
+  color: #fff;
+}
+
+button.operation-canvas__tool-button--primary {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+}
+
+button.operation-canvas__tool-button--primary:hover:not(:disabled) {
+  border-color: var(--color-primary-hover);
+  background: var(--color-primary-hover);
+  color: var(--color-primary-contrast);
+}
+
+button.operation-canvas__tool-button:not(.operation-canvas__tool-button--primary):not(.operation-canvas__tool-button--active):not(.action-button-secondary),
+button.operation-canvas__reset-button,
+button.add-operation-modal__close-button,
+button.operation-entry__pick-button,
+button.operation-card__io-toggle:not(.operation-card__io-toggle--active) {
+  border-color: var(--btn-secondary-border);
+  background: var(--btn-secondary-bg);
+  color: var(--color-text);
+}
+
+button.operation-canvas__tool-button:not(.operation-canvas__tool-button--primary):not(.operation-canvas__tool-button--active):not(.operation-canvas__tool-button--danger):not(.action-button-secondary):hover:not(:disabled),
+button.operation-canvas__reset-button:hover:not(:disabled),
+button.add-operation-modal__close-button:hover:not(:disabled),
+button.operation-entry__pick-button:hover:not(:disabled),
+button.operation-card__io-toggle:not(.operation-card__io-toggle--active):hover:not(:disabled) {
+  border-color: var(--btn-secondary-border-hover);
+  background: var(--btn-secondary-bg-hover);
+  color: var(--color-text);
+}
+
+/* The one destructive toolbar button keeps its red cue, on hover only. */
+button.operation-canvas__tool-button--danger:hover:not(:disabled) {
+  color: var(--color-error);
+  border-color: var(--color-error);
+}
+
+/* The zoom group is one joined control: tinted like the other secondary buttons. */
+button.operation-canvas__zoom-button,
+button.operation-canvas__zoom-level {
+  background: var(--btn-secondary-bg);
+  color: var(--color-text);
+}
+
+button.operation-canvas__zoom-button:hover:not(:disabled),
+button.operation-canvas__zoom-level:hover:not(:disabled) {
+  background: var(--btn-secondary-bg-hover);
+  color: var(--color-text);
+}
