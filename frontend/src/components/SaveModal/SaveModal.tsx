@@ -1,9 +1,13 @@
+import { useState } from 'react';
 import './SaveModal.css';
+
+/** What "Guardar modelo" can export: the full .nrm bundle (model + dataset), or just the model .json. */
+export type ModelExportFormat = 'nrm' | 'json';
 
 interface SaveModalProps {
   open: boolean;
   onClose: () => void;
-  onExport: () => void;
+  onExport: (format: ModelExportFormat) => void;
   nrmName: string;
   onNrmNameChange: (name: string) => void;
   /** Shown as the name field's placeholder — what the file is called if left blank. */
@@ -64,19 +68,77 @@ export function SaveModal({ open, onClose, onExport, nrmName, onNrmNameChange, n
           <button type="button" className="save-modal__close-button save-modal__close-button--secondary" onClick={onClose}>
             Fechar
           </button>
-          <button
-            type="button"
-            className="save-modal__close-button"
-            onClick={() => {
-              onExport();
+          <ExportButton
+            disabled={!canExport}
+            onExport={(format) => {
+              onExport(format);
               onClose();
             }}
-            disabled={!canExport}
-          >
-            Exportar modelo (.nrm)
-          </button>
+          />
         </div>
       </div>
+    </div>
+  );
+}
+
+interface ExportButtonProps {
+  disabled: boolean;
+  onExport: (format: ModelExportFormat) => void;
+}
+
+/**
+ * A split button: the main part exports the .nrm (model + dataset, the usual way to move a model
+ * between sessions), and the arrow beside it opens a small menu to pick the format instead — the
+ * .nrm again, or just the model's .json (no dataset; importable through "Importar Modelo" on a
+ * dataset that's already loaded).
+ */
+function ExportButton({ disabled, onExport }: ExportButtonProps) {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  function pick(format: ModelExportFormat) {
+    setIsMenuOpen(false);
+    onExport(format);
+  }
+
+  return (
+    <div
+      className="save-modal__split"
+      // Closes the menu when focus leaves the whole control (a click elsewhere, tabbing away).
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setIsMenuOpen(false);
+      }}
+    >
+      <button
+        type="button"
+        className="save-modal__close-button save-modal__split-main"
+        onClick={() => pick('nrm')}
+        disabled={disabled}
+      >
+        Exportar modelo (.nrm)
+      </button>
+      <button
+        type="button"
+        className="save-modal__close-button save-modal__split-arrow"
+        onClick={() => setIsMenuOpen((open) => !open)}
+        disabled={disabled}
+        aria-label="Escolher o formato de exportação"
+        aria-haspopup="menu"
+        aria-expanded={isMenuOpen}
+      >
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {isMenuOpen && (
+        <div className="save-modal__split-menu" role="menu">
+          <button type="button" role="menuitem" className="save-modal__split-item" onClick={() => pick('nrm')}>
+            Modelo + dados (.nrm)
+          </button>
+          <button type="button" role="menuitem" className="save-modal__split-item" onClick={() => pick('json')}>
+            Só o modelo (.json)
+          </button>
+        </div>
+      )}
     </div>
   );
 }

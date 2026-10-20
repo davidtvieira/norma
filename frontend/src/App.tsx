@@ -5,6 +5,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 're
 import { KINDS_BY_ID, OPERATION_KIND_IDS } from './components/OperationPanel/kinds/registry';
 import { useTheme } from './hooks/useTheme';
 import { checkDataset, getModelInputs, getNrmDataset, getNrmInputs, getNrmModel, importDataset, registerModel } from './services/datasetApi';
+import type { ModelExportFormat } from './components/SaveModal/SaveModal';
 import type { NrmImportStatusPayload } from './types/nrm';
 import type { DatasetHandle, DatasetImportStatus, DatasetImportResponse } from './types/dataset';
 import { useDatasetSheets } from './hooks/useDatasetSheets';
@@ -645,18 +646,28 @@ function App() {
       .catch((error) => setImportError(inlineErrorMessage(error, 'Falha ao preparar o modelo.')));
   }
 
-  function exportModel() {
-    if (!dataset || !datasetFile) return;
+  function downloadBlob(blob: Blob, downloadName: string) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = downloadName;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // "Guardar modelo": the .nrm bundles the model with the dataset's own spreadsheet; the .json is
+  // the bare model only (same JSON that sits inside the .nrm), importable later through
+  // "Importar Modelo" on a dataset that's already loaded.
+  function exportModel(format: ModelExportFormat) {
+    if (!dataset) return;
     const model = buildModelExport(modelEntries, modelName, dataset.datasetId, modelInputIds, modelOutputIds, nrmName);
     const fileName = nrmName.trim() || modelName.trim() || 'modelo';
-    buildNrmFile(datasetFile, model, fileName).then((blob) => {
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${fileName}.nrm`;
-      link.click();
-      URL.revokeObjectURL(url);
-    });
+    if (format === 'json') {
+      downloadBlob(new Blob([JSON.stringify(model, null, 2)], { type: 'application/json' }), `${fileName}.json`);
+      return;
+    }
+    if (!datasetFile) return;
+    buildNrmFile(datasetFile, model, fileName).then((blob) => downloadBlob(blob, `${fileName}.nrm`));
   }
 
   // The "Norma" footer's always-available way back to the very start, from any screen — resets

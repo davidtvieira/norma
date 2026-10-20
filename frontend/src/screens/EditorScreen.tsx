@@ -1,6 +1,6 @@
 import { AppFooter } from '../components/AppFooter/AppFooter';
 import { OperationPanel } from '../components/OperationPanel/OperationPanel';
-import { SaveModal } from '../components/SaveModal/SaveModal';
+import { SaveModal, type ModelExportFormat } from '../components/SaveModal/SaveModal';
 import { SheetViewer } from '../components/SheetViewer/SheetViewer';
 import { ThemeToggle } from '../components/ThemeToggle/ThemeToggle';
 import type { DatasetImportResponse } from '../types/dataset';
@@ -51,7 +51,7 @@ interface EditorScreenProps {
   isSaveModalOpen: boolean;
   onOpenSaveModal: () => void;
   onCloseSaveModal: () => void;
-  onExportModel: () => void;
+  onExportModel: (format: ModelExportFormat) => void;
   nrmName: string;
   onNrmNameChange: (name: string) => void;
   canExportModel: boolean;

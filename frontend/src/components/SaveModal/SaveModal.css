@@ -141,3 +141,60 @@
   background: var(--color-surface-hover);
   color: var(--color-primary-hover);
 }
+
+/* The split export button (see SaveModal's ExportButton): main + arrow joined into one control,
+   with the format menu opening upward since the buttons sit at the bottom of the modal. */
+.save-modal__split {
+  position: relative;
+  display: inline-flex;
+}
+
+.save-modal__split-main {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.save-modal__split-arrow {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.55rem 0.5rem;
+  border-left-color: color-mix(in srgb, var(--color-surface) 40%, transparent);
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.save-modal__split-arrow svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.save-modal__split-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.35rem);
+  display: flex;
+  flex-direction: column;
+  min-width: 100%;
+  padding: 0.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
+}
+
+.save-modal__split-item {
+  padding: 0.5rem 0.75rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.875rem;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.save-modal__split-item:hover {
+  background: var(--color-surface-hover);
+}
