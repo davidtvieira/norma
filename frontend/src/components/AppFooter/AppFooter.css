@@ -9,6 +9,8 @@
 .app__brand--link:hover,
 .app__brand--link:focus-visible {
   color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
 }
 
 /* The brand sits in the middle of a rule running edge to edge: a line on each side. */
