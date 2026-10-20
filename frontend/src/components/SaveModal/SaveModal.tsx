@@ -132,7 +132,7 @@ function ExportButton({ disabled, onExport }: ExportButtonProps) {
       {isMenuOpen && (
         <div className="save-modal__split-menu" role="menu">
           <button type="button" role="menuitem" className="save-modal__split-item" onClick={() => pick('nrm')}>
-            Modelo + dados (.nrm)
+            Ficheiro Norma (.nrm)
           </button>
           <button type="button" role="menuitem" className="save-modal__split-item" onClick={() => pick('json')}>
             Só o modelo (.json)
