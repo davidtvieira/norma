@@ -226,7 +226,8 @@ export function useCanvasViewport({ entries, onDragEntry, onNodeClick, onMarquee
         .filter((entry) => entry.confirmed)
         .filter((entry) => {
           const el = nodeRefs.current[entry.id];
-          if (!el) return false;
+          // Collapsed inputs stay mounted but invisible — not selectable.
+          if (!el || el.style.visibility === 'hidden') return false;
           const box = el.getBoundingClientRect();
           return box.left < right && box.right > left && box.top < bottom && box.bottom > top;
         })

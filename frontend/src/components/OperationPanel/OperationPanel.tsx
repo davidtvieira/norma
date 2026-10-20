@@ -2759,7 +2759,6 @@ export function OperationPanel({
             // false entry.confirmed — editEntry flips that off only to reuse the same draft-field
             // UI in the docked panel, not to pull the card off the canvas).
             if (stagingEntryIds.includes(entry.id)) return null;
-            if (hiddenInputIds.has(entry.id)) return null;
 
             return (
               <div
@@ -2770,7 +2769,15 @@ export function OperationPanel({
                 className={
                   selectedIds.includes(entry.id) ? 'operation-canvas__node operation-canvas__node--selected' : 'operation-canvas__node'
                 }
-                style={{ left: entry.position.x, top: entry.position.y, width: NODE_WIDTH, zIndex: nodeZIndex[entry.id] }}
+                // A collapsed input stays mounted, just invisible and untouchable: its card is what
+                // computes the input's value, so unmounting it would stop the model from running.
+                style={{
+                  left: entry.position.x,
+                  top: entry.position.y,
+                  width: NODE_WIDTH,
+                  zIndex: nodeZIndex[entry.id],
+                  ...(hiddenInputIds.has(entry.id) ? { visibility: 'hidden', pointerEvents: 'none' } : {}),
+                }}
                 onMouseDown={beginNodeDrag(entry)}
               >
                 {/* entry.id === editingEntryId is the only way an unconfirmed entry ever reaches
