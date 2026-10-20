@@ -135,3 +135,9 @@ body {
   animation: none;
   mix-blend-mode: normal;
 }
+
+/* Starts fully clipped so the new theme can't flash on screen for a frame before the script's
+   animation begins (that was a visible blink at the start of the reveal). */
+::view-transition-new(root) {
+  clip-path: circle(0px at 100% 0);
+}
