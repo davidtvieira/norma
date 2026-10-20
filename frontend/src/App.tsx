@@ -19,6 +19,7 @@ import { deleteSessionCacheEntry, listSessionCacheEntries, saveSessionCacheEntry
 import { downloadTestCase } from './utils/testCaseSerialization';
 import { LandingScreen } from './screens/LandingScreen';
 import { UtilizeScreen, type UtilizeModel } from './screens/UtilizeScreen';
+import { NrmFileScreen } from './screens/NrmFileScreen';
 import { ChooseModelScreen, type ImportedModel } from './screens/ChooseModelScreen';
 import { EditorScreen } from './screens/EditorScreen';
 import './App.css';
@@ -749,7 +750,20 @@ function App() {
         path="/d/:datasetId"
         element={
           <DatasetRoute dataset={dataset} isRestoring={isRestoring}>
-            {(activeDataset) => (
+            {(activeDataset) =>
+              activeDataset.nrmId && importedModel?.nrmId ? (
+                <NrmFileScreen
+                  dataset={activeDataset}
+                  importedModel={importedModel}
+                  importError={importError}
+                  theme={theme}
+                  onToggleTheme={toggleTheme}
+                  onEdit={goToEditorWithImportedModel}
+                  onUtilize={goToUtilizeWithImportedModel}
+                  onBack={handleBackToLanding}
+                  onGoHome={goHome}
+                />
+              ) : (
               <ChooseModelScreen
                 dataset={activeDataset}
                 importedModel={importedModel}
@@ -766,7 +780,8 @@ function App() {
                 onBackToLanding={handleBackToLanding}
                 onGoHome={goHome}
               />
-            )}
+              )
+            }
           </DatasetRoute>
         }
       />
