@@ -212,6 +212,15 @@ interface ValueSourceFieldProps {
    */
   onRemove?: () => void;
   /**
+   * When given, the dynamic picker lets several operations be selected at once (kept in click
+   * order, shown numbered) instead of just one. Picking exactly one still goes through `onChange`
+   * as usual; picking two or more calls this instead, with every selected operation id in order —
+   * the caller is expected to put the first in this field's own row and add one more row per
+   * remaining id. Used by the list kinds (counter's/selector's inputs), where each reference is its
+   * own row; meaningless for a single-valued field, which has nowhere to put the extras.
+   */
+  onPickMany?: (operationIds: string[]) => void;
+  /**
    * When given, adds a third "Coluna da tabela" source alongside static/dynamic: instead of
    * typing a value or picking a reference, the user clicks a column header directly in the sheet
    * viewer, same as ColumnPickerField's own picking flow (which this mirrors, just reached through
@@ -249,6 +258,9 @@ interface ValueSourcePickerModalProps {
   initialTab: 'static' | 'dynamic';
   onPickStatic: (value: string) => void;
   onPickReference: (operationId: string) => void;
+  /** Whether the dynamic list allows selecting several — see ValueSourceField's onPickMany. */
+  multiple: boolean;
+  onPickMany: (operationIds: string[]) => void;
   onClose: () => void;
 }
 
@@ -280,6 +292,8 @@ function ValueSourcePickerModal({
   initialTab,
   onPickStatic,
   onPickReference,
+  multiple,
+  onPickMany,
   onClose,
 }: ValueSourcePickerModalProps) {
   const [tab, setTab] = useState<'static' | 'dynamic' | 'column'>(initialTab);
@@ -288,18 +302,28 @@ function ValueSourcePickerModal({
   // (see the option buttons' own onClick); Confirmar is what actually commits it, same two-step
   // flow as the static tab's text field + Confirmar, rather than committing the instant an option
   // is clicked.
-  const [selectedOperationId, setSelectedOperationId] = useState<string | null>(null);
+  // In click order — which matters when several are picked at once (see `multiple`): the order
+  // they're added in is the order they end up in.
+  const [selectedOperationIds, setSelectedOperationIds] = useState<string[]>([]);
+
+  function selectOption(operationId: string) {
+    setSelectedOperationIds((current) => {
+      if (!multiple) return [operationId];
+      return current.includes(operationId) ? current.filter((id) => id !== operationId) : [...current, operationId];
+    });
+  }
   const isDynamicMode = referenceOnly || tab === 'dynamic';
   const isColumnMode = !referenceOnly && tab === 'column';
   // The column tab has no Confirmar step of its own — its dedicated "Selecionar coluna" button
   // (below) starts the pick and closes this modal in one action, since the actual selection
   // happens by clicking a header in the sheet viewer next, not by confirming anything in here.
-  const canConfirm = isColumnMode ? false : isDynamicMode ? selectedOperationId !== null : draftValue.trim() !== '';
+  const canConfirm = isColumnMode ? false : isDynamicMode ? selectedOperationIds.length > 0 : draftValue.trim() !== '';
 
   function confirm() {
     if (isColumnMode) return;
     if (isDynamicMode) {
-      if (selectedOperationId) onPickReference(selectedOperationId);
+      if (selectedOperationIds.length === 1) onPickReference(selectedOperationIds[0]);
+      else if (selectedOperationIds.length > 1) onPickMany(selectedOperationIds);
     } else if (draftValue.trim() !== '') {
       onPickStatic(draftValue);
     }
@@ -380,20 +404,27 @@ function ValueSourcePickerModal({
         )}
 
         {isDynamicMode && (
-          <div className="operation-entry__dynamic-input-menu">
-            {referenceOptions.map((option) => (
-              <button
-                key={option.operationId}
-                type="button"
-                className={`operation-entry__dynamic-input-option${
-                  selectedOperationId === option.operationId ? ' operation-entry__dynamic-input-option--active' : ''
-                }`}
-                onClick={() => setSelectedOperationId(option.operationId)}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
+          <>
+            {multiple && <p className="operation-entry__chain-status">Pode escolher várias operações; ficam pela ordem em que as escolher.</p>}
+            <div className="operation-entry__dynamic-input-menu">
+              {referenceOptions.map((option) => {
+                const position = selectedOperationIds.indexOf(option.operationId);
+                return (
+                  <button
+                    key={option.operationId}
+                    type="button"
+                    className={`operation-entry__dynamic-input-option${
+                      position !== -1 ? ' operation-entry__dynamic-input-option--active' : ''
+                    }`}
+                    onClick={() => selectOption(option.operationId)}
+                  >
+                    {multiple && position !== -1 ? `${position + 1}. ` : ''}
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          </>
         )}
 
         <div className="add-operation-modal__actions">
@@ -446,6 +477,7 @@ export function ValueSourceField({
   resolvedInput,
   referenceOnly = false,
   onRemove,
+  onPickMany,
   columnPicker,
 }: ValueSourceFieldProps) {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
@@ -587,6 +619,11 @@ export function ValueSourceField({
           initialTab={source.type === 'reference' ? 'dynamic' : 'static'}
           onPickStatic={pickStatic}
           onPickReference={pickReference}
+          multiple={onPickMany !== undefined}
+          onPickMany={(operationIds) => {
+            onPickMany?.(operationIds);
+            setIsPickerOpen(false);
+          }}
           onClose={() => setIsPickerOpen(false)}
         />
       )}

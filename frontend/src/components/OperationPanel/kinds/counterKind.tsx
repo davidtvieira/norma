@@ -128,6 +128,20 @@ function CounterInputs({ inputs, onChange, referenceOptions, resolvedInputs, tes
                 // row that hasn't had a reference picked yet (still showing the reference list,
                 // nothing to click on to remove it otherwise).
                 onRemove={removeRow}
+                // Several references picked at once: the first fills this row, each other gets a
+                // new row of its own right after it.
+                onPickMany={(operationIds) =>
+                  commit(
+                    rows.flatMap((current) =>
+                      current.id !== row.id
+                        ? [current]
+                        : operationIds.map((operationId, pickIndex) => ({
+                            id: pickIndex === 0 ? current.id : nextRowId(),
+                            source: { type: 'reference' as const, operationId },
+                          })),
+                    ),
+                  )
+                }
               />
             </div>
             {row.source.type !== 'reference' && (
