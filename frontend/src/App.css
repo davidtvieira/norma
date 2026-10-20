@@ -606,3 +606,16 @@ button.action-button:hover:not(:disabled) {
   background: var(--color-action-hover);
   border-color: var(--color-action-hover);
 }
+
+/* The action button's quieter sibling: a soft tint of the same orange, normal text. Same
+   `button.` prefix trick as .action-button. */
+button.action-button-secondary {
+  border-color: color-mix(in srgb, var(--color-action) 45%, transparent);
+  background: color-mix(in srgb, var(--color-action) 16%, var(--color-surface));
+  color: var(--color-text);
+}
+
+button.action-button-secondary:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-action) 75%, transparent);
+  background: color-mix(in srgb, var(--color-action) 28%, var(--color-surface));
+}
