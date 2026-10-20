@@ -593,13 +593,13 @@
 }
 
 /* The action button: the orange call-to-action ("Criar Modelo", "Editar", "Guardar modelo",
-   "Correr modelo"). Orange in both themes (--color-action doesn't swap), unlike the primary color
+   "Correr modelo"). Orange with white text in both themes (--color-action doesn't swap), unlike the primary color
    that turns grey in dark mode. Add it next to the button's own sizing class; the
    `button.` prefix makes it win over that class regardless of stylesheet order. */
 button.action-button {
   border-color: var(--color-action);
   background: var(--color-action);
-  color: var(--color-action-contrast);
+  color: #fff;
 }
 
 button.action-button:hover:not(:disabled) {
