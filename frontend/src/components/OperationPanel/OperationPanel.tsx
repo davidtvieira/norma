@@ -937,6 +937,9 @@ export function OperationPanel({
   // still pans outside "Editar". Switching away from "select" drops whatever was selected/copied —
   // a leftover selection or clipboard would otherwise linger, invisible, back in "pan" mode.
   const [tool, setTool] = useState<'pan' | 'select'>('pan');
+  // Purely visual (never saved or sent anywhere): collapses every designated input node into one
+  // orange node on the canvas for tidiness, and back. See hiddenInputIds/inputsGroup below.
+  const [inputsHidden, setInputsHidden] = useState(false);
   // Snapshot of every entry (positions included) taken the moment "Editar" turns on (see
   // enterEditMode) — what "Cancelar" (see cancelEditMode) restores, discarding every move/
   // copy/paste/delete made during this editing session at once, same as editEntry's own
@@ -1690,13 +1693,28 @@ export function OperationPanel({
   // as a connecting line between the two nodes (see edgePath) instead of nesting one inside the
   // other's DOM, since both need to stay independently draggable on the canvas.
   const entriesById = new Map(entries.map((entry) => [entry.id, entry]));
+
+  // While inputs are collapsed, the confirmed designated inputs aren't drawn; one stand-in node
+  // sits at their leftmost x / average y instead, and their outgoing edges leave from it.
+  const hiddenInputs = inputsHidden
+    ? entries.filter((entry) => entry.confirmed && !stagingEntryIds.includes(entry.id) && modelInputIds.includes(entry.id))
+    : [];
+  const hiddenInputIds = new Set(hiddenInputs.map((entry) => entry.id));
+  const inputsGroup: NodePosition | null =
+    hiddenInputs.length === 0
+      ? null
+      : {
+          x: Math.min(...hiddenInputs.map((entry) => entry.position.x)),
+          y: hiddenInputs.reduce((sum, entry) => sum + entry.position.y, 0) / hiddenInputs.length,
+        };
+
   const edges: Edge[] = entries.flatMap((entry) => {
     if (!entry.confirmed) return [];
     return getInputSources(entry.fields).flatMap((source) => {
       if (source.type !== 'reference') return [];
       const from = entriesById.get(source.operationId);
       if (!from) return [];
-      return [{ fromId: from.id, toId: entry.id, from: from.position, to: entry.position }];
+      return [{ fromId: from.id, toId: entry.id, from: hiddenInputIds.has(from.id) && inputsGroup ? inputsGroup : from.position, to: entry.position }];
     });
   });
 
@@ -2544,6 +2562,28 @@ export function OperationPanel({
             </>
           )}
 
+          {/* Collapses the model's designated inputs into one orange node (and back) — only how the
+              canvas looks, nothing about the model changes. Disabled while no node is an input. */}
+          <button
+            type="button"
+            className={
+              inputsHidden
+                ? 'operation-canvas__tool-button operation-canvas__tool-button--active'
+                : 'operation-canvas__tool-button'
+            }
+            onClick={() => setInputsHidden((hidden) => !hidden)}
+            disabled={modelInputIds.length === 0}
+            title={
+              modelInputIds.length === 0
+                ? 'Nenhuma operação está marcada como entrada.'
+                : inputsHidden
+                  ? 'Volta a mostrar as entradas.'
+                  : 'Esconde as entradas num só nó (apenas visual).'
+            }
+          >
+            {inputsHidden ? 'Mostrar entradas' : 'Esconder entradas'}
+          </button>
+
           {/* "Editar"/"A editar": the only state operations can actually be dragged to a new
               position in (see the onDragEntry passed to useCanvasViewport below, which drops
               every drag report while this is off) — outside it, a node click still opens its
@@ -2625,6 +2665,18 @@ export function OperationPanel({
             ))}
           </svg>
 
+          {inputsGroup && (
+            <div
+              className="operation-canvas__node operation-canvas__inputs-group"
+              style={{ left: inputsGroup.x, top: inputsGroup.y, width: NODE_WIDTH }}
+              onMouseDown={(event) => event.stopPropagation()}
+              onClick={() => setInputsHidden(false)}
+              title="Clique para mostrar as entradas."
+            >
+              Entradas ({hiddenInputs.length})
+            </div>
+          )}
+
           {entries.map((entry) => {
             // Staged as part of a new-operation batch, in the config panel right now (see
             // renderConfigPanel) — nothing to show on the canvas yet for one of these: no
@@ -2635,6 +2687,7 @@ export function OperationPanel({
             // false entry.confirmed — editEntry flips that off only to reuse the same draft-field
             // UI in the docked panel, not to pull the card off the canvas).
             if (stagingEntryIds.includes(entry.id)) return null;
+            if (hiddenInputIds.has(entry.id)) return null;
 
             return (
               <div

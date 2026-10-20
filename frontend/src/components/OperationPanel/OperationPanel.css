@@ -1509,3 +1509,20 @@
   display: none;
 }
 
+
+/* The single node standing in for every designated input while they're collapsed (see
+   inputsHidden in OperationPanel.tsx) — the same fixed orange --color-secondary the input toggles
+   use. Click to expand again. */
+.operation-canvas__inputs-group {
+  box-sizing: border-box;
+  height: 56px; /* centered on NODE_HEADER_ANCHOR_Y so edges attach at its middle */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--color-secondary);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
