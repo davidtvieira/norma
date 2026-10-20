@@ -1992,8 +1992,7 @@ export function OperationPanel({
 
     // The viewport's own currently-visible rectangle, converted from screen pixels back into the
     // same canvas-local coordinate space node positions already live in (undoing the surface's
-    // pan/zoom transform) — folded into the content bounds below so the minimap still makes sense
-    // even zoomed/panned out well past where any node actually sits.
+    // pan/zoom transform).
     const viewportRect = {
       left: -viewOffset.x / zoom,
       top: -viewOffset.y / zoom,
@@ -2001,10 +2000,15 @@ export function OperationPanel({
       height: viewportSize.height / zoom,
     };
 
-    let minX = viewportRect.left;
-    let minY = viewportRect.top;
-    let maxX = viewportRect.left + viewportRect.width;
-    let maxY = viewportRect.top + viewportRect.height;
+    // The bounds come from the nodes alone, never from where the viewport currently is: folding
+    // the viewport's position in made the whole minimap rescale while merely panning, so the
+    // visible-area square changed size on drag. Only the viewport's *size* (which is what zoom
+    // changes) can widen them, when it's bigger than the nodes' footprint — so the square resizes
+    // on zoom and nothing else. Panned past the nodes, the square just stops at the minimap's edge.
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
     for (const position of [...confirmed.map((entry) => entry.position), ...(groupDot ? [groupDot] : [])]) {
       minX = Math.min(minX, position.x);
       minY = Math.min(minY, position.y);
@@ -2015,6 +2019,12 @@ export function OperationPanel({
     minY -= MINIMAP_PADDING;
     maxX += MINIMAP_PADDING;
     maxY += MINIMAP_PADDING;
+    const growX = Math.max(0, viewportRect.width - (maxX - minX)) / 2;
+    const growY = Math.max(0, viewportRect.height - (maxY - minY)) / 2;
+    minX -= growX;
+    maxX += growX;
+    minY -= growY;
+    maxY += growY;
 
     const contentWidth = maxX - minX;
     const contentHeight = maxY - minY;
@@ -2027,7 +2037,13 @@ export function OperationPanel({
     const originX = minX - (MINIMAP_WIDTH / scale - contentWidth) / 2;
     const originY = minY - (MINIMAP_HEIGHT / scale - contentHeight) / 2;
     const toMinimap = (x: number, y: number) => ({ x: (x - originX) * scale, y: (y - originY) * scale });
-    const viewportTopLeft = toMinimap(viewportRect.left, viewportRect.top);
+    const viewportWidth = viewportRect.width * scale;
+    const viewportHeight = viewportRect.height * scale;
+    const rawTopLeft = toMinimap(viewportRect.left, viewportRect.top);
+    const viewportTopLeft = {
+      x: Math.min(Math.max(rawTopLeft.x, 0), Math.max(0, MINIMAP_WIDTH - viewportWidth)),
+      y: Math.min(Math.max(rawTopLeft.y, 0), Math.max(0, MINIMAP_HEIGHT - viewportHeight)),
+    };
     minimapTransformRef.current = { minX: originX, minY: originY, scale };
 
     return (
@@ -2086,8 +2102,8 @@ export function OperationPanel({
           style={{
             left: viewportTopLeft.x,
             top: viewportTopLeft.y,
-            width: viewportRect.width * scale,
-            height: viewportRect.height * scale,
+            width: viewportWidth,
+            height: viewportHeight,
           }}
         />
       </div>
