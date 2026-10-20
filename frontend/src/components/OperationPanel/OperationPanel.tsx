@@ -939,7 +939,7 @@ export function OperationPanel({
   const [tool, setTool] = useState<'pan' | 'select'>('pan');
   // Purely visual (never saved or sent anywhere): collapses every designated input node into one
   // orange node on the canvas for tidiness, and back. See hiddenInputIds/inputsGroup below.
-  const [inputsHidden, setInputsHidden] = useState(false);
+  const [inputsHidden, setInputsHidden] = useState(true);
   // Snapshot of every entry (positions included) taken the moment "Editar" turns on (see
   // enterEditMode) — what "Cancelar" (see cancelEditMode) restores, discarding every move/
   // copy/paste/delete made during this editing session at once, same as editEntry's own
