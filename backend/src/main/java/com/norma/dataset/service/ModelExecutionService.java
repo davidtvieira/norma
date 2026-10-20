@@ -37,6 +37,8 @@ import java.util.stream.Collectors;
 @Service
 public class ModelExecutionService {
 
+    private static final String ITERATOR_KIND = "iterator";
+
     private final DatasetStore datasetStore;
     private final ModelStore modelStore;
 
@@ -78,6 +80,8 @@ public class ModelExecutionService {
             }
         }
 
+        validateIterator(datasetStore.get(datasetId).orElseThrow(), operations, outputOperationIds);
+
         StoredModel model = new StoredModel(datasetId, request.name(), operations, inputOperationIds, outputOperationIds);
         return modelStore.put(model);
     }
@@ -108,6 +112,47 @@ public class ModelExecutionService {
 
         List<ModelOperationInput> operations = withInputOverride(model, inputValues);
 
+        Optional<ModelOperationInput> iterator = operations.stream()
+                .filter(operation -> ITERATOR_KIND.equals(operation.kind()))
+                .findFirst();
+        if (iterator.isPresent()) {
+            return runIterations(model, operations, iterator.get(), dataset);
+        }
+
+        return runOnce(operations, model.outputOperationIds(), dataset, "", false);
+    }
+
+    /**
+     * Runs the whole model once per sheet of the iterator's range, in order, and returns one
+     * result per sheet (the model's single designated output each time) — a round that fails
+     * (e.g. a translator with no rule for that sheet's value) is reported as that sheet's failed
+     * result and the next round still runs. Every round gets a fresh resolution cache, so nothing
+     * carries over between sheets except which sheet the iterator is currently on.
+     */
+    private List<ModelOperationResult> runIterations(
+            StoredModel model, List<ModelOperationInput> operations, ModelOperationInput iterator, DatasetImportResponse dataset) {
+        List<ModelOperationResult> results = new ArrayList<>();
+        List<Integer> sheets = iteratorSheets(iterator, dataset);
+        for (int position = 0; position < sheets.size(); position++) {
+            int sheet = sheets.get(position);
+            int roundPosition = position;
+            List<ModelOperationInput> round = operations.stream()
+                    .map(operation -> forSheet(operation, sheet, roundPosition))
+                    .toList();
+            results.addAll(runOnce(round, model.outputOperationIds(), dataset, String.valueOf(position), true));
+        }
+        return results;
+    }
+
+    /**
+     * One pass over the model: resolves each designated output. When {@code iteration} is set
+     * (the iterator's position for this pass), the result's name is that position and its id is
+     * suffixed with it, so the rounds of the same output stay distinguishable to the caller.
+     */
+    private List<ModelOperationResult> runOnce(
+            List<ModelOperationInput> operations, List<String> outputOperationIds, DatasetImportResponse dataset,
+            String iteration, boolean iterating) {
+
         Map<String, ModelOperationInput> byId = new LinkedHashMap<>();
         for (ModelOperationInput operation : operations) {
             byId.put(operation.id(), operation);
@@ -115,10 +160,74 @@ public class ModelExecutionService {
 
         Set<String> cyclicIds = findCyclicIds(buildReferenceGraph(operations));
         Map<String, ModelOperationResult> resolved = new HashMap<>();
-        return model.outputOperationIds().stream()
-                .map(outputOperationId -> resolveOperation(outputOperationId, dataset, byId, cyclicIds, resolved)
-                        .withName(nameOf(byId.get(outputOperationId))))
+        return outputOperationIds.stream()
+                .map(outputOperationId -> {
+                    ModelOperationResult result = resolveOperation(outputOperationId, dataset, byId, cyclicIds, resolved);
+                    return iterating
+                            ? new ModelOperationResult(outputOperationId + ":" + iteration, result.success(), result.value(), result.error(), iteration)
+                            : result.withName(nameOf(byId.get(outputOperationId)));
+                })
                 .toList();
+    }
+
+    /**
+     * Points an operation at the sheet this round is on: the iterator itself learns its position in
+     * its range (0 for its first sheet — what it outputs, not the sheet's own index), and any operation set to use the iterator's sheet (its {@code useIteratorSheet}
+     * field) is pointed at it — a lookup's {@code searchSheetIndex}, a sum/find's {@code sheetIndex}
+     * — with its columns/range staying exactly as picked, blindly applied to each sheet. Every other operation is used as registered.
+     */
+    private ModelOperationInput forSheet(ModelOperationInput operation, int sheet, int position) {
+        Map<String, Object> fields = new HashMap<>(fieldsOf(operation));
+        if (ITERATOR_KIND.equals(operation.kind())) {
+            fields.put("currentIndex", position);
+        } else if (Boolean.TRUE.equals(fields.get("useIteratorSheet"))) {
+            // A lookup only moves where it *searches*: the value it returns is still read from the
+            // sheet picked when the operation was created (its sheetIndex). Sum/find have just the
+            // one sheet, so it is that sheet that follows the iterator.
+            fields.put("lookup".equals(operation.kind()) ? "searchSheetIndex" : "sheetIndex", sheet);
+        } else {
+            return operation;
+        }
+        return new ModelOperationInput(operation.id(), operation.kind(), fields, operation.name());
+    }
+
+    /** Every sheet index the iterator covers, in order — its {@code startSheet}..{@code endSheet}, inclusive. */
+    private List<Integer> iteratorSheets(ModelOperationInput iterator, DatasetImportResponse dataset) {
+        Map<String, Object> fields = fieldsOf(iterator);
+        int start = intField(fields, "startSheet");
+        int end = intField(fields, "endSheet");
+        int sheetCount = dataset.sheets() == null ? 0 : dataset.sheets().size();
+        if (start < 0 || end < start || end >= sheetCount) {
+            throw new IllegalArgumentException(
+                    "The iterator range " + start + "-" + end + " is not inside the dataset's " + sheetCount + " sheets.");
+        }
+        List<Integer> sheets = new ArrayList<>();
+        for (int sheet = start; sheet <= end; sheet++) {
+            sheets.add(sheet);
+        }
+        return sheets;
+    }
+
+    /** A model may have at most one iterator, and then exactly one output (the stop of each round). */
+    private void validateIterator(
+            DatasetImportResponse dataset, List<ModelOperationInput> operations, List<String> outputOperationIds) {
+        List<ModelOperationInput> iterators = operations.stream()
+                .filter(operation -> ITERATOR_KIND.equals(operation.kind()))
+                .toList();
+        if (iterators.isEmpty()) {
+            return;
+        }
+        if (iterators.size() > 1) {
+            throw new IllegalArgumentException("A model can have only one iterator.");
+        }
+        if (outputOperationIds.size() != 1) {
+            throw new IllegalArgumentException("A model with an iterator must have exactly one output.");
+        }
+        iteratorSheets(iterators.get(0), dataset);
+    }
+
+    private ModelOperationResult computeIterator(ModelOperationInput operation) {
+        return new ModelOperationResult(operation.id(), true, intField(fieldsOf(operation), "currentIndex"), null);
     }
 
     /**
@@ -245,6 +354,7 @@ public class ModelExecutionService {
                 case "find" -> computeFind(operation, dataset, inputValue);
                 case "translator" -> computeTranslator(operation, inputValue);
                 case "selector" -> computeSelector(operation, dataset, byId, cyclicIds, resolved);
+                case ITERATOR_KIND -> computeIterator(operation);
                 default -> new ModelOperationResult(id, false, null, "Unknown operation type: " + operation.kind());
             };
         } catch (IllegalArgumentException ex) {
@@ -324,7 +434,11 @@ public class ModelExecutionService {
             Map<String, ModelOperationResult> resolved) {
 
         Map<String, Object> fields = fieldsOf(operation);
+        // Where the value is read from — the sheet picked when the operation was created.
         int sheetIndex = intField(fields, "sheetIndex");
+        // Where the match is searched for: the same sheet unless an iterator moved the search (see
+        // forSheet), in which case the matched row's index is used to read the result from sheetIndex.
+        int searchSheetIndex = fields.get("searchSheetIndex") instanceof Number number ? number.intValue() : sheetIndex;
         int searchColumn = parseColumnIndex(
                 resolveChainableField(fields, "searchColumn", dataset, byId, cyclicIds, resolved), "searchColumn");
         int startRow = parseRowIndex(
@@ -334,10 +448,11 @@ public class ModelExecutionService {
         boolean tokenIgnoreSpaces = boolField(fields, "tokenIgnoreSpaces");
         boolean tokenIgnoreDashes = boolField(fields, "tokenIgnoreDashes");
 
-        SheetData sheet = OperationSupport.sheetAt(dataset, sheetIndex, "onde procurar");
+        SheetData searchSheet = OperationSupport.sheetAt(dataset, searchSheetIndex, "onde procurar");
+        SheetData resultSheet = OperationSupport.sheetAt(dataset, sheetIndex, "a devolver");
         String normalizedQuery = query == null ? "" : query.trim();
 
-        Optional<com.norma.dataset.dto.RowData> matchRow = sheet.rows().stream()
+        Optional<com.norma.dataset.dto.RowData> matchRow = searchSheet.rows().stream()
                 .filter(row -> row.rowIndex() >= startRow)
                 .filter(row -> OperationSupport.matches(OperationSupport.cellValue(row, searchColumn), normalizedQuery, matchMode, tokenIgnoreSpaces, tokenIgnoreDashes))
                 .findFirst();
@@ -346,7 +461,14 @@ public class ModelExecutionService {
             return new ModelOperationResult(operation.id(), true, null, null);
         }
 
-        return new ModelOperationResult(operation.id(), true, OperationSupport.cellValue(matchRow.get(), resultColumn), null);
+        Optional<com.norma.dataset.dto.RowData> resultRow = searchSheetIndex == sheetIndex
+                ? matchRow
+                : resultSheet.rows().stream().filter(row -> row.rowIndex() == matchRow.get().rowIndex()).findFirst();
+        if (resultRow.isEmpty()) {
+            return new ModelOperationResult(operation.id(), true, null, null);
+        }
+
+        return new ModelOperationResult(operation.id(), true, OperationSupport.cellValue(resultRow.get(), resultColumn), null);
     }
 
     private String resolveChainableField(

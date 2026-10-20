@@ -344,6 +344,169 @@ class ModelExecutionServiceTest {
         assertThat(result.value()).isEqualTo(115L);
     }
 
+    private ModelOperationInput iterator(int startSheet, int endSheet) {
+        return new ModelOperationInput("op-iter", "iterator", Map.of("startSheet", startSheet, "endSheet", endSheet));
+    }
+
+    private ModelOperationInput idToNameLookup(boolean useIteratorSheet) {
+        // Picked against sheet 0 (the "sample" sheet); with useIteratorSheet it runs on each round's sheet instead.
+        return new ModelOperationInput("op-1", "lookup", Map.of(
+                "startRow", literalInput("0"),
+                "input", literalInput("2"),
+                "sheetIndex", 0,
+                "useIteratorSheet", useIteratorSheet,
+                "searchColumn", literalInput("0"),
+                "resultColumn", 1));
+    }
+
+    @Test
+    void iteratorMovesALookupsSearchToEachSheetButStillReadsTheResultFromItsOwn() {
+        String datasetId = twoSheetDataset();
+
+        // Created against the clients sheet (0), looking for "Caneta" in column 1 and returning column 0.
+        // Round 0 searches the clients sheet (no "Caneta" there); round 1 searches the orders sheet,
+        // finds it on row 1 — and the result is that row's column 0 on the *clients* sheet ("2"),
+        // not read from the orders sheet itself.
+        ModelOperationInput lookup = new ModelOperationInput("op-1", "lookup", Map.of(
+                "startRow", literalInput("0"),
+                "input", literalInput("Caneta"),
+                "sheetIndex", 0,
+                "useIteratorSheet", true,
+                "searchColumn", literalInput("1"),
+                "resultColumn", 0));
+
+        List<ModelOperationResult> results = registerAndRunMulti(
+                datasetId, List.of(iterator(0, 1), lookup), null, List.of("op-1"), null);
+
+        assertThat(results).extracting(ModelOperationResult::name).containsExactly("0", "1");
+        assertThat(results).extracting(ModelOperationResult::value).containsExactly(null, "2");
+        assertThat(results).extracting(ModelOperationResult::id).doesNotHaveDuplicates();
+    }
+
+    @Test
+    void iteratorMovesASumsSheetBecauseItHasNoOtherSheetToReadFrom() {
+        SheetData first = new SheetData("A", 1, List.of(new RowData(0, List.of(new CellData(0, 1L)))));
+        SheetData second = new SheetData("B", 1, List.of(new RowData(0, List.of(new CellData(0, 10L)))));
+        String datasetId = storeDataset(new DatasetImportResponse("dataset-iter-sum", "test.xlsx", Instant.now(), List.of(first, second)));
+
+        ModelOperationInput sum = new ModelOperationInput("op-1", "sum", Map.of(
+                "sheetIndex", 0,
+                "useIteratorSheet", true,
+                "range", Map.of("startRow", 0, "endRow", 0, "startColumn", 0, "endColumn", 0)));
+
+        List<ModelOperationResult> results = registerAndRunMulti(
+                datasetId, List.of(iterator(0, 1), sum), null, List.of("op-1"), null);
+
+        assertThat(results).extracting(ModelOperationResult::value).containsExactly(1L, 10L);
+    }
+
+    @Test
+    void iteratorOutputsItsPositionInTheRangeNotTheSheetIndex() {
+        SheetData first = new SheetData("A", 1, List.of(new RowData(0, List.of(new CellData(0, "2"), new CellData(1, "a")))));
+        SheetData second = new SheetData("B", 1, List.of(new RowData(0, List.of(new CellData(0, "2"), new CellData(1, "b")))));
+        SheetData third = new SheetData("C", 1, List.of(new RowData(0, List.of(new CellData(0, "2"), new CellData(1, "c")))));
+        String datasetId = storeDataset(new DatasetImportResponse("dataset-iter-offset", "test.xlsx", Instant.now(), List.of(first, second, third)));
+
+        // Range 1-2: the iterator (and the result names) count 0, 1 rather than 1, 2.
+        ModelOperationInput node = new ModelOperationInput("op-node", "node", Map.of("input", referenceInput("op-iter")));
+        List<ModelOperationResult> positions = registerAndRunMulti(
+                datasetId, List.of(iterator(1, 2), node), null, List.of("op-node"), null);
+        assertThat(positions).extracting(ModelOperationResult::value).containsExactly("0", "1");
+
+        List<ModelOperationResult> lookups = registerAndRunMulti(
+                datasetId, List.of(iterator(1, 2), idToNameLookup(true)), null, List.of("op-1"), null);
+        assertThat(lookups).extracting(ModelOperationResult::name).containsExactly("0", "1");
+        // The search moves to sheets B and C, but the value is always read from the configured sheet A.
+        assertThat(lookups).extracting(ModelOperationResult::value).containsExactly("a", "a");
+    }
+
+    @Test
+    void iteratorLeavesAnOperationOnItsOwnSheetUnlessItUsesTheIteratorsSheet() {
+        String datasetId = twoSheetDataset();
+
+        List<ModelOperationResult> results = registerAndRunMulti(
+                datasetId, List.of(iterator(0, 1), idToNameLookup(false)), null, List.of("op-1"), null);
+
+        assertThat(results).extracting(ModelOperationResult::value).containsExactly("Bruno", "Bruno");
+    }
+
+    @Test
+    void iteratorExposesItsCurrentSheetToOperationsThatReferenceIt() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationInput node = new ModelOperationInput("op-1", "node", Map.of("input", referenceInput("op-iter")));
+
+        List<ModelOperationResult> results = registerAndRunMulti(
+                datasetId, List.of(iterator(0, 1), node), null, List.of("op-1"), null);
+
+        assertThat(results).extracting(ModelOperationResult::value).containsExactly("0", "1");
+    }
+
+    @Test
+    void iteratorKeepsGoingAfterARoundFails() {
+        String datasetId = twoSheetDataset();
+
+        // "Livro" only exists on the orders sheet (1): on the clients sheet (0) the lookup finds
+        // nothing, so the counter chained off it fails — round 0 fails, round 1 still runs.
+        ModelOperationInput lookup = new ModelOperationInput("op-lookup", "lookup", Map.of(
+                "startRow", literalInput("0"),
+                "input", literalInput("Livro"),
+                "sheetIndex", 0,
+                "useIteratorSheet", true,
+                "searchColumn", literalInput("1"),
+                "resultColumn", 0));
+        ModelOperationInput counter = new ModelOperationInput("op-1", "counter", Map.of(
+                "inputs", List.of(referenceInput("op-lookup"))));
+
+        List<ModelOperationResult> results = registerAndRunMulti(
+                datasetId, List.of(iterator(0, 1), lookup, counter), null, List.of("op-1"), null);
+
+        assertThat(results).extracting(ModelOperationResult::name).containsExactly("0", "1");
+        assertThat(results.get(0).success()).isFalse();
+        assertThat(results.get(0).error()).isNotBlank();
+        assertThat(results.get(1).success()).isTrue();
+        assertThat(results.get(1).value()).isEqualTo(1L);
+    }
+
+    @Test
+    void rejectsAnIteratorRangeOutsideTheDatasetsSheets() {
+        String datasetId = twoSheetDataset();
+
+        assertThatThrownBy(() -> registerAndRunMulti(
+                datasetId, List.of(iterator(0, 2), idToNameLookup(true)), null, List.of("op-1"), null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> registerAndRunMulti(
+                datasetId, List.of(iterator(1, 0), idToNameLookup(true)), null, List.of("op-1"), null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsAnIteratorModelWithMoreThanOneOutputOrMoreThanOneIterator() {
+        String datasetId = twoSheetDataset();
+
+        assertThatThrownBy(() -> registerAndRunMulti(
+                datasetId, List.of(iterator(0, 1), idToNameLookup(true)), null, List.of("op-1", "op-iter"), null))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        ModelOperationInput secondIterator = new ModelOperationInput("op-iter-2", "iterator", Map.of("startSheet", 0, "endSheet", 1));
+        assertThatThrownBy(() -> registerAndRunMulti(
+                datasetId, List.of(iterator(0, 1), secondIterator, idToNameLookup(true)), null, List.of("op-1"), null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void aModelWithoutAnIteratorStillReturnsOneNamedResultPerOutput() {
+        String datasetId = twoSheetDataset();
+
+        List<ModelOperationResult> results = registerAndRunMulti(
+                datasetId, List.of(idToNameLookup(true)), null, List.of("op-1"), null);
+
+        // useIteratorSheet is ignored without an iterator: still the registered sheet 0.
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).id()).isEqualTo("op-1");
+        assertThat(results.get(0).value()).isEqualTo("Bruno");
+    }
+
     @Test
     void selectorReturnsTheInputAtTheZeroBasedIndex() {
         String datasetId = twoSheetDataset();

@@ -18,7 +18,8 @@ public final class OperationTypes {
             new OperationType("node", "Node"),
             new OperationType("find", "Find"),
             new OperationType("translator", "Translator"),
-            new OperationType("selector", "Selector")
+            new OperationType("selector", "Selector"),
+            new OperationType("iterator", "Iterator")
     );
 
     private OperationTypes() {
