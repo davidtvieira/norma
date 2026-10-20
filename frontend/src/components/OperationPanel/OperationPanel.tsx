@@ -2345,7 +2345,7 @@ export function OperationPanel({
                   : 'Preenche os inputs a partir de um ficheiro JSON.'
             }
           >
-            {hasTested || hasAnyTestInputValue ? 'Limpar teste' : 'Carregar teste'}
+            {hasTested || hasAnyTestInputValue ? 'Limpar teste' : 'Carregar teste (JSON)'}
           </button>,
               testActionsSlot,
             )}
