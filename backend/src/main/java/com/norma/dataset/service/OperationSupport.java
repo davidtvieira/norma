@@ -213,16 +213,16 @@ final class OperationSupport {
     static int parseSelectorIndex(String value) {
         String trimmed = value == null ? "" : value.trim();
         if (trimmed.isEmpty()) {
-            throw new IllegalArgumentException("The selector has no index.");
+            throw new IllegalArgumentException("The selector has no condition.");
         }
         double parsed;
         try {
             parsed = Double.parseDouble(trimmed.replace(',', '.'));
         } catch (NumberFormatException ex) {
-            throw new IllegalArgumentException("The selector index is not numeric: " + trimmed);
+            throw new IllegalArgumentException("The selector condition is not numeric: " + trimmed);
         }
         if (parsed != Math.rint(parsed) || Double.isInfinite(parsed) || Math.abs(parsed) > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException("The selector index must be a whole number: " + trimmed);
+            throw new IllegalArgumentException("The selector condition must be a whole number: " + trimmed);
         }
         return (int) parsed;
     }
@@ -234,7 +234,7 @@ final class OperationSupport {
         }
         if (index < 0 || index >= count) {
             throw new IllegalArgumentException(
-                    "The selector index " + index + " is out of range (it has " + count + " inputs, numbered from 0).");
+                    "The selector condition " + index + " is out of range (it has " + count + " inputs, numbered from 0).");
         }
     }
 

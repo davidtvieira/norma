@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import type { DatasetImportResponse } from '../../types/dataset';
@@ -325,7 +325,12 @@ interface ConfirmedOperationCardProps {
    * mousedown/mouseup handling (see startNodeDrag/handleMouseUp), so that's also where it decides
    * a click should open this card's modal instead. */
   isModalOpen: boolean;
+  /** Closes the modal keeping every edit made in it (the "Confirmar" button). */
   onCloseModal: () => void;
+  /** Closes the modal reverting every edit made since it opened ("Cancelar", ×, Esc, a click outside). */
+  onCancelModal: () => void;
+  /** Whether anything changed since the modal opened — closing without "Confirmar" then asks first. */
+  isModalDirty: boolean;
 }
 
 /**
@@ -376,6 +381,8 @@ function ConfirmedOperationCard({
   onToggleModelOutput,
   isModalOpen,
   onCloseModal,
+  onCancelModal,
+  isModalDirty,
 }: ConfirmedOperationCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const modalPlaceholderRef = useRef<HTMLDivElement>(null);
@@ -413,14 +420,22 @@ function ConfirmedOperationCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isModalOpen]);
 
+  // Every way of leaving the modal other than "Confirmar" discards what was edited in it, so
+  // when something did change it asks before throwing that away.
+  function requestCancel() {
+    if (isModalDirty && !window.confirm('Descartar as alterações feitas nesta operação?')) return;
+    onCancelModal();
+  }
+
   useEffect(() => {
     if (!isModalOpen) return;
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onCloseModal();
+      if (event.key === 'Escape') requestCancel();
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isModalOpen, onCloseModal]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isModalOpen, isModalDirty, onCancelModal]);
 
   return (
     <div
@@ -472,7 +487,7 @@ function ConfirmedOperationCard({
 
       {isModalOpen &&
         createPortal(
-          <div className="operation-card-modal__overlay" onClick={onCloseModal}>
+          <div className="operation-card-modal__overlay" onClick={requestCancel}>
             <div
               className="operation-card-modal"
               role="dialog"
@@ -488,12 +503,21 @@ function ConfirmedOperationCard({
                     <span className="operation-card__summary">{summary}</span>
                   </div>
                 </div>
-                <button type="button" className="operation-card-modal__close" onClick={onCloseModal} aria-label="Fechar">
+                <button type="button" className="operation-card-modal__close" onClick={requestCancel} aria-label="Fechar">
                   ×
                 </button>
               </div>
 
               <div ref={modalPlaceholderRef} />
+
+              <div className="operation-card-modal__actions">
+                <button type="button" className="add-operation-modal__close-button" onClick={requestCancel}>
+                  Cancelar
+                </button>
+                <button type="button" className="value-source-modal__confirm-button" onClick={onCloseModal}>
+                  Confirmar
+                </button>
+              </div>
             </div>
           </div>,
           document.body,
@@ -715,6 +739,11 @@ export function OperationPanel({
   // live result — see ConfirmedOperationCard) — at most one at a time, so opening a different
   // card's modal replaces whichever was open rather than stacking.
   const [modalEntryId, setModalEntryId] = useState<string | null>(null);
+  // The open node modal's fields as they were when it opened, so "Cancelar" can put them back
+  // (and so closing knows whether anything changed). `revision` remounts the modal's body after a
+  // revert, since the kinds' editors keep some state of their own that wouldn't follow the fields.
+  const modalSnapshotRef = useRef<{ id: string; fields: OperationFields } | null>(null);
+  const [modalRevision, setModalRevision] = useState<{ id: string; count: number }>({ id: '', count: 0 });
 
   // Clears the pinned highlight once the sheet panel it was shown in closes — otherwise
   // reopening the panel later some other way (e.g. "Ver dados", unrelated to any particular
@@ -1227,6 +1256,22 @@ export function OperationPanel({
       x: (event.clientX - viewportBox.left - viewOffset.x) / zoom,
       y: (event.clientY - viewportBox.top - viewOffset.y) / zoom,
     });
+  }
+
+  useEffect(() => {
+    const entry = modalEntryId === null ? undefined : entries.find((candidate) => candidate.id === modalEntryId);
+    modalSnapshotRef.current = entry ? { id: entry.id, fields: entry.fields } : null;
+    // Only when the modal opens/closes — entries changing while it's open is exactly what this tracks.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalEntryId]);
+
+  function cancelModal(entry: OperationEntryState) {
+    const snapshot = modalSnapshotRef.current;
+    if (snapshot && snapshot.id === entry.id) {
+      updateEntry(entry.id, { fields: snapshot.fields });
+      setModalRevision((revision) => ({ id: entry.id, count: revision.count + 1 }));
+    }
+    setModalEntryId((current) => (current === entry.id ? null : current));
   }
 
   function updateEntry(id: string, patch: Partial<OperationEntryState>) {
@@ -1847,7 +1892,14 @@ export function OperationPanel({
         }
         isModalOpen={modalEntryId === entry.id}
         onCloseModal={() => setModalEntryId((current) => (current === entry.id ? null : current))}
+        onCancelModal={() => cancelModal(entry)}
+        isModalDirty={
+          modalEntryId === entry.id &&
+          modalSnapshotRef.current?.id === entry.id &&
+          JSON.stringify(modalSnapshotRef.current.fields) !== JSON.stringify(entry.fields)
+        }
       >
+        <Fragment key={modalRevision.id === entry.id ? modalRevision.count : 0}>
         {kind.renderBody({
           entryId: entry.id,
           fields: entry.fields,
@@ -1884,6 +1936,7 @@ export function OperationPanel({
           testSignal: testSignals[entry.id] ?? 0,
           resetSignal: resetSignals[entry.id] ?? 0,
         })}
+        </Fragment>
       </ConfirmedOperationCard>
     );
   }

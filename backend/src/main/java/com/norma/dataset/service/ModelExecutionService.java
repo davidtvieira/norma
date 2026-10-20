@@ -662,7 +662,7 @@ public class ModelExecutionService {
 
         Map<String, Object> fields = fieldsOf(operation);
         if (!(fields.get("index") instanceof Map<?, ?> indexSource)) {
-            throw new IllegalArgumentException("The selector has no index.");
+            throw new IllegalArgumentException("The selector has no condition.");
         }
         if (!(fields.get("inputs") instanceof List<?> inputs)) {
             throw new IllegalArgumentException("The selector has no inputs.");
