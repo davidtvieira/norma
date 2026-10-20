@@ -10,6 +10,8 @@ import com.norma.dataset.dto.LookupResponse;
 import com.norma.dataset.dto.NodeRequest;
 import com.norma.dataset.dto.NodeResponse;
 import com.norma.dataset.dto.RowData;
+import com.norma.dataset.dto.SelectorRequest;
+import com.norma.dataset.dto.SelectorResponse;
 import com.norma.dataset.dto.SheetData;
 import com.norma.dataset.dto.SumRequest;
 import com.norma.dataset.dto.SumResponse;
@@ -25,7 +27,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Runs the single-operation live-editor endpoints (lookup/sum/find/counter/node/translator)
+ * Runs the single-operation live-editor endpoints (lookup/sum/find/counter/node/translator/selector)
  * against a dataset previously imported and kept in memory by {@link DatasetStore} — callers
  * reference it by id instead of resending the parsed JSON. Used while a model is being built in
  * the editor, one field at a time; see {@link ModelExecutionService} for registering/running a
@@ -147,5 +149,19 @@ public class DatasetOperationService {
         List<TranslatorRule> rules = OperationSupport.validateTranslatorRules(request.rules());
         String normalizedInput = request.input() == null ? "" : request.input().trim();
         return new TranslatorResponse(OperationSupport.translate(rules, normalizedInput));
+    }
+
+    /**
+     * Picks one of its values by zero-based index — the live-editor counterpart of a selector
+     * operation's own model-run computation. No dataset dependency, same as counter/node: the
+     * index and every value were already resolved client-side before this is called. An index
+     * outside the values is a request error, not an empty result.
+     */
+    public SelectorResponse selector(SelectorRequest request) {
+        List<String> values = request.values() == null ? List.of() : request.values();
+        int index = OperationSupport.parseSelectorIndex(request.index());
+        OperationSupport.validateSelectorIndex(index, values.size());
+        String selected = values.get(index);
+        return new SelectorResponse(selected == null ? "" : selected);
     }
 }

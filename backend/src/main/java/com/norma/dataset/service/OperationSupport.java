@@ -206,6 +206,39 @@ final class OperationSupport {
     }
 
     /**
+     * Parses a selector's index (zero-based, so index 1 of a, b, c is b): a whole number, with a
+     * decimal comma or a trailing ".0" tolerated since a chained index may come from a numeric
+     * result — a fractional or non-numeric one is a request error, not rounded.
+     */
+    static int parseSelectorIndex(String value) {
+        String trimmed = value == null ? "" : value.trim();
+        if (trimmed.isEmpty()) {
+            throw new IllegalArgumentException("The selector has no index.");
+        }
+        double parsed;
+        try {
+            parsed = Double.parseDouble(trimmed.replace(',', '.'));
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("The selector index is not numeric: " + trimmed);
+        }
+        if (parsed != Math.rint(parsed) || Double.isInfinite(parsed) || Math.abs(parsed) > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("The selector index must be a whole number: " + trimmed);
+        }
+        return (int) parsed;
+    }
+
+    /** Rejects an index outside {@code 0..count-1}, or a selector with nothing to pick from. */
+    static void validateSelectorIndex(int index, int count) {
+        if (count == 0) {
+            throw new IllegalArgumentException("The selector has no inputs.");
+        }
+        if (index < 0 || index >= count) {
+            throw new IllegalArgumentException(
+                    "The selector index " + index + " is out of range (it has " + count + " inputs, numbered from 0).");
+        }
+    }
+
+    /**
      * Mirrors {@link DatasetParserService}'s own cell-value normalization — the single copy both
      * that service (parsing whole-number cells) and {@link ModelExecutionService} (stringifying a
      * whole-number sum/counter result so it matches a whole-number cell the same way, "24" not

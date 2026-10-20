@@ -5,6 +5,8 @@ import com.norma.dataset.dto.CounterResponse;
 import com.norma.dataset.dto.NodeRequest;
 import com.norma.dataset.dto.NodeResponse;
 import com.norma.dataset.dto.OperationType;
+import com.norma.dataset.dto.SelectorRequest;
+import com.norma.dataset.dto.SelectorResponse;
 import com.norma.dataset.dto.TranslatorRequest;
 import com.norma.dataset.dto.TranslatorResponse;
 import com.norma.dataset.service.DatasetOperationService;
@@ -63,5 +65,14 @@ public class OperationController {
     @PostMapping("/api/v1/dataset/operation/translator")
     public ResponseEntity<TranslatorResponse> translator(@RequestBody TranslatorRequest request) {
         return ResponseEntity.ok(datasetOperationService.translator(request));
+    }
+
+    @Operation(
+            summary = "Select one of several values",
+            description = "Returns the value at the given zero-based index; an index outside the values is an error. No dataset needed."
+    )
+    @PostMapping("/api/v1/dataset/operation/selector")
+    public ResponseEntity<SelectorResponse> selector(@RequestBody SelectorRequest request) {
+        return ResponseEntity.ok(datasetOperationService.selector(request));
     }
 }

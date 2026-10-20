@@ -345,6 +345,93 @@ class ModelExecutionServiceTest {
     }
 
     @Test
+    void selectorReturnsTheInputAtTheZeroBasedIndex() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationInput selector = new ModelOperationInput("op-1", "selector", Map.of(
+                "index", literalInput("1"),
+                "inputs", List.of(literalInput("a"), literalInput("b"), literalInput("c"))));
+
+        ModelOperationResult result = registerAndRun(datasetId, List.of(selector), null, "op-1", null);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.value()).isEqualTo("b");
+    }
+
+    @Test
+    void selectorTakesItsIndexFromAnotherOperation() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationInput counter = new ModelOperationInput("op-idx", "counter", Map.of(
+                "inputs", List.of(literalInput("1"), literalInput("1"))));
+        ModelOperationInput selector = new ModelOperationInput("op-1", "selector", Map.of(
+                "index", Map.of("type", "reference", "operationId", "op-idx"),
+                "inputs", List.of(literalInput("a"), literalInput("b"), literalInput("c"))));
+
+        ModelOperationResult result = registerAndRun(datasetId, List.of(counter, selector), null, "op-1", null);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.value()).isEqualTo("c");
+    }
+
+    @Test
+    void selectorIgnoresABrokenInputItDidNotSelect() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationInput broken = new ModelOperationInput("op-broken", "counter", Map.of(
+                "inputs", List.of(literalInput("not-a-number"))));
+        ModelOperationInput selector = new ModelOperationInput("op-1", "selector", Map.of(
+                "index", literalInput("0"),
+                "inputs", List.of(literalInput("ok"), Map.of("type", "reference", "operationId", "op-broken"))));
+
+        ModelOperationResult result = registerAndRun(datasetId, List.of(broken, selector), null, "op-1", null);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.value()).isEqualTo("ok");
+    }
+
+    @Test
+    void reportsASelectorIndexOutOfRangeOrNotWholeAsAnError() {
+        String datasetId = twoSheetDataset();
+
+        for (String badIndex : List.of("3", "-1", "1.5", "abc", "")) {
+            ModelOperationInput selector = new ModelOperationInput("op-1", "selector", Map.of(
+                    "index", literalInput(badIndex),
+                    "inputs", List.of(literalInput("a"), literalInput("b"), literalInput("c"))));
+
+            ModelOperationResult result = registerAndRun(datasetId, List.of(selector), null, "op-1", null);
+
+            assertThat(result.success()).as("index '%s'", badIndex).isFalse();
+            assertThat(result.error()).isNotBlank();
+        }
+    }
+
+    @Test
+    void reportsASelectorWithNoInputsAsAnError() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationInput selector = new ModelOperationInput("op-1", "selector", Map.of(
+                "index", literalInput("0"), "inputs", List.of()));
+
+        ModelOperationResult result = registerAndRun(datasetId, List.of(selector), null, "op-1", null);
+
+        assertThat(result.success()).isFalse();
+    }
+
+    @Test
+    void reportsACircularReferenceThroughASelectorsIndexAsAnError() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationInput selector = new ModelOperationInput("op-1", "selector", Map.of(
+                "index", Map.of("type", "reference", "operationId", "op-1"),
+                "inputs", List.of(literalInput("a"))));
+
+        ModelOperationResult result = registerAndRun(datasetId, List.of(selector), null, "op-1", null);
+
+        assertThat(result.success()).isFalse();
+    }
+
+    @Test
     void reportsACounterWithNoInputsAsAnError() {
         String datasetId = twoSheetDataset();
 

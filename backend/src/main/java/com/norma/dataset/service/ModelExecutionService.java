@@ -244,6 +244,7 @@ public class ModelExecutionService {
                 case "node" -> new ModelOperationResult(id, true, inputValue, null);
                 case "find" -> computeFind(operation, dataset, inputValue);
                 case "translator" -> computeTranslator(operation, inputValue);
+                case "selector" -> computeSelector(operation, dataset, byId, cyclicIds, resolved);
                 default -> new ModelOperationResult(id, false, null, "Unknown operation type: " + operation.kind());
             };
         } catch (IllegalArgumentException ex) {
@@ -508,6 +509,39 @@ public class ModelExecutionService {
         }
 
         return new ModelOperationResult(operation.id(), true, OperationSupport.normalizeNumber(total), null);
+    }
+
+    /**
+     * A selector has no dataset dependency of its own: it resolves its "index" (a value source,
+     * zero-based) and returns whichever of its "inputs" (also value sources) that points at.
+     * Only the selected input is resolved — an unselected one that is broken (or references a
+     * broken operation) doesn't fail the selector, in the same spirit as a run only computing
+     * what the designated output actually depends on.
+     */
+    private ModelOperationResult computeSelector(
+            ModelOperationInput operation,
+            DatasetImportResponse dataset,
+            Map<String, ModelOperationInput> byId,
+            Set<String> cyclicIds,
+            Map<String, ModelOperationResult> resolved) {
+
+        Map<String, Object> fields = fieldsOf(operation);
+        if (!(fields.get("index") instanceof Map<?, ?> indexSource)) {
+            throw new IllegalArgumentException("The selector has no index.");
+        }
+        if (!(fields.get("inputs") instanceof List<?> inputs)) {
+            throw new IllegalArgumentException("The selector has no inputs.");
+        }
+
+        String rawIndex = resolveValueSource(asStringKeyedMap(indexSource), dataset, byId, cyclicIds, resolved);
+        int index = OperationSupport.parseSelectorIndex(rawIndex);
+        OperationSupport.validateSelectorIndex(index, inputs.size());
+
+        if (!(inputs.get(index) instanceof Map<?, ?> selected)) {
+            throw new IllegalArgumentException("One of the selector inputs is malformed.");
+        }
+        String value = resolveValueSource(asStringKeyedMap(selected), dataset, byId, cyclicIds, resolved);
+        return new ModelOperationResult(operation.id(), true, value, null);
     }
 
     /**

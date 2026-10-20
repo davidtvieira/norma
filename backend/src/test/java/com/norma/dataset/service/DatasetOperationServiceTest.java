@@ -11,6 +11,7 @@ import com.norma.dataset.dto.LookupResponse;
 import com.norma.dataset.dto.NodeRequest;
 import com.norma.dataset.dto.NodeResponse;
 import com.norma.dataset.dto.RowData;
+import com.norma.dataset.dto.SelectorRequest;
 import com.norma.dataset.dto.SheetData;
 import com.norma.dataset.dto.SumRequest;
 import com.norma.dataset.dto.SumResponse;
@@ -313,6 +314,19 @@ class DatasetOperationServiceTest {
         CounterResponse response = datasetOperationService.counter(new CounterRequest(List.of("2", "3.5", "10")));
 
         assertThat(response.total()).isEqualTo(15.5);
+    }
+
+    @Test
+    void selectsTheValueAtTheIndexViaTheLiveEndpoint() {
+        assertThat(datasetOperationService.selector(new SelectorRequest("1", List.of("a", "b", "c"))).value()).isEqualTo("b");
+    }
+
+    @Test
+    void rejectsALiveSelectorCallWithAnIndexOutsideTheValues() {
+        assertThatThrownBy(() -> datasetOperationService.selector(new SelectorRequest("3", List.of("a", "b", "c"))))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> datasetOperationService.selector(new SelectorRequest("0", List.of())))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
