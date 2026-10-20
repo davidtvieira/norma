@@ -1695,18 +1695,22 @@ export function OperationPanel({
   const entriesById = new Map(entries.map((entry) => [entry.id, entry]));
 
   // While inputs are collapsed, the confirmed designated inputs aren't drawn; one stand-in node
-  // sits at their leftmost x / average y instead, and their outgoing edges leave from it.
+  // sits at the center of their bounding box instead (using each card's real rendered height, so
+  // tall cards count), and their outgoing edges leave from it.
   const hiddenInputs = inputsHidden
     ? entries.filter((entry) => entry.confirmed && !stagingEntryIds.includes(entry.id) && modelInputIds.includes(entry.id))
     : [];
   const hiddenInputIds = new Set(hiddenInputs.map((entry) => entry.id));
-  const inputsGroup: NodePosition | null =
-    hiddenInputs.length === 0
-      ? null
-      : {
-          x: Math.min(...hiddenInputs.map((entry) => entry.position.x)),
-          y: hiddenInputs.reduce((sum, entry) => sum + entry.position.y, 0) / hiddenInputs.length,
-        };
+  let inputsGroup: NodePosition | null = null;
+  if (hiddenInputs.length > 0) {
+    const heightOf = (entry: OperationEntryState) => nodeRefs.current[entry.id]?.offsetHeight ?? NODE_HEADER_ANCHOR_Y * 2;
+    const minX = Math.min(...hiddenInputs.map((entry) => entry.position.x));
+    const maxX = Math.max(...hiddenInputs.map((entry) => entry.position.x));
+    const minY = Math.min(...hiddenInputs.map((entry) => entry.position.y));
+    const maxY = Math.max(...hiddenInputs.map((entry) => entry.position.y + heightOf(entry)));
+    // The group is NODE_WIDTH wide like every node, and its header anchor is its vertical middle.
+    inputsGroup = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 - NODE_HEADER_ANCHOR_Y };
+  }
 
   const edges: Edge[] = entries.flatMap((entry) => {
     if (!entry.confirmed) return [];
