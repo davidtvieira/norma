@@ -607,19 +607,6 @@ button.action-button:hover:not(:disabled) {
   border-color: var(--color-action-hover);
 }
 
-/* The action button's quieter sibling: a soft tint of the same orange, normal text. Same
-   `button.` prefix trick as .action-button. */
-button.action-button-secondary {
-  border-color: color-mix(in srgb, var(--color-action) 45%, transparent);
-  background: color-mix(in srgb, var(--color-action) 16%, var(--color-surface));
-  color: var(--color-text);
-}
-
-button.action-button-secondary:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--color-action) 75%, transparent);
-  background: color-mix(in srgb, var(--color-action) 28%, var(--color-surface));
-}
-
 /* ---------------------------------------------------------------------------------------------
    One button language for the editor canvas, using the same three flavors as the front screens:
      action    — solid orange, white text      (the decisive step: confirm, run, save, edit mode)
@@ -663,7 +650,7 @@ button.operation-canvas__tool-button--primary:hover:not(:disabled) {
   color: var(--color-primary-contrast);
 }
 
-button.operation-canvas__tool-button:not(.operation-canvas__tool-button--primary):not(.operation-canvas__tool-button--active):not(.action-button-secondary),
+button.operation-canvas__tool-button:not(.operation-canvas__tool-button--primary):not(.operation-canvas__tool-button--active),
 button.operation-canvas__reset-button,
 button.add-operation-modal__close-button,
 button.operation-entry__pick-button,
@@ -673,7 +660,7 @@ button.operation-card__io-toggle:not(.operation-card__io-toggle--active) {
   color: var(--color-text);
 }
 
-button.operation-canvas__tool-button:not(.operation-canvas__tool-button--primary):not(.operation-canvas__tool-button--active):not(.operation-canvas__tool-button--danger):not(.action-button-secondary):hover:not(:disabled),
+button.operation-canvas__tool-button:not(.operation-canvas__tool-button--primary):not(.operation-canvas__tool-button--active):not(.operation-canvas__tool-button--danger):hover:not(:disabled),
 button.operation-canvas__reset-button:hover:not(:disabled),
 button.add-operation-modal__close-button:hover:not(:disabled),
 button.operation-entry__pick-button:hover:not(:disabled),

@@ -2638,7 +2638,7 @@ export function OperationPanel({
               canvas looks, nothing about the model changes. Disabled while no node is an input. */}
           <button
             type="button"
-            className="operation-canvas__tool-button action-button-secondary"
+            className="operation-canvas__tool-button"
             onClick={() => setInputsHidden((hidden) => !hidden)}
             disabled={modelInputIds.length === 0}
             title={
