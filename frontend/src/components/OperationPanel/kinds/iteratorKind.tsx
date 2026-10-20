@@ -10,6 +10,9 @@ interface IteratorFields {
   // Editor-only: which sheet of the range the canvas previews (every sheet-based operation set to
   // use the iterator's sheet runs on this one while testing). Blank means the first sheet.
   previewSheet: number | '';
+  // What each position of the range is called in a run's results, by position (0 = the first
+  // sheet). Blank or missing means the position number itself is the name.
+  descriptions: string[];
 }
 
 function asIteratorFields(fields: OperationFields): IteratorFields {
@@ -41,6 +44,7 @@ export const iteratorKind: OperationKind = {
     startSheet: dataset.sheets.length === 1 ? 0 : '',
     endSheet: dataset.sheets.length === 1 ? 0 : '',
     previewSheet: '',
+    descriptions: [],
   } satisfies IteratorFields),
 
   canConfirm: (fields) => {
@@ -92,6 +96,26 @@ export const iteratorKind: OperationKind = {
             ))}
           </select>
         </div>
+
+        {f.startSheet !== '' && f.endSheet !== '' && (
+          <div className="operation-entry__field">
+            <label className="operation-entry__label">Descrição de cada índice</label>
+            {Array.from({ length: f.endSheet - f.startSheet + 1 }, (_, position) => (
+              <input
+                key={position}
+                className="operation-entry__input"
+                type="text"
+                value={f.descriptions?.[position] ?? ''}
+                placeholder={`${position} · ${dataset.sheets[f.startSheet as number + position]?.sheetName ?? ''}`}
+                onChange={(event) => {
+                  const descriptions = Array.from({ length: f.endSheet as number - (f.startSheet as number) + 1 }, (_, i) => f.descriptions?.[i] ?? '');
+                  descriptions[position] = event.target.value;
+                  updateFields({ descriptions });
+                }}
+              />
+            ))}
+          </div>
+        )}
       </>
     );
   },

@@ -119,7 +119,7 @@ public class ModelExecutionService {
             return runIterations(model, operations, iterator.get(), dataset);
         }
 
-        return runOnce(operations, model.outputOperationIds(), dataset, "", false);
+        return runOnce(operations, model.outputOperationIds(), dataset, "", "", false);
     }
 
     /**
@@ -139,7 +139,8 @@ public class ModelExecutionService {
             List<ModelOperationInput> round = operations.stream()
                     .map(operation -> forSheet(operation, sheet, roundPosition))
                     .toList();
-            results.addAll(runOnce(round, model.outputOperationIds(), dataset, String.valueOf(position), true));
+            results.addAll(runOnce(round, model.outputOperationIds(), dataset, String.valueOf(position),
+                    descriptionAt(iterator, position), true));
         }
         return results;
     }
@@ -147,11 +148,12 @@ public class ModelExecutionService {
     /**
      * One pass over the model: resolves each designated output. When {@code iteration} is set
      * (the iterator's position for this pass), the result's name is that position and its id is
-     * suffixed with it, so the rounds of the same output stay distinguishable to the caller.
+     * suffixed with it, so the rounds of the same output stay distinguishable to the caller. The
+     * name is the iterator's description for that position when it has one, else the position.
      */
     private List<ModelOperationResult> runOnce(
             List<ModelOperationInput> operations, List<String> outputOperationIds, DatasetImportResponse dataset,
-            String iteration, boolean iterating) {
+            String iteration, String iterationName, boolean iterating) {
 
         Map<String, ModelOperationInput> byId = new LinkedHashMap<>();
         for (ModelOperationInput operation : operations) {
@@ -164,7 +166,7 @@ public class ModelExecutionService {
                 .map(outputOperationId -> {
                     ModelOperationResult result = resolveOperation(outputOperationId, dataset, byId, cyclicIds, resolved);
                     return iterating
-                            ? new ModelOperationResult(outputOperationId + ":" + iteration, result.success(), result.value(), result.error(), iteration)
+                            ? new ModelOperationResult(outputOperationId + ":" + iteration, result.success(), result.value(), result.error(), iterationName)
                             : result.withName(nameOf(byId.get(outputOperationId)));
                 })
                 .toList();
@@ -189,6 +191,17 @@ public class ModelExecutionService {
             return operation;
         }
         return new ModelOperationInput(operation.id(), operation.kind(), fields, operation.name());
+    }
+
+    /** The description the iterator defines for a position (its {@code descriptions} list, by index), or the position itself when blank or missing. */
+    private String descriptionAt(ModelOperationInput iterator, int position) {
+        if (fieldsOf(iterator).get("descriptions") instanceof List<?> descriptions
+                && position < descriptions.size()
+                && descriptions.get(position) instanceof String description
+                && !description.isBlank()) {
+            return description.trim();
+        }
+        return String.valueOf(position);
     }
 
     /** Every sheet index the iterator covers, in order — its {@code startSheet}..{@code endSheet}, inclusive. */
