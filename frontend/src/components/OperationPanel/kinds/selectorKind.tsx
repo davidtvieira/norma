@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { selectValue } from '../../../services/datasetApi';
 import { literalSource, type ValueSource } from '../../../types/valueSource';
 import type { ResolvedInput } from '../../../utils/resolveOperationInputs';
-import { ValueSourceField } from '../fields';
+import { ValueSourceField, ValueSourcePickerModal } from '../fields';
 import type { OperationFields, OperationKind, ReferenceOption } from '../operationKind';
 
 interface SelectorFields {
@@ -107,16 +107,26 @@ function SelectorFieldsEditor({
 }: SelectorFieldsEditorProps) {
   const [rows, setRows] = useState<SelectorRow[]>(() => inputs.map((source) => ({ id: nextRowId(), source })));
 
+  // With other operations to reference, "+ Adicionar entrada" opens the picker first and rows are
+  // only created once something is picked (a typed value or references), so there's never an empty
+  // row left to click on afterwards. With nothing to reference, a new row is a plain typed field.
+  const [isAddOpen, setIsAddOpen] = useState(false);
+
   function commit(nextRows: SelectorRow[]) {
     setRows(nextRows);
     onInputsChange(nextRows.map((row) => row.source));
   }
 
+  function addSources(sources: ValueSource[]) {
+    commit([...rows, ...sources.map((source) => ({ id: nextRowId(), source }))]);
+    setIsAddOpen(false);
+  }
+
   return (
     <>
       <ValueSourceField
-        label="Índice"
-        placeholder="Introduza o índice (começa em 0)"
+        label="Condição"
+        placeholder="Introduza a condição (começa em 0)"
         inputType="number"
         source={index}
         onChange={onIndexChange}
@@ -175,10 +185,28 @@ function SelectorFieldsEditor({
       <button
         type="button"
         className="operation-entry__pick-button"
-        onClick={() => commit([...rows, { id: nextRowId(), source: literalSource('') }])}
+        onClick={() => (referenceOptions.length > 0 ? setIsAddOpen(true) : addSources([literalSource('')]))}
       >
         + Adicionar entrada
       </button>
+
+      {isAddOpen && (
+        <ValueSourcePickerModal
+          label="Adicionar entrada"
+          placeholder="Introduza um valor"
+          inputType="text"
+          referenceOnly={false}
+          referenceOptions={referenceOptions}
+          hasColumnPicker={false}
+          onStartColumnPick={() => {}}
+          initialTab="static"
+          onPickStatic={(value) => addSources([literalSource(value)])}
+          onPickReference={(operationId) => addSources([{ type: 'reference', operationId }])}
+          multiple
+          onPickMany={(operationIds) => addSources(operationIds.map((operationId) => ({ type: 'reference' as const, operationId })))}
+          onClose={() => setIsAddOpen(false)}
+        />
+      )}
 
       <SelectorResult
         resolvedInputs={resolvedInputs}
@@ -249,7 +277,7 @@ function SelectorResult({ resolvedInputs, hasUnsetInput, testSignal, resetSignal
     const [indexInput, ...valueInputs] = resolvedInputs;
 
     if (indexInput.status === 'missing') {
-      setState({ status: 'error', message: 'O índice já não existe.' });
+      setState({ status: 'error', message: 'A condição já não existe.' });
       onResultChange(null, true);
       return;
     }

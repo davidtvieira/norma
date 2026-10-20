@@ -1526,3 +1526,17 @@
   cursor: pointer;
   user-select: none;
 }
+
+/* The search box above ValueSourcePickerModal's dynamic list (see fields.tsx). */
+.operation-entry__dynamic-input-search {
+  margin-top: 0.75rem;
+  margin-bottom: -0.25rem;
+}
+
+/* Confirmar / Cancelar row at the bottom of a node's detail modal. */
+.operation-card-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}

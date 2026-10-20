@@ -239,6 +239,11 @@ interface ValueSourceFieldProps {
   };
 }
 
+/** Lowercases and strips accents so a search for "operacao" finds "Operação". */
+function normalizeForSearch(text: string): string {
+  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+
 interface ValueSourcePickerModalProps {
   label: string;
   placeholder: string;
@@ -281,7 +286,7 @@ interface ValueSourcePickerModalProps {
  * not the real viewport, per the CSS spec. Without the portal the overlay would pan/zoom and clip
  * along with the canvas instead of covering the whole screen.
  */
-function ValueSourcePickerModal({
+export function ValueSourcePickerModal({
   label,
   placeholder,
   inputType,
@@ -305,6 +310,13 @@ function ValueSourcePickerModal({
   // In click order — which matters when several are picked at once (see `multiple`): the order
   // they're added in is the order they end up in.
   const [selectedOperationIds, setSelectedOperationIds] = useState<string[]>([]);
+  // Filters the dynamic list below by label (case- and accent-insensitive); picks made earlier
+  // stay selected even while filtered out of view.
+  const [search, setSearch] = useState('');
+  const normalizedSearch = normalizeForSearch(search);
+  const visibleReferenceOptions = referenceOptions.filter((option) =>
+    normalizeForSearch(option.label).includes(normalizedSearch),
+  );
 
   function selectOption(operationId: string) {
     setSelectedOperationIds((current) => {
@@ -406,8 +418,19 @@ function ValueSourcePickerModal({
         {isDynamicMode && (
           <>
             {multiple && <p className="operation-entry__chain-status">Pode escolher várias operações; ficam pela ordem em que as escolher.</p>}
+            <input
+              type="search"
+              className="operation-entry__input operation-entry__dynamic-input-search"
+              placeholder="Pesquisar operação..."
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              autoFocus
+            />
             <div className="operation-entry__dynamic-input-menu">
-              {referenceOptions.map((option) => {
+              {visibleReferenceOptions.length === 0 && (
+                <p className="operation-entry__chain-status">Nenhuma operação encontrada.</p>
+              )}
+              {visibleReferenceOptions.map((option) => {
                 const position = selectedOperationIds.indexOf(option.operationId);
                 return (
                   <button

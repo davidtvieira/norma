@@ -286,6 +286,10 @@ export function useCanvasViewport({ entries, onDragEntry, onNodeClick, onMarquee
   // scroll on its own, so there's no competing behavior a plain wheel notch would otherwise be
   // reserved for.
   function handleViewportWheel(event: ReactWheelEvent<HTMLDivElement>) {
+    // A modal rendered through a portal (picker, node detail, ...) is outside the viewport in the
+    // DOM but still bubbles its events here through the React tree — scrolling it must scroll
+    // it, not zoom the canvas behind.
+    if (!event.currentTarget.contains(event.target as Node)) return;
     event.preventDefault();
     zoomBy(event.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP, { clientX: event.clientX, clientY: event.clientY });
   }

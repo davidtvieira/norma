@@ -1,9 +1,9 @@
 import { inlineErrorMessage } from '../../../services/apiErrors';
 import { useEffect, useState } from 'react';
 import { counterValues } from '../../../services/datasetApi';
-import { literalSource, type ValueSource } from '../../../types/valueSource';
+import type { ValueSource } from '../../../types/valueSource';
 import type { ResolvedInput } from '../../../utils/resolveOperationInputs';
-import { ValueSourceField } from '../fields';
+import { ValueSourceField, ValueSourcePickerModal } from '../fields';
 import type { OperationFields, OperationKind, ReferenceOption } from '../operationKind';
 
 interface CounterFields {
@@ -97,9 +97,21 @@ interface CounterInputsProps {
 function CounterInputs({ inputs, onChange, referenceOptions, resolvedInputs, testSignal, resetSignal, onResultChange }: CounterInputsProps) {
   const [rows, setRows] = useState<CounterRow[]>(() => inputs.map((source) => ({ id: nextRowId(), source })));
 
+  // "+ Adicionar entrada" opens the reference picker first; rows are only created once something
+  // is picked there, so there's never an empty row left to click on afterwards.
+  const [isAddOpen, setIsAddOpen] = useState(false);
+
   function commit(nextRows: CounterRow[]) {
     setRows(nextRows);
     onChange(nextRows.map((row) => row.source));
+  }
+
+  function addReferences(operationIds: string[]) {
+    commit([
+      ...rows,
+      ...operationIds.map((operationId) => ({ id: nextRowId(), source: { type: 'reference' as const, operationId } })),
+    ]);
+    setIsAddOpen(false);
   }
 
   // Nothing to point a new input at yet (this counter is the only operation so far, or every
@@ -169,12 +181,30 @@ function CounterInputs({ inputs, onChange, referenceOptions, resolvedInputs, tes
       <button
         type="button"
         className="operation-entry__pick-button"
-        onClick={() => commit([...rows, { id: nextRowId(), source: literalSource('') }])}
+        onClick={() => setIsAddOpen(true)}
         disabled={!canAddInput}
         title={canAddInput ? undefined : 'Não há nenhuma outra operação para referenciar ainda.'}
       >
         + Adicionar entrada
       </button>
+
+      {isAddOpen && (
+        <ValueSourcePickerModal
+          label="Adicionar entrada"
+          placeholder=""
+          inputType="number"
+          referenceOnly
+          referenceOptions={referenceOptions}
+          hasColumnPicker={false}
+          onStartColumnPick={() => {}}
+          initialTab="dynamic"
+          onPickStatic={() => {}}
+          onPickReference={(operationId) => addReferences([operationId])}
+          multiple
+          onPickMany={addReferences}
+          onClose={() => setIsAddOpen(false)}
+        />
+      )}
 
       <CounterResult
         resolvedInputs={resolvedInputs}
