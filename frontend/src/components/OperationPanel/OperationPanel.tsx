@@ -2638,18 +2638,32 @@ export function OperationPanel({
               canvas looks, nothing about the model changes. Disabled while no node is an input. */}
           <button
             type="button"
-            className="operation-canvas__tool-button"
+            className={
+              inputsHidden
+                ? 'operation-canvas__tool-button operation-canvas__tool-button--active'
+                : 'operation-canvas__tool-button'
+            }
             onClick={() => setInputsHidden((hidden) => !hidden)}
             disabled={modelInputIds.length === 0}
             title={
               modelInputIds.length === 0
                 ? 'Nenhuma operação está marcada como entrada.'
                 : inputsHidden
-                  ? 'Volta a mostrar as entradas.'
+                  ? 'Volta a mostrar as entradas (ou clique no nó laranja).'
                   : 'Esconde as entradas num só nó (apenas visual).'
             }
           >
-            {inputsHidden ? 'Mostrar entradas' : 'Esconder entradas'}
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path
+                d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.5" />
+            </svg>
+            {inputsHidden ? 'Entradas escondidas' : 'Esconder entradas'}
           </button>
 
           {/* "Editar"/"A editar": the only state operations can actually be dragged to a new
