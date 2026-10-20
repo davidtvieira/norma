@@ -7,8 +7,7 @@ export type ModelExportFormat = 'nrm' | 'json';
 interface SaveModalProps {
   open: boolean;
   onClose: () => void;
-  /** `includeDataset` only matters for the .json: also download the original spreadsheet beside it. */
-  onExport: (format: ModelExportFormat, includeDataset: boolean) => void;
+  onExport: (format: ModelExportFormat) => void;
   nrmName: string;
   onNrmNameChange: (name: string) => void;
   /** Shown as the name field's placeholder — what the file is called if left blank. */
@@ -71,8 +70,8 @@ export function SaveModal({ open, onClose, onExport, nrmName, onNrmNameChange, n
           </button>
           <ExportButton
             disabled={!canExport}
-            onExport={(format, includeDataset) => {
-              onExport(format, includeDataset);
+            onExport={(format) => {
+              onExport(format);
               onClose();
             }}
           />
@@ -84,7 +83,7 @@ export function SaveModal({ open, onClose, onExport, nrmName, onNrmNameChange, n
 
 interface ExportButtonProps {
   disabled: boolean;
-  onExport: (format: ModelExportFormat, includeDataset: boolean) => void;
+  onExport: (format: ModelExportFormat) => void;
 }
 
 /**
@@ -95,12 +94,10 @@ interface ExportButtonProps {
  */
 function ExportButton({ disabled, onExport }: ExportButtonProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  // Only offered next to the .json (the .nrm always carries the dataset already).
-  const [includeDataset, setIncludeDataset] = useState(false);
 
   function pick(format: ModelExportFormat) {
     setIsMenuOpen(false);
-    onExport(format, format === 'json' && includeDataset);
+    onExport(format);
   }
 
   return (
@@ -140,10 +137,6 @@ function ExportButton({ disabled, onExport }: ExportButtonProps) {
           <button type="button" role="menuitem" className="save-modal__split-item" onClick={() => pick('json')}>
             Só o modelo (.json)
           </button>
-          <label className="save-modal__split-check">
-            <input type="checkbox" checked={includeDataset} onChange={(event) => setIncludeDataset(event.target.checked)} />
-            Exportar também os dados (.json)
-          </label>
         </div>
       )}
     </div>

@@ -51,7 +51,7 @@ interface EditorScreenProps {
   isSaveModalOpen: boolean;
   onOpenSaveModal: () => void;
   onCloseSaveModal: () => void;
-  onExportModel: (format: ModelExportFormat, includeDataset: boolean) => void;
+  onExportModel: (format: ModelExportFormat) => void;
   nrmName: string;
   onNrmNameChange: (name: string) => void;
   canExportModel: boolean;
