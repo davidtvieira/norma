@@ -624,6 +624,10 @@ interface OperationPanelProps {
    * model can have several of each, independently toggled. */
   modelInputIds: string[];
   modelOutputIds: string[];
+  /** Where "Importar teste"/"Limpar teste" is drawn: an element the parent owns (the bottom-left
+   * action row, next to "Guardar teste"). It's portaled there so its state and handlers stay in
+   * this component. Until the element exists the button is simply not rendered. */
+  testActionsSlot: HTMLElement | null;
   onModelInputIdsChange: (ids: string[]) => void;
   onModelOutputIdsChange: (ids: string[]) => void;
 }
@@ -679,6 +683,7 @@ function chainHasEmptyInput(entryId: string, entries: OperationEntryState[]): bo
  * delete, model input/output toggles, and hover behavior — is all shared.
  */
 export function OperationPanel({
+  testActionsSlot,
   dataset,
   modelName,
   onModelNameChange,
@@ -2325,16 +2330,11 @@ export function OperationPanel({
           </span>
         </div>
         <div className="operation-canvas__toolbar-actions">
-          {/* One button, not two: "Importar teste" for as long as there's nothing yet to clear,
-              switching to "Limpar teste" the moment there is (a value typed by hand, one loaded
-              via import, or an actual test run — see hasTested/hasAnyTestInputValue). This is the
-              only place either lives — TestValuesModal (opened by "Testar modelo" below) is
-              review-only, with no import/clear of its own. Only disabled in the one combination
-              where "Importar teste" would be a dead click: nothing to clear yet *and* no
-              designated input for it to import a value into in the first place. */}
+          {testActionsSlot &&
+            createPortal(
           <button
             type="button"
-            className="operation-canvas__reset-button"
+            className="app__create-model-button app__create-model-button--secondary"
             onClick={hasTested || hasAnyTestInputValue ? clearTest : triggerImportTest}
             disabled={!hasTested && !hasAnyTestInputValue && testInputEntries.length === 0}
             title={
@@ -2345,8 +2345,17 @@ export function OperationPanel({
                   : 'Preenche os inputs a partir de um ficheiro JSON.'
             }
           >
-            {hasTested || hasAnyTestInputValue ? 'Limpar teste' : 'Importar teste'}
-          </button>
+            {hasTested || hasAnyTestInputValue ? 'Limpar teste' : 'Carregar teste'}
+          </button>,
+              testActionsSlot,
+            )}
+          {/* One button, not two: "Importar teste" for as long as there's nothing yet to clear,
+              switching to "Limpar teste" the moment there is (a value typed by hand, one loaded
+              via import, or an actual test run — see hasTested/hasAnyTestInputValue). This is the
+              only place either lives — TestValuesModal (opened by "Testar modelo" below) is
+              review-only, with no import/clear of its own. Only disabled in the one combination
+              where "Importar teste" would be a dead click: nothing to clear yet *and* no
+              designated input for it to import a value into in the first place. */}
           <button
             type="button"
             className={

@@ -443,9 +443,23 @@
 /* Groups "Guardar teste" alongside "Guardar modelo" as one right-aligned pair — takes over the
    button's own align-self: flex-end below it. */
 .app__save-row {
-  align-self: flex-end;
+  align-self: stretch;
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 0.75rem;
+}
+
+.app__save-row-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* Holds the portaled "Carregar/Limpar teste" button; adds no box of its own. */
+.app__save-row-slot {
+  display: contents;
 }
 
 .app__save-button--secondary {

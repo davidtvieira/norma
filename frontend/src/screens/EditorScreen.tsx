@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { AppFooter } from '../components/AppFooter/AppFooter';
 import { OperationPanel } from '../components/OperationPanel/OperationPanel';
 import { SaveModal, type ModelExportFormat } from '../components/SaveModal/SaveModal';
@@ -117,6 +118,10 @@ export function EditorScreen({
   canSaveTestCase,
   onGoHome,
 }: EditorScreenProps) {
+  // The bottom-left slot OperationPanel draws "Carregar/Limpar teste" into (a state, not a ref, so the
+  // panel re-renders once the element exists).
+  const [testActionsSlot, setTestActionsSlot] = useState<HTMLElement | null>(null);
+
   return (
     <div className="app">
       <header className="app__topbar app__topbar--with-title">
@@ -138,6 +143,7 @@ export function EditorScreen({
       <main className="app__main">
         <div className="app__main-content">
           <OperationPanel
+            testActionsSlot={testActionsSlot}
             dataset={dataset}
             modelName={modelName}
             onModelNameChange={onModelNameChange}
@@ -160,16 +166,22 @@ export function EditorScreen({
             onModelInputIdsChange={onModelInputIdsChange}
             onModelOutputIdsChange={onModelOutputIdsChange}
           />
+          {/* Same layout as the Utilizar screen: the test-file buttons bottom-left, the main action
+              bottom-right. "Carregar/Limpar teste" is rendered by OperationPanel (it owns that state)
+              into the empty slot below. */}
           <div className="app__save-row">
-            <button
-              type="button"
-              className="app__save-button app__save-button--secondary"
-              onClick={onSaveTestCase}
-              disabled={!canSaveTestCase}
-              title={canSaveTestCase ? 'Guarda os valores atuais dos inputs num ficheiro JSON.' : 'O modelo não tem nenhum input definido.'}
-            >
-              Guardar teste
-            </button>
+            <div className="app__save-row-group">
+              <div ref={setTestActionsSlot} className="app__save-row-slot" />
+              <button
+                type="button"
+                className="app__create-model-button app__create-model-button--secondary"
+                onClick={onSaveTestCase}
+                disabled={!canSaveTestCase}
+                title={canSaveTestCase ? 'Guarda os valores atuais dos inputs num ficheiro JSON.' : 'O modelo não tem nenhum input definido.'}
+              >
+                Guardar teste (JSON)
+              </button>
+            </div>
             <button type="button" className="app__save-button action-button" onClick={onOpenSaveModal}>
               Guardar modelo
             </button>
