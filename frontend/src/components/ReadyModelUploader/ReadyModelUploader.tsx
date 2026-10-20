@@ -37,7 +37,7 @@ export function ReadyModelUploader({ onImportSuccess }: ReadyModelUploaderProps)
       const { dataset, datasetFile, model, modelText } = await importNrmFile(file);
       onImportSuccess(dataset, datasetFile, model, modelText);
     } catch (error) {
-      setErrorMessage(inlineErrorMessage(error, 'Falha ao importar o modelo pronto.') || null);
+      setErrorMessage(inlineErrorMessage(error, 'Falha ao importar o modelo Norma.') || null);
       setHasError(true);
     } finally {
       setIsUploading(false);
@@ -100,7 +100,7 @@ export function ReadyModelUploader({ onImportSuccess }: ReadyModelUploaderProps)
           )}
         </div>
         <p className="ready-model-uploader__title">
-          {isUploading ? 'A carregar…' : 'Carregue um modelo pronto'}
+          {isUploading ? 'A carregar…' : 'Carregue um modelo Norma'}
         </p>
         <p className="ready-model-uploader__hint">Arraste e largue um ficheiro .nrm, ou clique para procurar</p>
 
