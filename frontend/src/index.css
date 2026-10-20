@@ -41,6 +41,13 @@
      themes, not orange-tinted in light mode (--color-primary there) and grey in dark mode. */
   --color-neutral-accent: #9a9a9a;
 
+  /* The three button flavors on the front screens: primary (filled --color-primary), secondary
+     (these soft tints of it) and accent (filled --color-action, the orange for "run" actions). */
+  --btn-secondary-bg: color-mix(in srgb, var(--color-primary) 14%, var(--color-surface));
+  --btn-secondary-bg-hover: color-mix(in srgb, var(--color-primary) 26%, var(--color-surface));
+  --btn-secondary-border: color-mix(in srgb, var(--color-primary) 35%, transparent);
+  --btn-secondary-border-hover: color-mix(in srgb, var(--color-primary) 60%, transparent);
+
   --radius-sm: 10px;
   --radius-md: 16px;
   --radius-lg: 24px;
