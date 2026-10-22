@@ -30,9 +30,6 @@ interface ModelCardProps {
    * .../model/{modelId}/inputs. This screen never receives the model's operations or outputs
    * up front: the outputs (with their names) only arrive with a run's results. */
   inputs: ModelInputFieldPayload[];
-  /** Returns to the screen this model was reached from (see App.tsx) — rendered here, next to
-   * "Correr modelo", rather than as a separate element outside this component. */
-  onBack: () => void;
 }
 
 /** The least time a run shows its loading state ("A calcular…") for, even when the response comes
@@ -63,7 +60,7 @@ async function withMinimumDelay<T>(promise: Promise<T>, ms: number): Promise<T> 
  * one result per designated output. Only runs when "Correr modelo" is clicked, not on page load
  * and not on every keystroke in an input field.
  */
-export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, onBack }: ModelCardProps) {
+export function ModelCard({ dataset, modelName, modelId, nrmId, inputs }: ModelCardProps) {
   const inputOperationIds = inputs.map((input) => input.id);
   const [fields, setFields] = useState<Record<string, OperationFields>>(() =>
     Object.fromEntries(inputs.map((input) => [input.id, { input: literalSource(input.value ?? '') }])),
@@ -208,11 +205,6 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, onBack }
         <p className="model-card__missing-io">
           Este modelo ainda não tem um output definido. Edite o modelo e escolha-o antes de o utilizar.
         </p>
-        <div className="model-card__actions">
-          <button type="button" className="app__create-model-button app__create-model-button--back" onClick={onBack}>
-            ← Voltar
-          </button>
-        </div>
       </div>
     );
   }
@@ -350,9 +342,6 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, onBack }
             )}
           </div>
           <div className="model-card__actions-group">
-            <button type="button" className="app__create-model-button app__create-model-button--back" onClick={onBack}>
-              ← Voltar
-            </button>
             <button
               type="button"
               className="model-card__run-button action-button"

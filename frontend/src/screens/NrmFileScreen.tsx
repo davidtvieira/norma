@@ -1,3 +1,4 @@
+import { BackButton } from '../components/BackButton/BackButton';
 import { AppFooter } from '../components/AppFooter/AppFooter';
 import { ThemeToggle } from '../components/ThemeToggle/ThemeToggle';
 import type { Theme } from '../hooks/useTheme';
@@ -26,7 +27,7 @@ export function NrmFileScreen({ datasetFileName, importedModel, importError, the
   return (
     <div className="app app--landing">
       <header className="app__topbar app__topbar--with-title">
-        <nav className="app__breadcrumbs" aria-label="Breadcrumb" />
+        <BackButton onClick={onBack} />
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
       </header>
 
@@ -52,10 +53,6 @@ export function NrmFileScreen({ datasetFileName, importedModel, importError, the
               Utilizar
             </button>
           </div>
-
-          <button type="button" className="app__create-model-button app__create-model-button--back" onClick={onBack}>
-            ← Carregar outro ficheiro Norma
-          </button>
 
           {importError && <p className="app__create-model-error">{importError}</p>}
         </div>

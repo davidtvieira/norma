@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { BackButton } from '../components/BackButton/BackButton';
 import { AppFooter } from '../components/AppFooter/AppFooter';
 import { OperationPanel } from '../components/OperationPanel/OperationPanel';
 import { SaveModal, type ModelExportFormat } from '../components/SaveModal/SaveModal';
@@ -125,13 +126,10 @@ export function EditorScreen({
   return (
     <div className="app">
       <header className="app__topbar app__topbar--with-title">
-        <nav className="app__breadcrumbs" aria-label="Breadcrumb">
-          <button type="button" className="app__breadcrumb-item" onClick={onBackToChoose}>
-            {dataset.filename}
-          </button>
-          <span className="app__breadcrumb-separator">/</span>
+        <div className="app__topbar-actions">
+          <BackButton onClick={onBackToChoose} />
           <span className="app__breadcrumb-item app__breadcrumb-item--current">{modelName.trim() || 'Modelo sem nome'}</span>
-        </nav>
+        </div>
         <div className="app__topbar-actions">
           <button type="button" className="app__view-data-button" onClick={onOpenSheetPanel}>
             Ver dados

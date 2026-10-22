@@ -1,4 +1,5 @@
 import type { ChangeEvent, RefObject } from 'react';
+import { BackButton } from '../components/BackButton/BackButton';
 import { AppFooter } from '../components/AppFooter/AppFooter';
 import { ThemeToggle } from '../components/ThemeToggle/ThemeToggle';
 import type { DatasetHandle } from '../types/dataset';
@@ -61,10 +62,7 @@ export function ChooseModelScreen({
   return (
     <div className="app app--landing">
       <header className="app__topbar app__topbar--with-title">
-        {/* Nothing in the top-left here: the filename / model name is already shown above the title,
-            so repeating it in the corner is just noise. The nav stays (empty) to keep the theme
-            toggle pinned to the right. */}
-        <nav className="app__breadcrumbs" aria-label="Breadcrumb" />
+        <BackButton onClick={importedModel ? onCancelImportedModel : onBackToLanding} />
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
       </header>
 
@@ -105,14 +103,6 @@ export function ChooseModelScreen({
               </>
             )}
           </div>
-
-          <button
-            type="button"
-            className="app__create-model-button app__create-model-button--back"
-            onClick={importedModel ? onCancelImportedModel : onBackToLanding}
-          >
-            {importedModel ? '← Voltar' : '← Importar outro conjunto de dados'}
-          </button>
 
           {importError && <p className="app__create-model-error">{importError}</p>}
         </div>

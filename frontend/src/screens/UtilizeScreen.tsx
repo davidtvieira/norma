@@ -1,3 +1,4 @@
+import { BackButton } from '../components/BackButton/BackButton';
 import { AppFooter } from '../components/AppFooter/AppFooter';
 import { ModelCard } from '../components/ModelCard/ModelCard';
 import { ThemeToggle } from '../components/ThemeToggle/ThemeToggle';
@@ -33,13 +34,7 @@ export function UtilizeScreen({ dataset, utilizeModel, theme, onToggleTheme, onB
   return (
     <div className="app app--landing">
       <header className="app__topbar app__topbar--with-title">
-        <nav className="app__breadcrumbs" aria-label="Breadcrumb">
-          {/* A model is always loaded here, so the dataset's filename stays out of the top-left — the
-              model's name is the way back instead. */}
-          <button type="button" className="app__breadcrumb-item app__breadcrumb-item--current" onClick={onBack}>
-            {utilizeModel.modelName || 'Modelo sem nome'}
-          </button>
-        </nav>
+        <BackButton onClick={onBack} />
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
       </header>
 
@@ -50,7 +45,6 @@ export function UtilizeScreen({ dataset, utilizeModel, theme, onToggleTheme, onB
           modelId={utilizeModel.modelId}
           nrmId={utilizeModel.nrmId}
           inputs={utilizeModel.inputs}
-          onBack={onBack}
         />
       </div>
 
