@@ -9,7 +9,7 @@ import { checkDataset, getModelInputs, getNrmDataset, getNrmInputs, getNrmModel,
 import type { ModelExportFormat } from './components/SaveModal/SaveModal';
 import type { NrmImportStatusPayload } from './types/nrm';
 import type { DatasetHandle, DatasetImportStatus, DatasetImportResponse } from './types/dataset';
-import { useDatasetSheets } from './hooks/useDatasetSheets';
+import { preloadDatasetSheets, useDatasetSheets } from './hooks/useDatasetSheets';
 import type { ColumnPickField, ColumnPickState, RangePickState } from './types/columnPick';
 import type { ColumnHighlight, OperationHighlight, RangeHighlight } from './types/highlight';
 import type { CellRange } from './types/cellRange';
@@ -69,7 +69,9 @@ function EditorDataset({
 }) {
   const { dataset, error } = useDatasetSheets(datasetId, nrmId);
   if (error) return <p className="app__create-model-error">{error}</p>;
-  if (!dataset) return null;
+  // Normally already preloaded (see goToEditorWithImportedModel), but a direct load of the editor
+  // URL lands here first: show the loading overlay instead of a blank page.
+  if (!dataset) return <LoadingOverlay />;
   return <>{children(dataset)}</>;
 }
 
@@ -532,7 +534,12 @@ function App() {
     setModelInputIds([]);
     setModelOutputIds([]);
     setIsSheetPanelOpen(false);
-    navigate(`/d/${dataset.datasetId}/editor`);
+    setIsPreparingModel(true);
+    preloadDatasetSheets(dataset.datasetId, dataset.nrmId)
+      .then(() => navigate(`/d/${dataset.datasetId}/editor`))
+      // On failure the editor route's own loader shows the error.
+      .catch(() => navigate(`/d/${dataset.datasetId}/editor`))
+      .finally(() => setIsPreparingModel(false));
   }
 
   function triggerImportModel() {
@@ -545,6 +552,7 @@ function App() {
     event.target.value = ''; // so re-importing the same file path fires onChange again
     if (!file) return;
 
+    setIsPreparingModel(true);
     readModelFile(file)
       .then(async (text) => {
         // Not checked against the current dataset's id for now: a fresh page load gets a new
@@ -552,7 +560,6 @@ function App() {
         // block re-importing a model exported earlier in the same session.
         const imported = parseModelImport(text, OPERATION_KIND_IDS);
         // Refuse a model that doesn't fit the loaded dataset here, rather than letting the editor or
-    setIsPreparingModel(true);
         // utilize screen fail on it later. (A .nrm-backed session has no real dataset id of its own
         // to check against — its dataset and model were already validated together on import.)
         if (dataset && !dataset.nrmId) await validateModelForDataset(dataset.datasetId, text);
@@ -622,24 +629,26 @@ function App() {
     startNewCachedSession(importedNrm.nrmId, file.name, file, modelText);
   }
 
-  function goToEditorWithImportedModel() {
-    if (!importedModel || !dataset) return;
-    setImportError(null);
-    // A model that stayed on the backend (it arrived with a .nrm) is only fetched now, because
-    // editing is the one thing that needs its operations in the browser.
-    const loaded: Promise<ImportedModel> = importedModel.nrmId
-      ? getNrmModel(importedModel.nrmId).then((text) => {
   // True while Editar / Utilizar / "Importar Modelo" are fetching or checking a model — drives the
   // same full-screen LoadingOverlay as a dataset upload, instead of leaving the click without feedback.
   const [isPreparingModel, setIsPreparingModel] = useState(false);
 
+  function goToEditorWithImportedModel() {
+    if (!importedModel || !dataset) return;
+    setImportError(null);
+    setIsPreparingModel(true);
+    // A model that stayed on the backend (it arrived with a .nrm) is only fetched now, because
+    // editing is the one thing that needs its operations in the browser.
+    const loaded: Promise<ImportedModel> = importedModel.nrmId
+      ? getNrmModel(importedModel.nrmId).then((text) => {
           const parsed = parseModelImport(text, OPERATION_KIND_IDS);
           return { ...importedModel, ...parsed, nrmName: parsed.nrmName || importedModel.nrmName };
         })
-    setIsPreparingModel(true);
       : Promise.resolve(importedModel);
-    loaded
-      .then((model) => {
+    // The dataset's sheets download in parallel with the model, so the editor opens with them ready
+    // instead of rendering blank while they arrive.
+    Promise.all([loaded, preloadDatasetSheets(dataset.datasetId, dataset.nrmId)])
+      .then(([model]) => {
         setModelName(model.modelName);
         setNrmName(model.nrmName);
         setPendingImportEntries(model.entries);
@@ -655,6 +664,7 @@ function App() {
   function goToUtilizeWithImportedModel() {
     if (!importedModel || !dataset) return;
     setImportError(null);
+    setIsPreparingModel(true);
     prepareUtilize(dataset, importedModel)
       .then((model) => {
         setUtilizeModel(model);
@@ -665,7 +675,6 @@ function App() {
   }
 
   function downloadBlob(blob: Blob, downloadName: string) {
-    setIsPreparingModel(true);
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -757,6 +766,8 @@ function App() {
   // Every actual screen component still reads the same lifted state as before — routing only
   // decides which of them is on screen, not where their data lives.
   return (
+    <>
+    {(resumingId !== null || isRestoring || isPreparingModel) && <LoadingOverlay />}
     <Routes>
       <Route
         path="/"
@@ -766,8 +777,6 @@ function App() {
             onToggleTheme={toggleTheme}
             onImportSuccess={handleDatasetImportSuccess}
             onReadyModelImportSuccess={handleReadyModelImportSuccess}
-    <>
-    {(resumingId !== null || isRestoring || isPreparingModel) && <LoadingOverlay />}
             onGoHome={goHome}
             onBrowseModels={() => navigate('/modelos')}
           />
@@ -923,8 +932,8 @@ function App() {
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   );
 }
 
 export default App;
-    </>

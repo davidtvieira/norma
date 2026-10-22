@@ -19,6 +19,12 @@ function loadDatasetSheets(datasetId: string, nrmId?: string): Promise<DatasetIm
   return request;
 }
 
+/** Starts (or joins) the download of a dataset's sheets without using them yet — lets a caller have
+ * them ready by the time the editor mounts, so it never has to render empty while they arrive. */
+export function preloadDatasetSheets(datasetId: string, nrmId?: string): Promise<void> {
+  return loadDatasetSheets(datasetId, nrmId).then(() => undefined);
+}
+
 /** Loads the full dataset (sheets included) for the screens that display it — through the .nrm's
  * id when the dataset came from one. Null while loading;
  * `error` is set instead if it could not be read. */
