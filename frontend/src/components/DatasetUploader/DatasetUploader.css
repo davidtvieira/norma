@@ -87,22 +87,6 @@
   text-align: center;
 }
 
-.dataset-uploader__spinner {
-  display: inline-block;
-  width: 1.125rem;
-  height: 1.125rem;
-  border: 2px solid var(--color-border);
-  border-top-color: var(--color-primary);
-  border-radius: 50%;
-  animation: dataset-uploader-spin 0.8s linear infinite;
-}
-
-@keyframes dataset-uploader-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 .dataset-uploader__dropzone--error,
 .dataset-uploader__dropzone--error:hover {
   border-color: var(--color-error);

@@ -1,3 +1,4 @@
+import { LoadingOverlay } from '../LoadingOverlay/LoadingOverlay';
 import { inlineErrorMessage } from '../../services/apiErrors';
 import { useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent } from 'react';
@@ -70,6 +71,7 @@ export function DatasetUploader({ onImportSuccess }: DatasetUploaderProps) {
 
   return (
     <div className="dataset-uploader">
+      {isUploading && <LoadingOverlay />}
       <div
         className={`dataset-uploader__dropzone${isDragActive ? ' dataset-uploader__dropzone--active' : ''}${isUploading ? ' dataset-uploader__dropzone--busy' : ''}${hasError ? ' dataset-uploader__dropzone--error' : ''}`}
         onDrop={handleDrop}
@@ -81,29 +83,25 @@ export function DatasetUploader({ onImportSuccess }: DatasetUploaderProps) {
         onKeyDown={(event) => event.key === 'Enter' && fileInputRef.current?.click()}
       >
         <div className="dataset-uploader__icon" aria-hidden="true">
-          {isUploading ? (
-            <span className="dataset-uploader__spinner" />
-          ) : (
-            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path
-                d="M12 15V4m0 0 4 4m-4-4-4 4"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          )}
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path
+              d="M12 15V4m0 0 4 4m-4-4-4 4"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </div>
         <p className="dataset-uploader__title">
-          {isUploading ? 'A carregar…' : 'Carregue o seu conjunto de dados'}
+          Carregue o seu conjunto de dados
         </p>
         <p className="dataset-uploader__hint">Arraste e largue um ficheiro .xlsx ou .xls para criar um modelo inteligente, ou clique para procurar</p>
 

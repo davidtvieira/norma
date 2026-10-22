@@ -1,3 +1,4 @@
+import { LoadingOverlay } from './components/LoadingOverlay/LoadingOverlay';
 import { inlineErrorMessage } from './services/apiErrors';
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, ReactNode } from 'react';
@@ -551,6 +552,7 @@ function App() {
         // block re-importing a model exported earlier in the same session.
         const imported = parseModelImport(text, OPERATION_KIND_IDS);
         // Refuse a model that doesn't fit the loaded dataset here, rather than letting the editor or
+    setIsPreparingModel(true);
         // utilize screen fail on it later. (A .nrm-backed session has no real dataset id of its own
         // to check against — its dataset and model were already validated together on import.)
         if (dataset && !dataset.nrmId) await validateModelForDataset(dataset.datasetId, text);
@@ -579,7 +581,8 @@ function App() {
       .catch((error) => {
         setImportedModel(null);
         setImportError(inlineErrorMessage(error, 'Falha ao importar o modelo.') || null);
-      });
+      })
+      .finally(() => setIsPreparingModel(false));
   }
 
   function cancelImportedModel() {
@@ -626,9 +629,14 @@ function App() {
     // editing is the one thing that needs its operations in the browser.
     const loaded: Promise<ImportedModel> = importedModel.nrmId
       ? getNrmModel(importedModel.nrmId).then((text) => {
+  // True while Editar / Utilizar / "Importar Modelo" are fetching or checking a model — drives the
+  // same full-screen LoadingOverlay as a dataset upload, instead of leaving the click without feedback.
+  const [isPreparingModel, setIsPreparingModel] = useState(false);
+
           const parsed = parseModelImport(text, OPERATION_KIND_IDS);
           return { ...importedModel, ...parsed, nrmName: parsed.nrmName || importedModel.nrmName };
         })
+    setIsPreparingModel(true);
       : Promise.resolve(importedModel);
     loaded
       .then((model) => {
@@ -640,7 +648,8 @@ function App() {
         setIsSheetPanelOpen(false);
         navigate(`/d/${dataset.datasetId}/editor`);
       })
-      .catch((error) => setImportError(inlineErrorMessage(error, 'Falha ao abrir o modelo para edição.')));
+      .catch((error) => setImportError(inlineErrorMessage(error, 'Falha ao abrir o modelo para edição.')))
+      .finally(() => setIsPreparingModel(false));
   }
 
   function goToUtilizeWithImportedModel() {
@@ -651,10 +660,12 @@ function App() {
         setUtilizeModel(model);
         navigate(`/d/${dataset.datasetId}/utilizar`);
       })
-      .catch((error) => setImportError(inlineErrorMessage(error, 'Falha ao preparar o modelo.')));
+      .catch((error) => setImportError(inlineErrorMessage(error, 'Falha ao preparar o modelo.')))
+      .finally(() => setIsPreparingModel(false));
   }
 
   function downloadBlob(blob: Blob, downloadName: string) {
+    setIsPreparingModel(true);
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -755,6 +766,8 @@ function App() {
             onToggleTheme={toggleTheme}
             onImportSuccess={handleDatasetImportSuccess}
             onReadyModelImportSuccess={handleReadyModelImportSuccess}
+    <>
+    {(resumingId !== null || isRestoring || isPreparingModel) && <LoadingOverlay />}
             onGoHome={goHome}
             onBrowseModels={() => navigate('/modelos')}
           />
@@ -914,3 +927,4 @@ function App() {
 }
 
 export default App;
+    </>

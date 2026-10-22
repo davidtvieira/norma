@@ -1,3 +1,4 @@
+import { LoadingOverlay } from '../LoadingOverlay/LoadingOverlay';
 import { inlineErrorMessage } from '../../services/apiErrors';
 import { useRef, useState } from 'react';
 import type { DatasetHandle } from '../../types/dataset';
@@ -342,13 +343,15 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs }: ModelC
             )}
           </div>
           <div className="model-card__actions-group">
+            {/* Delayed so a run that returns right away doesn't flash the overlay. */}
+            {isRunning && <LoadingOverlay delayMs={200} />}
             <button
               type="button"
               className="model-card__run-button action-button"
               onClick={run}
               disabled={isRunning || !allInputsFilled}
             >
-              {isRunning ? 'A calcular…' : 'Correr modelo'}
+              Correr modelo
             </button>
           </div>
         </div>

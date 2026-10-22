@@ -1,3 +1,4 @@
+import { LoadingOverlay } from '../LoadingOverlay/LoadingOverlay';
 import { inlineErrorMessage } from '../../services/apiErrors';
 import { useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent } from 'react';
@@ -74,6 +75,7 @@ export function ReadyModelUploader({ onImportSuccess }: ReadyModelUploaderProps)
 
   return (
     <div className="ready-model-uploader">
+      {isUploading && <LoadingOverlay />}
       <div
         className={`ready-model-uploader__dropzone${isDragActive ? ' ready-model-uploader__dropzone--active' : ''}${isUploading ? ' ready-model-uploader__dropzone--busy' : ''}${hasError ? ' ready-model-uploader__dropzone--error' : ''}`}
         onDrop={handleDrop}
@@ -85,22 +87,18 @@ export function ReadyModelUploader({ onImportSuccess }: ReadyModelUploaderProps)
         onKeyDown={(event) => event.key === 'Enter' && fileInputRef.current?.click()}
       >
         <div className="ready-model-uploader__icon" aria-hidden="true">
-          {isUploading ? (
-            <span className="ready-model-uploader__spinner" />
-          ) : (
-            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path
-                d="M4 7.5V6a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v1.5M4 7.5h16M4 7.5v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-9"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          )}
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path
+              d="M4 7.5V6a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v1.5M4 7.5h16M4 7.5v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-9"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </div>
         <p className="ready-model-uploader__title">
-          {isUploading ? 'A carregar…' : 'Carregue um modelo Norma'}
+          Carregue um modelo Norma
         </p>
         <p className="ready-model-uploader__hint">Arraste e largue um ficheiro .nrm, ou clique para procurar</p>
 

@@ -1,3 +1,4 @@
+import { LoadingOverlay } from '../LoadingOverlay/LoadingOverlay';
 import './TestValuesModal.css';
 
 export interface TestValueEntry {
@@ -13,7 +14,7 @@ interface TestValuesModalProps {
   onChangeValue: (id: string, value: string) => void;
   onRun: () => void;
   /** True while "Correr teste" is in its loading delay (see OperationPanel's runTestFromModal) —
-   * shows a spinner on the button and locks the form until the run actually starts. */
+   * shows the full-screen loading overlay and locks the form until the run actually starts. */
   isRunning: boolean;
   /** Set when the last "Correr teste" click was blocked because one of the inputs above is still
    * empty (see OperationPanel's runModelTest) — shown right here rather than elsewhere on the
@@ -50,6 +51,7 @@ export function TestValuesModal({ open, onClose, inputs, onChangeValue, onRun, i
 
   return (
     <div className="test-values-modal__overlay" onClick={isRunning ? undefined : onClose}>
+      {isRunning && <LoadingOverlay />}
       <div
         className="test-values-modal"
         role="dialog"
@@ -93,13 +95,7 @@ export function TestValuesModal({ open, onClose, inputs, onChangeValue, onRun, i
             aria-busy={isRunning}
             title={allFilled ? undefined : 'Preencha todos os inputs antes de correr o teste.'}
           >
-            {isRunning ? (
-              <>
-                <span className="test-values-modal__spinner" aria-hidden="true" />A correr…
-              </>
-            ) : (
-              'Correr teste'
-            )}
+            Correr teste
           </button>
         </div>
       </div>
