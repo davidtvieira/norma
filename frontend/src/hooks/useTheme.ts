@@ -53,7 +53,7 @@ export function useTheme() {
       .then(() => {
         document.documentElement.animate(
           { clipPath: [`circle(0px at 100% 0)`, `circle(${radius}px at 100% 0)`] },
-          { duration: 600, easing: 'ease-in-out', fill: 'forwards', pseudoElement: '::view-transition-new(root)' },
+          { duration: 500, easing: 'ease-in-out', fill: 'forwards', pseudoElement: '::view-transition-new(root)' },
         );
       })
       .catch(() => {
