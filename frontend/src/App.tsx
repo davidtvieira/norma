@@ -257,6 +257,7 @@ function App() {
   ): Promise<boolean> {
     setResumingId(entry.id);
     setResumeError(null);
+    clearModelState();
     const file = new File([entry.datasetBlob], entry.datasetFileName);
     // A reload already knows its dataset id from the URL: if the backend still has that dataset,
     // fetch it instead of re-uploading, which also keeps the URL exactly as it was. Only when it
@@ -585,6 +586,7 @@ function App() {
   }
 
   function handleDatasetImportSuccess(importedDataset: DatasetImportStatus, file: File) {
+    clearModelState();
     setDataset({ datasetId: importedDataset.datasetId, filename: file.name });
     setDatasetFile(file);
     navigate(`/d/${importedDataset.datasetId}`);
@@ -707,7 +709,23 @@ function App() {
     refreshRecentSessions();
   }
 
+  /** Drops every piece of model state tied to the previous dataset — a new or resumed dataset must
+   * never inherit the old one's imported model (it would show up on the choose screen). */
+  function clearModelState() {
+    registeredModelRef.current = null;
+    setModelName('');
+    setNrmName('');
+    setModelEntries([]);
+    setModelInputIds([]);
+    setModelOutputIds([]);
+    setPendingImportEntries(undefined);
+    setImportedModel(null);
+    setUtilizeModel(null);
+    setImportError(null);
+  }
+
   function handleBackToLanding() {
+    clearModelState();
     setDataset(null);
     setDatasetFile(null);
     currentSessionIdRef.current = null;
