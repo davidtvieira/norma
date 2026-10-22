@@ -84,16 +84,16 @@ const SAMPLE_MODEL: ExportedModel = {
 };
 
 describe('buildNrmFile', () => {
-  it('round-trips with extractNrmFile: same dataset bytes/filename and same model JSON', async () => {
+  it('round-trips with extractNrmFile: same dataset bytes, dataset and model renamed to the export name', async () => {
     const datasetFile = new File([strToU8('fake-xlsx-bytes')], 'vendas.xlsx');
 
     const nrmBlob = await buildNrmFile(datasetFile, SAMPLE_MODEL, 'Relatório de vendas');
     const nrmFile = new File([await nrmBlob.arrayBuffer()], 'modelo.nrm');
     const { datasetFile: extractedDatasetFile, modelText, info } = await extractNrmFile(nrmFile);
 
-    expect(extractedDatasetFile.name).toBe('vendas.xlsx');
+    expect(extractedDatasetFile.name).toBe('Relatório de vendas.xlsx');
     expect(await extractedDatasetFile.text()).toBe('fake-xlsx-bytes');
-    expect(JSON.parse(modelText)).toEqual(SAMPLE_MODEL);
+    expect(JSON.parse(modelText)).toEqual({ ...SAMPLE_MODEL, modelName: 'Relatório de vendas', nrmName: 'Relatório de vendas' });
     expect(info?.name).toBe('Relatório de vendas');
     expect(Number.isNaN(Date.parse(info?.createdAt ?? ''))).toBe(false);
   });
