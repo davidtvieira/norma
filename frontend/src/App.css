@@ -5,6 +5,7 @@
      stretching edge to edge on an ultra-wide monitor or a zoomed-out browser — body shares this
      same background color (see index.css), so the margin on either side beyond the cap reads as
      empty space, not a visible boxed-in panel. */
+  animation: app-page-in 0.45s ease backwards;
   height: 100svh;
   width: 100%;
   max-width: 2000px;
@@ -124,7 +125,6 @@
   align-items: center;
   gap: 1.25rem;
   text-align: center;
-  animation: app-landing-in 0.5s ease both;
 }
 
 .app__landing-uploaders {
@@ -198,6 +198,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .app {
+    animation: none;
+  }
+
   .app__browse-button:hover,
   .app__browse-button:hover .app__browse-icon {
     transform: none;
@@ -291,14 +295,17 @@
   font-size: 0.875rem;
 }
 
-@keyframes app-landing-in {
+/* Every screen's root is an .app that mounts anew on each route change, so this one animation
+   gives all pages the same entrance. `transform: none` at the end (not translateY(0)) so a finished
+   page doesn't keep a transform, which would become the containing block of its fixed modals. */
+@keyframes app-page-in {
   from {
     opacity: 0;
     transform: translateY(6px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: none;
   }
 }
 
@@ -398,7 +405,6 @@
   line-height: 1.18;
   letter-spacing: -0.015em;
   color: var(--color-text);
-  animation: app-landing-in 0.6s ease both;
 }
 
 @media (max-width: 640px) {
@@ -493,7 +499,6 @@
   align-items: center;
   gap: 0.75rem;
   text-align: center;
-  animation: app-landing-in 0.5s ease both;
 }
 
 .app__create-model-eyebrow {
