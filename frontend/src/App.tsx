@@ -757,16 +757,6 @@ function App() {
             onReadyModelImportSuccess={handleReadyModelImportSuccess}
             onGoHome={goHome}
             onBrowseModels={() => navigate('/modelos')}
-            onClearRecentSessions={discardAllEntries}
-            recentSessions={recentSessions.map((entry) => ({
-              id: entry.id,
-              datasetFileName: entry.datasetFileName,
-              nrmName: cachedNrmName(entry.modelJson),
-              hasModel: entry.modelJson !== null,
-              isResuming: resumingId === entry.id,
-              error: resumeError?.id === entry.id ? resumeError.message : null,
-              onResume: () => resumeSession(entry),
-            }))}
           />
         }
       />
@@ -900,7 +890,22 @@ function App() {
       <Route
         path="/modelos"
         element={
-          <ModelsScreen theme={theme} onToggleTheme={toggleTheme} onBack={() => navigate('/')} onGoHome={goHome} />
+          <ModelsScreen
+            theme={theme}
+            onToggleTheme={toggleTheme}
+            onBack={() => navigate('/')}
+            onGoHome={goHome}
+            onClearRecentSessions={discardAllEntries}
+            recentSessions={recentSessions.map((entry) => ({
+              id: entry.id,
+              datasetFileName: entry.datasetFileName,
+              nrmName: cachedNrmName(entry.modelJson),
+              hasModel: entry.modelJson !== null,
+              isResuming: resumingId === entry.id,
+              error: resumeError?.id === entry.id ? resumeError.message : null,
+              onResume: () => resumeSession(entry),
+            }))}
+          />
         }
       />
       <Route path="*" element={<Navigate to="/" replace />} />

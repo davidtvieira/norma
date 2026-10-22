@@ -907,7 +907,16 @@ button.operation-canvas__zoom-level:hover:not(:disabled) {
 .app__models-body {
   flex: 1;
   display: flex;
+  flex-direction: column;
   padding: 1.5rem var(--landing-gutter, 2.5rem);
+}
+
+.app__models-title {
+  margin: 0 0 1rem;
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
 }
 
 .app__models-container {
