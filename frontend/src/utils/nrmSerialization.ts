@@ -122,7 +122,7 @@ export function extractNrmFile(file: File): Promise<NrmContents> {
 
 /**
  * Builds a .nrm — the same zip shape extractNrmFile reads back — bundling the dataset's own
- * spreadsheet (its original filename/bytes, unchanged) together with the exported model JSON.
+ * spreadsheet (its original bytes, renamed to `fileName`) together with the exported model JSON.
  * Used by "Guardar modelo", which now saves .nrm instead of a bare model JSON file so the one
  * saved file is also enough to reopen the model later without the dataset having to be imported
  * separately first (see ReadyModelUploader's landing-page counterpart). Also writes an
@@ -131,9 +131,12 @@ export function extractNrmFile(file: File): Promise<NrmContents> {
 export async function buildNrmFile(datasetFile: File, model: ExportedModel, fileName: string): Promise<Blob> {
   const datasetBytes = new Uint8Array(await datasetFile.arrayBuffer());
   const info: NrmInfo = { version: NRM_INFO_VERSION, name: fileName, createdAt: new Date().toISOString() };
+  // The dataset's and the model's own names inside the .nrm are overwritten by the export name.
+  const extension = datasetFile.name.slice(datasetFile.name.lastIndexOf('.'));
+  const renamedModel: ExportedModel = { ...model, modelName: fileName, nrmName: fileName };
   const zipped = zipSync({
-    [datasetFile.name]: datasetBytes,
-    'modelo.json': strToU8(JSON.stringify(model, null, 2)),
+    [`${fileName}${extension}`]: datasetBytes,
+    'modelo.json': strToU8(JSON.stringify(renamedModel, null, 2)),
     [INFO_ENTRY_NAME]: strToU8(JSON.stringify(info, null, 2)),
   });
   return new Blob([zipped], { type: 'application/octet-stream' });
