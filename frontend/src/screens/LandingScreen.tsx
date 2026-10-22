@@ -26,6 +26,8 @@ interface LandingScreenProps {
   onImportSuccess: (dataset: DatasetImportStatus, file: File) => void;
   onReadyModelImportSuccess: (dataset: NrmImportStatusPayload, datasetFile: File, model: ImportedModel, modelText: string) => void;
   onGoHome: () => void;
+  /** "Explorar os meus modelos Norma" — opens the `/modelos` route. */
+  onBrowseModels: () => void;
   /** "Limpar tudo" — discards every entry in recentSessions at once. */
   onClearRecentSessions: () => void;
   /** Up to the 4 most recently uploaded/saved .nrm sessions (see App.tsx's
@@ -49,6 +51,7 @@ export function LandingScreen({
   onImportSuccess,
   onReadyModelImportSuccess,
   onGoHome,
+  onBrowseModels,
   onClearRecentSessions,
   recentSessions,
 }: LandingScreenProps) {
@@ -64,11 +67,26 @@ export function LandingScreen({
         </div>
         <div className="app__landing-right">
           <div className="app__landing-content">
-            <ReadyModelUploader onImportSuccess={onReadyModelImportSuccess} />
-            <div className="app__landing-separator">
-              <span>ou</span>
+            <div className="app__landing-uploaders">
+              <ReadyModelUploader onImportSuccess={onReadyModelImportSuccess} />
+              <div className="app__landing-uploaders-or">
+                <span>ou</span>
+              </div>
+              <DatasetUploader onImportSuccess={onImportSuccess} />
             </div>
-            <DatasetUploader onImportSuccess={onImportSuccess} />
+            <button type="button" className="app__browse-button" onClick={onBrowseModels}>
+              <svg className="app__browse-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path
+                  d="M4 9.5 5.5 4h13L20 9.5M4 9.5a2.5 2.5 0 0 0 4 2 2.5 2.5 0 0 0 4 0 2.5 2.5 0 0 0 4 0 2.5 2.5 0 0 0 4-2M5.5 12.5V20h13v-7.5M10 20v-4h4v4"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span>Explorar os meus modelos Norma</span>
+              <span className="app__browse-hint">Veja e abra os modelos que já criou</span>
+            </button>
           </div>
         </div>
       </div>

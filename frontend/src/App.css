@@ -117,14 +117,178 @@
 
 .app__landing-content {
   width: 100%;
-  max-width: 460px;
+  max-width: 720px;
   margin-right: var(--landing-gutter);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
+  gap: 1.25rem;
   text-align: center;
   animation: app-landing-in 0.5s ease both;
+}
+
+.app__landing-uploaders {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
+  width: 100%;
+  /* One shared container for both uploaders; each dropzone inside is just a transparent button
+     in it, with an "ou" between them. */
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.app__landing-uploaders > * {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* Both dropzones fill their (equal-height) column, with the same padding, so the two boxes match. */
+.app__landing-uploaders .ready-model-uploader__dropzone,
+.app__landing-uploaders .dataset-uploader__dropzone {
+  flex: 1;
+  padding: 2.5rem 1.5rem;
+}
+
+.app__browse-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 3.25rem 2rem;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-sm);
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.25s ease, background-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+}
+
+.app__browse-button:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-4px);
+}
+
+.app__browse-button:hover .app__browse-icon {
+  animation: app-browse-icon-bounce 0.7s ease infinite;
+}
+
+.app__browse-button:active {
+  transform: translateY(-1px) scale(0.99);
+}
+
+@keyframes app-browse-icon-bounce {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-4px) scale(1.15);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app__browse-button:hover,
+  .app__browse-button:hover .app__browse-icon {
+    transform: none;
+    animation: none;
+  }
+}
+
+.app__browse-hint {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+
+.app__browse-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  color: var(--color-primary-hover);
+}
+
+/* Both uploaders on the landing screen sit in the shared container above: their own dropzones are
+   borderless and transparent, and the dataset one takes the .nrm one's sizing. */
+.app__landing-uploaders .ready-model-uploader__dropzone,
+.app__landing-uploaders .dataset-uploader__dropzone {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Hover / drag-over: the dropzone itself stays put; its icon circle fills with the primary color. */
+.app__landing-uploaders .ready-model-uploader__dropzone:hover,
+.app__landing-uploaders .ready-model-uploader__dropzone--active,
+.app__landing-uploaders .dataset-uploader__dropzone:hover,
+.app__landing-uploaders .dataset-uploader__dropzone--active {
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+.app__landing-uploaders .ready-model-uploader__icon,
+.app__landing-uploaders .dataset-uploader__icon {
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+.app__landing-uploaders .ready-model-uploader__dropzone:hover .ready-model-uploader__icon,
+.app__landing-uploaders .ready-model-uploader__dropzone--active .ready-model-uploader__icon,
+.app__landing-uploaders .dataset-uploader__dropzone:hover .dataset-uploader__icon,
+.app__landing-uploaders .dataset-uploader__dropzone--active .dataset-uploader__icon {
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+}
+
+/* The "ou" between the two: a vertical rule with the word in the middle. */
+.app__landing-uploaders > .app__landing-uploaders-or {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+.app__landing-uploaders-or::before,
+.app__landing-uploaders-or::after {
+  content: '';
+  flex: 1;
+  width: 1px;
+  background: var(--color-border);
+}
+
+.app__landing-uploaders-or span {
+  padding: 0.5rem 0;
+}
+
+.app__landing-uploaders .dataset-uploader__icon {
+  width: 3rem;
+  height: 3rem;
+  margin-bottom: 0.5rem;
+}
+
+.app__landing-uploaders .dataset-uploader__icon svg {
+  width: 1.375rem;
+  height: 1.375rem;
+}
+
+.app__landing-uploaders .dataset-uploader__title {
+  font-size: 1.05rem;
+}
+
+.app__landing-uploaders .dataset-uploader__hint {
+  font-size: 0.875rem;
 }
 
 @keyframes app-landing-in {
@@ -259,6 +423,24 @@
 
   .app__landing-content {
     margin-right: 0;
+  }
+
+  .app__landing-uploaders > .app__landing-uploaders-or {
+    flex-direction: row;
+  }
+
+  .app__landing-uploaders-or::before,
+  .app__landing-uploaders-or::after {
+    width: auto;
+    height: 1px;
+  }
+
+  .app__landing-uploaders-or span {
+    padding: 0 0.75rem;
+  }
+
+  .app__landing-uploaders {
+    flex-direction: column;
   }
 
   .app__intro {
@@ -621,6 +803,19 @@ button.action-button:hover:not(:disabled) {
   border-color: var(--color-action-hover);
 }
 
+/* A calmer orange than .action-button, for a call-to-action that shouldn't compete with the
+   screen's main one. Same usage: add it next to the button's own sizing class. */
+button.secondary-action-button {
+  border-color: var(--color-secondary-action);
+  background: var(--color-secondary-action);
+  color: #fff;
+}
+
+button.secondary-action-button:hover:not(:disabled) {
+  background: var(--color-secondary-action-hover);
+  border-color: var(--color-secondary-action-hover);
+}
+
 /* ---------------------------------------------------------------------------------------------
    One button language for the editor canvas, using the same three flavors as the front screens:
      action    — solid orange, white text      (the decisive step: confirm, run, save, edit mode)
@@ -701,4 +896,20 @@ button.operation-canvas__zoom-button:hover:not(:disabled),
 button.operation-canvas__zoom-level:hover:not(:disabled) {
   background: var(--btn-secondary-bg-hover);
   color: var(--color-text);
+}
+
+/* /modelos: the placeholder container that will later hold the user's models. */
+.app__models-body {
+  flex: 1;
+  display: flex;
+  padding: 1.5rem var(--landing-gutter, 2.5rem);
+}
+
+.app__models-container {
+  flex: 1;
+  min-height: 20rem;
+  border: 1.5px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  /* A faint lift off the page: whitish in light mode, a touch lighter than the page in dark. */
+  background: color-mix(in srgb, var(--color-surface) 55%, transparent);
 }

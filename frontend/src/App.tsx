@@ -19,6 +19,7 @@ import { deleteSessionCacheEntry, listSessionCacheEntries, saveSessionCacheEntry
 import { downloadTestCase } from './utils/testCaseSerialization';
 import { LandingScreen } from './screens/LandingScreen';
 import { UtilizeScreen, type UtilizeModel } from './screens/UtilizeScreen';
+import { ModelsScreen } from './screens/ModelsScreen';
 import { NrmFileScreen } from './screens/NrmFileScreen';
 import { ChooseModelScreen, type ImportedModel } from './screens/ChooseModelScreen';
 import { EditorScreen } from './screens/EditorScreen';
@@ -549,11 +550,11 @@ function App() {
         // dataset id from the server even for the same uploaded file, which would otherwise
         // block re-importing a model exported earlier in the same session.
         const imported = parseModelImport(text, OPERATION_KIND_IDS);
-        setImportedModel({
         // Refuse a model that doesn't fit the loaded dataset here, rather than letting the editor or
         // utilize screen fail on it later. (A .nrm-backed session has no real dataset id of its own
         // to check against — its dataset and model were already validated together on import.)
         if (dataset && !dataset.nrmId) await validateModelForDataset(dataset.datasetId, text);
+        setImportedModel({
           modelName: imported.modelName,
           nrmName: imported.nrmName,
           entries: imported.entries,
@@ -755,6 +756,7 @@ function App() {
             onImportSuccess={handleDatasetImportSuccess}
             onReadyModelImportSuccess={handleReadyModelImportSuccess}
             onGoHome={goHome}
+            onBrowseModels={() => navigate('/modelos')}
             onClearRecentSessions={discardAllEntries}
             recentSessions={recentSessions.map((entry) => ({
               id: entry.id,
@@ -893,6 +895,12 @@ function App() {
               )
             }
           </DatasetRoute>
+        }
+      />
+      <Route
+        path="/modelos"
+        element={
+          <ModelsScreen theme={theme} onToggleTheme={toggleTheme} onBack={() => navigate('/')} onGoHome={goHome} />
         }
       />
       <Route path="*" element={<Navigate to="/" replace />} />

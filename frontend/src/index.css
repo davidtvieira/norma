@@ -34,6 +34,10 @@
   --color-action: #f0a150;
   --color-action-hover: #f5b273;
   --color-action-contrast: #ffffff;
+  /* The same orange at lower opacity, for secondary call-to-actions (see .secondary-action-button
+     in App.css) — theme-invariant like --color-action. */
+  --color-secondary-action: color-mix(in srgb, var(--color-action) 55%, transparent);
+  --color-secondary-action-hover: color-mix(in srgb, var(--color-action) 70%, transparent);
 
   /* A plain, theme-invariant grey (dark mode's own --color-primary, which is what a resting
      edge already looked like there) — fixed the same way --color-action is, for the same reason:
