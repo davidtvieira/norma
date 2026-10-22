@@ -1,5 +1,6 @@
 package com.norma.dataset.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.norma.dataset.dto.ModelInputsResponse;
 import com.norma.dataset.dto.ModelOperationResult;
 import com.norma.dataset.dto.ModelRegisterRequest;
@@ -46,6 +47,18 @@ public class ModelController {
             @PathVariable String datasetId, @RequestBody ModelRegisterRequest request) {
         String modelId = modelExecutionService.registerModel(datasetId, request);
         return ResponseEntity.ok(new ModelRegisterResponse(modelId, modelExecutionService.getModelInputs(modelId).inputs()));
+    }
+
+    @Operation(
+            summary = "Validate a model against a dataset",
+            description = "Checks that a model (the exported model JSON) can use an already-imported dataset — every "
+                    + "sheet its operations point at has to exist in it — without registering anything. 409 when it "
+                    + "does not fit."
+    )
+    @PostMapping("/api/v1/dataset/{datasetId}/model/validate")
+    public ResponseEntity<Void> validateModel(@PathVariable String datasetId, @RequestBody JsonNode model) {
+        modelExecutionService.assertModelFitsDataset(datasetId, model);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(

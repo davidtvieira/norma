@@ -38,7 +38,7 @@ import java.util.zip.ZipInputStream;
  * is a zip holding exactly three entries: the dataset spreadsheet (.xlsx/.xls), the model
  * ({@code *.json}, not {@code info.json}), and {@code info.json} ({@link NrmInfo}). Anything else —
  * a missing or duplicated entry, an unexpected extra one, malformed JSON, an unknown operation
- * kind, a spreadsheet that can't be opened — is rejected, so a file only gets past here if it's
+ * kind, a spreadsheet that can't be opened, a model pointing at sheets the spreadsheet doesn't have — is rejected, so a file only gets past here if it's
  * the format "Exportar modelo" produces.
  */
 @Service
@@ -72,7 +72,7 @@ public class NrmService {
      * half is wanted and a second copy of the dataset isn't.*/
     public NrmInfo validate(MultipartFile file) {
         Contents contents = read(file);
-        assertSpreadsheetReadable(contents);
+        ModelDatasetValidator.assertFits(contents.model(), sheetCountOf(contents));
         return contents.info();
     }
 
@@ -83,6 +83,7 @@ public class NrmService {
      */
     public NrmImportStatus importNrm(MultipartFile file) {
         Contents contents = read(file);
+        ModelDatasetValidator.assertFits(contents.model(), sheetCountOf(contents));
         DatasetImportResponse dataset = datasetParserService.parse(
                 new ByteArrayInputStream(contents.spreadsheetBytes()), contents.spreadsheetName());
         String modelId = registerModel(dataset.datasetId(), contents.model());
@@ -325,9 +326,10 @@ public class NrmService {
         }
     }
 
-    private void assertSpreadsheetReadable(Contents contents) {
-        try (Workbook ignored = WorkbookFactory.create(new ByteArrayInputStream(contents.spreadsheetBytes()))) {
-            // Opening it is the whole check.
+    /** Opens the spreadsheet — it must be readable — and returns how many sheets it has. */
+    private int sheetCountOf(Contents contents) {
+        try (Workbook workbook = WorkbookFactory.create(new ByteArrayInputStream(contents.spreadsheetBytes()))) {
+            return workbook.getNumberOfSheets();
         } catch (IOException | RuntimeException e) {
             log.debug("Rejected .nrm: its dataset {} cannot be opened.", contents.spreadsheetName(), e);
             throw new DatasetParsingException(INVALID_MESSAGE, e);

@@ -87,6 +87,18 @@ public class ModelExecutionService {
     }
 
     /**
+     * Checks that a model (the exported model JSON) can use an already-imported dataset, throwing
+     * {@link com.norma.dataset.exception.ModelDatasetMismatchException} when it points at a sheet the
+     * dataset doesn't have — what lets a model be refused before it is ever opened or utilized.
+     */
+    public void assertModelFitsDataset(String datasetId, com.fasterxml.jackson.databind.JsonNode model) {
+        DatasetImportResponse dataset = datasetStore.get(datasetId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Dataset not found. Please import the file again."));
+        ModelDatasetValidator.assertFits(model, dataset.sheets() == null ? 0 : dataset.sheets().size());
+    }
+
+    /**
      * Runs a previously registered model and returns one result per designated output (always at
      * least one) — every other operation in the model is still computed as needed to resolve the
      * reference chain leading to each of them (kinds are dispatched, and "reference" inputs

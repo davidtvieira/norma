@@ -4,7 +4,7 @@ import type { ChangeEvent, ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { KINDS_BY_ID, OPERATION_KIND_IDS } from './components/OperationPanel/kinds/registry';
 import { useTheme } from './hooks/useTheme';
-import { checkDataset, getModelInputs, getNrmDataset, getNrmInputs, getNrmModel, importDataset, registerModel } from './services/datasetApi';
+import { checkDataset, getModelInputs, getNrmDataset, getNrmInputs, getNrmModel, importDataset, registerModel, validateModelForDataset } from './services/datasetApi';
 import type { ModelExportFormat } from './components/SaveModal/SaveModal';
 import type { NrmImportStatusPayload } from './types/nrm';
 import type { DatasetHandle, DatasetImportStatus, DatasetImportResponse } from './types/dataset';
@@ -544,12 +544,16 @@ function App() {
     if (!file) return;
 
     readModelFile(file)
-      .then((text) => {
+      .then(async (text) => {
         // Not checked against the current dataset's id for now: a fresh page load gets a new
         // dataset id from the server even for the same uploaded file, which would otherwise
         // block re-importing a model exported earlier in the same session.
         const imported = parseModelImport(text, OPERATION_KIND_IDS);
         setImportedModel({
+        // Refuse a model that doesn't fit the loaded dataset here, rather than letting the editor or
+        // utilize screen fail on it later. (A .nrm-backed session has no real dataset id of its own
+        // to check against — its dataset and model were already validated together on import.)
+        if (dataset && !dataset.nrmId) await validateModelForDataset(dataset.datasetId, text);
           modelName: imported.modelName,
           nrmName: imported.nrmName,
           entries: imported.entries,

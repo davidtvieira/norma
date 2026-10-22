@@ -24,6 +24,8 @@ import type { TranslatorRequestPayload, TranslatorResponsePayload } from '../typ
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
 const INVALID_NRM_MESSAGE = 'Ficheiro .nrm inválido.';
+const MODEL_DATASET_MISMATCH_MESSAGE = 'O modelo não é compatível com o conjunto de dados: usa folhas que o conjunto de dados não tem.';
+const CONFLICT_STATUS = 409;
 const UNREACHABLE_MESSAGE = 'Não foi possível contactar o servidor.';
 const COMMUNICATION_ERROR_MESSAGE = 'Erro de comunicação com a API.';
 const GATEWAY_STATUSES = new Set([502, 503, 504]);
@@ -108,6 +110,11 @@ async function postNrm<T>(path: string, file: File): Promise<T> {
 
   const response = await apiFetch(`${API_BASE_URL}${path}`, { method: 'POST', body: formData });
 
+  if (response.status === CONFLICT_STATUS) {
+    reportApiError({ title: MODEL_DATASET_MISMATCH_MESSAGE });
+    throw new ApiError(MODEL_DATASET_MISMATCH_MESSAGE);
+  }
+
   if (!response.ok) {
     // The backend's reason (see its NrmService) stays out of the UI on purpose — a rejected .nrm
     // just reads as invalid, whatever exactly was wrong with it.
@@ -132,6 +139,27 @@ export function importNrm(file: File): Promise<NrmImportStatusPayload> {
  * .nrm is wanted. */
 export function validateNrm(file: File): Promise<NrmInfoPayload> {
   return postNrm('/api/v1/nrm/validate', file);
+}
+
+/**
+ * Checks, before a model is accepted, that it can use an already-imported dataset (every sheet its
+ * operations point at exists in it), so an incompatible model is refused on import instead of
+ * failing later on the editor or utilize screen. `modelText` is the model JSON as exported.
+ */
+export async function validateModelForDataset(datasetId: string, modelText: string): Promise<void> {
+  const response = await apiFetch(`${API_BASE_URL}/api/v1/dataset/${encodeURIComponent(datasetId)}/model/validate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: modelText,
+  });
+
+  if (response.status === CONFLICT_STATUS) {
+    reportApiError({ title: MODEL_DATASET_MISMATCH_MESSAGE });
+    throw new ApiError(MODEL_DATASET_MISMATCH_MESSAGE);
+  }
+  if (!response.ok) {
+    throw await apiError(response, 'Falha ao validar o modelo');
+  }
 }
 
 /**

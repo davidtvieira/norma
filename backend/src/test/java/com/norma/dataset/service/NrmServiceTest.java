@@ -3,6 +3,7 @@ package com.norma.dataset.service;
 import com.norma.dataset.dto.NrmImportStatus;
 import com.norma.dataset.dto.NrmInfo;
 import com.norma.dataset.exception.DatasetParsingException;
+import com.norma.dataset.exception.ModelDatasetMismatchException;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
@@ -157,6 +158,41 @@ class NrmServiceTest {
         Map<String, byte[]> entries = entries(MODEL, INFO);
         entries.put("dados.xlsx", new byte[] {1, 2, 3});
         assertThatThrownBy(() -> nrmService.validate(nrm("a.nrm", entries))).isInstanceOf(DatasetParsingException.class);
+    }
+
+    @Test
+    void rejectsAModelPointingAtASheetTheDatasetDoesNotHave() throws IOException {
+        // The bundled workbook has a single sheet (index 0).
+        String sumOnSheet1 = MODEL.replace("\"name\":\"Soma\",\"fields\":{}", "\"name\":\"Soma\",\"fields\":{\"sheetIndex\":1}");
+        String nestedLookupOnSheet2 = MODEL.replace("\"name\":\"L\",\"fields\":{}", "\"name\":\"L\",\"fields\":{\"searchSheetIndex\":2}");
+        String iteratorPastTheEnd = MODEL.replace("\"name\":\"Soma\",\"fields\":{}", "\"name\":\"Soma\",\"fields\":{\"startSheet\":0,\"endSheet\":3}");
+
+        for (String model : new String[] {sumOnSheet1, nestedLookupOnSheet2, iteratorPastTheEnd}) {
+            assertThatThrownBy(() -> nrmService.validate(nrm("a.nrm", entries(model, INFO))))
+                    .isInstanceOf(ModelDatasetMismatchException.class);
+            assertThatThrownBy(() -> nrmService.importNrm(nrm("a.nrm", entries(model, INFO))))
+                    .isInstanceOf(ModelDatasetMismatchException.class);
+        }
+    }
+
+    @Test
+    void acceptsAModelWhoseSheetsAllExist() throws IOException {
+        String onSheet0 = MODEL.replace("\"name\":\"Soma\",\"fields\":{}", "\"name\":\"Soma\",\"fields\":{\"sheetIndex\":0}");
+
+        assertThat(nrmService.validate(nrm("a.nrm", entries(onSheet0, INFO))).name()).isEqualTo("Vendas");
+    }
+
+    @Test
+    void checksAModelAgainstAnAlreadyImportedDataset() throws IOException {
+        var dataset = new DatasetParserService(datasetStore)
+                .parse(new java.io.ByteArrayInputStream(workbookBytes()), "dados.xlsx");
+        var executionService = new ModelExecutionService(datasetStore, new ModelStore());
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+
+        executionService.assertModelFitsDataset(dataset.datasetId(), mapper.readTree(MODEL));
+        assertThatThrownBy(() -> executionService.assertModelFitsDataset(dataset.datasetId(),
+                mapper.readTree(MODEL.replace("\"fields\":{},\"position\"", "\"fields\":{\"sheetIndex\":5},\"position\""))))
+                .isInstanceOf(ModelDatasetMismatchException.class);
     }
 
     private void assertRejected(Map<String, byte[]> entries) throws IOException {
