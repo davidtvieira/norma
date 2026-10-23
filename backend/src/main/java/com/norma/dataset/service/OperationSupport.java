@@ -48,7 +48,7 @@ final class OperationSupport {
     record SumOutcome(double total, int cellsSummed) {
     }
 
-    record FindOutcome(boolean found, Integer rowIndex, Integer columnIndex) {
+    record FindOutcome(boolean found, Integer rowIndex, Integer columnIndex, String value) {
     }
 
     static SheetData sheetAt(DatasetImportResponse dataset, int sheetIndex, String role) {
@@ -106,11 +106,11 @@ final class OperationSupport {
             }
             for (int column = startColumn; column <= endColumn; column++) {
                 if (matches(cellValue(row, column), normalizedQuery)) {
-                    return new FindOutcome(true, row.rowIndex(), column);
+                    return new FindOutcome(true, row.rowIndex(), column, String.valueOf(cellValue(row, column)));
                 }
             }
         }
-        return new FindOutcome(false, null, null);
+        return new FindOutcome(false, null, null, null);
     }
 
     /** find/translator's own matching — always exact, same as lookup's own default (see the

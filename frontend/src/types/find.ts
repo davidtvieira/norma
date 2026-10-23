@@ -12,4 +12,5 @@ export interface FindResponsePayload {
   found: boolean;
   rowIndex: number | null;
   columnIndex: number | null;
+  value: string | null;
 }

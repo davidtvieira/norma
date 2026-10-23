@@ -17,6 +17,8 @@ interface FindFields {
   // scans a whole rectangular range for the match and reports where it landed — there's no
   // separate result column, the position itself is the result.
   range: CellRange | null;
+  // Report the matched cell's own value instead of its "row,column" position.
+  returnValue: boolean;
 }
 
 function asFindFields(fields: OperationFields): FindFields {
@@ -31,6 +33,7 @@ export const findKind: OperationKind = {
     sheetIndex: dataset.sheets.length === 1 ? 0 : '',
     useIteratorSheet: false,
     range: null,
+    returnValue: false,
   } satisfies FindFields),
 
   canConfirm: (fields) => asFindFields(fields).range !== null,
@@ -64,6 +67,15 @@ export const findKind: OperationKind = {
             />
           </div>
         )}
+
+        <label className="operation-entry__checkbox">
+          <input
+            type="checkbox"
+            checked={f.returnValue === true}
+            onChange={(event) => updateFields({ returnValue: event.target.checked })}
+          />
+          <span>Devolver o valor em vez da localização</span>
+        </label>
       </>
     );
   },
@@ -118,6 +130,15 @@ export const findKind: OperationKind = {
           onChange={(useIteratorSheet) => updateFields({ useIteratorSheet })}
         />
 
+        <label className="operation-entry__checkbox">
+          <input
+            type="checkbox"
+            checked={f.returnValue === true}
+            onChange={(event) => updateFields({ returnValue: event.target.checked })}
+          />
+          <span>Devolver o valor em vez da localização</span>
+        </label>
+
         <ValueSourceField
           label="Valor a procurar"
           placeholder="Introduza um valor"
@@ -133,6 +154,7 @@ export const findKind: OperationKind = {
           query={query}
           sheetIndex={sheetIndex as number}
           range={f.range as CellRange}
+          returnValue={f.returnValue === true}
           testSignal={testSignal}
           resetSignal={resetSignal}
           onMatchChange={onMatchChange}
@@ -176,6 +198,7 @@ interface FindResultProps {
   query: string;
   sheetIndex: number;
   range: CellRange;
+  returnValue: boolean;
   /** Incremented by "Testar modelo" (see OperationPanel) — the only thing that triggers a
    * request; editing the query/table/range afterward doesn't, until tested again. */
   testSignal: number;
@@ -189,7 +212,7 @@ type FindRequestState =
   | { status: 'idle' }
   | { status: 'loading' }
   | { status: 'error'; message: string }
-  | { status: 'done'; found: boolean; rowIndex: number | null; columnIndex: number | null };
+  | { status: 'done'; found: boolean; rowIndex: number | null; columnIndex: number | null; value: string | null };
 
 /**
  * Runs the operation entirely on the API: the dataset id, the range and the (resolved) query are
@@ -198,7 +221,7 @@ type FindRequestState =
  * actually clicked. Mirrors LookupResult's own request lifecycle (including why it's always
  * mounted, even with an empty/unresolved query — see that component's note on React StrictMode).
  */
-function FindResult({ datasetId, query, sheetIndex, range, testSignal, resetSignal, onMatchChange, onResultChange }: FindResultProps) {
+function FindResult({ datasetId, query, sheetIndex, range, returnValue, testSignal, resetSignal, onMatchChange, onResultChange }: FindResultProps) {
   const [state, setState] = useState<FindRequestState>({ status: 'idle' });
 
   // Which testSignal we've already gotten a definitive response for — see the equivalent note in
@@ -257,9 +280,11 @@ function FindResult({ datasetId, query, sheetIndex, range, testSignal, resetSign
       .then((response) => {
         if (!cancelled) {
           handledForSignalRef.current = testSignal;
-          setState({ status: 'done', found: response.found, rowIndex: response.rowIndex, columnIndex: response.columnIndex });
+          setState({ status: 'done', found: response.found, rowIndex: response.rowIndex, columnIndex: response.columnIndex, value: response.value });
           onMatchChange(response.found ? response.rowIndex : null, response.found ? response.columnIndex : null);
-          onResultChange(response.found ? `${response.rowIndex},${response.columnIndex}` : null);
+          onResultChange(
+            !response.found ? null : returnValue ? (response.value ?? '') : `${response.rowIndex},${response.columnIndex}`,
+          );
         }
       })
       .catch((error) => {
@@ -294,6 +319,14 @@ function FindResult({ datasetId, query, sheetIndex, range, testSignal, resetSign
 
   if (!state.found) {
     return <p className="operation-entry__result operation-entry__result--empty">Sem correspondência encontrada.</p>;
+  }
+
+  if (returnValue) {
+    return (
+      <p className="operation-entry__result">
+        <span className="operation-entry__result-label">Valor:</span> {state.value}
+      </p>
+    );
   }
 
   return (

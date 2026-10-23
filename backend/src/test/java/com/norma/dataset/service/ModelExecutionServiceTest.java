@@ -682,6 +682,22 @@ class ModelExecutionServiceTest {
     }
 
     @Test
+    void aFindOperationWithReturnValueReportsTheMatchedCellsValueInsteadOfItsPosition() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationInput find = new ModelOperationInput("op-1", "find", Map.of(
+                "input", literalInput("bruno"),
+                "sheetIndex", 0,
+                "returnValue", true,
+                "range", Map.of("startRow", 0, "endRow", 2, "startColumn", 0, "endColumn", 1)));
+
+        ModelOperationResult result = registerAndRun(datasetId, List.of(find), null, "op-1", null);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.value()).isEqualTo("Bruno");
+    }
+
+    @Test
     void aFindOperationWithNoMatchInItsRangeReportsANullResultWithoutError() {
         String datasetId = twoSheetDataset();
 

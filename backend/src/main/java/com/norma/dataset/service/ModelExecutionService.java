@@ -586,7 +586,9 @@ public class ModelExecutionService {
         String normalizedQuery = query == null ? "" : query.trim();
 
         FindOutcome outcome = OperationSupport.findInRange(sheet, startRow, endRow, startColumn, endColumn, normalizedQuery);
-        Object value = outcome.found() ? outcome.rowIndex() + "," + outcome.columnIndex() : null;
+        // "returnValue": report the matched cell's own value instead of its "row,column" position.
+        boolean returnValue = Boolean.TRUE.equals(fields.get("returnValue"));
+        Object value = !outcome.found() ? null : returnValue ? outcome.value() : outcome.rowIndex() + "," + outcome.columnIndex();
         return new ModelOperationResult(operation.id(), true, value, null);
     }
 

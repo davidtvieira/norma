@@ -103,7 +103,7 @@ public class DatasetOperationService {
         String normalizedQuery = request.query() == null ? "" : request.query().trim();
 
         FindOutcome outcome = OperationSupport.findInRange(sheet, request.startRow(), request.endRow(), request.startColumn(), request.endColumn(), normalizedQuery);
-        return new FindResponse(outcome.found(), outcome.rowIndex(), outcome.columnIndex());
+        return new FindResponse(outcome.found(), outcome.rowIndex(), outcome.columnIndex(), outcome.value());
     }
 
     /**
