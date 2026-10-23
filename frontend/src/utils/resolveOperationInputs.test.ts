@@ -257,4 +257,26 @@ describe('selector-like fields (a single chainable index plus a list of inputs)'
 
     expect(resolveOperationInputs(entries, {})['op-n']).toEqual([{ status: 'pending' }]);
   });
+
+  it('makes every sheet-based operation depend on the page selector without any reference', () => {
+    const entries = [
+      { ...entry('op-page', { input: literalSource('1') }), kindId: 'page' },
+      { ...entry('op-find', { input: literalSource('x') }), kindId: 'find' },
+      { ...entry('op-node', { input: literalSource('y') }), kindId: 'node' },
+    ];
+
+    expect(getDependents('op-page', entries)).toEqual(new Set(['op-find']));
+    expect(getDependencyChain('op-find', entries)).toEqual(new Set(['op-find', 'op-page']));
+  });
+
+  it('reports a page selector fed by an operation that follows it as a cycle', () => {
+    const entries = [
+      { ...entry('op-page', { input: reference('op-find') }), kindId: 'page' },
+      { ...entry('op-find', { input: literalSource('x') }), kindId: 'find' },
+    ];
+
+    const resolved = resolveOperationInputs(entries, {});
+
+    expect(resolved['op-page'].every((input) => input.status === 'cycle')).toBe(true);
+  });
 });

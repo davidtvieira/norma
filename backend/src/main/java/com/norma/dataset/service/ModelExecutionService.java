@@ -38,6 +38,9 @@ import java.util.stream.Collectors;
 public class ModelExecutionService {
 
     private static final String ITERATOR_KIND = "iterator";
+    private static final String PAGE_KIND = "page";
+    /** The kinds that read from a page of the dataset, and so follow the model's page selector. */
+    private static final Set<String> PAGE_AWARE_KINDS = Set.of("lookup", "sum", "find");
 
     private final DatasetStore datasetStore;
     private final ModelStore modelStore;
@@ -81,6 +84,9 @@ public class ModelExecutionService {
         }
 
         validateIterator(datasetStore.get(datasetId).orElseThrow(), operations, outputOperationIds);
+        if (operations.stream().filter(operation -> PAGE_KIND.equals(operation.kind())).count() > 1) {
+            throw new IllegalArgumentException("A model can have only one page selector.");
+        }
 
         StoredModel model = new StoredModel(datasetId, request.name(), operations, inputOperationIds, outputOperationIds);
         return modelStore.put(model);
@@ -400,6 +406,7 @@ public class ModelExecutionService {
         }
 
         try {
+            operation = withSelectedPage(operation, dataset, byId, cyclicIds, resolved);
             String inputValue = resolveInputValue(operation, dataset, byId, cyclicIds, resolved);
             return switch (operation.kind()) {
                 case "lookup" -> computeLookup(operation, dataset, inputValue, byId, cyclicIds, resolved);
@@ -408,6 +415,7 @@ public class ModelExecutionService {
                 case "node" -> new ModelOperationResult(id, true, inputValue, null);
                 case "find" -> computeFind(operation, dataset, inputValue);
                 case "translator" -> computeTranslator(operation, inputValue, dataset, byId, cyclicIds, resolved);
+                case "page" -> computePage(operation, inputValue, dataset);
                 case "calc" -> computeCalc(operation, dataset, byId, cyclicIds, resolved);
                 case "selector" -> computeSelector(operation, dataset, byId, cyclicIds, resolved);
                 case ITERATOR_KIND -> computeIterator(operation);
@@ -657,6 +665,57 @@ public class ModelExecutionService {
      * operation — caught by computeOperation's own IllegalArgumentException handling, same as
      * every other kind's validation failures.
      */
+    /**
+     * When the model has a page selector, every lookup/sum/find reads from the page it picks
+     * instead of its own table: a lookup searches it and, unless it keeps its original page for the
+     * value, reads the value from it too; sum/find have the one sheet. Applied after the iterator's own override, so the
+     * page selector wins. Other operations, and models without a page selector, are used as is.
+     */
+    private ModelOperationInput withSelectedPage(
+            ModelOperationInput operation,
+            DatasetImportResponse dataset,
+            Map<String, ModelOperationInput> byId,
+            Set<String> cyclicIds,
+            Map<String, ModelOperationResult> resolved) {
+        if (!PAGE_AWARE_KINDS.contains(operation.kind())) {
+            return operation;
+        }
+        Optional<ModelOperationInput> selector = byId.values().stream()
+                .filter(candidate -> PAGE_KIND.equals(candidate.kind()))
+                .findFirst();
+        if (selector.isEmpty()) {
+            return operation;
+        }
+        ModelOperationResult page = resolveOperation(selector.get().id(), dataset, byId, cyclicIds, resolved);
+        if (!page.success() || page.value() == null) {
+            throw new IllegalArgumentException("The page selector did not produce a page.");
+        }
+        int pageIndex = ((Number) page.value()).intValue();
+        Map<String, Object> pageFields = new HashMap<>(fieldsOf(operation));
+        if ("lookup".equals(operation.kind())) {
+            // Searches the selected page, and reads the value from it too unless the lookup keeps its
+            // original page for the value ("keepOriginalResultPage").
+            pageFields.put("searchSheetIndex", pageIndex);
+            if (!Boolean.TRUE.equals(pageFields.get("keepOriginalResultPage"))) {
+                pageFields.put("sheetIndex", pageIndex);
+            }
+        } else {
+            pageFields.put("sheetIndex", pageIndex);
+        }
+        return new ModelOperationInput(operation.id(), operation.kind(), pageFields, operation.name());
+    }
+
+    /** A page selector's result is its (validated) page index, from 0. */
+    private ModelOperationResult computePage(ModelOperationInput operation, String input, DatasetImportResponse dataset) {
+        String trimmed = input == null ? "" : input.trim();
+        int page = parseNonNegativeInt(trimmed, trimmed, "input", "página");
+        int pageCount = dataset.sheets() == null ? 0 : dataset.sheets().size();
+        if (page >= pageCount) {
+            throw new IllegalArgumentException("Page " + page + " does not exist: the dataset has " + pageCount + " pages.");
+        }
+        return new ModelOperationResult(operation.id(), true, page, null);
+    }
+
     /** Arithmetic on the calc operation's two chainable values, then its output format. */
     private ModelOperationResult computeCalc(
             ModelOperationInput operation,
@@ -793,8 +852,18 @@ public class ModelExecutionService {
      */
     private Map<String, List<String>> buildReferenceGraph(List<ModelOperationInput> operations) {
         Map<String, List<String>> edges = new HashMap<>();
+        // Every page-aware operation silently depends on the model's page selector (it reads from
+        // the page that selector picks), so a selector fed by one of them is a cycle, not a hang.
+        List<String> pageSelectorIds = operations.stream()
+                .filter(operation -> PAGE_KIND.equals(operation.kind()))
+                .map(ModelOperationInput::id)
+                .toList();
         for (ModelOperationInput operation : operations) {
-            edges.put(operation.id(), referencedOperationIds(fieldsOf(operation)));
+            List<String> referenced = new ArrayList<>(referencedOperationIds(fieldsOf(operation)));
+            if (PAGE_AWARE_KINDS.contains(operation.kind())) {
+                referenced.addAll(pageSelectorIds);
+            }
+            edges.put(operation.id(), referenced);
         }
         return edges;
     }

@@ -488,6 +488,13 @@
   font-size: 0.875rem;
 }
 
+.operation-entry__select:disabled {
+  background: var(--color-surface-hover);
+  color: var(--color-text-muted);
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .operation-entry__select:focus {
   outline: none;
   border-color: var(--color-primary);

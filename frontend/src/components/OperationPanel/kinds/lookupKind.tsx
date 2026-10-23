@@ -7,7 +7,7 @@ import { literalSource, type ValueSource } from '../../../types/valueSource';
 import type { LookupMatchMode } from '../../../types/lookup';
 import type { OperationHighlight } from '../../../types/highlight';
 import type { ResolvedInput } from '../../../utils/resolveOperationInputs';
-import { ColumnPickerField, IteratorSheetToggle, TableSelect, ValueSourceField } from '../fields';
+import { ColumnPickerField, IteratorSheetToggle, PageOverrideNotice, PageSheetNotice, summarySheetName, TableSelect, ValueSourceField } from '../fields';
 import type { OperationFields, OperationKind } from '../operationKind';
 
 interface LookupFields {
@@ -39,6 +39,9 @@ interface LookupFields {
   // Only meaningful for matchMode "tokenEquals" — see LookupMatchMode's own doc.
   tokenIgnoreSpaces: boolean;
   tokenIgnoreDashes: boolean;
+  // With a page selector in the model the value is read from the selected page too, unless this is
+  // on — then it keeps coming from the table picked when the operation was created (sheetIndex).
+  keepOriginalResultPage?: boolean;
 }
 
 function asLookupFields(fields: OperationFields): LookupFields {
@@ -87,11 +90,12 @@ export const lookupKind: OperationKind = {
     matchMode: 'equals',
     tokenIgnoreSpaces: false,
     tokenIgnoreDashes: false,
+    keepOriginalResultPage: false,
   } satisfies LookupFields),
 
   canConfirm: (fields) => asLookupFields(fields).resultColumn !== '',
 
-  renderDraftConfig: ({ dataset, entryId, fields, updateFields, columnPick, onStartColumnPick, onFinishColumnPick }) => {
+  renderDraftConfig: ({ dataset, entryId, fields, updateFields, columnPick, onStartColumnPick, onFinishColumnPick, hasPageSelector }) => {
     const f = asLookupFields(fields);
 
     return (
@@ -102,10 +106,26 @@ export const lookupKind: OperationKind = {
               label="Tabela"
               dataset={dataset}
               sheetIndex={f.sheetIndex}
+              // The page selector decides the page, unless the lookup keeps its original page for the value.
+              disabled={hasPageSelector && !f.keepOriginalResultPage && f.sheetIndex !== ''}
               onSelect={(sheetIndex) =>
                 updateFields({ sheetIndex, searchColumn: literalSource(''), resultColumn: '', startRow: literalSource('0') })
               }
             />
+          </div>
+        )}
+
+        {dataset.sheets.length > 1 && hasPageSelector && (
+          <div className="operation-entry__field">
+            <PageOverrideNotice active />
+            <label className="operation-entry__checkbox">
+              <input
+                type="checkbox"
+                checked={f.keepOriginalResultPage === true}
+                onChange={(event) => updateFields({ keepOriginalResultPage: event.target.checked })}
+              />
+              Manter a página original para o valor devolvido
+            </label>
           </div>
         )}
 
@@ -126,7 +146,7 @@ export const lookupKind: OperationKind = {
     );
   },
 
-  renderSummary: (fields, dataset) => {
+  renderSummary: (fields, dataset, pageSheet) => {
     const f = asLookupFields(fields);
     const sheetIndex = f.sheetIndex as number;
     const searchColumnLabel =
@@ -138,7 +158,10 @@ export const lookupKind: OperationKind = {
     const matchModeLabel = f.matchMode === 'contains' ? 'contém' : f.matchMode === 'tokenEquals' ? 'segmento' : 'igual';
     return (
       <>
-        <span>{dataset.sheets[sheetIndex].sheetName}</span>
+        <span>
+          {summarySheetName(sheetIndex, pageSheet, dataset)}
+          {pageSheet !== null && f.keepOriginalResultPage && ` (valor: ${dataset.sheets[sheetIndex].sheetName})`}
+        </span>
         <span>
           · {searchColumnLabel} ({matchModeLabel})
           <span className="lookup-summary__arrow">→</span>
@@ -176,13 +199,19 @@ export const lookupKind: OperationKind = {
     onMatchChange,
     resolvedInputs,
     referenceOptions,
+    pageSheet,
+    sheetNames,
     iteratorSheet,
     onResultChange,
   }) => {
     const f = asLookupFields(fields);
     // Only the *search* follows the iterator; the value is still read from the sheet picked when the
     // operation was created (f.sheetIndex).
-    const searchSheetIndex = f.useIteratorSheet && iteratorSheet !== null ? iteratorSheet : f.sheetIndex;
+    // The model's page selector, when it has one, wins over the iterator's sheet.
+    const searchSheetIndex =
+      pageSheet !== null ? pageSheet : f.useIteratorSheet && iteratorSheet !== null ? iteratorSheet : f.sheetIndex;
+    // The value is read from the selected page as well, unless the original page is kept for it.
+    const resultSheetIndex = pageSheet !== null && !f.keepOriginalResultPage ? pageSheet : f.sheetIndex;
     // "input" (the query), "searchColumn" and "startRow" are all chainable fields on this kind,
     // declared in this order in createFields — resolvedInputs mirrors that order (see
     // getInputSources).
@@ -216,6 +245,16 @@ export const lookupKind: OperationKind = {
           hint="O valor devolvido continua a vir da tabela escolhida ao criar a operação."
           checked={f.useIteratorSheet}
           onChange={(useIteratorSheet) => updateFields({ useIteratorSheet })}
+        />
+
+        <PageSheetNotice
+          pageSheet={pageSheet}
+          sheetNames={sheetNames}
+          hint={
+            f.keepOriginalResultPage
+              ? "Procura nessa página; o valor devolvido vem da página original."
+              : "Procura nessa página e devolve o valor dela."
+          }
         />
 
         <ValueSourceField
@@ -285,7 +324,7 @@ export const lookupKind: OperationKind = {
         <LookupResult
           datasetId={datasetId}
           query={query}
-          sheetIndex={f.sheetIndex as number}
+          sheetIndex={resultSheetIndex as number}
           searchSheetIndex={searchSheetIndex as number}
           searchColumn={searchColumn}
           resultColumn={f.resultColumn as number}
@@ -448,7 +487,7 @@ function LookupResult({
   }, [resetSignal]);
 
   useEffect(() => {
-    if (testSignal === 0 || query.trim() === '' || searchColumn === null || startRow === null) {
+    if (testSignal === 0 || query.trim() === '' || searchColumn === null || startRow === null || searchSheetIndex < 0) {
       return;
     }
 
@@ -477,7 +516,7 @@ function LookupResult({
               matchMode,
               tokenIgnoreSpaces,
               tokenIgnoreDashes,
-            });
+                        });
             inFlightRef.current = { signal: testSignal, promise };
             return promise;
           })();

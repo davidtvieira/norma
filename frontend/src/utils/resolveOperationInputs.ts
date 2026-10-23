@@ -1,4 +1,5 @@
 import { getInputSources, outputResultKey, type ValueSource } from '../types/valueSource';
+import { PAGE_AWARE_KIND_IDS, PAGE_SELECTOR_KIND_ID } from './pageSelector';
 
 /**
  * Any operation entry, reduced to what dependency resolution needs — kept separate from
@@ -8,6 +9,8 @@ export interface ChainableEntry {
   id: string;
   confirmed: boolean;
   fields: object;
+  /** Only needed for the implicit dependency on the model's page selector (see buildReferenceGraph). */
+  kindId?: string;
 }
 
 export type ResolvedInput =
@@ -23,10 +26,19 @@ export type ResolvedInput =
  */
 function buildReferenceGraph(entries: ChainableEntry[]): Map<string, string[]> {
   const edges = new Map<string, string[]>();
+  // Every sheet-based operation silently depends on the model's page selector (it reads from the
+  // page that selector picks), even though nothing references it — so it is tested after it, and a
+  // selector fed by one of those operations is reported as the cycle it is.
+  const pageSelectorIds = entries
+    .filter((entry) => entry.kindId === PAGE_SELECTOR_KIND_ID && entry.confirmed)
+    .map((entry) => entry.id);
   for (const entry of entries) {
     const refs = getInputSources(entry.fields)
       .filter((source) => source.type === 'reference')
       .map((source) => source.operationId);
+    if (entry.kindId !== undefined && PAGE_AWARE_KIND_IDS.has(entry.kindId)) {
+      refs.push(...pageSelectorIds);
+    }
     edges.set(entry.id, refs);
   }
   return edges;

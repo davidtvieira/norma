@@ -132,8 +132,7 @@ export const calcKind: OperationKind = {
         />
 
         <CalcResult
-          a={aResolved}
-          b={bResolved}
+          inputs={[aResolved, bResolved]}
           operation={f.operation}
           format={f.format}
           testSignal={testSignal}
@@ -148,8 +147,8 @@ export const calcKind: OperationKind = {
 };
 
 interface CalcResultProps {
-  a: ResolvedInput;
-  b: ResolvedInput;
+  /** The two values to combine: A, then B. */
+  inputs: ResolvedInput[];
   operation: CalcOperation;
   format: CalcFormat;
   testSignal: number;
@@ -164,16 +163,16 @@ type CalcRequestState =
   | { status: 'done'; value: number };
 
 /**
- * Runs the operation on the API, same as CounterResult: the frontend only resolves which values A
- * and B currently stand for, the arithmetic happens server-side (POST
+ * Runs the operation on the API, same as CounterResult: the frontend only resolves which values A,
+ * B currently stand for, the arithmetic happens server-side (POST
  * /api/v1/dataset/operation/calc) — and only once "Testar modelo" has been clicked. Like the
  * counter it has no "already answered this click" latch, so a chained input catching up
  * mid-test still produces its result.
  */
-function CalcResult({ a, b, operation, format, testSignal, resetSignal, onResultChange }: CalcResultProps) {
+function CalcResult({ inputs, operation, format, testSignal, resetSignal, onResultChange }: CalcResultProps) {
   const [state, setState] = useState<CalcRequestState>({ status: 'idle' });
 
-  const resolvedKey = [a, b].map((input) => (input.status === 'ready' ? `ready:${input.value}` : input.status)).join('|');
+  const resolvedKey = inputs.map((input) => (input.status === 'ready' ? `ready:${input.value}` : input.status)).join('|');
 
   // "Limpar teste": clears the shown result on demand, independent of any field changing.
   useEffect(() => {
@@ -187,34 +186,35 @@ function CalcResult({ a, b, operation, format, testSignal, resetSignal, onResult
       return;
     }
 
-    if (a.status === 'cycle' || b.status === 'cycle') {
+    if (inputs.some((input) => input.status === 'cycle')) {
       setState({ status: 'error', message: 'Referência circular entre operações.' });
       onResultChange(null, true);
       return;
     }
 
-    if (a.status === 'missing' || b.status === 'missing') {
+    if (inputs.some((input) => input.status === 'missing')) {
       setState({ status: 'error', message: 'Uma das entradas já não existe.' });
       onResultChange(null, true);
       return;
     }
 
     // A chained input that hasn't produced its result yet: nothing to calculate until it has.
-    if (a.status === 'pending' || b.status === 'pending') {
+    if (inputs.some((input) => input.status === 'pending')) {
       setState({ status: 'idle' });
       onResultChange(null);
       return;
     }
 
     // An empty value has nothing to calculate yet — a true no-op, leaving whatever is shown.
-    if (a.value.trim() === '' || b.value.trim() === '') {
+    const values = inputs.map((input) => (input.status === 'ready' ? input.value : ''));
+    if (values.some((value) => value.trim() === '')) {
       return;
     }
 
     let cancelled = false;
     setState({ status: 'loading' });
 
-    calcValues({ a: a.value, b: b.value, operation, format })
+    calcValues({ a: values[0], b: values[1], operation, format })
       .then((response) => {
         if (!cancelled) {
           setState({ status: 'done', value: response.value });

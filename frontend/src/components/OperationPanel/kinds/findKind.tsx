@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { findMatch } from '../../../services/datasetApi';
 import type { CellRange } from '../../../types/cellRange';
 import { literalSource, type ValueSource } from '../../../types/valueSource';
-import { IteratorSheetToggle, RangePickerField, TableSelect, ValueSourceField } from '../fields';
+import { IteratorSheetToggle, PageOverrideNotice, PageSheetNotice, RangePickerField, summarySheetName, TableSelect, ValueSourceField } from '../fields';
 import type { OperationFields, OperationKind } from '../operationKind';
 
 interface FindFields {
@@ -38,7 +38,7 @@ export const findKind: OperationKind = {
 
   canConfirm: (fields) => asFindFields(fields).range !== null,
 
-  renderDraftConfig: ({ dataset, entryId, fields, updateFields, rangePick, onStartRangePick, onFinishRangePick }) => {
+  renderDraftConfig: ({ dataset, entryId, fields, updateFields, rangePick, onStartRangePick, onFinishRangePick, hasPageSelector }) => {
     const f = asFindFields(fields);
 
     return (
@@ -49,10 +49,13 @@ export const findKind: OperationKind = {
               label="Tabela"
               dataset={dataset}
               sheetIndex={f.sheetIndex}
+              disabled={hasPageSelector && f.sheetIndex !== ''}
               onSelect={(sheetIndex) => updateFields({ sheetIndex, range: null })}
             />
           </div>
         )}
+
+        {dataset.sheets.length > 1 && <PageOverrideNotice active={hasPageSelector} />}
 
         {f.sheetIndex !== '' && (
           <div className="operation-entry__columns">
@@ -80,13 +83,13 @@ export const findKind: OperationKind = {
     );
   },
 
-  renderSummary: (fields, dataset) => {
+  renderSummary: (fields, dataset, pageSheet) => {
     const f = asFindFields(fields);
     const sheetIndex = f.sheetIndex as number;
     const range = f.range as CellRange;
     return (
       <span>
-        {dataset.sheets[sheetIndex].sheetName} · Linhas {range.startRow}-{range.endRow} · Colunas {range.startColumn}-
+        {summarySheetName(sheetIndex, pageSheet, dataset)} · Linhas {range.startRow}-{range.endRow} · Colunas {range.startColumn}-
         {range.endColumn}
       </span>
     );
@@ -116,11 +119,15 @@ export const findKind: OperationKind = {
     onMatchChange,
     resolvedInput,
     referenceOptions,
+    pageSheet,
+    sheetNames,
     iteratorSheet,
     onResultChange,
   }) => {
     const f = asFindFields(fields);
-    const sheetIndex = f.useIteratorSheet && iteratorSheet !== null ? iteratorSheet : f.sheetIndex;
+    // The model's page selector, when it has one, wins over the iterator's sheet.
+    const sheetIndex =
+      pageSheet !== null ? pageSheet : f.useIteratorSheet && iteratorSheet !== null ? iteratorSheet : f.sheetIndex;
     const query = resolvedInput.status === 'ready' ? resolvedInput.value : '';
     return (
       <>
@@ -129,6 +136,8 @@ export const findKind: OperationKind = {
           checked={f.useIteratorSheet}
           onChange={(useIteratorSheet) => updateFields({ useIteratorSheet })}
         />
+
+        <PageSheetNotice pageSheet={pageSheet} sheetNames={sheetNames} />
 
         <label className="operation-entry__checkbox">
           <input
@@ -245,7 +254,7 @@ function FindResult({ datasetId, query, sheetIndex, range, returnValue, testSign
   }, [resetSignal]);
 
   useEffect(() => {
-    if (testSignal === 0 || query.trim() === '') {
+    if (testSignal === 0 || query.trim() === '' || sheetIndex < 0) {
       return;
     }
 

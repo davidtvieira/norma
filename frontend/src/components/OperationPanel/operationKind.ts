@@ -32,6 +32,9 @@ export interface OperationDraftContext {
   rangePick: RangePickState | null;
   onStartRangePick: (entryId: string, sheetIndex: number) => void;
   onFinishRangePick: () => void;
+  /** Whether the model has a page selector that will override the page this (sheet-based)
+   * operation is set up against — see PageOverrideNotice. */
+  hasPageSelector: boolean;
 }
 
 export interface OperationBodyContext {
@@ -66,6 +69,10 @@ export interface OperationBodyContext {
   iteratorSheet: number | null;
   /** The dataset's sheet names, by sheet index. */
   sheetNames: string[];
+  /** The page the model's page selector picks — every sheet-based operation (lookup/sum/find) reads
+   * from it automatically. null when the model has no page selector, -1 while it has no valid
+   * result yet (the operations skip their request for a negative page). */
+  pageSheet: number | null;
   /** Other confirmed operations the input field's reference picker can offer. */
   referenceOptions: ReferenceOption[];
   /** Reports this operation's own result so a later operation can reference it; null clears it.
@@ -103,8 +110,9 @@ export interface OperationKind {
   /** The table/range/column pickers etc. shown while building or editing. */
   renderDraftConfig: (ctx: OperationDraftContext) => ReactNode;
   /** The one-line "which table/columns/range" detail shown at the bottom of the confirmed card
-   * (see OperationPanel's ConfirmedOperationCard footer). */
-  renderSummary: (fields: OperationFields, dataset: DatasetImportResponse) => ReactNode;
+   * (see OperationPanel's ConfirmedOperationCard footer). `pageSheet` is the page the model's page
+   * selector picks for a sheet-based operation (see OperationBodyContext), null otherwise. */
+  renderSummary: (fields: OperationFields, dataset: DatasetImportResponse, pageSheet: number | null) => ReactNode;
   /** The value input + live result shown on the confirmed card. */
   renderBody: (ctx: OperationBodyContext) => ReactNode;
   /**

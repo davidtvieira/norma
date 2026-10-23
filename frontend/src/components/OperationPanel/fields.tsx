@@ -17,15 +17,19 @@ interface TableSelectProps {
   dataset: DatasetImportResponse;
   sheetIndex: number | '';
   onSelect: (sheetIndex: number) => void;
+  /** Locks the choice (a model's page selector decides the page instead). */
+  disabled?: boolean;
 }
 
-export function TableSelect({ label, dataset, sheetIndex, onSelect }: TableSelectProps) {
+export function TableSelect({ label, dataset, sheetIndex, onSelect, disabled = false }: TableSelectProps) {
   return (
     <div className="operation-entry__field">
       <label className="operation-entry__label">{label}</label>
       <select
         className="operation-entry__select"
         value={sheetIndex}
+        disabled={disabled}
+        title={disabled ? 'A página é definida pelo seletor de página.' : undefined}
         onChange={(event) => onSelect(Number(event.target.value))}
       >
         <option value="" disabled>
@@ -38,6 +42,49 @@ export function TableSelect({ label, dataset, sheetIndex, onSelect }: TableSelec
         ))}
       </select>
     </div>
+  );
+}
+
+/**
+ * Shown while setting up a sheet-based operation (lookup/sum/find) in a model that has a page
+ * selector: the table picked here is replaced by the page the selector picks (see
+ * PageSheetNotice for the same thing on the confirmed card).
+ */
+export function PageOverrideNotice({ active }: { active: boolean }) {
+  if (!active) return null;
+  return <p className="operation-entry__chain-status">A página será substituída pelo seletor de página.</p>;
+}
+
+/** The sheet a summary names: the page the model's page selector picks, "Página do seletor" while it
+ * has no result yet, else the operation's own table. */
+export function summarySheetName(sheetIndex: number, pageSheet: number | null, dataset: DatasetImportResponse): string {
+  if (pageSheet === null) return dataset.sheets[sheetIndex].sheetName;
+  return pageSheet < 0 ? 'Página do seletor' : (dataset.sheets[pageSheet]?.sheetName ?? '?');
+}
+
+interface PageSheetNoticeProps {
+  /** The page the model's page selector picked, -1 while it hasn't resolved, or null when the model
+   * has no page selector — in which case nothing is rendered. */
+  pageSheet: number | null;
+  sheetNames: string[];
+  /** What the page changes for this operation (lookup only moves where it searches). */
+  hint?: string;
+}
+
+/**
+ * Tells a sheet-based operation (lookup/sum/find) that it is following the model's page selector:
+ * every such operation automatically reads from the page the selector picks (see pageSelector.ts),
+ * with nothing to switch on per operation.
+ */
+export function PageSheetNotice({ pageSheet, sheetNames, hint }: PageSheetNoticeProps) {
+  if (pageSheet === null) return null;
+  return (
+    <p className="operation-entry__chain-status">
+      {pageSheet < 0
+        ? 'Usa a página do seletor de página (ainda por definir).'
+        : `Usa a página do seletor de página: ${pageSheet} · ${sheetNames[pageSheet] ?? '?'}.`}
+      {hint ? ` ${hint}` : ''}
+    </p>
   );
 }
 

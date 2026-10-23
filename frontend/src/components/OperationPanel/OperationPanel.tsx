@@ -12,6 +12,7 @@ import type { SerializableEntry } from '../../utils/modelSerialization';
 import { parseTestCaseFile } from '../../utils/testCaseSerialization';
 import type { OperationFields, ReferenceOption } from './operationKind';
 import { iteratorPreviewSheet } from './kinds/iteratorKind';
+import { PAGE_AWARE_KIND_IDS, PAGE_SELECTOR_KIND_ID, pageSheetFromResult } from '../../utils/pageSelector';
 import { KINDS, KINDS_BY_ID } from './kinds/registry';
 import { AddOperationModal } from '../AddOperationModal/AddOperationModal';
 import { TestValuesModal } from '../TestValuesModal/TestValuesModal';
@@ -539,6 +540,7 @@ const KIND_LABELS: Record<string, string> = {
   selector: 'Seletor',
   iterator: 'Iterador',
   calc: 'Calcular',
+  page: 'Seletor de página',
 };
 
 interface OperationEntryState {
@@ -573,13 +575,27 @@ function generateEntryId(): string {
  * Pure by design: React 18 StrictMode invokes functional setState updaters twice in
  * development to catch impure ones, so this must not rely on shared mutable state.
  */
-function createEntry(id: string, kindId: string, name: string, dataset: DatasetImportResponse, position: NodePosition): OperationEntryState {
+function createEntry(
+  id: string,
+  kindId: string,
+  name: string,
+  dataset: DatasetImportResponse,
+  position: NodePosition,
+  hasPageSelector: boolean,
+): OperationEntryState {
+  const fields = KINDS_BY_ID[kindId].createFields(dataset);
+  // In a model with a page selector the table dropdown of a sheet-based operation is locked (the
+  // selector decides the page), so it starts on the first table — the sample its columns/range are
+  // picked against — instead of waiting for a pick that can no longer be made.
+  if (hasPageSelector && PAGE_AWARE_KIND_IDS.has(kindId) && fields.sheetIndex === '' && dataset.sheets.length > 0) {
+    fields.sheetIndex = 0;
+  }
   return {
     id,
     name,
     kindId,
     confirmed: false,
-    fields: KINDS_BY_ID[kindId].createFields(dataset),
+    fields,
     position,
   };
 }
@@ -935,6 +951,9 @@ export function OperationPanel({
   // A model can have at most one iterator (see the add modal's disabledKindIds); while editing, the
   // sheet it previews is what every operation set to use the iterator's sheet runs on.
   const iteratorEntry = entries.find((entry) => entry.kindId === 'iterator') ?? null;
+  // A model has at most one page selector (see the add modal's disabledKindIds); once it is confirmed
+  // every sheet-based operation reads from the page it picks.
+  const pageSelectorEntry = entries.find((entry) => entry.kindId === PAGE_SELECTOR_KIND_ID && entry.confirmed) ?? null;
   const iteratorSheet = iteratorEntry && iteratorEntry.confirmed ? iteratorPreviewSheet(iteratorEntry.fields) : null;
   const resolvedInputsByEntry = resolveOperationInputs(entries, results);
   // Which edges (see the `edges` computation below, keyed the same way — "fromId-toId") are lit
@@ -1354,7 +1373,7 @@ export function OperationPanel({
     if (selectedIds.length === 0) return;
     const selectedSet = new Set(selectedIds);
     // An iterator is never copied: a model has exactly one, and a paste would add a second.
-    const copied = entries.filter((entry) => selectedSet.has(entry.id) && entry.kindId !== 'iterator');
+    const copied = entries.filter((entry) => selectedSet.has(entry.id) && entry.kindId !== 'iterator' && entry.kindId !== PAGE_SELECTOR_KIND_ID);
     if (copied.length === 0) return;
     setClipboard(copied.map((entry) => structuredClone(entry)));
   }
@@ -1428,6 +1447,12 @@ export function OperationPanel({
       });
   }
 
+  // The page the model's page selector picks for a sheet-based operation (-1 while it has no result
+  // yet); null for any other operation or a model without a page selector.
+  function pageSheetFor(kindId: string): number | null {
+    return PAGE_AWARE_KIND_IDS.has(kindId) && pageSelectorEntry ? pageSheetFromResult(results[pageSelectorEntry.id]) : null;
+  }
+
   function editEntry(id: string) {
     // Belt-and-suspenders: the pencil that calls this is only rendered in "Editar" mode to begin
     // with (see ConfirmedOperationCard's own isEditMode), but this still guards the actual state
@@ -1481,8 +1506,7 @@ export function OperationPanel({
     .map((entry) => {
       const source = getInputSource(entry.fields);
       return { id: entry.id, name: entry.name, value: source.type === 'literal' ? source.value : '' };
-    })
-    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+    });
 
   // Whether there's actually anything for "Limpar teste" to blank out — keeps it enabled even
   // before "Testar modelo" has ever run, as long as some input already has a typed/imported value
@@ -1659,9 +1683,10 @@ export function OperationPanel({
     // batch of several added at once fans out near each other and near the user, regardless of
     // how many other operations already exist elsewhere on the canvas.
     const position = viewportPlacementFor(viewOffset, zoom, stagingEntryIds.length);
+    const hasPageSelectorNow = pageSelectorEntry !== null;
     setEntries((current) => {
       const order = current.filter((entry) => entry.kindId === kindId).length + 1;
-      return [...current, createEntry(id, kindId, `${label} ${order}`, dataset, position)];
+      return [...current, createEntry(id, kindId, `${label} ${order}`, dataset, position, hasPageSelectorNow)];
     });
     setStagingEntryIds((current) => [...current, id]);
   }
@@ -1802,6 +1827,7 @@ export function OperationPanel({
           rangePick,
           onStartRangePick,
           onFinishRangePick,
+          hasPageSelector: PAGE_AWARE_KIND_IDS.has(entry.kindId) && pageSelectorEntry !== null,
         })}
       </DraftOperationCard>
     );
@@ -1836,7 +1862,7 @@ export function OperationPanel({
       <ConfirmedOperationCard
         name={entry.name}
         kindLabel={labelForKind(entry.kindId)}
-        summary={kind.renderSummary(entry.fields, dataset)}
+        summary={kind.renderSummary(entry.fields, dataset, pageSheetFor(entry.kindId))}
         onEdit={() => editEntry(entry.id)}
         editDisabled={hasDraftInProgress}
         isEditMode={tool === 'select'}
@@ -1907,6 +1933,7 @@ export function OperationPanel({
           resolvedInput: resolvedInputsByEntry[entry.id][0],
           resolvedInputs: resolvedInputsByEntry[entry.id],
           referenceOptions: referenceOptionsFor(entry.id),
+          pageSheet: pageSheetFor(entry.kindId),
           iteratorSheet,
           sheetNames: dataset.sheets.map((sheet) => sheet.sheetName),
           onOutputsChange: (values) => {
@@ -2207,7 +2234,7 @@ export function OperationPanel({
         onClose={() => setIsAddModalOpen(false)}
         kinds={KINDS.map((kind) => ({ id: kind.id, label: labelForKind(kind.id) }))}
         // A model has one iterator — it's the always-first loop around everything else.
-        disabledKindIds={iteratorEntry ? ['iterator'] : []}
+        disabledKindIds={[...(iteratorEntry ? ['iterator'] : []), ...(entries.some((entry) => entry.kindId === PAGE_SELECTOR_KIND_ID) ? [PAGE_SELECTOR_KIND_ID] : [])]}
         onPick={addToStaging}
       />
     );

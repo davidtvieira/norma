@@ -792,6 +792,76 @@ class ModelExecutionServiceTest {
         assertThat(runCalc("add", "none", "x", "1").success()).isFalse();
     }
 
+    private ModelOperationInput findCaneta() {
+        return new ModelOperationInput("find", "find", Map.of(
+                "input", literalInput("Caneta"),
+                "sheetIndex", 0,
+                "range", Map.of("startRow", 0, "endRow", 2, "startColumn", 0, "endColumn", 1)), "find");
+    }
+
+    @Test
+    void aPageSelectorMakesEverySheetBasedOperationReadFromThePageItPicks() {
+        String datasetId = twoSheetDataset();
+        ModelOperationInput page = new ModelOperationInput("page", "page", Map.of("input", literalInput("1")), "page");
+
+        // "Caneta" is only on the second sheet: found there because the selector picked it, although
+        // the find was set up against the first one — and not found without a selector.
+        assertThat(registerAndRun(datasetId, List.of(page, findCaneta()), null, "find", null).value()).isEqualTo("1,1");
+        assertThat(registerAndRun(datasetId, List.of(findCaneta()), null, "find", null).value()).isNull();
+    }
+
+    @Test
+    void aLookupFollowsThePageSelectorForSearchAndValueUnlessItKeepsItsOriginalPage() {
+        String datasetId = twoSheetDataset();
+        ModelOperationInput page = new ModelOperationInput("page", "page", Map.of("input", literalInput("1")), "page");
+
+        // Looks up the id "2" in column 0 and returns column 1: "Bruno" on the first sheet, "Caneta" on the second.
+        Map<String, Object> following = new java.util.HashMap<>(Map.of(
+                "input", literalInput("2"), "sheetIndex", 0, "searchColumn", literalInput("0"), "resultColumn", 1,
+                "startRow", literalInput("0"), "matchMode", "equals"));
+        Map<String, Object> keeping = new java.util.HashMap<>(following);
+        keeping.put("keepOriginalResultPage", true);
+
+        assertThat(registerAndRun(datasetId, List.of(page, new ModelOperationInput("l", "lookup", following, "l")), null, "l", null).value())
+                .isEqualTo("Caneta");
+        assertThat(registerAndRun(datasetId, List.of(page, new ModelOperationInput("l", "lookup", keeping, "l")), null, "l", null).value())
+                .isEqualTo("Bruno");
+    }
+
+    @Test
+    void aPageSelectorFedByAnOperationThatFollowsItIsACycle() {
+        String datasetId = twoSheetDataset();
+        ModelOperationInput page = new ModelOperationInput("page", "page", Map.of("input", referenceInput("find")), "page");
+
+        ModelOperationResult result = registerAndRun(datasetId, List.of(page, findCaneta()), null, "find", null);
+
+        assertThat(result.success()).isFalse();
+    }
+
+    @Test
+    void aModelWithTwoPageSelectorsIsRejected() {
+        String datasetId = twoSheetDataset();
+        List<ModelOperationInput> operations = List.of(
+                new ModelOperationInput("p1", "page", Map.of("input", literalInput("0")), "p1"),
+                new ModelOperationInput("p2", "page", Map.of("input", literalInput("1")), "p2"));
+
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> registerAndRun(datasetId, operations, null, "p1", null));
+    }
+
+    @Test
+    void aPageSelectorReportsItsIndexAndRejectsAPageTheDatasetDoesNotHave() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationResult ok = registerAndRun(datasetId,
+                List.of(new ModelOperationInput("page", "page", Map.of("input", literalInput("1")), "page")), null, "page", null);
+        ModelOperationResult outOfRange = registerAndRun(datasetId,
+                List.of(new ModelOperationInput("page", "page", Map.of("input", literalInput("5")), "page")), null, "page", null);
+
+        assertThat(ok.value()).isEqualTo(1);
+        assertThat(outOfRange.success()).isFalse();
+    }
+
     @Test
     void aFindOperationWithNoMatchInItsRangeReportsANullResultWithoutError() {
         String datasetId = twoSheetDataset();

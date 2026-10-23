@@ -2,7 +2,7 @@ import { inlineErrorMessage } from '../../../services/apiErrors';
 import { useEffect, useRef, useState } from 'react';
 import { sumColumn } from '../../../services/datasetApi';
 import type { CellRange } from '../../../types/cellRange';
-import { IteratorSheetToggle, RangePickerField, TableSelect } from '../fields';
+import { IteratorSheetToggle, PageOverrideNotice, PageSheetNotice, RangePickerField, summarySheetName, TableSelect } from '../fields';
 import type { OperationFields, OperationKind } from '../operationKind';
 
 interface SumFields {
@@ -27,7 +27,7 @@ export const sumKind: OperationKind = {
 
   canConfirm: (fields) => asSumFields(fields).range !== null,
 
-  renderDraftConfig: ({ dataset, entryId, fields, updateFields, rangePick, onStartRangePick, onFinishRangePick }) => {
+  renderDraftConfig: ({ dataset, entryId, fields, updateFields, rangePick, onStartRangePick, onFinishRangePick, hasPageSelector }) => {
     const f = asSumFields(fields);
 
     return (
@@ -38,10 +38,13 @@ export const sumKind: OperationKind = {
               label="Tabela"
               dataset={dataset}
               sheetIndex={f.sheetIndex}
+              disabled={hasPageSelector && f.sheetIndex !== ''}
               onSelect={(sheetIndex) => updateFields({ sheetIndex, range: null })}
             />
           </div>
         )}
+
+        {dataset.sheets.length > 1 && <PageOverrideNotice active={hasPageSelector} />}
 
         {f.sheetIndex !== '' && (
           <div className="operation-entry__columns">
@@ -60,21 +63,33 @@ export const sumKind: OperationKind = {
     );
   },
 
-  renderSummary: (fields, dataset) => {
+  renderSummary: (fields, dataset, pageSheet) => {
     const f = asSumFields(fields);
     const sheetIndex = f.sheetIndex as number;
     const range = f.range as CellRange;
     return (
       <span>
-        {dataset.sheets[sheetIndex].sheetName} · Linhas {range.startRow}-{range.endRow} · Colunas {range.startColumn}-
+        {summarySheetName(sheetIndex, pageSheet, dataset)} · Linhas {range.startRow}-{range.endRow} · Colunas {range.startColumn}-
         {range.endColumn}
       </span>
     );
   },
 
-  renderBody: ({ fields, updateFields, datasetId, testSignal, resetSignal, iteratorSheet, onResultChange }) => {
+  renderBody: ({
+    fields,
+    updateFields,
+    datasetId,
+    testSignal,
+    resetSignal,
+    pageSheet,
+    sheetNames,
+    iteratorSheet,
+    onResultChange,
+  }) => {
     const f = asSumFields(fields);
-    const sheetIndex = f.useIteratorSheet && iteratorSheet !== null ? iteratorSheet : f.sheetIndex;
+    // The model's page selector, when it has one, wins over the iterator's sheet.
+    const sheetIndex =
+      pageSheet !== null ? pageSheet : f.useIteratorSheet && iteratorSheet !== null ? iteratorSheet : f.sheetIndex;
     return (
       <>
         <IteratorSheetToggle
@@ -82,6 +97,8 @@ export const sumKind: OperationKind = {
           checked={f.useIteratorSheet}
           onChange={(useIteratorSheet) => updateFields({ useIteratorSheet })}
         />
+
+        <PageSheetNotice pageSheet={pageSheet} sheetNames={sheetNames} />
 
         <SumResult
           datasetId={datasetId}
@@ -150,11 +167,18 @@ function SumResult({ datasetId, sheetIndex, range, testSignal, resetSignal, onRe
   // happened while mounted with this exact range, not merely because some other operation had
   // already been tested earlier.
   const testSignalBaselineRef = useRef(testSignal);
+  // Set when a test click arrived while a page selector's page had not resolved yet (a negative
+  // sheet): the page arriving afterwards must still run that test rather than re-arm the baseline.
+  const waitingForPageRef = useRef(false);
 
   // Hides any previous result (and re-arms the baseline above) the moment the range/table
   // changes — a stale result from an earlier test would otherwise keep showing after picking a
   // new range, easily mistaken for already reflecting it.
   useEffect(() => {
+    if (waitingForPageRef.current && sheetIndex >= 0) {
+      waitingForPageRef.current = false;
+      return;
+    }
     testSignalBaselineRef.current = testSignal;
     setState({ status: 'idle' });
     onResultChange(null);
@@ -165,6 +189,11 @@ function SumResult({ datasetId, sheetIndex, range, testSignal, resetSignal, onRe
 
   useEffect(() => {
     if (testSignal === testSignalBaselineRef.current) {
+      return;
+    }
+
+    if (sheetIndex < 0) {
+      waitingForPageRef.current = true;
       return;
     }
 
@@ -196,10 +225,10 @@ function SumResult({ datasetId, sheetIndex, range, testSignal, resetSignal, onRe
       cancelled = true;
       onResultChange(null);
     };
-    // Deliberately reactive to testSignal alone — see the equivalent note in lookupKind.tsx's
-    // LookupResult.
+    // Reactive to testSignal (see the equivalent note in lookupKind.tsx's LookupResult) and to the
+    // page arriving after a test click (see waitingForPageRef) — nothing else.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [testSignal]);
+  }, [testSignal, sheetIndex >= 0]);
 
   if (state.status === 'idle') {
     return null;

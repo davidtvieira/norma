@@ -20,7 +20,8 @@ public final class OperationTypes {
             new OperationType("translator", "Translator"),
             new OperationType("selector", "Selector"),
             new OperationType("iterator", "Iterator"),
-            new OperationType("calc", "Calc")
+            new OperationType("calc", "Calc"),
+            new OperationType("page", "Page selector")
     );
 
     private OperationTypes() {
