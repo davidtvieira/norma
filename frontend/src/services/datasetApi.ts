@@ -1,4 +1,5 @@
 import { ApiError, reportApiError } from './apiErrors';
+import type { CalcRequestPayload, CalcResponsePayload } from '../types/calc';
 import type { CounterRequestPayload, CounterResponsePayload } from '../types/counter';
 import type { DatasetImportResponse, DatasetImportStatus } from '../types/dataset';
 import type { FindRequestPayload, FindResponsePayload } from '../types/find';
@@ -249,6 +250,24 @@ export async function counterValues(payload: CounterRequestPayload): Promise<Cou
 
   if (!response.ok) {
     throw await apiError(response, 'Falha ao somar as entradas');
+  }
+
+  return response.json();
+}
+
+/**
+ * Does arithmetic on two already-resolved values (add, subtract, multiply or divide, then an
+ * optional rounding or absolute value). Like a counter, a calc has no dataset dependency.
+ */
+export async function calcValues(payload: CalcRequestPayload): Promise<CalcResponsePayload> {
+  const response = await apiFetch(`${API_BASE_URL}/api/v1/dataset/operation/calc`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw await apiError(response, 'Falha ao calcular');
   }
 
   return response.json();

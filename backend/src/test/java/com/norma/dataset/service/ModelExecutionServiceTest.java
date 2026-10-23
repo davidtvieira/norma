@@ -766,6 +766,32 @@ class ModelExecutionServiceTest {
         assertThat(result.value()).isEqualTo("1");
     }
 
+    private ModelOperationResult runCalc(String operation, String format, String a, String b) {
+        ModelOperationInput calc = new ModelOperationInput("calc", "calc", Map.of(
+                "a", referenceInput("a"), "b", referenceInput("b"), "operation", operation, "format", format), "calc");
+        return registerAndRun(twoSheetDataset(), List.of(node("a", a), node("b", b), calc), null, "calc", null);
+    }
+
+    @Test
+    void aCalcOperationDoesArithmeticOnItsTwoInputs() {
+        assertThat(runCalc("add", "none", "2", "3.5").value()).isEqualTo(5.5);
+        assertThat(runCalc("subtract", "none", "2", "5").value()).isEqualTo(-3L);
+        assertThat(runCalc("multiply", "none", "4", "2,5").value()).isEqualTo(10L);
+        assertThat(runCalc("divide", "none", "9", "2").value()).isEqualTo(4.5);
+    }
+
+    @Test
+    void aCalcOperationCanRoundItsResultToAnIntegerOrTakeItsAbsoluteValue() {
+        assertThat(runCalc("divide", "round", "10", "4").value()).isEqualTo(3L);
+        assertThat(runCalc("subtract", "abs", "2", "5").value()).isEqualTo(3L);
+    }
+
+    @Test
+    void aCalcOperationFailsOnDivisionByZeroOrANonNumber() {
+        assertThat(runCalc("divide", "none", "1", "0").success()).isFalse();
+        assertThat(runCalc("add", "none", "x", "1").success()).isFalse();
+    }
+
     @Test
     void aFindOperationWithNoMatchInItsRangeReportsANullResultWithoutError() {
         String datasetId = twoSheetDataset();

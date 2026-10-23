@@ -1,5 +1,7 @@
 package com.norma.dataset.controller;
 
+import com.norma.dataset.dto.CalcRequest;
+import com.norma.dataset.dto.CalcResponse;
 import com.norma.dataset.dto.CounterRequest;
 import com.norma.dataset.dto.CounterResponse;
 import com.norma.dataset.dto.NodeRequest;
@@ -65,6 +67,15 @@ public class OperationController {
     @PostMapping("/api/v1/dataset/operation/translator")
     public ResponseEntity<TranslatorResponse> translator(@RequestBody TranslatorRequest request) {
         return ResponseEntity.ok(datasetOperationService.translator(request));
+    }
+
+    @Operation(
+            summary = "Do arithmetic on two values",
+            description = "Adds, subtracts, multiplies or divides the two values, then optionally rounds the result to an integer or takes its absolute value. No dataset needed."
+    )
+    @PostMapping("/api/v1/dataset/operation/calc")
+    public ResponseEntity<CalcResponse> calc(@RequestBody CalcRequest request) {
+        return ResponseEntity.ok(datasetOperationService.calc(request));
     }
 
     @Operation(

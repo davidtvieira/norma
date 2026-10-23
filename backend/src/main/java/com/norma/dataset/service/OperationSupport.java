@@ -244,6 +244,47 @@ final class OperationSupport {
      * whole-number sum/counter result so it matches a whole-number cell the same way, "24" not
      * "24.0") now share, instead of each keeping its own independent copy.
      */
+    /** Parses a decimal number (a comma is accepted as the decimal separator) for the calc operation. */
+    static double parseNumber(String value, String fieldName) {
+        String trimmed = value == null ? "" : value.trim();
+        try {
+            double parsed = Double.parseDouble(trimmed.replace(',', '.'));
+            if (Double.isNaN(parsed) || Double.isInfinite(parsed)) {
+                throw new NumberFormatException();
+            }
+            return parsed;
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("Invalid number in " + fieldName + ": " + trimmed);
+        }
+    }
+
+    /**
+     * Applies one of the calc operation's arithmetic operations to two numbers, then its output
+     * format: {@code round} gives a rounded integer, {@code abs} the absolute value, anything else
+     * (including {@code none}) the result as is. Dividing by zero is an error.
+     */
+    static Object calculate(double a, double b, String operation, String format) {
+        double result = switch (operation == null ? "" : operation) {
+            case "add" -> a + b;
+            case "subtract" -> a - b;
+            case "multiply" -> a * b;
+            case "divide" -> {
+                if (b == 0) {
+                    throw new IllegalArgumentException("Division by zero.");
+                }
+                yield a / b;
+            }
+            default -> throw new IllegalArgumentException("Unknown calc operation: " + operation);
+        };
+        if ("round".equals(format)) {
+            return Math.round(result);
+        }
+        if ("abs".equals(format)) {
+            result = Math.abs(result);
+        }
+        return normalizeNumber(result);
+    }
+
     static Object normalizeNumber(double value) {
         if (value == Math.rint(value) && !Double.isInfinite(value)) {
             return (long) value;

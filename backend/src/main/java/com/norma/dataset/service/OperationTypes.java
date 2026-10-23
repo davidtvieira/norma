@@ -19,7 +19,8 @@ public final class OperationTypes {
             new OperationType("find", "Find"),
             new OperationType("translator", "Translator"),
             new OperationType("selector", "Selector"),
-            new OperationType("iterator", "Iterator")
+            new OperationType("iterator", "Iterator"),
+            new OperationType("calc", "Calc")
     );
 
     private OperationTypes() {

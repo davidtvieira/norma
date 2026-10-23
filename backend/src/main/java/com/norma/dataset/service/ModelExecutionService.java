@@ -408,6 +408,7 @@ public class ModelExecutionService {
                 case "node" -> new ModelOperationResult(id, true, inputValue, null);
                 case "find" -> computeFind(operation, dataset, inputValue);
                 case "translator" -> computeTranslator(operation, inputValue, dataset, byId, cyclicIds, resolved);
+                case "calc" -> computeCalc(operation, dataset, byId, cyclicIds, resolved);
                 case "selector" -> computeSelector(operation, dataset, byId, cyclicIds, resolved);
                 case ITERATOR_KIND -> computeIterator(operation);
                 default -> new ModelOperationResult(id, false, null, "Unknown operation type: " + operation.kind());
@@ -656,6 +657,21 @@ public class ModelExecutionService {
      * operation — caught by computeOperation's own IllegalArgumentException handling, same as
      * every other kind's validation failures.
      */
+    /** Arithmetic on the calc operation's two chainable values, then its output format. */
+    private ModelOperationResult computeCalc(
+            ModelOperationInput operation,
+            DatasetImportResponse dataset,
+            Map<String, ModelOperationInput> byId,
+            Set<String> cyclicIds,
+            Map<String, ModelOperationResult> resolved) {
+        Map<String, Object> fields = fieldsOf(operation);
+        double a = OperationSupport.parseNumber(resolveChainableField(fields, "a", dataset, byId, cyclicIds, resolved), "the first value");
+        double b = OperationSupport.parseNumber(resolveChainableField(fields, "b", dataset, byId, cyclicIds, resolved), "the second value");
+        String format = fields.get("format") instanceof String text ? text : "none";
+        return new ModelOperationResult(operation.id(), true,
+                OperationSupport.calculate(a, b, stringField(fields, "operation"), format), null);
+    }
+
     private ModelOperationResult computeTranslator(
             ModelOperationInput operation,
             String input,

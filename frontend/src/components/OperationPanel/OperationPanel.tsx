@@ -538,6 +538,7 @@ const KIND_LABELS: Record<string, string> = {
   translator: 'Tradutor',
   selector: 'Seletor',
   iterator: 'Iterador',
+  calc: 'Calcular',
 };
 
 interface OperationEntryState {

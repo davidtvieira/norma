@@ -1,5 +1,7 @@
 package com.norma.dataset.service;
 
+import com.norma.dataset.dto.CalcRequest;
+import com.norma.dataset.dto.CalcResponse;
 import com.norma.dataset.dto.CounterRequest;
 import com.norma.dataset.dto.CounterResponse;
 import com.norma.dataset.dto.DatasetImportResponse;
@@ -124,6 +126,16 @@ public class DatasetOperationService {
             total += OperationSupport.parseCounterEntry(value);
         }
         return new CounterResponse(total);
+    }
+
+    /**
+     * Applies an arithmetic operation to two already-resolved values — the live-editor counterpart
+     * of a calc operation's own model-run computation. No dataset dependency, same as counter.
+     */
+    public CalcResponse calc(CalcRequest request) {
+        double a = OperationSupport.parseNumber(request.a(), "the first value");
+        double b = OperationSupport.parseNumber(request.b(), "the second value");
+        return new CalcResponse(OperationSupport.calculate(a, b, request.operation(), request.format()));
     }
 
     /**
