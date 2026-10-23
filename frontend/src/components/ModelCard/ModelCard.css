@@ -315,6 +315,14 @@
   text-overflow: ellipsis;
 }
 
+.model-card__field-name--clickable {
+  cursor: pointer;
+}
+
+.model-card__field-name--clickable:hover {
+  text-decoration: underline;
+}
+
 /* The eye button that opens FullTextModal (see ModelCard.tsx) — pinned to the card's own top-right
    corner regardless of where the name's own text happens to end, same positioning idea as
    .operation-card__reveal in the editor, just absolutely placed here instead of sitting inline

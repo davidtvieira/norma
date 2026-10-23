@@ -1,6 +1,7 @@
 package com.norma.dataset.service;
 
 import com.norma.dataset.dto.DatasetImportResponse;
+import com.norma.dataset.dto.DatasetTouch;
 import com.norma.dataset.dto.ModelInputField;
 import com.norma.dataset.dto.ModelInputsResponse;
 import com.norma.dataset.dto.ModelOperationInput;
@@ -178,21 +179,55 @@ public class ModelExecutionService {
             byId.put(operation.id(), operation);
         }
 
-        Set<String> cyclicIds = findCyclicIds(buildReferenceGraph(operations));
+        Map<String, List<String>> referenceGraph = buildReferenceGraph(operations);
+        Set<String> cyclicIds = findCyclicIds(referenceGraph);
         Map<String, ModelOperationResult> resolved = new HashMap<>();
         return outputOperationIds.stream()
                 .flatMap(outputOperationId -> {
                     ModelOperationResult result = resolveOperation(outputOperationId, dataset, byId, cyclicIds, resolved);
+                    if (!iterating) {
+                        result = result.withTouches(chainTouches(outputOperationId, referenceGraph, resolved));
+                    }
                     if (iterating) {
                         return java.util.stream.Stream.of(new ModelOperationResult(
                                 outputOperationId + ":" + iteration, result.success(), result.value(), result.error(), iterationName));
                     }
                     if (result.success() && result.value() instanceof List<?> outputs) {
-                        return expandOutputs(byId.get(outputOperationId), outputs, byId).stream();
+                        List<DatasetTouch> touches = result.touches();
+                        return expandOutputs(byId.get(outputOperationId), outputs, byId).stream()
+                                .map(expanded -> expanded.withTouches(touches));
                     }
                     return java.util.stream.Stream.of(result.withName(nameOf(byId.get(outputOperationId))));
                 })
                 .toList();
+    }
+
+    /**
+     * Everything the output's whole chain read from the dataset: the touches of the output itself
+     * and of every operation it (transitively) references, as already resolved in this run.
+     */
+    private List<DatasetTouch> chainTouches(
+            String outputOperationId, Map<String, List<String>> referenceGraph, Map<String, ModelOperationResult> resolved) {
+        Set<String> seen = new java.util.LinkedHashSet<>();
+        java.util.ArrayDeque<String> pending = new java.util.ArrayDeque<>(List.of(outputOperationId));
+        while (!pending.isEmpty()) {
+            String id = pending.poll();
+            if (seen.add(id)) {
+                pending.addAll(referenceGraph.getOrDefault(id, List.of()));
+            }
+        }
+        List<DatasetTouch> touches = new ArrayList<>();
+        for (String id : seen) {
+            ModelOperationResult result = resolved.get(id);
+            if (result != null && result.touches() != null) {
+                for (DatasetTouch touch : result.touches()) {
+                    if (!touches.contains(touch)) {
+                        touches.add(touch);
+                    }
+                }
+            }
+        }
+        return touches;
     }
 
     /**
@@ -546,18 +581,24 @@ public class ModelExecutionService {
                 .filter(row -> OperationSupport.matches(OperationSupport.cellValue(row, searchColumn), normalizedQuery, matchMode, tokenIgnoreSpaces, tokenIgnoreDashes))
                 .findFirst();
 
+        List<DatasetTouch> touches = new ArrayList<>(List.of(
+                DatasetTouch.column(searchSheetIndex, "search", searchColumn),
+                DatasetTouch.column(sheetIndex, "result", resultColumn)));
         if (matchRow.isEmpty()) {
-            return new ModelOperationResult(operation.id(), true, null, null);
+            return new ModelOperationResult(operation.id(), true, null, null).withTouches(touches);
         }
+        touches.add(DatasetTouch.cell(searchSheetIndex, "search", matchRow.get().rowIndex(), searchColumn));
 
         Optional<com.norma.dataset.dto.RowData> resultRow = searchSheetIndex == sheetIndex
                 ? matchRow
                 : resultSheet.rows().stream().filter(row -> row.rowIndex() == matchRow.get().rowIndex()).findFirst();
         if (resultRow.isEmpty()) {
-            return new ModelOperationResult(operation.id(), true, null, null);
+            return new ModelOperationResult(operation.id(), true, null, null).withTouches(touches);
         }
+        touches.add(DatasetTouch.cell(sheetIndex, "result", resultRow.get().rowIndex(), resultColumn));
 
-        return new ModelOperationResult(operation.id(), true, OperationSupport.cellValue(resultRow.get(), resultColumn), null);
+        return new ModelOperationResult(operation.id(), true, OperationSupport.cellValue(resultRow.get(), resultColumn), null)
+                .withTouches(touches);
     }
 
     private String resolveChainableField(
@@ -622,7 +663,8 @@ public class ModelExecutionService {
         OperationSupport.validateRange(startRow, endRow, startColumn, endColumn);
 
         SumOutcome outcome = OperationSupport.sumRange(sheet, startRow, endRow, startColumn, endColumn);
-        return new ModelOperationResult(operation.id(), true, OperationSupport.normalizeNumber(outcome.total()), null);
+        return new ModelOperationResult(operation.id(), true, OperationSupport.normalizeNumber(outcome.total()), null)
+                .withTouches(List.of(DatasetTouch.range(sheetIndex, "search", startRow, endRow, startColumn, endColumn, "Onde soma")));
     }
 
     /**
@@ -653,7 +695,12 @@ public class ModelExecutionService {
         // "returnValue": report the matched cell's own value instead of its "row,column" position.
         boolean returnValue = Boolean.TRUE.equals(fields.get("returnValue"));
         Object value = !outcome.found() ? null : returnValue ? outcome.value() : outcome.rowIndex() + "," + outcome.columnIndex();
-        return new ModelOperationResult(operation.id(), true, value, null);
+        List<DatasetTouch> touches = new ArrayList<>(List.of(
+                DatasetTouch.range(sheetIndex, "search", startRow, endRow, startColumn, endColumn, null)));
+        if (outcome.found()) {
+            touches.add(DatasetTouch.cell(sheetIndex, "result", outcome.rowIndex(), outcome.columnIndex()));
+        }
+        return new ModelOperationResult(operation.id(), true, value, null).withTouches(touches);
     }
 
     /**

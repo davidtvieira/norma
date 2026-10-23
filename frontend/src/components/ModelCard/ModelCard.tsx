@@ -8,7 +8,7 @@ import { KINDS_BY_ID } from '../OperationPanel/kinds/registry';
 import { resolveOperationInputs } from '../../utils/resolveOperationInputs';
 import { getInputSource, literalSource } from '../../types/valueSource';
 import { runModel, runNrm } from '../../services/datasetApi';
-import type { ModelInputFieldPayload, ModelOperationResultPayload } from '../../types/modelCalculation';
+import type { DatasetTouchPayload, ModelInputFieldPayload, ModelOperationResultPayload } from '../../types/modelCalculation';
 import { downloadTestCase, parseTestCaseFile } from '../../utils/testCaseSerialization';
 import { formatCellValue } from '../../utils/sheet';
 import './ModelCard.css';
@@ -25,6 +25,9 @@ interface ModelCardProps {
    * .../model/{modelId}/inputs. This screen never receives the model's operations or outputs
    * up front: the outputs (with their names) only arrive with a run's results. */
   inputs: ModelInputFieldPayload[];
+  /** The eye on an output: opens the dataset, highlighting what that output's chain read — or, with
+   * null (not run yet, or it read nothing), the dataset as it is. */
+  onViewOutputData?: (touches: DatasetTouchPayload[] | null) => void;
 }
 
 /** The least time a run shows its loading state ("A calcular…") for, even when the response comes
@@ -55,7 +58,7 @@ async function withMinimumDelay<T>(promise: Promise<T>, ms: number): Promise<T> 
  * one result per designated output. Only runs when "Correr modelo" is clicked, not on page load
  * and not on every keystroke in an input field.
  */
-export function ModelCard({ dataset, modelName, modelId, nrmId, inputs }: ModelCardProps) {
+export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, onViewOutputData }: ModelCardProps) {
   const inputOperationIds = inputs.map((input) => input.id);
   const [fields, setFields] = useState<Record<string, OperationFields>>(() =>
     Object.fromEntries(inputs.map((input) => [input.id, { input: literalSource(input.value ?? '') }])),
@@ -339,8 +342,36 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs }: ModelC
                     const error = runError ?? (outputResult && !outputResult.success ? outputResult.error : null);
                     return (
                       <div key={outputEntry.id} className="model-card__field">
-                        <EyeButton onView={() => setViewFullText({ name, value: describeResult(hasRun, isRunning, value, error) })} />
-                        <h3 className="model-card__field-name" title={name}>
+                        <EyeButton
+                          onView={() =>
+                            onViewOutputData
+                              ? onViewOutputData(outputResult?.touches ?? null)
+                              : setViewFullText({ name, value: describeResult(hasRun, isRunning, value, error) })
+                          }
+                          label={onViewOutputData ? 'Ver na folha de dados' : undefined}
+                        />
+                        {/* With the eye taken by "Ver na folha de dados", the name opens the full text modal. */}
+                        <h3
+                          className={onViewOutputData ? 'model-card__field-name model-card__field-name--clickable' : 'model-card__field-name'}
+                          title={onViewOutputData ? `${name} — ver texto completo` : name}
+                          role={onViewOutputData ? 'button' : undefined}
+                          tabIndex={onViewOutputData ? 0 : undefined}
+                          onClick={
+                            onViewOutputData
+                              ? () => setViewFullText({ name, value: describeResult(hasRun, isRunning, value, error) })
+                              : undefined
+                          }
+                          onKeyDown={
+                            onViewOutputData
+                              ? (event) => {
+                                  if (event.key === 'Enter' || event.key === ' ') {
+                                    event.preventDefault();
+                                    setViewFullText({ name, value: describeResult(hasRun, isRunning, value, error) });
+                                  }
+                                }
+                              : undefined
+                          }
+                        >
                           {name}
                         </h3>
                         <ModelOperationResultView hasRun={hasRun} isCalculating={isRunning} value={value} error={error} />
@@ -410,14 +441,16 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs }: ModelC
 
 interface EyeButtonProps {
   onView: () => void;
+  /** Accessible name / tooltip; "Ver texto completo" by default. */
+  label?: string;
 }
 
 /** Top-right corner of every input/output card — opens FullTextModal with that card's own full
  * (untruncated) name + value, the same "eye" icon RevealButton (OperationPanel.tsx) already uses
  * elsewhere in the app for "see the full thing, not just what's shown here". */
-function EyeButton({ onView }: EyeButtonProps) {
+function EyeButton({ onView, label = 'Ver texto completo' }: EyeButtonProps) {
   return (
-    <button type="button" className="model-card__field-view" onClick={onView} aria-label="Ver texto completo" title="Ver texto completo">
+    <button type="button" className="model-card__field-view" onClick={onView} aria-label={label} title={label}>
       <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <path
           d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12Z"

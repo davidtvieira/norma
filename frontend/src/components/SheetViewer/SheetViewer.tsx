@@ -27,6 +27,13 @@ function isWithinRange(row: number, column: number, range: CellRange): boolean {
   return row >= range.startRow && row <= range.endRow && column >= range.startColumn && column <= range.endColumn;
 }
 
+export interface MatchedCell {
+  sheetIndex: number;
+  row: number;
+  column: number;
+  role: 'search' | 'result';
+}
+
 interface SheetViewerProps {
   dataset: DatasetImportResponse;
   activeSheetIndex: number;
@@ -40,6 +47,8 @@ interface SheetViewerProps {
   columnHighlights?: ColumnHighlight[];
   rangeHighlights?: RangeHighlight[];
   cellHighlight?: OperationHighlight | null;
+  /** Individual cells to mark (e.g. everything a model run read), independent of cellHighlight. */
+  matchedCells?: MatchedCell[];
 }
 
 /**
@@ -64,6 +73,7 @@ export function SheetViewer({
   columnHighlights = [],
   rangeHighlights = [],
   cellHighlight = null,
+  matchedCells = [],
 }: SheetViewerProps) {
   const activeSheet = dataset.sheets[activeSheetIndex];
   const [hoveredColumn, setHoveredColumn] = useState<number | null>(null);
@@ -125,6 +135,11 @@ export function SheetViewer({
     return null;
   }
 
+  const activeMatchedCells = useMemo(
+    () => matchedCells.filter((cell) => cell.sheetIndex === activeSheetIndex),
+    [matchedCells, activeSheetIndex],
+  );
+
   const cellHighlightSearchColumn =
     cellHighlight && cellHighlight.searchSheetIndex === activeSheetIndex ? cellHighlight.searchColumn : null;
   const cellHighlightResultColumn =
@@ -150,10 +165,12 @@ export function SheetViewer({
     'O que devolve';
   const hasSearchHighlight =
     cellHighlightSearchColumn !== null ||
+    activeMatchedCells.some((cell) => cell.role === 'search') ||
     activeColumnHighlights.some((highlight) => highlight.role === 'search') ||
     activeRangeHighlights.some((highlight) => highlight.role === 'search');
   const hasResultHighlight =
     cellHighlightResultColumn !== null ||
+    activeMatchedCells.some((cell) => cell.role === 'result') ||
     activeColumnHighlights.some((highlight) => highlight.role === 'result') ||
     activeRangeHighlights.some((highlight) => highlight.role === 'result');
   // Whether the matched row itself (see .sheet-viewer__highlight-matched-row) is tinted on the
@@ -284,6 +301,12 @@ export function SheetViewer({
                     rangeHighlightRole === 'result' ? 'sheet-viewer__highlight-result' : null,
                     isMatchedRow && columnIndex === cellHighlightSearchColumn ? 'sheet-viewer__highlight-search-cell' : null,
                     isMatchedRow && columnIndex === cellHighlightResultColumn ? 'sheet-viewer__highlight-result-cell' : null,
+                    activeMatchedCells.some((cell) => cell.row === row.rowIndex && cell.column === columnIndex && cell.role === 'search')
+                      ? 'sheet-viewer__highlight-search-cell'
+                      : null,
+                    activeMatchedCells.some((cell) => cell.row === row.rowIndex && cell.column === columnIndex && cell.role === 'result')
+                      ? 'sheet-viewer__highlight-result-cell'
+                      : null,
                     isInDragPreview ? 'sheet-viewer__cell--range-preview' : null,
                   ]
                     .filter(Boolean)

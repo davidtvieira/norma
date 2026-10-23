@@ -16,6 +16,18 @@ export interface ModelOperationInputPayload {
   name?: string;
 }
 
+/** A part of the dataset a run's output chain read (mirrors the backend's DatasetTouch). */
+export interface DatasetTouchPayload {
+  sheetIndex: number;
+  role: 'search' | 'result';
+  shape: 'column' | 'range' | 'cell';
+  startRow: number;
+  endRow: number;
+  startColumn: number;
+  endColumn: number;
+  label?: string | null;
+}
+
 export interface ModelOperationResultPayload {
   id: string;
   success: boolean;
@@ -23,6 +35,8 @@ export interface ModelOperationResultPayload {
   error: string | null;
   /** The operation's display name — only set on a run's designated outputs. */
   name?: string | null;
+  /** Only on a run's designated outputs: everything the output's chain read from the dataset. */
+  touches?: DatasetTouchPayload[] | null;
 }
 
 export interface ModelRegisterRequestPayload {

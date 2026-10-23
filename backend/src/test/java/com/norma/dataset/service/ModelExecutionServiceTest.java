@@ -2,6 +2,7 @@ package com.norma.dataset.service;
 
 import com.norma.dataset.dto.CellData;
 import com.norma.dataset.dto.DatasetImportResponse;
+import com.norma.dataset.dto.DatasetTouch;
 import com.norma.dataset.dto.ModelInputsResponse;
 import com.norma.dataset.dto.ModelOperationInput;
 import com.norma.dataset.dto.ModelOperationResult;
@@ -98,6 +99,33 @@ class ModelExecutionServiceTest {
         assertThat(result.success()).isTrue();
         assertThat(result.value()).isEqualTo("Bruno");
         assertThat(result.error()).isNull();
+    }
+
+    @Test
+    void reportsThePartsOfTheDatasetAnOutputsChainRead() {
+        String datasetId = twoSheetDataset();
+
+        ModelOperationInput first = new ModelOperationInput("op-1", "lookup", Map.of(
+                "startRow", literalInput("0"),
+                "input", literalInput("2"),
+                "sheetIndex", 0,
+                "searchColumn", literalInput("0"),
+                "resultColumn", 0));
+        ModelOperationInput second = new ModelOperationInput("op-2", "lookup", Map.of(
+                "startRow", literalInput("0"),
+                "input", referenceInput("op-1"),
+                "sheetIndex", 1,
+                "searchColumn", literalInput("0"),
+                "resultColumn", 1));
+
+        ModelOperationResult result = registerAndRun(datasetId, List.of(first, second), null, "op-2", null);
+
+        assertThat(result.value()).isEqualTo("Caneta");
+        assertThat(result.touches()).contains(
+                DatasetTouch.column(0, "search", 0),
+                DatasetTouch.cell(0, "result", 1, 0),
+                DatasetTouch.column(1, "result", 1),
+                DatasetTouch.cell(1, "result", 1, 1));
     }
 
     @Test

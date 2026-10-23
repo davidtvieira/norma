@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { SpreadsheetIcon } from '../components/ButtonIcons/ButtonIcons';
-import { SheetViewer } from '../components/SheetViewer/SheetViewer';
+import { SheetViewer, type MatchedCell } from '../components/SheetViewer/SheetViewer';
 import { useDatasetSheets } from '../hooks/useDatasetSheets';
 import { BackButton } from '../components/BackButton/BackButton';
 import { AppFooter } from '../components/AppFooter/AppFooter';
 import { ModelCard } from '../components/ModelCard/ModelCard';
 import { ThemeToggle } from '../components/ThemeToggle/ThemeToggle';
 import type { DatasetHandle } from '../types/dataset';
-import type { ModelInputFieldPayload } from '../types/modelCalculation';
+import type { ColumnHighlight, RangeHighlight } from '../types/highlight';
+import type { DatasetTouchPayload, ModelInputFieldPayload } from '../types/modelCalculation';
 import type { Theme } from '../hooks/useTheme';
 
 export interface UtilizeModel {
@@ -35,12 +36,61 @@ interface UtilizeScreenProps {
 
 /** The dataset's sheets, read-only. Only mounted once "Ver dados" is first opened, so the sheets are
  * not downloaded for a model that is just being run. */
-function DataViewer({ dataset }: { dataset: DatasetHandle }) {
+interface DataHighlights {
+  columns: ColumnHighlight[];
+  ranges: RangeHighlight[];
+  cells: MatchedCell[];
+}
+
+const NO_HIGHLIGHTS: DataHighlights = { columns: [], ranges: [], cells: [] };
+
+/** What a run's output read, as the sheet viewer's own highlight kinds. */
+function highlightsFromTouches(touches: DatasetTouchPayload[]): DataHighlights {
+  const highlights: DataHighlights = { columns: [], ranges: [], cells: [] };
+  for (const touch of touches) {
+    if (touch.shape === 'column') {
+      highlights.columns.push({ sheetIndex: touch.sheetIndex, column: touch.startColumn, role: touch.role, label: touch.label ?? undefined });
+    } else if (touch.shape === 'range') {
+      highlights.ranges.push({
+        sheetIndex: touch.sheetIndex,
+        startRow: touch.startRow,
+        endRow: touch.endRow,
+        startColumn: touch.startColumn,
+        endColumn: touch.endColumn,
+        role: touch.role,
+        label: touch.label ?? undefined,
+      });
+    } else {
+      highlights.cells.push({ sheetIndex: touch.sheetIndex, row: touch.startRow, column: touch.startColumn, role: touch.role });
+    }
+  }
+  return highlights;
+}
+
+function DataViewer({
+  dataset,
+  activeSheetIndex,
+  onActiveSheetIndexChange,
+  highlights,
+}: {
+  dataset: DatasetHandle;
+  activeSheetIndex: number;
+  onActiveSheetIndexChange: (index: number) => void;
+  highlights: DataHighlights;
+}) {
   const { dataset: sheets, error } = useDatasetSheets(dataset.datasetId, dataset.nrmId);
-  const [activeSheetIndex, setActiveSheetIndex] = useState(0);
   if (error) return <p className="app__create-model-error">{error}</p>;
   if (!sheets) return <p>A carregar…</p>;
-  return <SheetViewer dataset={sheets} activeSheetIndex={activeSheetIndex} onActiveSheetIndexChange={setActiveSheetIndex} />;
+  return (
+    <SheetViewer
+      dataset={sheets}
+      activeSheetIndex={activeSheetIndex}
+      onActiveSheetIndexChange={onActiveSheetIndexChange}
+      columnHighlights={highlights.columns}
+      rangeHighlights={highlights.ranges}
+      matchedCells={highlights.cells}
+    />
+  );
 }
 
 /** A model being run (not edited): breadcrumb back to the dataset, "Ver dados", and ModelCard itself. */
@@ -48,9 +98,24 @@ export function UtilizeScreen({ dataset, utilizeModel, theme, onToggleTheme, onB
   const [isSheetPanelOpen, setIsSheetPanelOpen] = useState(false);
   const [hasOpenedSheetPanel, setHasOpenedSheetPanel] = useState(false);
 
+  const [activeSheetIndex, setActiveSheetIndex] = useState(0);
+  const [highlights, setHighlights] = useState<DataHighlights>(NO_HIGHLIGHTS);
+
   function openSheetPanel() {
     setHasOpenedSheetPanel(true);
     setIsSheetPanelOpen(true);
+  }
+
+  // An output's eye: the dataset with whatever that output's chain read marked, on the first sheet
+  // it touched — or the plain dataset when it read nothing (or hasn't run yet).
+  function viewOutputData(touches: DatasetTouchPayload[] | null) {
+    if (touches && touches.length > 0) {
+      setHighlights(highlightsFromTouches(touches));
+      setActiveSheetIndex(touches[0].sheetIndex);
+    } else {
+      setHighlights(NO_HIGHLIGHTS);
+    }
+    openSheetPanel();
   }
 
   return (
@@ -58,7 +123,14 @@ export function UtilizeScreen({ dataset, utilizeModel, theme, onToggleTheme, onB
       <header className="app__topbar app__topbar--with-title">
         <BackButton onClick={onBack} />
         <div className="app__topbar-actions">
-          <button type="button" className="app__view-data-button" onClick={openSheetPanel}>
+          <button
+            type="button"
+            className="app__view-data-button"
+            onClick={() => {
+              setHighlights(NO_HIGHLIGHTS);
+              openSheetPanel();
+            }}
+          >
             <SpreadsheetIcon />
             Ver dados
           </button>
@@ -73,6 +145,7 @@ export function UtilizeScreen({ dataset, utilizeModel, theme, onToggleTheme, onB
           modelId={utilizeModel.modelId}
           nrmId={utilizeModel.nrmId}
           inputs={utilizeModel.inputs}
+          onViewOutputData={viewOutputData}
         />
       </div>
 
@@ -90,7 +163,14 @@ export function UtilizeScreen({ dataset, utilizeModel, theme, onToggleTheme, onB
             ×
           </button>
         </div>
-        <div className="sheet-panel__body">{hasOpenedSheetPanel && <DataViewer dataset={dataset} />}</div>
+        <div className="sheet-panel__body">{hasOpenedSheetPanel && (
+            <DataViewer
+              dataset={dataset}
+              activeSheetIndex={activeSheetIndex}
+              onActiveSheetIndexChange={setActiveSheetIndex}
+              highlights={highlights}
+            />
+          )}</div>
       </aside>
     </div>
   );
