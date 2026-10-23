@@ -1,18 +1,10 @@
 .back-button {
   padding: 0.5rem 1.1rem;
-  border: 0;
+  border: 1px solid transparent;
   border-radius: 999px;
-  outline: none;
-  background: none;
-  box-shadow: none;
-  color: var(--color-text-muted);
   cursor: pointer;
   font: inherit;
   font-size: 0.95rem;
   font-weight: 600;
   transition: color 0.2s ease;
-}
-
-.back-button:hover {
-  color: var(--color-text);
 }

@@ -1,3 +1,4 @@
+import { DiskIcon, SpreadsheetIcon } from '../components/ButtonIcons/ButtonIcons';
 import { useState } from 'react';
 import { BackButton } from '../components/BackButton/BackButton';
 import { AppFooter } from '../components/AppFooter/AppFooter';
@@ -19,7 +20,6 @@ interface EditorScreenProps {
   onBackToChoose: () => void;
 
   modelName: string;
-  onModelNameChange: (name: string) => void;
   pendingImportEntries: SerializableEntry[] | undefined;
 
   columnPick: ColumnPickState | null;
@@ -66,7 +66,6 @@ interface EditorScreenProps {
    * reads the same modelEntries/modelInputIds this screen already mirrors up from OperationPanel,
    * so this doesn't need write access to the canvas' own state to do it). */
   onSaveTestCase: () => void;
-  canSaveTestCase: boolean;
   onGoHome: () => void;
 }
 
@@ -78,7 +77,6 @@ export function EditorScreen({
   onToggleTheme,
   onBackToChoose,
   modelName,
-  onModelNameChange,
   pendingImportEntries,
   columnPick,
   onStartColumnPick,
@@ -116,7 +114,6 @@ export function EditorScreen({
   inputLabels,
   outputLabels,
   onSaveTestCase,
-  canSaveTestCase,
   onGoHome,
 }: EditorScreenProps) {
   // The bottom-left slot OperationPanel draws "Carregar/Limpar teste" into (a state, not a ref, so the
@@ -126,12 +123,10 @@ export function EditorScreen({
   return (
     <div className="app">
       <header className="app__topbar app__topbar--with-title">
-        <div className="app__topbar-actions">
-          <BackButton onClick={onBackToChoose} />
-          <span className="app__breadcrumb-item app__breadcrumb-item--current">{modelName.trim() || 'Modelo sem nome'}</span>
-        </div>
+        <BackButton onClick={onBackToChoose} />
         <div className="app__topbar-actions">
           <button type="button" className="app__view-data-button" onClick={onOpenSheetPanel}>
+            <SpreadsheetIcon />
             Ver dados
           </button>
           <ThemeToggle theme={theme} onToggle={onToggleTheme} />
@@ -142,9 +137,8 @@ export function EditorScreen({
         <div className="app__main-content">
           <OperationPanel
             testActionsSlot={testActionsSlot}
+            onSaveTestCase={onSaveTestCase}
             dataset={dataset}
-            modelName={modelName}
-            onModelNameChange={onModelNameChange}
             initialEntries={pendingImportEntries}
             columnPick={columnPick}
             onStartColumnPick={onStartColumnPick}
@@ -170,17 +164,9 @@ export function EditorScreen({
           <div className="app__save-row">
             <div className="app__save-row-group">
               <div ref={setTestActionsSlot} className="app__save-row-slot" />
-              <button
-                type="button"
-                className="app__create-model-button app__create-model-button--secondary"
-                onClick={onSaveTestCase}
-                disabled={!canSaveTestCase}
-                title={canSaveTestCase ? 'Guarda os valores atuais dos inputs num ficheiro JSON.' : 'O modelo não tem nenhum input definido.'}
-              >
-                Guardar teste (JSON)
-              </button>
             </div>
             <button type="button" className="app__save-button action-button" onClick={onOpenSaveModal}>
+              <DiskIcon />
               Guardar modelo
             </button>
           </div>

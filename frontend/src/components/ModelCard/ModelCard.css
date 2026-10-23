@@ -10,6 +10,92 @@
   min-height: 0;
 }
 
+/* The model's title with its input / output counts as badges beside it. */
+.model-card__heading {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.model-card__heading .app__page-title {
+  margin: 0;
+}
+
+/* Top-right switch between the inputs and the outputs view: two equal options with a highlight
+   (the thumb) that slides from one to the other, changing color as it goes (neutral grey for inputs,
+   orange for outputs). */
+.model-card__view-toggle {
+  position: relative;
+  align-self: center;
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 0.3rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+}
+
+.model-card__view-toggle-thumb {
+  position: absolute;
+  top: 0.3rem;
+  bottom: 0.3rem;
+  left: 0.3rem;
+  width: calc((100% - 0.6rem) / 2);
+  border-radius: 999px;
+  background: var(--btn-secondary-bg);
+  transition: transform 0.3s ease, background-color 0.3s ease;
+}
+
+.model-card__view-toggle--output .model-card__view-toggle-thumb {
+  transform: translateX(100%);
+  background: var(--btn-primary-bg);
+}
+
+.model-card__view-toggle-option {
+  position: relative;
+  padding: 0.55rem 1.5rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+
+/* The count inside an option, as plain bold text in brackets (no background), inheriting the option's weight. */
+.model-card__view-toggle-count {
+  margin-left: 0.2rem;
+}
+
+.model-card__view-toggle-option:hover:not(:disabled):not(.model-card__view-toggle-option--active) {
+  color: var(--color-text);
+}
+
+.model-card__view-toggle-option--active {
+  color: var(--btn-secondary-contrast);
+}
+
+.model-card__view-toggle-option--output.model-card__view-toggle-option--active {
+  color: var(--btn-primary-contrast);
+}
+
+.model-card__view-toggle-option:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .model-card__view-toggle-thumb,
+  .model-card__view-toggle-option {
+    transition: none;
+  }
+}
+
 .model-card--empty {
   align-items: center;
   justify-content: center;
@@ -415,4 +501,113 @@
   font-size: 0.9rem;
   line-height: 1.5;
   color: var(--color-text);
+}
+
+/* Switching between inputs and outputs mounts the other column, which slides in from the side its
+   toggle option is on (inputs from the left, outputs from the right). */
+.model-card__io-column--from-left {
+  animation: model-card-slide-in-left 0.3s ease backwards;
+}
+
+.model-card__io-column--from-right {
+  animation: model-card-slide-in-right 0.3s ease backwards;
+}
+
+@keyframes model-card-slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes model-card-slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .model-card__io-column--from-left,
+  .model-card__io-column--from-right {
+    animation: none;
+  }
+}
+
+/* Grid / list switch, pushed to the right of the title along with the inputs / outputs toggle that
+   follows it. */
+.model-card__layout-toggle {
+  align-self: center;
+  margin-left: auto;
+  display: inline-flex;
+  padding: 0.2rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+}
+
+.model-card__layout-option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 1.7rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.model-card__layout-option svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.model-card__layout-option:hover:not(.model-card__layout-option--active) {
+  color: var(--color-text);
+}
+
+.model-card__layout-option--active {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+/* List view: one full-width row per field, name on the left and its input / result on the right.
+   Doubled class so it beats the grid's responsive column rules above regardless of order. */
+.model-card__field-grid.model-card__field-grid--list {
+  grid-template-columns: 1fr;
+  gap: 0.6rem;
+}
+
+.model-card__field-grid--list .model-card__field {
+  flex-direction: row;
+  align-items: center;
+  gap: 1rem;
+}
+
+.model-card__field-grid--list .model-card__field-name {
+  flex: 0 0 30%;
+  min-width: 0;
+}
+
+/* The eye sits inline in the row, after the input / result, instead of pinned to the card's corner. */
+.model-card__field-grid--list .model-card__field-view {
+  position: static;
+  order: 3;
+  flex: none;
+}
+
+.model-card__field-grid--list .model-card__field > :not(.model-card__field-name):not(.model-card__field-view) {
+  flex: 1;
+  min-width: 0;
 }

@@ -9,6 +9,7 @@ import { checkDataset, getModelInputs, getNrmDataset, getNrmInputs, getNrmModel,
 import type { ModelExportFormat } from './components/SaveModal/SaveModal';
 import type { NrmImportStatusPayload } from './types/nrm';
 import type { DatasetHandle, DatasetImportStatus, DatasetImportResponse } from './types/dataset';
+import { useDocumentTitle } from './hooks/useDocumentTitle';
 import { preloadDatasetSheets, useDatasetSheets } from './hooks/useDatasetSheets';
 import type { ColumnPickField, ColumnPickState, RangePickState } from './types/columnPick';
 import type { ColumnHighlight, OperationHighlight, RangeHighlight } from './types/highlight';
@@ -212,7 +213,7 @@ function App() {
     // forgot it, e.g. after a restart, the .nrm has to be imported again.)
     if (model.nrmId) {
       const { inputs } = await getNrmInputs(model.nrmId);
-      return { modelName: model.modelName, modelId: '', nrmId: model.nrmId, inputs };
+      return { modelName: model.nrmName || model.modelName, modelId: '', nrmId: model.nrmId, inputs };
     }
 
     const { entries, inputOperationIds, outputOperationIds } = model;
@@ -220,7 +221,7 @@ function App() {
       throw new Error('Modelo sem operações carregadas.');
     }
     if (outputOperationIds.length === 0) {
-      return { modelName: model.modelName, modelId: '', inputs: [] };
+      return { modelName: model.nrmName || model.modelName, modelId: '', inputs: [] };
     }
 
     // Only a model without its own .nrm (a bare .json imported onto an .nrm's dataset) gets here with
@@ -231,7 +232,7 @@ function App() {
     if (known && known.model === model && known.datasetId === datasetId) {
       try {
         const { inputs } = await getModelInputs(known.modelId, { silent: true });
-        return { modelName: model.modelName, modelId: known.modelId, datasetId, inputs };
+        return { modelName: model.nrmName || model.modelName, modelId: known.modelId, datasetId, inputs };
       } catch {
         registeredModelRef.current = null; // forgotten by the backend — register it again below
       }
@@ -245,7 +246,7 @@ function App() {
       outputOperationIds,
     );
     registeredModelRef.current = { model, datasetId, modelId };
-    return { modelName: model.modelName, modelId, datasetId, inputs };
+    return { modelName: model.nrmName || model.modelName, modelId, datasetId, inputs };
   }
 
   // The actual replay, only run once the user has chosen to resume a given entry (or a page reload
@@ -758,6 +759,19 @@ function App() {
     refreshRecentSessions();
   }
 
+  // The tab's title names the page being shown: the landing page is just "Norma", the others say
+  // what they are (and which model or dataset, when there is one).
+  const pageTitle = (() => {
+    const path = location.pathname;
+    if (path === '/') return null;
+    if (path === '/modelos') return 'Os meus modelos';
+    if (path.endsWith('/editor')) return `A editar ${nrmName.trim() || modelName.trim() || 'o modelo'}`;
+    if (path.endsWith('/utilizar')) return utilizeModel?.modelName || 'Utilizar modelo';
+    if (path.startsWith('/d/')) return importedModel?.nrmName || importedModel?.modelName || dataset?.filename || 'Conjunto de dados';
+    return null;
+  })();
+  useDocumentTitle(pageTitle);
+
   // Three screens, all URL-addressable (see CLAUDE.md's App.tsx screen-flow note — this replaces
   // the plain state-switch it originally described): "/" for the landing upload, "/d/:datasetId"
   // for the create/import choice (also where a .nrm's dataset+model land together, since
@@ -834,7 +848,6 @@ function App() {
                     onToggleTheme={toggleTheme}
                     onBackToChoose={() => navigate(`/d/${activeDataset.datasetId}`)}
                     modelName={modelName}
-                    onModelNameChange={setModelName}
                     pendingImportEntries={pendingImportEntries}
                     columnPick={columnPick}
                     onStartColumnPick={startColumnPick}
@@ -872,7 +885,6 @@ function App() {
                     inputLabels={inputLabels}
                     outputLabels={outputLabels}
                     onSaveTestCase={saveTestCase}
-                    canSaveTestCase={testInputEntries.length > 0}
                     onGoHome={goHome}
                   />
                 )}

@@ -43,7 +43,9 @@ export function ModelsScreen({ theme, onToggleTheme, onBack, onGoHome, onClearRe
 
       <div className="app__models-body">
         <h1 className="app__models-title">Os meus modelos</h1>
-        <div className="app__models-container" />
+        <div className="app__models-container">
+          <p className="app__models-placeholder">A base de dados ainda não está disponível.</p>
+        </div>
       </div>
 
       <div className="recent-sessions">

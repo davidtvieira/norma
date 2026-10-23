@@ -34,10 +34,6 @@
   --color-action: #f0a150;
   --color-action-hover: #f5b273;
   --color-action-contrast: #ffffff;
-  /* The same orange at lower opacity, for secondary call-to-actions (see .secondary-action-button
-     in App.css) — theme-invariant like --color-action. */
-  --color-secondary-action: color-mix(in srgb, var(--color-action) 55%, transparent);
-  --color-secondary-action-hover: color-mix(in srgb, var(--color-action) 70%, transparent);
 
   /* A plain, theme-invariant grey (dark mode's own --color-primary, which is what a resting
      edge already looked like there) — fixed the same way --color-action is, for the same reason:
@@ -45,12 +41,14 @@
      themes, not orange-tinted in light mode (--color-primary there) and grey in dark mode. */
   --color-neutral-accent: #9a9a9a;
 
-  /* The three button flavors on the front screens: primary (filled --color-primary), secondary
-     (these soft tints of it) and accent (filled --color-action, the orange for "run" actions). */
-  --btn-secondary-bg: color-mix(in srgb, var(--color-primary) 14%, var(--color-surface));
-  --btn-secondary-bg-hover: color-mix(in srgb, var(--color-primary) 26%, var(--color-surface));
-  --btn-secondary-border: color-mix(in srgb, var(--color-primary) 35%, transparent);
-  --btn-secondary-border-hover: color-mix(in srgb, var(--color-primary) 60%, transparent);
+  /* The two button variants used everywhere (see the button system in App.css): primary is orange in
+     both themes, secondary is a dark grey in light mode and a lighter grey in dark mode. */
+  --btn-primary-bg: #f0a150;
+  --btn-primary-bg-hover: #f5b273;
+  --btn-primary-contrast: #ffffff;
+  --btn-secondary-bg: #383838;
+  --btn-secondary-bg-hover: #545454;
+  --btn-secondary-contrast: #ffffff;
 
   --radius-sm: 10px;
   --radius-md: 16px;
@@ -74,6 +72,10 @@
     --color-primary: #9a9a9a;
     --color-primary-hover: #b8b8b8;
     --color-primary-contrast: #f5f5f5;
+
+    --btn-secondary-bg: #7d7d7d;
+    --btn-secondary-bg-hover: #969696;
+    --btn-secondary-contrast: #f5f5f5;
 
     --color-secondary: #f0a150;
     --color-secondary-hover: #f5b273;
@@ -105,6 +107,10 @@
   --color-primary: #9a9a9a;
   --color-primary-hover: #b8b8b8;
   --color-primary-contrast: #f5f5f5;
+
+  --btn-secondary-bg: #7d7d7d;
+  --btn-secondary-bg-hover: #969696;
+  --btn-secondary-contrast: #f5f5f5;
 
   --color-secondary: #f0a150;
   --color-secondary-hover: #f5b273;

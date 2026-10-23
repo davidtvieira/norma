@@ -69,21 +69,17 @@
 }
 
 .app__view-data-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   padding: 0.5rem 1.1rem;
-  border: 1px solid var(--btn-secondary-border);
+  border: 1px solid transparent;
   border-radius: 999px;
-  background: var(--btn-secondary-bg);
-  color: var(--color-text);
   cursor: pointer;
   font: inherit;
   font-size: 0.85rem;
   font-weight: 600;
   transition: border-color 0.2s ease, background-color 0.2s ease;
-}
-
-.app__view-data-button:hover {
-  background: var(--btn-secondary-bg-hover);
-  border-color: var(--btn-secondary-border-hover);
 }
 
 .app__landing-body {
@@ -127,6 +123,16 @@
   text-align: center;
 }
 
+/* The homepage's one look, shared by the uploaders' container and the browse button: a light
+   surface with a hairline border. */
+.app__landing-uploaders,
+.app__browse-button {
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
 .app__landing-uploaders {
   display: flex;
   flex-direction: row;
@@ -134,11 +140,7 @@
   gap: 0;
   width: 100%;
   /* One shared container for both uploaders; each dropzone inside is just a transparent button
-     in it, with an "ou" between them. */
-  border: 1.5px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-sm);
+     in it, with an "ou" between them. Looks like the browse button (see the shared rule above). */
   overflow: hidden;
 }
 
@@ -162,11 +164,7 @@
   gap: 0.75rem;
   width: 100%;
   padding: 3.25rem 2rem;
-  border: 1.5px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
   color: var(--color-text);
-  box-shadow: var(--shadow-sm);
   font: inherit;
   font-size: 1.05rem;
   font-weight: 600;
@@ -362,19 +360,12 @@
 
 .recent-sessions__clear-button {
   padding: 0.25rem 0.625rem;
-  border: 1px solid var(--btn-secondary-border);
+  border: 1px solid transparent;
   border-radius: 999px;
-  background: var(--btn-secondary-bg);
-  color: var(--color-text);
   font: inherit;
   font-size: 0.8rem;
   cursor: pointer;
   transition: background-color 0.2s ease, border-color 0.2s ease;
-}
-
-.recent-sessions__clear-button:hover:not(:disabled) {
-  background: var(--btn-secondary-bg-hover);
-  border-color: var(--btn-secondary-border-hover);
 }
 
 .recent-sessions__clear-button:disabled {
@@ -548,6 +539,10 @@
 }
 
 .app__create-model-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
   padding: 0.75rem 1.75rem;
   border: 1px solid transparent;
   border-radius: 999px;
@@ -556,20 +551,6 @@
   font-size: 0.95rem;
   font-weight: 600;
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
-}
-
-.app__create-model-button--secondary {
-  /* A soft tint of the primary color with a hairline border and normal text — quieter than the
-     filled primary button beside it (see the --btn-secondary-* tokens in index.css). */
-  background: var(--btn-secondary-bg);
-  border-color: var(--btn-secondary-border);
-  color: var(--color-text);
-}
-
-.app__create-model-button--secondary:hover {
-  background: var(--btn-secondary-bg-hover);
-  border-color: var(--btn-secondary-border-hover);
-  color: var(--color-text);
 }
 
 .app__create-model-button--back {
@@ -611,6 +592,10 @@
 }
 
 .app__save-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
   align-self: flex-end;
   padding: 0.65rem 1.4rem;
   border: 1px solid transparent;
@@ -647,21 +632,6 @@
 /* Holds the portaled "Carregar/Limpar teste" button; adds no box of its own. */
 .app__save-row-slot {
   display: contents;
-}
-
-.app__save-button--secondary {
-  background: var(--btn-secondary-bg);
-  border-color: var(--btn-secondary-border);
-  color: var(--color-text);
-}
-
-.app__save-button--secondary:hover:not(:disabled) {
-  background: var(--btn-secondary-bg-hover);
-  border-color: var(--btn-secondary-border-hover);
-}
-
-.app__save-button--secondary:hover:not(:disabled) {
-  background: var(--color-surface-hover);
 }
 
 /* Off-canvas sheet viewer: slides in from the right over the editor instead of sitting
@@ -793,113 +763,115 @@
   color: var(--color-text);
 }
 
-/* The action button: the orange call-to-action ("Criar Modelo", "Editar", "Guardar modelo",
-   "Correr modelo"). Orange with white text in both themes (--color-action doesn't swap), unlike the primary color
-   that turns grey in dark mode. Add it next to the button's own sizing class; the
-   `button.` prefix makes it win over that class regardless of stylesheet order. */
-button.action-button {
-  border-color: var(--color-action);
-  background: var(--color-action);
-  color: #fff;
-}
-
-button.action-button:hover:not(:disabled) {
-  background: var(--color-action-hover);
-  border-color: var(--color-action-hover);
-}
-
-/* A calmer orange than .action-button, for a call-to-action that shouldn't compete with the
-   screen's main one. Same usage: add it next to the button's own sizing class. */
-button.secondary-action-button {
-  border-color: var(--color-secondary-action);
-  background: var(--color-secondary-action);
-  color: #fff;
-}
-
-button.secondary-action-button:hover:not(:disabled) {
-  background: var(--color-secondary-action-hover);
-  border-color: var(--color-secondary-action-hover);
+/* An icon inside a text button: sized to the text, colored by the button. */
+.button-icon {
+  flex: none;
+  width: 1.1em;
+  height: 1.1em;
 }
 
 /* ---------------------------------------------------------------------------------------------
-   One button language for the editor canvas, using the same three flavors as the front screens:
-     action    — solid orange, white text      (the decisive step: confirm, run, save, edit mode)
-     primary   — solid theme color             (starts something: "+ Adicionar operação")
-     secondary — soft tint of the theme color  (everything else)
-   Icon-only ghost buttons (card edit/reveal/test, close ×, model-name edit) stay bare on purpose.
-   `button.` in front of each class makes these win over the per-component rules regardless of
-   stylesheet order; sizes, paddings and radii stay with the components.
+   The button system: every text button in the app is one of two variants, in both themes.
+     primary   — orange (--btn-primary-*)                              the decisive step: run, save, confirm, create
+     secondary — dark grey in light mode, lighter grey in dark mode    everything else
+   (--btn-secondary-*; both are tokens in index.css). Use the classes `action-button` (primary) or
+   `app__create-model-button--secondary` (secondary) on new buttons, or add a button's own class to
+   the matching list below. Sizes, paddings and radii stay with each component; `button.` in front
+   of every selector makes these win over the per-component rules regardless of stylesheet order.
+   A third, `naked-button`, is the no-background, no-outline text button for quiet navigation
+   ("← Voltar"). Icon-only buttons (close ×, eye, zoom, reveal, theme toggle) and segmented controls
+   (tabs, toggles) are deliberately outside it.
    --------------------------------------------------------------------------------------------- */
+button.action-button,
+button.model-card__run-button,
+button.app__save-button:not(.app__save-button--secondary),
+button.test-values-modal__run-button,
+button.save-modal__close-button:not(.save-modal__close-button--secondary),
 button.operation-canvas__test-button:not(.operation-canvas__test-button--cancel),
 button.operation-entry__confirm-button,
 button.value-source-modal__confirm-button,
 button.add-operation-panel__confirm-all,
+button.operation-canvas__tool-button--primary,
 button.operation-canvas__tool-button--active,
 button.operation-card__io-toggle--active {
-  border-color: var(--color-action);
-  background: var(--color-action);
-  color: #fff;
+  border-color: var(--btn-primary-bg);
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-contrast);
 }
 
+button.action-button:hover:not(:disabled),
+button.model-card__run-button:hover:not(:disabled),
+button.app__save-button:not(.app__save-button--secondary):hover:not(:disabled),
+button.test-values-modal__run-button:hover:not(:disabled),
+button.save-modal__close-button:not(.save-modal__close-button--secondary):hover:not(:disabled),
 button.operation-canvas__test-button:not(.operation-canvas__test-button--cancel):hover:not(:disabled),
 button.operation-entry__confirm-button:hover:not(:disabled),
 button.value-source-modal__confirm-button:hover:not(:disabled),
 button.add-operation-panel__confirm-all:hover:not(:disabled),
+button.operation-canvas__tool-button--primary:hover:not(:disabled),
 button.operation-canvas__tool-button--active:hover:not(:disabled),
 button.operation-card__io-toggle--active:hover:not(:disabled) {
-  border-color: var(--color-action-hover);
-  background: var(--color-action-hover);
-  color: #fff;
+  border-color: var(--btn-primary-bg-hover);
+  background: var(--btn-primary-bg-hover);
+  color: var(--btn-primary-contrast);
 }
 
-button.operation-canvas__tool-button--primary {
-  border-color: var(--color-primary);
-  background: var(--color-primary);
-  color: var(--color-primary-contrast);
-}
-
-button.operation-canvas__tool-button--primary:hover:not(:disabled) {
-  border-color: var(--color-primary-hover);
-  background: var(--color-primary-hover);
-  color: var(--color-primary-contrast);
-}
-
+button.app__create-model-button--secondary,
+button.app__view-data-button,
+button.app__save-button--secondary,
+button.recent-sessions__clear-button,
+button.test-values-modal__button--secondary,
+button.save-modal__close-button--secondary,
 button.operation-canvas__tool-button:not(.operation-canvas__tool-button--primary):not(.operation-canvas__tool-button--active),
 button.operation-canvas__reset-button,
+button.operation-canvas__zoom-button,
+button.operation-canvas__zoom-level,
 button.add-operation-modal__close-button,
 button.operation-entry__pick-button,
+button.operation-column-picking__cancel,
 button.operation-card__io-toggle:not(.operation-card__io-toggle--active) {
-  border-color: var(--btn-secondary-border);
+  border-color: var(--btn-secondary-bg);
   background: var(--btn-secondary-bg);
-  color: var(--color-text);
+  color: var(--btn-secondary-contrast);
 }
 
-button.operation-canvas__tool-button:not(.operation-canvas__tool-button--primary):not(.operation-canvas__tool-button--active):not(.operation-canvas__tool-button--danger):hover:not(:disabled),
+button.app__create-model-button--secondary:hover:not(:disabled),
+button.app__view-data-button:hover:not(:disabled),
+button.app__save-button--secondary:hover:not(:disabled),
+button.recent-sessions__clear-button:hover:not(:disabled),
+button.test-values-modal__button--secondary:hover:not(:disabled),
+button.save-modal__close-button--secondary:hover:not(:disabled),
+button.operation-canvas__tool-button:not(.operation-canvas__tool-button--primary):not(.operation-canvas__tool-button--active):hover:not(:disabled),
 button.operation-canvas__reset-button:hover:not(:disabled),
+button.operation-canvas__zoom-button:hover:not(:disabled),
+button.operation-canvas__zoom-level:hover:not(:disabled),
 button.add-operation-modal__close-button:hover:not(:disabled),
 button.operation-entry__pick-button:hover:not(:disabled),
+button.operation-column-picking__cancel:hover:not(:disabled),
 button.operation-card__io-toggle:not(.operation-card__io-toggle--active):hover:not(:disabled) {
-  border-color: var(--btn-secondary-border-hover);
+  border-color: var(--btn-secondary-bg-hover);
   background: var(--btn-secondary-bg-hover);
-  color: var(--color-text);
+  color: var(--btn-secondary-contrast);
 }
 
-/* The one destructive toolbar button keeps its red cue, on hover only. */
-button.operation-canvas__tool-button--danger:hover:not(:disabled) {
-  color: var(--color-error);
-  border-color: var(--color-error);
+/* The naked variant, for quiet navigation buttons ("← Voltar"): no background and no outline, just
+   muted text that turns to the full text color on hover. Add it next to the button's own sizing
+   class. */
+button.naked-button,
+button.naked-button:hover:not(:disabled),
+button.naked-button:focus,
+button.naked-button:focus-visible {
+  border-color: transparent;
+  background: none;
+  box-shadow: none;
+  outline: none;
 }
 
-/* The zoom group is one joined control: tinted like the other secondary buttons. */
-button.operation-canvas__zoom-button,
-button.operation-canvas__zoom-level {
-  background: var(--btn-secondary-bg);
-  color: var(--color-text);
+button.naked-button {
+  color: var(--color-text-muted);
 }
 
-button.operation-canvas__zoom-button:hover:not(:disabled),
-button.operation-canvas__zoom-level:hover:not(:disabled) {
-  background: var(--btn-secondary-bg-hover);
+button.naked-button:hover:not(:disabled) {
   color: var(--color-text);
 }
 
@@ -911,6 +883,7 @@ button.operation-canvas__zoom-level:hover:not(:disabled) {
   padding: 1.5rem var(--landing-gutter, 2.5rem);
 }
 
+.app__page-title,
 .app__models-title {
   margin: 0 0 1rem;
   font-size: 1.75rem;
@@ -920,10 +893,21 @@ button.operation-canvas__zoom-level:hover:not(:disabled) {
 }
 
 .app__models-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex: 1;
   min-height: 20rem;
   border: 1.5px dashed var(--color-border);
   border-radius: var(--radius-lg);
   /* A faint lift off the page: whitish in light mode, a touch lighter than the page in dark. */
   background: color-mix(in srgb, var(--color-surface) 55%, transparent);
+}
+
+.app__models-placeholder {
+  margin: 0;
+  padding: 0 1.5rem;
+  text-align: center;
+  font-size: 0.95rem;
+  color: var(--color-text-muted);
 }

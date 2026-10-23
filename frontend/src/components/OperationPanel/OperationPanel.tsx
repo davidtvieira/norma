@@ -1,3 +1,4 @@
+import { BoltIcon, ClearIcon, LoadIcon, SaveIcon } from '../ButtonIcons/ButtonIcons';
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
@@ -588,8 +589,6 @@ interface OperationPanelProps {
    * toolbar (see below), on the same line as "Importar teste"/"Testar modelo", rather than in
    * EditorScreen above the canvas — owned by App.tsx same as everything else this component
    * doesn't hold itself. */
-  modelName: string;
-  onModelNameChange: (name: string) => void;
   /** Seeds the entry list on mount (e.g. a model just imported on the previous screen). Restores
    * each entry's saved canvas position (see modelSerialization's own EntryPosition) — only an
    * entry from a model exported before positions were saved falls back to the usual cascading
@@ -628,6 +627,7 @@ interface OperationPanelProps {
    * action row, next to "Guardar teste"). It's portaled there so its state and handlers stay in
    * this component. Until the element exists the button is simply not rendered. */
   testActionsSlot: HTMLElement | null;
+  onSaveTestCase: () => void;
   onModelInputIdsChange: (ids: string[]) => void;
   onModelOutputIdsChange: (ids: string[]) => void;
 }
@@ -684,9 +684,8 @@ function chainHasEmptyInput(entryId: string, entries: OperationEntryState[]): bo
  */
 export function OperationPanel({
   testActionsSlot,
+  onSaveTestCase,
   dataset,
-  modelName,
-  onModelNameChange,
   initialEntries,
   columnPick,
   onStartColumnPick,
@@ -709,25 +708,6 @@ export function OperationPanel({
   const [entries, setEntries] = useState<OperationEntryState[]>(() =>
     (initialEntries ?? []).map((entry, index) => ({ ...entry, position: entry.position ?? placementFor(index) })),
   );
-  // The model name shows as plain text (with a pencil to start editing — see startNameEdit) until
-  // that pencil is clicked, same "nothing looks editable until you ask it to be" idea as an
-  // operation's own pencil (see editEntry) reopening its config panel. While editing, typing no
-  // longer commits straight to onModelNameChange on every keystroke either — nameDraft holds it
-  // until "✓"/"✗" (see confirmNameEdit/cancelNameEdit) explicitly commit or discard it. Seeded
-  // once from the modelName prop rather than kept in sync with it via an effect — that prop only
-  // ever changes from outside this component before it mounts at all (an imported model's name,
-  // set just before the screen switches to this one), never while it's already mounted, so
-  // there's nothing external for a later render to reconcile against.
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [nameDraft, setNameDraft] = useState(modelName);
-  const nameInputRef = useRef<HTMLInputElement>(null);
-  // Measures nameDraft's actual rendered width (see the hidden mirror span and the layout effect
-  // below) rather than sizing the input by character count (the <input> "size" attribute) — size
-  // approximates every character as the same width, which for a proportional font leaves a gap
-  // between the text and the field's own edge that grows or shrinks with which letters happen to
-  // be in the name, instead of hugging it.
-  const [nameInputWidth, setNameInputWidth] = useState<number | null>(null);
-  const nameMirrorRef = useRef<HTMLSpanElement>(null);
   const operationTypes = useOperationTypes();
   // Snapshot of an operation's confirmed state, taken when it enters edit mode — lets the ×
   // cancel the edit (restore the snapshot) instead of deleting an already-confirmed operation.
@@ -850,6 +830,12 @@ export function OperationPanel({
   function runModelTest(upToEntryId?: string): boolean {
     const chain = upToEntryId ? getDependencyChain(upToEntryId, entries) : null;
     const relevantEntries = entries.filter((entry) => entry.confirmed && (!chain || chain.has(entry.id)));
+
+    // "Testar modelo" is never disabled, so a click with nothing finished yet explains itself here.
+    if (relevantEntries.length === 0) {
+      setGranularTestWarning('Não é possível testar: ainda não há nenhuma operação concluída.');
+      return false;
+    }
 
     const emptyInputNames = relevantEntries.filter(hasEmptyInput).map((entry) => entry.name || 'Operação sem nome');
 
@@ -1133,23 +1119,6 @@ export function OperationPanel({
   useEffect(() => {
     onEntriesChange(entries);
   }, [entries, onEntriesChange]);
-
-  // Focuses (and selects, so typing straight away replaces rather than appends to) the model name
-  // input the moment editing it starts (see startNameEdit) — otherwise the pencil click would
-  // swap the text for an input the cursor isn't actually in yet, one extra click away from typing.
-  useEffect(() => {
-    if (!isEditingName) return;
-    nameInputRef.current?.focus();
-    nameInputRef.current?.select();
-  }, [isEditingName]);
-
-  // Re-measures the hidden mirror span (see its own render, just below the input) on every
-  // keystroke while editing the model name — before paint (useLayoutEffect, not useEffect), so
-  // the input's own width never visibly lags a character behind what's actually been typed.
-  useLayoutEffect(() => {
-    if (!isEditingName) return;
-    setNameInputWidth(nameMirrorRef.current?.offsetWidth ?? null);
-  }, [isEditingName, nameDraft]);
 
   // Commits a new "Desfazer"/"Refazer" step (see EditHistoryState) whenever `entries` actually
   // settles on something new during "Editar" — skipped mid-drag (dragNode still set: onDragEntry
@@ -2218,110 +2187,13 @@ export function OperationPanel({
     );
   }
 
-  // The pencil next to the plain-text model name — swaps it for the editable input, seeded with
-  // whatever the name currently is.
-  function startNameEdit() {
-    setNameDraft(modelName);
-    setIsEditingName(true);
-  }
-
-  // "✓" next to the model name input — commits nameDraft up to App.tsx and swaps back to plain
-  // text.
-  function confirmNameEdit() {
-    onModelNameChange(nameDraft);
-    setIsEditingName(false);
-  }
-
-  // "✗" next to the model name input — discards nameDraft (onModelNameChange was never called,
-  // so nothing to undo there) and swaps back to plain text.
-  function cancelNameEdit() {
-    setNameDraft(modelName);
-    setIsEditingName(false);
-  }
-
   return (
     <div className="operation-canvas">
       <div className="operation-canvas__toolbar">
-        {/* The model's own name + operation count — same line as "Importar teste"/"Testar
-            modelo" (see .operation-canvas__toolbar-actions' own margin-left: auto, which pushes
-            those to the opposite end of this same row) rather than a separate line above the
-            canvas. */}
+        {/* The operation count, at the start of this same row — .operation-canvas__toolbar-actions'
+            own margin-left: auto is what pushes "Importar teste"/"Testar modelo" to the opposite end. */}
         <div className="operation-canvas__model-name-row">
-          {isEditingName ? (
-            <>
-              <input
-                ref={nameInputRef}
-                type="text"
-                className="operation-canvas__model-name-input"
-                placeholder="Nome do modelo"
-                value={nameDraft}
-                // Grows/shrinks with the typed name itself, pixel-accurate (see nameInputWidth/
-                // the mirror span just below) rather than sitting at one fixed width regardless
-                // of how short or long the name is. Falls back to the CSS min-width for the one
-                // frame before the mirror's first measurement lands.
-                style={nameInputWidth !== null ? { width: nameInputWidth } : undefined}
-                onChange={(event) => setNameDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') confirmNameEdit();
-                  if (event.key === 'Escape') cancelNameEdit();
-                }}
-              />
-              {/* Invisible, same font as the input — exists purely so nameInputWidth (see the
-                  layout effect above) can measure how wide nameDraft actually renders, character
-                  widths and all, instead of approximating via the input's own "size" attribute
-                  (a plain character count, which for a proportional font leaves an uneven gap
-                  between the text and the field's edge). Falls back to the placeholder text so
-                  an empty field still measures out to something legible rather than collapsing. */}
-              <span ref={nameMirrorRef} className="operation-canvas__model-name-mirror" aria-hidden="true">
-                {nameDraft || 'Nome do modelo'}
-              </span>
-              <div className="operation-canvas__model-name-actions">
-                <button
-                  type="button"
-                  className="operation-canvas__model-name-confirm"
-                  onClick={confirmNameEdit}
-                  aria-label="Confirmar nome"
-                  title="Confirmar nome"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                    <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  className="operation-canvas__model-name-cancel"
-                  onClick={cancelNameEdit}
-                  aria-label="Cancelar edição do nome"
-                  title="Cancelar edição do nome"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                    <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                  </svg>
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <span className="operation-canvas__model-name-text">{modelName || 'Nome do modelo'}</span>
-              <button
-                type="button"
-                className="operation-canvas__model-name-edit"
-                onClick={startNameEdit}
-                aria-label="Editar nome"
-                title="Editar nome"
-              >
-                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                  <path
-                    d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </button>
-            </>
-          )}
+          <span className="operation-canvas__editing-label">A editar o modelo</span>
           <span
             className="operation-panel__count"
             title={confirmedCount === 1 ? '1 operação' : `${confirmedCount} operações`}
@@ -2332,21 +2204,35 @@ export function OperationPanel({
         <div className="operation-canvas__toolbar-actions">
           {testActionsSlot &&
             createPortal(
-          <button
-            type="button"
-            className="app__create-model-button app__create-model-button--secondary"
-            onClick={hasTested || hasAnyTestInputValue ? clearTest : triggerImportTest}
-            disabled={!hasTested && !hasAnyTestInputValue && testInputEntries.length === 0}
-            title={
-              hasTested || hasAnyTestInputValue
-                ? 'Limpa os resultados do último teste e os valores introduzidos nos inputs.'
-                : testInputEntries.length === 0
-                  ? 'O modelo não tem nenhum input definido.'
-                  : 'Preenche os inputs a partir de um ficheiro JSON.'
-            }
-          >
-            {hasTested || hasAnyTestInputValue ? 'Limpar teste' : 'Carregar teste (JSON)'}
-          </button>,
+            <>
+              <button
+                type="button"
+                className="app__create-model-button app__create-model-button--secondary"
+                onClick={hasTested || hasAnyTestInputValue ? clearTest : triggerImportTest}
+                disabled={!hasTested && !hasAnyTestInputValue && testInputEntries.length === 0}
+                title={
+                  hasTested || hasAnyTestInputValue
+                    ? 'Limpa os resultados do último teste e os valores introduzidos nos inputs.'
+                    : testInputEntries.length === 0
+                      ? 'O modelo não tem nenhum input definido.'
+                      : 'Preenche os inputs a partir de um ficheiro JSON.'
+                }
+              >
+                {hasTested || hasAnyTestInputValue ? <ClearIcon /> : <SaveIcon />}
+                {hasTested || hasAnyTestInputValue ? 'Limpar teste' : 'Carregar teste'}
+              </button>
+              {hasAnyTestInputValue && (
+                <button
+                  type="button"
+                  className="app__create-model-button app__create-model-button--secondary"
+                  onClick={onSaveTestCase}
+                  title="Guarda os valores atuais dos inputs num ficheiro JSON."
+                >
+                  <LoadIcon />
+                  Guardar teste
+                </button>
+              )}
+            </>,
               testActionsSlot,
             )}
           {/* One button, not two: "Importar teste" for as long as there's nothing yet to clear,
@@ -2380,7 +2266,6 @@ export function OperationPanel({
                 runModelTest();
               }
             }}
-            disabled={testProgress ? false : confirmedCount === 0 || hasAnyEmptyInput}
             title={
               testProgress
                 ? `Interrompe o teste (${testProgress.done}/${testProgress.total}) — para de calcular as operações que ainda faltam.`
@@ -2403,7 +2288,10 @@ export function OperationPanel({
                 style={{ width: `${(testProgress.done / testProgress.total) * 100}%` }}
               />
             )}
-            <span className="operation-canvas__test-button-label">{testProgress ? 'Cancelar teste' : 'Testar modelo'}</span>
+            <span className="operation-canvas__test-button-label">
+              {testProgress ? <ClearIcon /> : <BoltIcon />}
+              {testProgress ? 'Cancelar teste' : 'Testar modelo'}
+            </span>
           </button>
           {/* Hidden — clicked programmatically by the toolbar's "Importar teste" button above
               (see triggerImportTest) rather than shown directly, so the button can carry its own

@@ -1,3 +1,4 @@
+import { ClearIcon, LoadIcon, SaveIcon } from '../ButtonIcons/ButtonIcons';
 import { LoadingOverlay } from '../LoadingOverlay/LoadingOverlay';
 import { inlineErrorMessage } from '../../services/apiErrors';
 import { useRef, useState } from 'react';
@@ -88,10 +89,12 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs }: ModelC
   // Which of the two IO panels currently takes up most of the screen — the other collapses to a
   // small clickable square. Starts on "input" (nothing to show on the output side yet), and
   // a finished "Correr modelo" run swaps it to "output" so the result is what's immediately visible.
-  // Purely a display toggle from then on: clicking either collapsed square swaps it back, without
+  // Purely a display toggle from then on: the toggle at the top right swaps it, without
   // triggering a run or touching any input value — only "Correr modelo" itself does that (see run()
   // below).
   const [expandedSide, setExpandedSide] = useState<'input' | 'output'>('input');
+  // How the input / output fields are laid out: as a grid of cards, or one full-width row each.
+  const [layout, setLayout] = useState<'grid' | 'list'>('grid');
 
   // The output's status only ever comes from a run's own response now — a run returns just the
   // designated output, not every operation's result — so there's nothing meaningful to resolve
@@ -158,6 +161,17 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs }: ModelC
 
   const [testLoadError, setTestLoadError] = useState<string | null>(null);
 
+  function clearTestCase() {
+    setTestLoadError(null);
+    setFields((current) => {
+      const next = { ...current };
+      for (const entry of inputEntries) {
+        next[entry.id] = { ...next[entry.id], input: literalSource('') };
+      }
+      return next;
+    });
+  }
+
   function saveTestCase() {
     downloadTestCase(
       modelName,
@@ -197,12 +211,77 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs }: ModelC
   // built with no operation eligible to be an input (e.g. only a sum, which has no literal
   // chainable field at all) is a fixed model with nothing dynamic for a caller to fill in.
   const inputEntries = sortByName(inputs);
+  const hasAnyTestInputValue = inputEntries.some((entry) => {
+    const source = getInputSource(fields[entry.id]);
+    return source.type === 'literal' && source.value.trim() !== '';
+  });
   // Outputs are only known once a run has returned them (each result carries its own name).
   const outputEntries = sortByName((results ?? []).map((result) => ({ id: result.id, name: result.name ?? '', kind: '', value: '' })));
+
+  const canToggleIo = inputEntries.length > 0;
+  const inputExpanded = !canToggleIo || expandedSide === 'input';
+  const outputExpanded = !canToggleIo || expandedSide === 'output';
+
+  // The title, with the inputs / outputs toggle at its right.
+  const heading = (
+    <div className="model-card__heading">
+      <h1 className="app__page-title">{modelName || 'Modelo sem nome'}</h1>
+      <div className="model-card__layout-toggle" role="group" aria-label="Ver em grelha ou em lista">
+        <button
+          type="button"
+          className={`model-card__layout-option${layout === 'grid' ? ' model-card__layout-option--active' : ''}`}
+          aria-pressed={layout === 'grid'}
+          title="Grelha"
+          onClick={() => setLayout('grid')}
+        >
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.2" stroke="currentColor" strokeWidth="1.5" /><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.2" stroke="currentColor" strokeWidth="1.5" /><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.2" stroke="currentColor" strokeWidth="1.5" /><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.2" stroke="currentColor" strokeWidth="1.5" /></svg>
+        </button>
+        <button
+          type="button"
+          className={`model-card__layout-option${layout === 'list' ? ' model-card__layout-option--active' : ''}`}
+          aria-pressed={layout === 'list'}
+          title="Lista"
+          onClick={() => setLayout('list')}
+        >
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+        </button>
+      </div>
+      {canToggleIo && (
+        <div
+          className={`model-card__view-toggle${outputExpanded ? ' model-card__view-toggle--output' : ''}`}
+          role="group"
+          aria-label="Ver inputs ou outputs"
+        >
+          {/* The highlight that slides between the two options. */}
+          <span className="model-card__view-toggle-thumb" aria-hidden="true" />
+          <button
+            type="button"
+            className={`model-card__view-toggle-option${inputExpanded ? ' model-card__view-toggle-option--active' : ''}`}
+            aria-pressed={inputExpanded}
+            onClick={() => setExpandedSide('input')}
+          >
+            Inputs <span className="model-card__view-toggle-count">({inputEntries.length})</span>
+          </button>
+          <button
+            type="button"
+            className={`model-card__view-toggle-option model-card__view-toggle-option--output${outputExpanded ? ' model-card__view-toggle-option--active' : ''}`}
+            aria-pressed={outputExpanded}
+            onClick={() => setExpandedSide('output')}
+            // Nothing to look at until a run has finished.
+            disabled={!hasRun}
+            title={hasRun ? undefined : 'Corra o modelo para ver o resultado.'}
+          >
+            Outputs {hasRun && <span className="model-card__view-toggle-count">({outputEntries.length})</span>}
+          </button>
+        </div>
+      )}
+    </div>
+  );
 
   if (!modelId && !nrmId) {
     return (
       <div className="model-card model-card--empty">
+        {heading}
         <p className="model-card__missing-io">
           Este modelo ainda não tem um output definido. Edite o modelo e escolha-o antes de o utilizar.
         </p>
@@ -210,76 +289,56 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs }: ModelC
     );
   }
 
-  // With no designated input at all, there's nothing to toggle between — the output panel just
-  // takes the full width on its own, same as before this expand/collapse behavior existed.
-  const canToggleIo = inputEntries.length > 0;
-  const inputExpanded = !canToggleIo || expandedSide === 'input';
-  const outputExpanded = !canToggleIo || expandedSide === 'output';
+  // With no designated input at all (canToggleIo false), there's nothing to toggle between — the
+  // output panel just takes the full width on its own.
 
   return (
     <div className="model-card">
+      {heading}
       <div className="model-card__io">
-        {inputEntries.length > 0 && (
-          <div
-            className={`model-card__io-column ${inputExpanded ? 'model-card__io-column--expanded' : 'model-card__io-column--collapsed'}`}
-          >
-            {inputExpanded && <h3 className="model-card__io-panel-title">Input ({inputEntries.length})</h3>}
-            <div className={`model-card__io-panel ${inputExpanded ? '' : 'model-card__io-panel--collapsed'}`}>
-              {inputExpanded ? (
-                <div className="model-card__io-panel-content">
-                  <div className="model-card__field-grid">
-                    {inputEntries.map((inputEntry) => {
-                      const inputKind = KINDS_BY_ID[inputEntry.kind];
-                      if (!inputKind.renderInputEditor) return null;
-                      const name = inputEntry.name || 'Input';
-                      const source = getInputSource(fields[inputEntry.id]);
-                      const currentValue = source.type === 'literal' ? source.value : '';
-                      return (
-                        <div key={inputEntry.id} className="model-card__field">
-                          <EyeButton onView={() => setViewFullText({ name, value: currentValue })} />
-                          <h3 className="model-card__field-name" title={name}>
-                            {name}
-                          </h3>
-                          {inputKind.renderInputEditor({
-                            fields: fields[inputEntry.id],
-                            updateFields: (patch) => updateEntryFields(inputEntry.id, patch),
-                            resolvedInput: resolvedInputs[inputEntry.id][0],
-                          })}
-                        </div>
-                      );
-                    })}
-                  </div>
+        {inputEntries.length > 0 && inputExpanded && (
+          <div className="model-card__io-column model-card__io-column--expanded model-card__io-column--from-left">
+            <div className="model-card__io-panel">
+              <div className="model-card__io-panel-content">
+                <div className={`model-card__field-grid${layout === 'list' ? ' model-card__field-grid--list' : ''}`}>
+                  {inputEntries.map((inputEntry) => {
+                    const inputKind = KINDS_BY_ID[inputEntry.kind];
+                    if (!inputKind.renderInputEditor) return null;
+                    const name = inputEntry.name || 'Input';
+                    const source = getInputSource(fields[inputEntry.id]);
+                    const currentValue = source.type === 'literal' ? source.value : '';
+                    return (
+                      <div key={inputEntry.id} className="model-card__field">
+                        <EyeButton onView={() => setViewFullText({ name, value: currentValue })} />
+                        <h3 className="model-card__field-name" title={name}>
+                          {name}
+                        </h3>
+                        {inputKind.renderInputEditor({
+                          fields: fields[inputEntry.id],
+                          updateFields: (patch) => updateEntryFields(inputEntry.id, patch),
+                          resolvedInput: resolvedInputs[inputEntry.id][0],
+                        })}
+                      </div>
+                    );
+                  })}
                 </div>
-              ) : (
-                <button
-                  type="button"
-                  className="model-card__io-panel-collapsed"
-                  onClick={() => setExpandedSide('input')}
-                >
-                  Inputs ({inputEntries.length})
-                </button>
-              )}
+              </div>
             </div>
           </div>
         )}
 
-        <div
-          className={`model-card__io-column ${outputExpanded ? 'model-card__io-column--expanded' : 'model-card__io-column--collapsed'}`}
-        >
-          {outputExpanded && (
-            <h3 className="model-card__io-panel-title">Output{hasRun ? ` (${outputEntries.length})` : ''}</h3>
-          )}
-          <div className={`model-card__io-panel ${outputExpanded ? '' : 'model-card__io-panel--collapsed'}`}>
-            {outputExpanded ? (
-              <div className="model-card__io-panel-content">
-                <div className="model-card__field-grid">
-                  {/* No result names to list yet — before the first run, or when the run itself failed. */}
-                  {results === null && (
-                    <div className="model-card__field">
-                      <ModelOperationResultView hasRun={hasRun} isCalculating={isRunning} value={null} error={runError} />
-                    </div>
-                  )}
-                  {outputEntries.map((outputEntry) => {
+        {outputExpanded && (
+        <div className="model-card__io-column model-card__io-column--expanded model-card__io-column--from-right">
+          <div className="model-card__io-panel">
+            <div className="model-card__io-panel-content">
+              <div className={`model-card__field-grid${layout === 'list' ? ' model-card__field-grid--list' : ''}`}>
+                {/* No result names to list yet — before the first run, or when the run itself failed. */}
+                {results === null && (
+                  <div className="model-card__field">
+                    <ModelOperationResultView hasRun={hasRun} isCalculating={isRunning} value={null} error={runError} />
+                  </div>
+                )}
+                {outputEntries.map((outputEntry) => {
                     const outputResult = results?.find((candidate) => candidate.id === outputEntry.id) ?? null;
                     const name = outputEntry.name || 'Output';
                     const value = outputResult && outputResult.success && outputResult.value != null ? String(outputResult.value) : null;
@@ -294,22 +353,11 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs }: ModelC
                       </div>
                     );
                   })}
-                </div>
               </div>
-            ) : (
-              <button
-                type="button"
-                className="model-card__io-panel-collapsed"
-                onClick={() => setExpandedSide('output')}
-                // Nothing to look at until a run has finished.
-                disabled={!hasRun}
-                title={hasRun ? undefined : 'Corra o modelo para ver o resultado.'}
-              >
-                Outputs ({outputEntries.length})
-              </button>
-            )}
+            </div>
           </div>
         </div>
+        )}
       </div>
 
       <div className="model-card__actions">
@@ -332,13 +380,17 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs }: ModelC
                 <button
                   type="button"
                   className="app__create-model-button app__create-model-button--secondary"
-                  onClick={() => testFileInputRef.current?.click()}
+                  onClick={hasAnyTestInputValue ? clearTestCase : () => testFileInputRef.current?.click()}
                 >
-                  Carregar teste (JSON)
+                  {hasAnyTestInputValue ? <ClearIcon /> : <SaveIcon />}
+                  {hasAnyTestInputValue ? 'Limpar teste' : 'Carregar teste'}
                 </button>
-                <button type="button" className="app__create-model-button app__create-model-button--secondary" onClick={saveTestCase}>
-                  Guardar teste (JSON)
-                </button>
+                {hasAnyTestInputValue && (
+                  <button type="button" className="app__create-model-button app__create-model-button--secondary" onClick={saveTestCase}>
+                    <LoadIcon />
+                    Guardar teste
+                  </button>
+                )}
               </>
             )}
           </div>
