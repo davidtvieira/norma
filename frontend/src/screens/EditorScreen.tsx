@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { BackButton } from '../components/BackButton/BackButton';
 import { AppFooter } from '../components/AppFooter/AppFooter';
 import { OperationPanel } from '../components/OperationPanel/OperationPanel';
-import { SaveModal, type ModelExportFormat } from '../components/SaveModal/SaveModal';
+import { SaveModal, type IoItem, type ModelExportFormat } from '../components/SaveModal/SaveModal';
 import { SheetViewer } from '../components/SheetViewer/SheetViewer';
 import { ThemeToggle } from '../components/ThemeToggle/ThemeToggle';
 import type { DatasetImportResponse } from '../types/dataset';
@@ -58,8 +58,11 @@ interface EditorScreenProps {
   onNrmNameChange: (name: string) => void;
   canExportModel: boolean;
   exportHint: string | null;
-  inputLabels: string[] | null;
-  outputLabels: string[] | null;
+  inputItems: IoItem[];
+  outputItems: IoItem[];
+  inputEmptyText: string;
+  onReorderInputs: (ids: string[]) => void;
+  onReorderOutputs: (ids: string[]) => void;
 
   /** Downloads the model's current designated-input values as a JSON file — sits next to
    * "Guardar modelo" rather than in the canvas toolbar (see App.tsx's own saveTestCase, which
@@ -111,8 +114,11 @@ export function EditorScreen({
   onNrmNameChange,
   canExportModel,
   exportHint,
-  inputLabels,
-  outputLabels,
+  inputItems,
+  outputItems,
+  inputEmptyText,
+  onReorderInputs,
+  onReorderOutputs,
   onSaveTestCase,
   onGoHome,
 }: EditorScreenProps) {
@@ -213,8 +219,11 @@ export function EditorScreen({
         nrmNamePlaceholder={modelName.trim() || 'modelo'}
         canExport={canExportModel}
         exportHint={exportHint}
-        inputLabels={inputLabels}
-        outputLabels={outputLabels}
+        inputItems={inputItems}
+        outputItems={outputItems}
+        inputEmptyText={inputEmptyText}
+        onReorderInputs={onReorderInputs}
+        onReorderOutputs={onReorderOutputs}
       />
     </div>
   );

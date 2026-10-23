@@ -11,7 +11,7 @@
 
 .save-modal {
   width: 100%;
-  max-width: 420px;
+  max-width: 760px;
   padding: 1.5rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -64,16 +64,16 @@
 }
 
 .save-modal__io {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
-  max-height: 10rem;
-  overflow-y: auto;
   margin: 0 0 1.25rem;
-  padding: 0.9rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-hover);
+}
+
+@media (max-width: 600px) {
+  .save-modal__io {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* One block per "Input"/"Output" (see SaveModal's IoGroup) — its label, then each designated
@@ -82,6 +82,13 @@
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
+  min-width: 0;
+  max-height: 18rem;
+  overflow-y: auto;
+  padding: 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-hover);
 }
 
 .save-modal__io-item {
@@ -197,4 +204,78 @@
 
 .save-modal__split-item:hover {
   background: var(--color-surface-hover);
+}
+
+.save-modal__io-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.save-modal__io-sort {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.save-modal__io-sort:hover {
+  color: var(--color-text);
+  text-decoration: underline;
+}
+
+.save-modal__io-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.save-modal__io-position {
+  flex: none;
+  min-width: 1.4rem;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+.save-modal__io-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.save-modal__io-move {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.save-modal__io-move svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.save-modal__io-move:hover:not(:disabled) {
+  color: var(--color-text);
+  border-color: var(--color-text-muted);
+}
+
+.save-modal__io-move:disabled {
+  opacity: 0.35;
+  cursor: default;
 }

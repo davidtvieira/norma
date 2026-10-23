@@ -13,13 +13,6 @@ import { downloadTestCase, parseTestCaseFile } from '../../utils/testCaseSeriali
 import { formatCellValue } from '../../utils/sheet';
 import './ModelCard.css';
 
-/** Alphabetical, with embedded numbers compared numerically (so "Input 2" sorts before
- * "Input 10") — the model author's own input/output toggle order (inputOperationIds/
- * outputOperationIds) isn't a meaningful reading order for whoever is utilizing the model. */
-function sortByName(entries: ModelInputFieldPayload[]): ModelInputFieldPayload[] {
-  return [...entries].sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' }));
-}
-
 interface ModelCardProps {
   dataset: DatasetHandle;
   modelName: string;
@@ -210,13 +203,14 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs }: ModelC
   // model can be exported at all) outputOperationIds are legitimate, permanent states — a model
   // built with no operation eligible to be an input (e.g. only a sum, which has no literal
   // chainable field at all) is a fixed model with nothing dynamic for a caller to fill in.
-  const inputEntries = sortByName(inputs);
+  // Inputs and outputs keep the order the model's author gave them (see the save dialog).
+  const inputEntries = inputs;
   const hasAnyTestInputValue = inputEntries.some((entry) => {
     const source = getInputSource(fields[entry.id]);
     return source.type === 'literal' && source.value.trim() !== '';
   });
   // Outputs are only known once a run has returned them (each result carries its own name).
-  const outputEntries = sortByName((results ?? []).map((result) => ({ id: result.id, name: result.name ?? '', kind: '', value: '' })));
+  const outputEntries = (results ?? []).map((result) => ({ id: result.id, name: result.name ?? '', kind: '', value: '' }));
 
   const canToggleIo = inputEntries.length > 0;
   const inputExpanded = !canToggleIo || expandedSide === 'input';

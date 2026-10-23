@@ -384,20 +384,15 @@ function App() {
       : modelOutputIds.length === 0
         ? 'Defina pelo menos um output do modelo (botão "Output" numa operação) antes de exportar.'
         : null;
-  const inputLabels =
-    modelInputIds.length > 0
-      ? modelInputIds
-          .map((id) => modelInputOptions.find((option) => option.id === id)?.label)
-          .filter((label): label is string => Boolean(label))
-      : isModelInputRequired
-        ? null
-        : ['nenhum (modelo fixo)'];
-  const outputLabels =
-    modelOutputIds.length > 0
-      ? modelOutputIds
-          .map((id) => modelOutputOptions.find((option) => option.id === id)?.label)
-          .filter((label): label is string => Boolean(label))
-      : null;
+  // What the save dialog lists (and lets the author reorder): the designated inputs/outputs, in the
+  // order they will be exported and shown to whoever utilizes the model.
+  const inputItems = modelInputIds
+    .map((id) => ({ id, label: modelInputOptions.find((option) => option.id === id)?.label }))
+    .filter((item): item is { id: string; label: string } => Boolean(item.label));
+  const outputItems = modelOutputIds
+    .map((id) => ({ id, label: modelOutputOptions.find((option) => option.id === id)?.label }))
+    .filter((item): item is { id: string; label: string } => Boolean(item.label));
+  const inputEmptyText = isModelInputRequired ? 'por definir' : 'nenhum (modelo fixo)';
 
   // "Guardar teste" reads the model's designated inputs straight off modelEntries (already
   // mirrored up from OperationPanel via onEntriesChange) rather than needing OperationPanel to
@@ -882,8 +877,11 @@ function App() {
                     onNrmNameChange={setNrmName}
                     canExportModel={canExportModel}
                     exportHint={exportHint}
-                    inputLabels={inputLabels}
-                    outputLabels={outputLabels}
+                    inputItems={inputItems}
+                    outputItems={outputItems}
+                    inputEmptyText={inputEmptyText}
+                    onReorderInputs={setModelInputIds}
+                    onReorderOutputs={setModelOutputIds}
                     onSaveTestCase={saveTestCase}
                     onGoHome={goHome}
                   />

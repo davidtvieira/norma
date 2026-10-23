@@ -4,6 +4,12 @@ import './SaveModal.css';
 /** What "Guardar modelo" can export: the full .nrm bundle (model + dataset), just the model .json, or just the dataset's original spreadsheet. */
 export type ModelExportFormat = 'nrm' | 'json' | 'dataset';
 
+/** One designated input/output of the model, as listed (and reordered) in the dialog. */
+export interface IoItem {
+  id: string;
+  label: string;
+}
+
 interface SaveModalProps {
   open: boolean;
   onClose: () => void;
@@ -18,12 +24,16 @@ interface SaveModalProps {
    * App.tsx's isModelInputRequired); a model with none (e.g. built only from a sum) is a fixed
    * model with nothing dynamic for a caller to fill in, and never blocks on it. */
   exportHint: string | null;
-  /** Names of the model's designated input/output operations, one per line (see IoGroup) — a
-   * model can have several of each (App.tsx's modelInputIds/modelOutputIds) — null while not yet
-   * set. Read-only here: both are now picked directly on the operation's node (see OperationPanel's
-   * "Input"/"Output" toggles), not in this modal. */
-  inputLabels: string[] | null;
-  outputLabels: string[] | null;
+  /** The model's designated input/output operations, in the order they are exported and shown to
+   * whoever utilizes the model (App.tsx's modelInputIds/modelOutputIds) — a model can have several
+   * of each. Which operations they are is picked on the operation's node (see OperationPanel's
+   * "Input"/"Output" toggles); this dialog only lets the author put them in order. */
+  inputItems: IoItem[];
+  outputItems: IoItem[];
+  /** What the inputs list says while it is empty ("por definir", or "nenhum (modelo fixo)"). */
+  inputEmptyText: string;
+  onReorderInputs: (ids: string[]) => void;
+  onReorderOutputs: (ids: string[]) => void;
 }
 
 /**
@@ -33,7 +43,21 @@ interface SaveModalProps {
  * also enough to reopen it later via "Importar Modelo" without the dataset having to be
  * re-imported separately first.
  */
-export function SaveModal({ open, onClose, onExport, nrmName, onNrmNameChange, nrmNamePlaceholder, canExport, exportHint, inputLabels, outputLabels }: SaveModalProps) {
+export function SaveModal({
+  open,
+  onClose,
+  onExport,
+  nrmName,
+  onNrmNameChange,
+  nrmNamePlaceholder,
+  canExport,
+  exportHint,
+  inputItems,
+  outputItems,
+  inputEmptyText,
+  onReorderInputs,
+  onReorderOutputs,
+}: SaveModalProps) {
   if (!open) return null;
 
   return (
@@ -59,8 +83,8 @@ export function SaveModal({ open, onClose, onExport, nrmName, onNrmNameChange, n
         </label>
 
         <div className="save-modal__io">
-          <IoGroup label="Input" values={inputLabels} />
-          <IoGroup label="Output" values={outputLabels} />
+          <IoGroup label="Inputs" items={inputItems} emptyText={inputEmptyText} onReorder={onReorderInputs} />
+          <IoGroup label="Outputs" items={outputItems} emptyText="por definir" onReorder={onReorderOutputs} />
         </div>
 
         {exportHint && <p className="save-modal__hint">{exportHint}</p>}
@@ -148,23 +172,98 @@ function ExportButton({ disabled, onExport }: ExportButtonProps) {
 
 interface IoGroupProps {
   label: string;
-  values: string[] | null;
+  items: IoItem[];
+  emptyText: string;
+  onReorder: (ids: string[]) => void;
 }
 
-/** One "Input"/"Output" group — its label once, then every designated operation's name on its
- * own line below (rather than one long comma-joined line) so a model with several of either
- * stays readable instead of running together. */
-function IoGroup({ label, values }: IoGroupProps) {
+/** One "Inputs"/"Outputs" group: every designated operation on its own numbered line, in the
+ * order it will be exported and shown to whoever utilizes the model, with arrows to move it up or
+ * down and a shortcut to sort the whole group by name (numbers inside names compared as numbers,
+ * so "2." comes before "10."). */
+function IoGroup({ label, items, emptyText, onReorder }: IoGroupProps) {
+  // Moves the item at `index` to position `target` (clamped to the list), shifting the rest.
+  function moveTo(index: number, target: number) {
+    const clamped = Math.max(0, Math.min(items.length - 1, target));
+    if (clamped === index) return;
+    const ids = items.map((item) => item.id);
+    const [moved] = ids.splice(index, 1);
+    ids.splice(clamped, 0, moved);
+    onReorder(ids);
+  }
+
+  function sortByName() {
+    const sorted = [...items].sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' }));
+    onReorder(sorted.map((item) => item.id));
+  }
+
   return (
     <div className="save-modal__io-group">
-      <span className="save-modal__io-label">{label}</span>
-      {!values || values.length === 0 ? (
-        <p className="save-modal__io-item save-modal__io-item--muted">por definir</p>
+      <div className="save-modal__io-header">
+        <span className="save-modal__io-label">
+          {label}
+          {items.length > 0 && ` (${items.length})`}
+        </span>
+        {items.length > 1 && (
+          <button type="button" className="save-modal__io-sort" onClick={sortByName}>
+            Ordenar por nome
+          </button>
+        )}
+      </div>
+      {items.length === 0 ? (
+        <p className="save-modal__io-item save-modal__io-item--muted">{emptyText}</p>
       ) : (
-        values.map((value) => (
-          <p key={value} className="save-modal__io-item">
-            {value}
-          </p>
+        items.map((item, index) => (
+          <div key={item.id} className="save-modal__io-row">
+            <span className="save-modal__io-position">{index + 1}</span>
+            <p className="save-modal__io-item save-modal__io-name" title={item.label}>
+              {item.label}
+            </p>
+            <button
+              type="button"
+              className="save-modal__io-move"
+              onClick={() => moveTo(index, 0)}
+              disabled={index === 0}
+              aria-label={`Mover para o início: ${item.label}`}
+            >
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="m6 11 6-6 6 6M6 18l6-6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="save-modal__io-move"
+              onClick={() => moveTo(index, index - 1)}
+              disabled={index === 0}
+              aria-label={`Subir ${item.label}`}
+            >
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="m6 15 6-6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="save-modal__io-move"
+              onClick={() => moveTo(index, index + 1)}
+              disabled={index === items.length - 1}
+              aria-label={`Descer ${item.label}`}
+            >
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="save-modal__io-move"
+              onClick={() => moveTo(index, items.length - 1)}
+              disabled={index === items.length - 1}
+              aria-label={`Mover para o fim: ${item.label}`}
+            >
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="m6 6 6 6 6-6M6 13l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          </div>
         ))
       )}
     </div>
