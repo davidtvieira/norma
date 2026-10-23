@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { CellRange } from '../../types/cellRange';
 import type { DatasetImportResponse } from '../../types/dataset';
-import { literalSource, type ValueSource } from '../../types/valueSource';
+import { literalSource, referenceFromKey, referenceKey, type ValueSource } from '../../types/valueSource';
 import type { ReferenceOption } from './operationKind';
 import type { ResolvedInput } from '../../utils/resolveOperationInputs';
 
@@ -532,8 +532,8 @@ export function ValueSourceField({
     setIsPickerOpen(false);
   }
 
-  function pickReference(operationId: string) {
-    onChange({ type: 'reference', operationId });
+  function pickReference(key: string) {
+    onChange(referenceFromKey(key));
     setIsPickerOpen(false);
   }
 
@@ -617,7 +617,7 @@ export function ValueSourceField({
         <>
           <button type="button" className="operation-column-pill operation-column-pill--pickable" onClick={onRemove ?? reset}>
             <span className="operation-column-pill__value">
-              {referenceOptions.find((option) => option.operationId === source.operationId)?.label ?? '?'}
+              {referenceOptions.find((option) => option.operationId === referenceKey(source))?.label ?? '?'}
             </span>
           </button>
 

@@ -1,7 +1,7 @@
 import { inlineErrorMessage } from '../../../services/apiErrors';
 import { useEffect, useState } from 'react';
 import { selectValue } from '../../../services/datasetApi';
-import { literalSource, type ValueSource } from '../../../types/valueSource';
+import { literalSource, referenceFromKey, type ValueSource } from '../../../types/valueSource';
 import type { ResolvedInput } from '../../../utils/resolveOperationInputs';
 import { ValueSourceField, ValueSourcePickerModal } from '../fields';
 import type { OperationFields, OperationKind, ReferenceOption } from '../operationKind';
@@ -159,7 +159,7 @@ function SelectorFieldsEditor({
                         ? [current]
                         : operationIds.map((operationId, pickIndex) => ({
                             id: pickIndex === 0 ? current.id : nextRowId(),
-                            source: { type: 'reference' as const, operationId },
+                            source: referenceFromKey(operationId),
                           })),
                     ),
                   )
@@ -201,9 +201,9 @@ function SelectorFieldsEditor({
           onStartColumnPick={() => {}}
           initialTab="static"
           onPickStatic={(value) => addSources([literalSource(value)])}
-          onPickReference={(operationId) => addSources([{ type: 'reference', operationId }])}
+          onPickReference={(operationId) => addSources([referenceFromKey(operationId)])}
           multiple
-          onPickMany={(operationIds) => addSources(operationIds.map((operationId) => ({ type: 'reference' as const, operationId })))}
+          onPickMany={(operationIds) => addSources(operationIds.map((operationId) => referenceFromKey(operationId)))}
           onClose={() => setIsAddOpen(false)}
         />
       )}

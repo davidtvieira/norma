@@ -175,13 +175,43 @@ public class ModelExecutionService {
         Set<String> cyclicIds = findCyclicIds(buildReferenceGraph(operations));
         Map<String, ModelOperationResult> resolved = new HashMap<>();
         return outputOperationIds.stream()
-                .map(outputOperationId -> {
+                .flatMap(outputOperationId -> {
                     ModelOperationResult result = resolveOperation(outputOperationId, dataset, byId, cyclicIds, resolved);
-                    return iterating
-                            ? new ModelOperationResult(outputOperationId + ":" + iteration, result.success(), result.value(), result.error(), iterationName)
-                            : result.withName(nameOf(byId.get(outputOperationId)));
+                    if (iterating) {
+                        return java.util.stream.Stream.of(new ModelOperationResult(
+                                outputOperationId + ":" + iteration, result.success(), result.value(), result.error(), iterationName));
+                    }
+                    if (result.success() && result.value() instanceof List<?> outputs) {
+                        return expandOutputs(byId.get(outputOperationId), outputs, byId).stream();
+                    }
+                    return java.util.stream.Stream.of(result.withName(nameOf(byId.get(outputOperationId))));
                 })
                 .toList();
+    }
+
+    /**
+     * An operation with several outputs designated as a model output yields one result per output,
+     * in order (ids suffixed with the position), each named after the operation its input came from
+     * (the operation's own name plus the position when that has no name).
+     */
+    private List<ModelOperationResult> expandOutputs(ModelOperationInput operation, List<?> outputs, Map<String, ModelOperationInput> byId) {
+        List<?> sources = fieldsOf(operation).get("inputs") instanceof List<?> inputs ? inputs : List.of();
+        List<ModelOperationResult> results = new ArrayList<>();
+        for (int index = 0; index < outputs.size(); index++) {
+            String name = "";
+            if (index < sources.size() && sources.get(index) instanceof Map<?, ?> source) {
+                if ("reference".equals(source.get("type")) && byId.get(source.get("operationId")) != null) {
+                    name = nameOf(byId.get(source.get("operationId")));
+                } else if (source.get("value") != null) {
+                    name = String.valueOf(source.get("value")).trim();
+                }
+            }
+            if (name.isBlank()) {
+                name = nameOf(operation) + " " + (index + 1);
+            }
+            results.add(new ModelOperationResult(operation.id() + ":" + index, true, outputs.get(index), null, name));
+        }
+        return results;
     }
 
     /**
@@ -377,7 +407,7 @@ public class ModelExecutionService {
                 case "counter" -> computeCounter(operation, dataset, byId, cyclicIds, resolved);
                 case "node" -> new ModelOperationResult(id, true, inputValue, null);
                 case "find" -> computeFind(operation, dataset, inputValue);
-                case "translator" -> computeTranslator(operation, inputValue);
+                case "translator" -> computeTranslator(operation, inputValue, dataset, byId, cyclicIds, resolved);
                 case "selector" -> computeSelector(operation, dataset, byId, cyclicIds, resolved);
                 case ITERATOR_KIND -> computeIterator(operation);
                 default -> new ModelOperationResult(id, false, null, "Unknown operation type: " + operation.kind());
@@ -438,7 +468,32 @@ public class ModelExecutionService {
         if (!referenced.success() || referenced.value() == null) {
             throw new IllegalArgumentException("The referenced operation did not produce a result.");
         }
-        return String.valueOf(referenced.value());
+        return pickOutput(referenced.value(), source.get("outputIndex"));
+    }
+
+    /**
+     * An operation with several outputs (a translator with several inputs) has a list as its value;
+     * a reference to it must say which output it takes ({@code outputIndex}, from 0). A list with a
+     * single output, or a plain value (the one output of every other operation), is used as is.
+     */
+    private String pickOutput(Object value, Object outputIndex) {
+        Integer index = outputIndex instanceof Number number ? number.intValue() : null;
+        if (value instanceof List<?> list) {
+            if (index == null && list.size() == 1) {
+                index = 0;
+            }
+            if (index == null) {
+                throw new IllegalArgumentException("The referenced operation has several outputs: one must be chosen.");
+            }
+            if (index < 0 || index >= list.size() || list.get(index) == null) {
+                throw new IllegalArgumentException("The referenced operation has no output " + (index + 1) + ".");
+            }
+            return String.valueOf(list.get(index));
+        }
+        if (index != null && index != 0) {
+            throw new IllegalArgumentException("The referenced operation has no output " + (index + 1) + ".");
+        }
+        return String.valueOf(value);
     }
 
     /**
@@ -601,8 +656,30 @@ public class ModelExecutionService {
      * operation — caught by computeOperation's own IllegalArgumentException handling, same as
      * every other kind's validation failures.
      */
-    private ModelOperationResult computeTranslator(ModelOperationInput operation, String input) {
+    private ModelOperationResult computeTranslator(
+            ModelOperationInput operation,
+            String input,
+            DatasetImportResponse dataset,
+            Map<String, ModelOperationInput> byId,
+            Set<String> cyclicIds,
+            Map<String, ModelOperationResult> resolved) {
         List<TranslatorRule> rules = OperationSupport.validateTranslatorRules(extractRules(fieldsOf(operation)));
+        // A translator made with several inputs translates each with the same rules, one output
+        // per input (a list, or just the value when there is only one); an older one has a single "input".
+        if (fieldsOf(operation).get("inputs") instanceof List<?> inputs) {
+            if (inputs.isEmpty()) {
+                throw new IllegalArgumentException("The translator has no inputs.");
+            }
+            List<String> translated = new ArrayList<>();
+            for (Object rawSource : inputs) {
+                if (!(rawSource instanceof Map<?, ?> source)) {
+                    throw new IllegalArgumentException("One of the translator inputs is malformed.");
+                }
+                String value = resolveValueSource(asStringKeyedMap(source), dataset, byId, cyclicIds, resolved);
+                translated.add(OperationSupport.translate(rules, value.trim()));
+            }
+            return new ModelOperationResult(operation.id(), true, translated.size() == 1 ? translated.get(0) : translated, null);
+        }
         String normalizedInput = input == null ? "" : input.trim();
         return new ModelOperationResult(operation.id(), true, OperationSupport.translate(rules, normalizedInput), null);
     }

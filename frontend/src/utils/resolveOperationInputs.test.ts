@@ -234,4 +234,27 @@ describe('selector-like fields (a single chainable index plus a list of inputs)'
     expect(resolved['op-loop'].every((input) => input.status === 'cycle')).toBe(true);
     expect(getDependencyChain('op-sel', entries)).toEqual(new Set(['op-sel', 'op-i']));
   });
+
+  it('resolves a reference to one specific output of an operation with several', () => {
+    const entries = [
+      entry('op-t', { inputs: [literalSource('3'), literalSource('2')], rules: [] }),
+      entry('op-sum', { inputs: [{ type: 'reference', operationId: 'op-t', outputIndex: 1 }, { type: 'reference', operationId: 'op-t', outputIndex: 0 }] }),
+    ];
+
+    const resolved = resolveOperationInputs(entries, { 'op-t#0': '1', 'op-t#1': '0' });
+
+    expect(resolved['op-sum']).toEqual([
+      { status: 'ready', value: '0' },
+      { status: 'ready', value: '1' },
+    ]);
+  });
+
+  it('keeps an output reference pending until that output has a result', () => {
+    const entries = [
+      entry('op-t', { inputs: [literalSource('3')], rules: [] }),
+      entry('op-n', { input: { type: 'reference', operationId: 'op-t', outputIndex: 0 } }),
+    ];
+
+    expect(resolveOperationInputs(entries, {})['op-n']).toEqual([{ status: 'pending' }]);
+  });
 });

@@ -6,6 +6,8 @@ import type { ResolvedInput } from '../../utils/resolveOperationInputs';
 
 /** An other confirmed operation the "input" field can point at instead of a typed value. */
 export interface ReferenceOption {
+  /** The reference's picker id: the operation id, or "operationId#output" for one of the several
+   * outputs of an operation (see referenceFromKey in types/valueSource.ts). */
   operationId: string;
   label: string;
 }
@@ -70,6 +72,9 @@ export interface OperationBodyContext {
    * `failed` marks a null that is an error (the API rejected it, a broken reference, ...) rather
    * than just "no result yet" — the card turns red while it's set, until the next report. */
   onResultChange: (value: string | null, failed?: boolean) => void;
+  /** For a kind with several outputs: reports all of them, by position (replacing the previous
+   * ones); null marks an output with no result. */
+  onOutputsChange: (values: (string | null)[]) => void;
   /**
    * Incremented by "Testar modelo" (see OperationPanel) — the one thing that should make a kind's
    * result component actually call its endpoint. Configuring the operation further (typing a
@@ -110,6 +115,10 @@ export interface OperationKind {
    * chainable input (e.g. sum, whose range is picked once and baked into the model).
    */
   renderInputEditor?: (ctx: OperationInputEditorContext) => ReactNode;
+  /** For a kind with several outputs: one label per output, in order (null or a single label when
+   * it has just one). Lets other operations reference each output on its own. `labelOf` names an
+   * operation by id. */
+  getOutputLabels?: (fields: OperationFields, labelOf: (operationId: string) => string) => string[] | null;
   /** Whole-column tints this operation's fields currently point at. */
   getColumnHighlights: (fields: OperationFields) => ColumnHighlight[];
   /** Rectangular range tints this operation's fields currently point at. */

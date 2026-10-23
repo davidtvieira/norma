@@ -7,7 +7,7 @@ import type { ColumnPickField, ColumnPickState, RangePickState } from '../../typ
 import type { ColumnHighlight, OperationHighlight, RangeHighlight } from '../../types/highlight';
 import { useOperationTypes } from '../../hooks/useOperationTypes';
 import { getDependencyChain, getDependents, resolveOperationInputs } from '../../utils/resolveOperationInputs';
-import { getInputSource, getInputSources, literalSource, remapValueSourceReferences } from '../../types/valueSource';
+import { getInputSource, getInputSources, hasSingleInputField, literalSource, outputResultKey, remapValueSourceReferences } from '../../types/valueSource';
 import type { SerializableEntry } from '../../utils/modelSerialization';
 import { parseTestCaseFile } from '../../utils/testCaseSerialization';
 import type { OperationFields, ReferenceOption } from './operationKind';
@@ -657,7 +657,7 @@ function edgePath({ from, to }: Edge): string {
  * runModelTest's own emptyInputNames warning and the per-card/master run triggers below, which
  * both block on the same "nothing typed here yet" condition rather than reimplementing it. */
 function hasEmptyInput(entry: OperationEntryState): boolean {
-  if (!KINDS_BY_ID[entry.kindId].renderInputEditor) return false;
+  if (!KINDS_BY_ID[entry.kindId].renderInputEditor || !hasSingleInputField(entry.fields)) return false;
   const source = getInputSource(entry.fields);
   return source.type === 'literal' && source.value.trim() === '';
 }
@@ -1266,9 +1266,9 @@ export function OperationPanel({
       return rest;
     });
     setResults((current) => {
-      if (!(id in current)) return current;
-      const { [id]: _discarded, ...rest } = current;
-      return rest;
+      const prefix = `${id}#`;
+      if (!(id in current) && !Object.keys(current).some((key) => key.startsWith(prefix))) return current;
+      return Object.fromEntries(Object.entries(current).filter(([key]) => key !== id && !key.startsWith(prefix)));
     });
     setModalEntryId((current) => (current === id ? null : current));
     // Its nodeRefs entry (owned by useCanvasViewport) is left in place rather than deleted here —
@@ -1414,7 +1414,17 @@ export function OperationPanel({
     const dependents = getDependents(entryId, entries);
     return entries
       .filter((entry) => entry.confirmed && entry.id !== entryId && !dependents.has(entry.id))
-      .map((entry) => ({ operationId: entry.id, label: labelForEntry(entry.id) }));
+      .flatMap((entry) => {
+        // An operation with several outputs is referenced per output ("Tradutor › Pergunta 2").
+        const outputLabels = KINDS_BY_ID[entry.kindId].getOutputLabels?.(entry.fields, labelForEntry) ?? null;
+        if (outputLabels && outputLabels.length > 1) {
+          return outputLabels.map((outputLabel, index) => ({
+            operationId: outputResultKey(entry.id, index),
+            label: `${labelForEntry(entry.id)} › ${outputLabel}`,
+          }));
+        }
+        return [{ operationId: entry.id, label: labelForEntry(entry.id) }];
+      });
   }
 
   function editEntry(id: string) {
@@ -1540,9 +1550,9 @@ export function OperationPanel({
     setResults((current) => {
       const next = { ...current };
       let changed = false;
-      for (const id of ids) {
-        if (id in next) {
-          delete next[id];
+      for (const key of Object.keys(next)) {
+        if (ids.has(key) || ids.has(key.split('#')[0])) {
+          delete next[key];
           changed = true;
         }
       }
@@ -1818,7 +1828,8 @@ export function OperationPanel({
 
   function renderConfirmedCard(entry: OperationEntryState) {
     const kind = KINDS_BY_ID[entry.kindId];
-    const isModelInputEligible = Boolean(kind.renderInputEditor) && getInputSource(entry.fields).type === 'literal';
+    const isModelInputEligible =
+      Boolean(kind.renderInputEditor) && hasSingleInputField(entry.fields) && getInputSource(entry.fields).type === 'literal';
 
     return (
       <ConfirmedOperationCard
@@ -1897,6 +1908,20 @@ export function OperationPanel({
           referenceOptions: referenceOptionsFor(entry.id),
           iteratorSheet,
           sheetNames: dataset.sheets.map((sheet) => sheet.sheetName),
+          onOutputsChange: (values) => {
+            setResults((current) => {
+              const prefix = `${entry.id}#`;
+              const next: Record<string, string | null> = {};
+              for (const [key, value] of Object.entries(current)) {
+                if (!key.startsWith(prefix)) next[key] = value;
+              }
+              values.forEach((value, index) => {
+                next[outputResultKey(entry.id, index)] = value;
+              });
+              return next;
+            });
+            if (values.some((value) => value !== null)) flashEdgesFrom(entry.id);
+          },
           onResultChange: (value, failed = false) => {
             setResults((current) => ({ ...current, [entry.id]: value }));
             setEntryFailed(entry.id, failed);

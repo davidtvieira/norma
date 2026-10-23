@@ -697,6 +697,75 @@ class ModelExecutionServiceTest {
         assertThat(result.value()).isEqualTo("Bruno");
     }
 
+    private ModelOperationInput node(String id, String value) {
+        return new ModelOperationInput(id, "node", Map.of("input", literalInput(value)), id);
+    }
+
+    private ModelOperationInput translatorOf(String id, List<Map<String, Object>> inputs) {
+        return new ModelOperationInput(id, "translator", Map.of(
+                "inputs", inputs,
+                "rules", List.of(
+                        Map.of("from", "0", "to", "0"), Map.of("from", "1", "to", "0"),
+                        Map.of("from", "2", "to", "0"), Map.of("from", "3", "to", "1"))), id);
+    }
+
+    private Map<String, Object> outputRef(String id, int index) {
+        return Map.of("type", "reference", "operationId", id, "outputIndex", index);
+    }
+
+    @Test
+    void aTranslatorWithSeveralInputsTranslatesEachAndACounterCanSumItsOutputs() {
+        String datasetId = twoSheetDataset();
+        List<ModelOperationInput> operations = List.of(
+                node("a", "3"), node("b", "2"), node("c", "3"),
+                translatorOf("t", List.of(referenceInput("a"), referenceInput("b"), referenceInput("c"))),
+                new ModelOperationInput("sum", "counter", Map.of("inputs", List.of(
+                        outputRef("t", 0), outputRef("t", 1), outputRef("t", 2))), "sum"));
+
+        ModelOperationResult result = registerAndRun(datasetId, operations, null, "sum", null);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.value()).isEqualTo(2L);
+    }
+
+    @Test
+    void aTranslatorWithSeveralInputsAsAModelOutputYieldsOneNamedResultPerInputInOrder() {
+        String datasetId = twoSheetDataset();
+        List<ModelOperationInput> operations = List.of(
+                node("a", "3"), node("b", "2"), node("c", "1"),
+                translatorOf("t", List.of(referenceInput("a"), referenceInput("b"), referenceInput("c"))));
+
+        List<ModelOperationResult> results = registerAndRunMulti(datasetId, operations, null, List.of("t"), null);
+
+        assertThat(results).extracting(ModelOperationResult::value).containsExactly("1", "0", "0");
+        assertThat(results).extracting(ModelOperationResult::name).containsExactly("a", "b", "c");
+    }
+
+    @Test
+    void referencingAMultiOutputTranslatorWithoutChoosingAnOutputFails() {
+        String datasetId = twoSheetDataset();
+        List<ModelOperationInput> operations = List.of(
+                node("a", "3"), node("b", "2"),
+                translatorOf("t", List.of(referenceInput("a"), referenceInput("b"))),
+                new ModelOperationInput("n", "node", Map.of("input", referenceInput("t")), "n"));
+
+        ModelOperationResult result = registerAndRun(datasetId, operations, null, "n", null);
+
+        assertThat(result.success()).isFalse();
+    }
+
+    @Test
+    void aTranslatorWithASingleLegacyInputStillWorks() {
+        String datasetId = twoSheetDataset();
+        ModelOperationInput legacy = new ModelOperationInput("t", "translator", Map.of(
+                "input", literalInput("3"),
+                "rules", List.of(Map.of("from", "3", "to", "1"))), "t");
+
+        ModelOperationResult result = registerAndRun(datasetId, List.of(legacy), null, "t", null);
+
+        assertThat(result.value()).isEqualTo("1");
+    }
+
     @Test
     void aFindOperationWithNoMatchInItsRangeReportsANullResultWithoutError() {
         String datasetId = twoSheetDataset();

@@ -14,7 +14,7 @@ import { preloadDatasetSheets, useDatasetSheets } from './hooks/useDatasetSheets
 import type { ColumnPickField, ColumnPickState, RangePickState } from './types/columnPick';
 import type { ColumnHighlight, OperationHighlight, RangeHighlight } from './types/highlight';
 import type { CellRange } from './types/cellRange';
-import { getInputSource } from './types/valueSource';
+import { getInputSource, hasSingleInputField } from './types/valueSource';
 import { buildModelExport, parseModelImport, type SerializableEntry } from './utils/modelSerialization';
 import { buildNrmFile, readModelFile } from './utils/nrmSerialization';
 import { deleteSessionCacheEntry, listSessionCacheEntries, saveSessionCacheEntry, type SessionCacheEntry } from './utils/sessionCache';
@@ -360,7 +360,7 @@ function App() {
   // operation, can be the model's input — otherwise there'd be nothing literal left for a caller
   // of the model to fill in. Any confirmed operation's result can be the output.
   const modelInputOptions = modelEntries
-    .filter((entry) => entry.confirmed && KINDS_BY_ID[entry.kindId].renderInputEditor && getInputSource(entry.fields).type === 'literal')
+    .filter((entry) => entry.confirmed && KINDS_BY_ID[entry.kindId].renderInputEditor && hasSingleInputField(entry.fields) && getInputSource(entry.fields).type === 'literal')
     .map((entry) => ({ id: entry.id, label: entry.name || 'Operação sem nome' }));
   const modelOutputOptions = modelEntries
     .filter((entry) => entry.confirmed)

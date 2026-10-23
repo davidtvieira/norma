@@ -4,7 +4,39 @@
  * frontend-only stand-in for what will eventually be a pipeline the backend understands —
  * for now the chain is resolved entirely client-side (see utils/resolveOperationInputs.ts).
  */
-export type ValueSource = { type: 'literal'; value: string } | { type: 'reference'; operationId: string };
+export type ValueSource =
+  | { type: 'literal'; value: string }
+  | { type: 'reference'; operationId: string; outputIndex?: number };
+
+/**
+ * An operation with several outputs (a translator with several inputs) is referenced per output:
+ * `outputIndex` says which one (0 = the first). Without it the reference points at the operation's
+ * one and only result, as for every operation with a single output.
+ */
+export function referenceFromKey(key: string): ValueSource {
+  const separator = key.lastIndexOf('#');
+  if (separator === -1) return { type: 'reference', operationId: key };
+  return { type: 'reference', operationId: key.slice(0, separator), outputIndex: Number(key.slice(separator + 1)) };
+}
+
+/** The reference picker's id for a reference: the operation id, plus "#output" for a specific output. */
+export function referenceKey(source: { operationId: string; outputIndex?: number }): string {
+  return source.outputIndex === undefined ? source.operationId : `${source.operationId}#${source.outputIndex}`;
+}
+
+/** Where a specific output's result is kept (see OperationPanel's results). */
+export function outputResultKey(operationId: string, outputIndex: number): string {
+  return `${operationId}#${outputIndex}`;
+}
+
+/**
+ * Whether the operation holds its one chainable value in a single `input` field (so it can be a
+ * model's designated input) rather than in an `inputs` list. A translator with several inputs
+ * uses the list.
+ */
+export function hasSingleInputField(fields: object): boolean {
+  return !Array.isArray((fields as { inputs?: unknown }).inputs);
+}
 
 export function literalSource(value: string): ValueSource {
   return { type: 'literal', value };
@@ -82,7 +114,7 @@ export function getInputSources(fields: object): ValueSource[] {
 export function remapValueSourceReferences<T extends object>(fields: T, idMap: Record<string, string>): T {
   function remapOne(value: unknown): unknown {
     if (isValueSource(value) && value.type === 'reference' && value.operationId in idMap) {
-      return { type: 'reference', operationId: idMap[value.operationId] };
+      return { ...value, operationId: idMap[value.operationId] };
     }
     return value;
   }

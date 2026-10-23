@@ -1,7 +1,7 @@
 import { inlineErrorMessage } from '../../../services/apiErrors';
 import { useEffect, useState } from 'react';
 import { counterValues } from '../../../services/datasetApi';
-import type { ValueSource } from '../../../types/valueSource';
+import { referenceFromKey, type ValueSource } from '../../../types/valueSource';
 import type { ResolvedInput } from '../../../utils/resolveOperationInputs';
 import { ValueSourceField, ValueSourcePickerModal } from '../fields';
 import type { OperationFields, OperationKind, ReferenceOption } from '../operationKind';
@@ -109,7 +109,7 @@ function CounterInputs({ inputs, onChange, referenceOptions, resolvedInputs, tes
   function addReferences(operationIds: string[]) {
     commit([
       ...rows,
-      ...operationIds.map((operationId) => ({ id: nextRowId(), source: { type: 'reference' as const, operationId } })),
+      ...operationIds.map((operationId) => ({ id: nextRowId(), source: referenceFromKey(operationId) })),
     ]);
     setIsAddOpen(false);
   }
@@ -149,7 +149,7 @@ function CounterInputs({ inputs, onChange, referenceOptions, resolvedInputs, tes
                         ? [current]
                         : operationIds.map((operationId, pickIndex) => ({
                             id: pickIndex === 0 ? current.id : nextRowId(),
-                            source: { type: 'reference' as const, operationId },
+                            source: referenceFromKey(operationId),
                           })),
                     ),
                   )

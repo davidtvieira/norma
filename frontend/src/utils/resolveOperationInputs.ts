@@ -1,4 +1,4 @@
-import { getInputSources, type ValueSource } from '../types/valueSource';
+import { getInputSources, outputResultKey, type ValueSource } from '../types/valueSource';
 
 /**
  * Any operation entry, reduced to what dependency resolution needs — kept separate from
@@ -122,7 +122,7 @@ function resolveSource(
     return { status: 'missing' };
   }
 
-  const value = results[source.operationId];
+  const value = results[source.outputIndex === undefined ? source.operationId : outputResultKey(source.operationId, source.outputIndex)];
   return value == null ? { status: 'pending' } : { status: 'ready', value };
 }
 
