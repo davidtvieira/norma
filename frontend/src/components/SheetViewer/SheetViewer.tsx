@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CellRange } from '../../types/cellRange';
 import type { DatasetImportResponse } from '../../types/dataset';
 import type { ColumnHighlight, OperationHighlight, RangeHighlight } from '../../types/highlight';
@@ -49,6 +49,9 @@ interface SheetViewerProps {
   cellHighlight?: OperationHighlight | null;
   /** Individual cells to mark (e.g. everything a model run read), independent of cellHighlight. */
   matchedCells?: MatchedCell[];
+  /** Whether the viewer is on screen (its panel is open). Each time it becomes so, the viewer jumps to
+   * the sheet the highlights are on and scrolls the first needed column (and its row) into view. */
+  active?: boolean;
 }
 
 /**
@@ -74,11 +77,64 @@ export function SheetViewer({
   rangeHighlights = [],
   cellHighlight = null,
   matchedCells = [],
+  active = false,
 }: SheetViewerProps) {
   const activeSheet = dataset.sheets[activeSheetIndex];
   const [hoveredColumn, setHoveredColumn] = useState<number | null>(null);
   const [dragAnchor, setDragAnchor] = useState<CellPosition | null>(null);
   const [dragFocus, setDragFocus] = useState<CellPosition | null>(null);
+
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  // Where to scroll to once the sheet it is on is the one displayed.
+  const [focusTarget, setFocusTarget] = useState<{ sheetIndex: number; column: number; row: number | null } | null>(null);
+  const hasFocusedRef = useRef(false);
+
+  // Once per opening: the first thing highlighted decides which sheet to show and what to bring into view
+  // (the highlights may arrive a moment after the panel opens, so this waits for the first one).
+  useEffect(() => {
+    if (!active) {
+      hasFocusedRef.current = false;
+      return;
+    }
+    if (hasFocusedRef.current) return;
+    const column = columnHighlights[0];
+    const range = rangeHighlights[0];
+    const cell = matchedCells[0];
+    const target = column
+      ? { sheetIndex: column.sheetIndex, column: column.column, row: null }
+      : range
+        ? { sheetIndex: range.sheetIndex, column: range.startColumn, row: range.startRow }
+        : cell
+          ? { sheetIndex: cell.sheetIndex, column: cell.column, row: cell.row }
+          : cellHighlight
+            ? {
+                sheetIndex: cellHighlight.searchSheetIndex ?? cellHighlight.resultSheetIndex,
+                column: cellHighlight.searchColumn ?? cellHighlight.resultColumn,
+                row: cellHighlight.rowIndex,
+              }
+            : null;
+    if (!target) return;
+    hasFocusedRef.current = true;
+    setFocusTarget(target);
+    if (target.sheetIndex !== activeSheetIndex) onActiveSheetIndexChange(target.sheetIndex);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, columnHighlights, rangeHighlights, matchedCells, cellHighlight]);
+
+  useLayoutEffect(() => {
+    const wrapper = wrapperRef.current;
+    if (!focusTarget || focusTarget.sheetIndex !== activeSheetIndex || !wrapper) return;
+    const header = wrapper.querySelector(`th[data-column="${focusTarget.column}"]`);
+    const row = focusTarget.row !== null ? wrapper.querySelector(`tr[data-row="${focusTarget.row}"]`) : null;
+    // Offsets are measured against the scroll box itself, so the panel sliding in doesn't matter. The
+    // column goes right after the row numbers, at the left of the view — the browser stops short of
+    // that on its own when the column is too close to the end of the sheet to get there.
+    const box = wrapper.getBoundingClientRect();
+    const rowNumbersWidth = wrapper.querySelector('th.sheet-viewer__row-index-header')?.getBoundingClientRect().width ?? 0;
+    const left = header ? wrapper.scrollLeft + header.getBoundingClientRect().left - box.left - rowNumbersWidth : wrapper.scrollLeft;
+    const top = row ? wrapper.scrollTop + row.getBoundingClientRect().top - box.top - box.height / 3 : wrapper.scrollTop;
+    wrapper.scrollTo({ left: Math.max(0, left), top: Math.max(0, top), behavior: 'smooth' });
+    setFocusTarget(null);
+  }, [focusTarget, activeSheetIndex]);
 
   const columnCount = useMemo(() => getColumnCount(activeSheet), [activeSheet]);
 
@@ -230,7 +286,7 @@ export function SheetViewer({
         </div>
       )}
 
-      <div className="sheet-viewer__table-wrapper">
+      <div className="sheet-viewer__table-wrapper" ref={wrapperRef}>
         <table className="sheet-viewer__table">
           <thead>
             <tr>
@@ -255,6 +311,7 @@ export function SheetViewer({
                 return (
                   <th
                     key={columnIndex}
+                    data-column={columnIndex}
                     className={headerClassNames}
                     onClick={columnPicker ? () => onColumnHeaderClick?.(columnIndex) : undefined}
                     onMouseDown={
@@ -283,7 +340,7 @@ export function SheetViewer({
           </thead>
           <tbody>
             {activeSheet.rows.map((row) => (
-              <tr key={row.rowIndex}>
+              <tr key={row.rowIndex} data-row={row.rowIndex}>
                 <th className="sheet-viewer__row-index">{row.rowIndex}</th>
                 {columnIndexes.map((columnIndex) => {
                   const columnHighlightRole = columnHighlightRoles.get(columnIndex);

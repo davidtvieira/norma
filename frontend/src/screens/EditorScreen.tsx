@@ -4,6 +4,7 @@ import { BackButton } from '../components/BackButton/BackButton';
 import { AppFooter } from '../components/AppFooter/AppFooter';
 import { OperationPanel } from '../components/OperationPanel/OperationPanel';
 import { SaveModal, type IoItem, type ModelExportFormat } from '../components/SaveModal/SaveModal';
+import { SheetPanel } from '../components/SheetPanel/SheetPanel';
 import { SheetViewer } from '../components/SheetViewer/SheetViewer';
 import { ThemeToggle } from '../components/ThemeToggle/ThemeToggle';
 import type { DatasetImportResponse } from '../types/dataset';
@@ -181,34 +182,22 @@ export function EditorScreen({
 
       <AppFooter onGoHome={onGoHome} />
 
-      <div
-        className={isSheetPanelOpen ? 'sheet-panel__backdrop sheet-panel__backdrop--visible' : 'sheet-panel__backdrop'}
-        onClick={onCloseSheetPanel}
-        aria-hidden="true"
-      />
-      <aside className={isSheetPanelOpen ? 'sheet-panel sheet-panel--open' : 'sheet-panel'} aria-hidden={!isSheetPanelOpen}>
-        <div className="sheet-panel__header">
-          <span className="sheet-panel__title">{dataset.filename}</span>
-          <button type="button" className="sheet-panel__close" onClick={onCloseSheetPanel} aria-label="Fechar">
-            ×
-          </button>
-        </div>
-        <div className="sheet-panel__body">
-          <SheetViewer
-            dataset={dataset}
-            activeSheetIndex={columnPick ? columnPick.sheetIndex : rangePick ? rangePick.sheetIndex : activeSheetIndex}
-            onActiveSheetIndexChange={onActiveSheetIndexChange}
-            tabsDisabled={columnPick !== null || rangePick !== null}
-            columnPicker={columnPick ? { selectedColumn: columnPick.column } : null}
-            onColumnHeaderClick={onPickColumn}
-            rangePicker={rangePick !== null}
-            onRangeSelected={onPickRange}
-            columnHighlights={columnHighlights}
-            rangeHighlights={rangeHighlights}
-            cellHighlight={cellHighlight}
-          />
-        </div>
-      </aside>
+      <SheetPanel title={dataset.filename} open={isSheetPanelOpen} onClose={onCloseSheetPanel}>
+        <SheetViewer
+          dataset={dataset}
+          activeSheetIndex={columnPick ? columnPick.sheetIndex : rangePick ? rangePick.sheetIndex : activeSheetIndex}
+          onActiveSheetIndexChange={onActiveSheetIndexChange}
+          tabsDisabled={columnPick !== null || rangePick !== null}
+          columnPicker={columnPick ? { selectedColumn: columnPick.column } : null}
+          onColumnHeaderClick={onPickColumn}
+          rangePicker={rangePick !== null}
+          onRangeSelected={onPickRange}
+          columnHighlights={columnHighlights}
+          rangeHighlights={rangeHighlights}
+          cellHighlight={cellHighlight}
+          active={isSheetPanelOpen}
+        />
+      </SheetPanel>
 
       <SaveModal
         open={isSaveModalOpen}

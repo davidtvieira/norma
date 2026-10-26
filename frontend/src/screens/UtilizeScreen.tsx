@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { SpreadsheetIcon } from '../components/ButtonIcons/ButtonIcons';
+import { SheetPanel } from '../components/SheetPanel/SheetPanel';
 import { SheetViewer, type MatchedCell } from '../components/SheetViewer/SheetViewer';
 import { useDatasetSheets } from '../hooks/useDatasetSheets';
 import { BackButton } from '../components/BackButton/BackButton';
@@ -74,11 +75,13 @@ function DataViewer({
   activeSheetIndex,
   onActiveSheetIndexChange,
   highlights,
+  active,
 }: {
   dataset: DatasetHandle;
   activeSheetIndex: number;
   onActiveSheetIndexChange: (index: number) => void;
   highlights: DataHighlights;
+  active: boolean;
 }) {
   const { dataset: sheets, error } = useDatasetSheets(dataset.datasetId, dataset.nrmId);
   if (error) return <p className="app__create-model-error">{error}</p>;
@@ -91,6 +94,7 @@ function DataViewer({
       columnHighlights={highlights.columns}
       rangeHighlights={highlights.ranges}
       matchedCells={highlights.cells}
+      active={active}
     />
   );
 }
@@ -154,27 +158,17 @@ export function UtilizeScreen({ dataset, utilizeModel, theme, onToggleTheme, onB
 
       <AppFooter onGoHome={onGoHome} />
 
-      <div
-        className={isSheetPanelOpen ? 'sheet-panel__backdrop sheet-panel__backdrop--visible' : 'sheet-panel__backdrop'}
-        onClick={() => setIsSheetPanelOpen(false)}
-        aria-hidden="true"
-      />
-      <aside className={isSheetPanelOpen ? 'sheet-panel sheet-panel--open' : 'sheet-panel'} aria-hidden={!isSheetPanelOpen}>
-        <div className="sheet-panel__header">
-          <span className="sheet-panel__title">{dataset.filename}</span>
-          <button type="button" className="sheet-panel__close" onClick={() => setIsSheetPanelOpen(false)} aria-label="Fechar">
-            ×
-          </button>
-        </div>
-        <div className="sheet-panel__body">{hasOpenedSheetPanel && (
-            <DataViewer
-              dataset={dataset}
-              activeSheetIndex={activeSheetIndex}
-              onActiveSheetIndexChange={setActiveSheetIndex}
-              highlights={highlights}
-            />
-          )}</div>
-      </aside>
+      <SheetPanel title={dataset.filename} open={isSheetPanelOpen} onClose={() => setIsSheetPanelOpen(false)}>
+        {hasOpenedSheetPanel && (
+          <DataViewer
+            dataset={dataset}
+            activeSheetIndex={activeSheetIndex}
+            onActiveSheetIndexChange={setActiveSheetIndex}
+            highlights={highlights}
+            active={isSheetPanelOpen}
+          />
+        )}
+      </SheetPanel>
     </div>
   );
 }
