@@ -1,9 +1,4 @@
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="frontend/public/favicon-dark.svg">
-    <img src="frontend/public/favicon.svg" alt="Norma" width="120">
-  </picture>
-</p>
+<img src="frontend/public/favicon.svg" alt="Norma" width="120">
 
 # Norma
 
