@@ -212,8 +212,8 @@ function App() {
     // .nrm's id, and the browser never parsed it — only its inputs are read. (If the backend
     // forgot it, e.g. after a restart, the .nrm has to be imported again.)
     if (model.nrmId) {
-      const { inputs } = await getNrmInputs(model.nrmId);
-      return { modelName: model.nrmName || model.modelName, modelId: '', nrmId: model.nrmId, inputs };
+      const { inputs, operations } = await getNrmInputs(model.nrmId);
+      return { modelName: model.nrmName || model.modelName, modelId: '', nrmId: model.nrmId, inputs, operations };
     }
 
     const { entries, inputOperationIds, outputOperationIds } = model;
@@ -221,7 +221,7 @@ function App() {
       throw new Error('Modelo sem operações carregadas.');
     }
     if (outputOperationIds.length === 0) {
-      return { modelName: model.nrmName || model.modelName, modelId: '', inputs: [] };
+      return { modelName: model.nrmName || model.modelName, modelId: '', inputs: [], operations: [] };
     }
 
     // Only a model without its own .nrm (a bare .json imported onto an .nrm's dataset) gets here with
@@ -231,14 +231,14 @@ function App() {
     const known = registeredModelRef.current;
     if (known && known.model === model && known.datasetId === datasetId) {
       try {
-        const { inputs } = await getModelInputs(known.modelId, { silent: true });
-        return { modelName: model.nrmName || model.modelName, modelId: known.modelId, datasetId, inputs };
+        const { inputs, operations } = await getModelInputs(known.modelId, { silent: true });
+        return { modelName: model.nrmName || model.modelName, modelId: known.modelId, datasetId, inputs, operations };
       } catch {
         registeredModelRef.current = null; // forgotten by the backend — register it again below
       }
     }
 
-    const { modelId, inputs } = await registerModel(
+    const { modelId, inputs, operations } = await registerModel(
       datasetId,
       model.modelName,
       entries.map((entry) => ({ id: entry.id, kind: entry.kindId, fields: entry.fields, name: entry.name })),
@@ -246,7 +246,7 @@ function App() {
       outputOperationIds,
     );
     registeredModelRef.current = { model, datasetId, modelId };
-    return { modelName: model.nrmName || model.modelName, modelId, datasetId, inputs };
+    return { modelName: model.nrmName || model.modelName, modelId, datasetId, inputs, operations };
   }
 
   // The actual replay, only run once the user has chosen to resume a given entry (or a page reload

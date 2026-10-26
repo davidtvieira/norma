@@ -8,7 +8,7 @@ import { ModelCard } from '../components/ModelCard/ModelCard';
 import { ThemeToggle } from '../components/ThemeToggle/ThemeToggle';
 import type { DatasetHandle } from '../types/dataset';
 import type { ColumnHighlight, RangeHighlight } from '../types/highlight';
-import type { DatasetTouchPayload, ModelInputFieldPayload } from '../types/modelCalculation';
+import type { DatasetTouchPayload, ModelInputFieldPayload, ModelOperationRefPayload } from '../types/modelCalculation';
 import type { Theme } from '../hooks/useTheme';
 
 export interface UtilizeModel {
@@ -23,6 +23,8 @@ export interface UtilizeModel {
    * .nrm's, see DatasetHandle) — what runs address it by. */
   datasetId?: string;
   inputs: ModelInputFieldPayload[];
+  /** Every operation of the model (id, name, kind), for picking which ones "Analisar modelo" shows. */
+  operations: ModelOperationRefPayload[];
 }
 
 interface UtilizeScreenProps {
@@ -145,6 +147,7 @@ export function UtilizeScreen({ dataset, utilizeModel, theme, onToggleTheme, onB
           modelId={utilizeModel.modelId}
           nrmId={utilizeModel.nrmId}
           inputs={utilizeModel.inputs}
+          operations={utilizeModel.operations}
           onViewOutputData={viewOutputData}
         />
       </div>

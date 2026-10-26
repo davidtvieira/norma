@@ -105,9 +105,10 @@
 
 .model-card__io {
   flex: 1;
+  /* Keeps the panels usable when the analysis section below pushes the page taller than the screen. */
+  min-height: 18rem;
   display: flex;
   gap: 1rem;
-  min-height: 0;
   margin-bottom: 1.5rem;
 }
 
@@ -440,77 +441,6 @@
   opacity: 0.6;
 }
 
-/* The eye button's own modal (see FullTextModal in ModelCard.tsx) — same overlay/dialog chrome as
-   SaveModal, just showing one field's full name + value instead of a form. No portal: unlike
-   OperationPanel's own card modal, nothing on this screen sits inside a transformed ancestor, so a
-   plain fixed overlay already covers the real viewport correctly. */
-.model-card__view-modal-overlay {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1.5rem;
-  background: rgba(0, 0, 0, 0.4);
-  z-index: 100;
-}
-
-.model-card__view-modal {
-  width: 100%;
-  max-width: 480px;
-  max-height: 70vh;
-  display: flex;
-  flex-direction: column;
-  padding: 1.5rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-md);
-}
-
-.model-card__view-modal-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.75rem;
-}
-
-.model-card__view-modal-title {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: var(--color-text);
-  word-break: break-word;
-}
-
-.model-card__view-modal-close {
-  flex-shrink: 0;
-  border: none;
-  background: transparent;
-  color: var(--color-text-muted);
-  font-size: 1.3rem;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0.1rem 0.3rem;
-}
-
-.model-card__view-modal-close:hover {
-  color: var(--color-text);
-}
-
-/* Wrapped and scrollable rather than clipped — the whole point of this modal is showing the value
-   the card itself had to truncate, however long that turns out to be. */
-.model-card__view-modal-value {
-  margin: 0;
-  overflow-y: auto;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-size: 0.9rem;
-  line-height: 1.5;
-  color: var(--color-text);
-}
-
 /* Switching between inputs and outputs mounts the other column, which slides in from the side its
    toggle option is on (inputs from the left, outputs from the right). */
 .model-card__io-column--from-left {
@@ -618,4 +548,298 @@
 .model-card__field-grid--list .model-card__field > :not(.model-card__field-name):not(.model-card__field-view) {
   flex: 1;
   min-width: 0;
+}
+
+/* With an analysis section under the buttons the panels keep a fixed share of the screen (45%, instead of
+   squeezing into whatever is left, which pushed the section off-screen on the inputs side) and the
+   page itself scrolls to the section. */
+.model-card--with-analysis .model-card__io {
+  flex: none;
+  height: max(14rem, 45vh);
+}
+
+.model-card--with-analysis {
+  flex: none;
+}
+
+/* "Analisar modelo": the picker's list and the results section under the buttons. */
+.model-card__analyze-bulk {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.model-card__analyze-list {
+  flex: 1;
+  min-height: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+}
+
+.model-card__analyze-option {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.25rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.model-card__analyze-option:hover {
+  background: var(--color-surface-hover);
+}
+
+.model-card__analyze-option-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+  color: var(--color-text);
+  word-break: break-word;
+}
+
+.model-card__analyze-option-kind {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.model-card__analysis {
+  flex: none;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.model-card__analysis-title {
+  margin: 0 0 0.75rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.model-card__analysis-empty {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.model-card__analysis-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.model-card__analysis-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 2fr);
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+.model-card__analysis-name {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.model-card__analysis-name:hover {
+  text-decoration: underline;
+}
+
+.model-card__analysis-kind {
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.model-card__analysis-kind:hover {
+  text-decoration: underline;
+}
+
+.model-card__analysis-value {
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--color-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.model-card__analysis-value--error {
+  color: var(--color-error);
+}
+
+/* The read-only configuration modal (see OperationConfigModal.tsx). */
+.model-card__config {
+  overflow-y: auto;
+  font-size: 0.9rem;
+  color: var(--color-text);
+}
+
+.model-card__config-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-hover);
+}
+
+.model-card__config-heading {
+  margin: 1rem 0 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.model-card__config-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  word-break: break-word;
+}
+
+.model-card__analysis-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.model-card__analysis-arrow {
+  width: 1.1rem;
+  height: 1.1rem;
+  transform: rotate(-90deg);
+  transition: transform 0.2s ease;
+}
+
+.model-card__analysis-arrow--open {
+  transform: rotate(0deg);
+}
+
+.model-card__analysis-count {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+/* Phone: the title and the grid / list options stay together on the first line; the inputs / outputs
+   switch drops to a line of its own under them. */
+@media (max-width: 640px) {
+  .model-card__heading {
+    flex-wrap: wrap;
+    align-items: center;
+    row-gap: 0.75rem;
+  }
+
+  .model-card__heading .app__page-title {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .model-card__layout-toggle {
+    order: 1;
+  }
+
+  .model-card__view-toggle {
+    order: 2;
+    flex-basis: 100%;
+  }
+}
+
+/* Every button of the row is the same height and type size, at any width (otherwise "Correr modelo"
+   comes out smaller than its neighbours whenever the row wraps). */
+.model-card__actions .model-card__actions-group > button {
+  box-sizing: border-box;
+  min-height: 3rem;
+  justify-content: center;
+  font-size: 0.9rem;
+}
+
+/* Phone and small tablet (where the row would wrap anyway): the buttons stack into two full-width rows — the test buttons
+   (sharing their row equally), then "Correr modelo" with its arrow across the whole width. */
+@media (max-width: 900px) {
+  .model-card__actions {
+    align-items: stretch;
+  }
+
+  .model-card__actions-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .model-card__actions-group {
+    flex-wrap: nowrap;
+    gap: 0.75rem;
+  }
+
+  .model-card__actions .model-card__actions-group > button {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0.6rem 0.75rem;
+    white-space: nowrap;
+  }
+
+  .model-card__actions .model-card__actions-group > .model-card__run-split {
+    flex: 1 1 0;
+  }
+
+  .model-card__run-split .split-button__main {
+    flex: 1;
+  }
+}
+
+/* The run button's size (the split itself is SplitButton). */
+.model-card__run-split .model-card__run-button {
+  box-sizing: border-box;
+  min-height: 3rem;
+  font-size: 0.9rem;
+}
+
+/* "Correr modelo" while operations are picked in "Analisar modelo": slightly redder than the usual orange. */
+button.model-card__run-button.model-card__run-button--analysing {
+  border-color: var(--btn-analysis-bg);
+  background: var(--btn-analysis-bg);
+}
+
+button.model-card__run-button.model-card__run-button--analysing:hover:not(:disabled) {
+  border-color: var(--btn-analysis-bg-hover);
+  background: var(--btn-analysis-bg-hover);
+}
+
+.split-button button.split-button__arrow.model-card__run-button--analysing {
+  border-left-color: rgba(255, 255, 255, 0.45);
 }

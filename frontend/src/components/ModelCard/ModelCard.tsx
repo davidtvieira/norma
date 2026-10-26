@@ -1,16 +1,25 @@
-import { ClearIcon, LoadIcon, SaveIcon } from '../ButtonIcons/ButtonIcons';
+import { BoltIcon, ClearIcon, LoadIcon, SaveIcon } from '../ButtonIcons/ButtonIcons';
 import { LoadingOverlay } from '../LoadingOverlay/LoadingOverlay';
 import { inlineErrorMessage } from '../../services/apiErrors';
 import { useRef, useState } from 'react';
 import type { DatasetHandle } from '../../types/dataset';
 import type { OperationFields } from '../OperationPanel/operationKind';
 import { KINDS_BY_ID } from '../OperationPanel/kinds/registry';
+import { KIND_LABELS } from '../OperationPanel/kindLabels';
 import { resolveOperationInputs } from '../../utils/resolveOperationInputs';
 import { getInputSource, literalSource } from '../../types/valueSource';
 import { runModel, runNrm } from '../../services/datasetApi';
-import type { DatasetTouchPayload, ModelInputFieldPayload, ModelOperationResultPayload } from '../../types/modelCalculation';
+import type {
+  DatasetTouchPayload,
+  ModelInputFieldPayload,
+  ModelOperationRefPayload,
+  ModelOperationResultPayload,
+} from '../../types/modelCalculation';
 import { downloadTestCase, parseTestCaseFile } from '../../utils/testCaseSerialization';
 import { formatCellValue } from '../../utils/sheet';
+import { Modal } from '../Modal/Modal';
+import { SplitButton } from '../SplitButton/SplitButton';
+import { OperationConfigModal } from './OperationConfigModal';
 import './ModelCard.css';
 
 interface ModelCardProps {
@@ -25,6 +34,8 @@ interface ModelCardProps {
    * .../model/{modelId}/inputs. This screen never receives the model's operations or outputs
    * up front: the outputs (with their names) only arrive with a run's results. */
   inputs: ModelInputFieldPayload[];
+  /** Every operation of the model (id, name, kind) — what "Analisar modelo" lets the user pick from. */
+  operations: ModelOperationRefPayload[];
   /** The eye on an output: opens the dataset, highlighting what that output's chain read — or, with
    * null (not run yet, or it read nothing), the dataset as it is. */
   onViewOutputData?: (touches: DatasetTouchPayload[] | null) => void;
@@ -58,7 +69,7 @@ async function withMinimumDelay<T>(promise: Promise<T>, ms: number): Promise<T> 
  * one result per designated output. Only runs when "Correr modelo" is clicked, not on page load
  * and not on every keystroke in an input field.
  */
-export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, onViewOutputData }: ModelCardProps) {
+export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operations, onViewOutputData }: ModelCardProps) {
   const inputOperationIds = inputs.map((input) => input.id);
   const [fields, setFields] = useState<Record<string, OperationFields>>(() =>
     Object.fromEntries(inputs.map((input) => [input.id, { input: literalSource(input.value ?? '') }])),
@@ -67,11 +78,25 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, onViewOu
   // Which field's full (untruncated) name + value is currently shown in the view-full-text modal
   // (see EyeButton/FullTextModal below) — at most one at a time, same pattern as OperationPanel's
   // own modalEntryId. Null means the modal is closed.
-  const [viewFullText, setViewFullText] = useState<{ name: string; value: string } | null>(null);
+  const [viewFullText, setViewFullText] = useState<{
+    name: string;
+    value: string;
+  } | null>(null);
 
   // One result per designated output, in whatever order the run returned them (matched back up
   // to its own operation below by id, not position).
   const [results, setResults] = useState<ModelOperationResultPayload[] | null>(null);
+  // "Analisar modelo": the operations the user picked to also see (any in the model, not only its
+  // outputs). They are sent with every run, and what comes back is shown under the buttons.
+  const [watchIds, setWatchIds] = useState<string[]>([]);
+  const [isAnalyzeOpen, setIsAnalyzeOpen] = useState(false);
+  // Its own class (and so its own color) while any operation is picked for the analysis.
+  const runAnalysisClass = watchIds.length > 0 ? ' model-card__run-button--analysing' : '';
+  // The arrow beside the "Análise" title shows/hides its list.
+  const [isAnalysisExpanded, setIsAnalysisExpanded] = useState(false);
+  // The watched operation whose (read-only) configuration is open.
+  const [configOperation, setConfigOperation] = useState<ModelOperationRefPayload | null>(null);
+  const [watched, setWatched] = useState<ModelOperationResultPayload[]>([]);
   const [runError, setRunError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   // Distinguishes "never run" (nothing to show yet) from "ran and genuinely found nothing" —
@@ -81,6 +106,7 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, onViewOu
   // clicks "Correr modelo" again before the first request finishes.
   const runIdRef = useRef(0);
   const testFileInputRef = useRef<HTMLInputElement>(null);
+  const analysisRef = useRef<HTMLElement>(null);
 
   // Which of the two IO panels currently takes up most of the screen — the other collapses to a
   // small clickable square. Starts on "input" (nothing to show on the output side yet), and
@@ -97,7 +123,11 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, onViewOu
   // reference chain status against here; the input field itself is always a literal (see the
   // eligibility rule in App.tsx), which resolveOperationInputs already reports as immediately
   // "ready" regardless of what's passed as `results`.
-  const liveEntries = inputs.map((input) => ({ id: input.id, confirmed: true, fields: fields[input.id] }));
+  const liveEntries = inputs.map((input) => ({
+    id: input.id,
+    confirmed: true,
+    fields: fields[input.id],
+  }));
   const resolvedInputs = resolveOperationInputs(liveEntries, {});
 
   // Every designated input is always a literal (see App.tsx's modelInputOptions) — "filled" just
@@ -116,10 +146,24 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, onViewOu
     const runId = ++runIdRef.current;
     setIsRunning(true);
 
-    withMinimumDelay(nrmId ? runNrm(nrmId, inputValues) : runModel(dataset.datasetId, modelId, inputValues), RUN_MIN_DURATION_MS)
+    withMinimumDelay(
+      nrmId ? runNrm(nrmId, inputValues, watchIds) : runModel(dataset.datasetId, modelId, inputValues, watchIds),
+      RUN_MIN_DURATION_MS,
+    )
       .then((response) => {
         if (runId !== runIdRef.current) return;
-        setResults(response);
+        setResults(response.results);
+        setWatched(response.watched ?? []);
+        // The analysis sits under the buttons, often below the fold — bring the fresh values into view.
+        if (watchIds.length > 0)
+          window.setTimeout(
+            () =>
+              analysisRef.current?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'nearest',
+              }),
+            50,
+          );
         setRunError(null);
         setIsRunning(false);
         setHasRun(true);
@@ -131,6 +175,7 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, onViewOu
       .catch((error) => {
         if (runId !== runIdRef.current) return;
         setResults(null);
+        setWatched([]);
         setRunError(inlineErrorMessage(error, 'Falha ao correr o modelo.') || null);
         setIsRunning(false);
         setHasRun(true);
@@ -152,7 +197,10 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, onViewOu
   }
 
   function updateEntryFields(id: string, patch: OperationFields) {
-    setFields((current) => ({ ...current, [id]: { ...current[id], ...patch } }));
+    setFields((current) => ({
+      ...current,
+      [id]: { ...current[id], ...patch },
+    }));
   }
 
   const [testLoadError, setTestLoadError] = useState<string | null>(null);
@@ -173,7 +221,10 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, onViewOu
       modelName,
       inputEntries.map((entry) => {
         const source = getInputSource(fields[entry.id]);
-        return { name: entry.name, value: source.type === 'literal' ? source.value : '' };
+        return {
+          name: entry.name,
+          value: source.type === 'literal' ? source.value : '',
+        };
       }),
     );
   }
@@ -192,7 +243,10 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, onViewOu
         for (const entry of inputEntries) {
           const loadedValue = valueByName.get(entry.name);
           if (loadedValue !== undefined) {
-            nextFields[entry.id] = { ...nextFields[entry.id], input: literalSource(loadedValue) };
+            nextFields[entry.id] = {
+              ...nextFields[entry.id],
+              input: literalSource(loadedValue),
+            };
           }
         }
         setFields(nextFields);
@@ -213,11 +267,18 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, onViewOu
     return source.type === 'literal' && source.value.trim() !== '';
   });
   // Outputs are only known once a run has returned them (each result carries its own name).
-  const outputEntries = (results ?? []).map((result) => ({ id: result.id, name: result.name ?? '', kind: '', value: '' }));
+  const outputEntries = (results ?? []).map((result) => ({
+    id: result.id,
+    name: result.name ?? '',
+    kind: '',
+    value: '',
+  }));
 
   const canToggleIo = inputEntries.length > 0;
   const inputExpanded = !canToggleIo || expandedSide === 'input';
   const outputExpanded = !canToggleIo || expandedSide === 'output';
+  // The analysis only belongs to the outputs side, and only once a run has produced something for it.
+  const showAnalysis = outputExpanded && watched.length > 0;
 
   // The title, with the inputs / outputs toggle at its right.
   const heading = (
@@ -290,7 +351,7 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, onViewOu
   // output panel just takes the full width on its own.
 
   return (
-    <div className="model-card">
+    <div className={`model-card${showAnalysis && isAnalysisExpanded ? ' model-card--with-analysis' : ''}`}>
       {heading}
       <div className="model-card__io">
         {inputEntries.length > 0 && inputExpanded && (
@@ -306,8 +367,19 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, onViewOu
                     const currentValue = source.type === 'literal' ? source.value : '';
                     return (
                       <div key={inputEntry.id} className="model-card__field">
-                        <EyeButton onView={() => setViewFullText({ name, value: currentValue })} />
-                        <h3 className="model-card__field-name" title={name}>
+                        <h3
+                          className="model-card__field-name model-card__field-name--clickable"
+                          title={`${name} — ver texto completo`}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setViewFullText({ name, value: currentValue })}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              setViewFullText({ name, value: currentValue });
+                            }
+                          }}
+                        >
                           {name}
                         </h3>
                         {inputKind.renderInputEditor({
@@ -346,7 +418,10 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, onViewOu
                           onView={() =>
                             onViewOutputData
                               ? onViewOutputData(outputResult?.touches ?? null)
-                              : setViewFullText({ name, value: describeResult(hasRun, isRunning, value, error) })
+                              : setViewFullText({
+                                  name,
+                                  value: describeResult(hasRun, isRunning, value, error),
+                                })
                           }
                           label={onViewOutputData ? 'Ver na folha de dados' : undefined}
                         />
@@ -358,7 +433,11 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, onViewOu
                           tabIndex={onViewOutputData ? 0 : undefined}
                           onClick={
                             onViewOutputData
-                              ? () => setViewFullText({ name, value: describeResult(hasRun, isRunning, value, error) })
+                              ? () =>
+                                  setViewFullText({
+                                    name,
+                                    value: describeResult(hasRun, isRunning, value, error),
+                                  })
                               : undefined
                           }
                           onKeyDown={
@@ -366,7 +445,10 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, onViewOu
                               ? (event) => {
                                   if (event.key === 'Enter' || event.key === ' ') {
                                     event.preventDefault();
-                                    setViewFullText({ name, value: describeResult(hasRun, isRunning, value, error) });
+                                    setViewFullText({
+                                      name,
+                                      value: describeResult(hasRun, isRunning, value, error),
+                                    });
                                   }
                                 }
                               : undefined
@@ -422,20 +504,197 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, onViewOu
           <div className="model-card__actions-group">
             {/* Delayed so a run that returns right away doesn't flash the overlay. */}
             {isRunning && <LoadingOverlay delayMs={200} />}
-            <button
-              type="button"
-              className="model-card__run-button action-button"
+            <SplitButton
+              className="model-card__run-split"
+              buttonClassName={`model-card__run-button${runAnalysisClass}`}
               onClick={run}
               disabled={isRunning || !allInputsFilled}
+              arrowDisabled={isRunning}
+              items={[
+                {
+                  label: `Adicionar operações para análise${watchIds.length > 0 ? ` (${watchIds.length})` : ''}`,
+                  onSelect: () => setIsAnalyzeOpen(true),
+                  disabled: operations.length === 0,
+                },
+              ]}
             >
-              Correr modelo
-            </button>
+              <BoltIcon />
+              {watchIds.length > 0 ? 'Correr modelo com análise' : 'Correr modelo'}
+            </SplitButton>
           </div>
         </div>
       </div>
 
+      {showAnalysis && (
+        <section ref={analysisRef} className="model-card__analysis" aria-label="Análise do modelo">
+          <h2 className="model-card__analysis-title">
+            <button
+              type="button"
+              className="model-card__analysis-toggle"
+              aria-expanded={isAnalysisExpanded}
+              onClick={() => setIsAnalysisExpanded((current) => !current)}
+            >
+              <svg
+                className={`model-card__analysis-arrow${isAnalysisExpanded ? ' model-card__analysis-arrow--open' : ''}`}
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
+              >
+                <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Análise
+              <span className="model-card__analysis-count">({watched.length})</span>
+            </button>
+          </h2>
+          {isAnalysisExpanded && (
+            <ul className="model-card__analysis-list">
+              {watched.map((result) => {
+                const text = describeResult(true, isRunning, resultText(result), result.success ? null : result.error);
+                const operation = operations.find((item) => result.id.split(':')[0] === item.id);
+                return (
+                  <li key={result.id} className="model-card__analysis-item">
+                    <button
+                      type="button"
+                      className="model-card__analysis-name"
+                      title={`${result.name ?? ''} — ver nome e resultado completos`}
+                      onClick={() => setViewFullText({ name: result.name ?? '', value: text })}
+                    >
+                      {result.name}
+                    </button>
+                    {operation && (
+                      <button
+                        type="button"
+                        className="model-card__analysis-kind"
+                        title={`${KIND_LABELS[operation.kind] ?? operation.kind} — ver informação da operação`}
+                        onClick={() => setConfigOperation(operation)}
+                      >
+                        {KIND_LABELS[operation.kind] ?? operation.kind}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className={`model-card__analysis-value${result.success ? '' : ' model-card__analysis-value--error'}`}
+                      title={`${text} — ver texto completo`}
+                      onClick={() =>
+                        setViewFullText({
+                          name: result.name ?? '',
+                          value: text,
+                        })
+                      }
+                    >
+                      {text}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      )}
+
       <FullTextModal field={viewFullText} onClose={() => setViewFullText(null)} />
+      {configOperation && (
+        <OperationConfigModal
+          operation={configOperation}
+          operations={operations}
+          datasetId={dataset.datasetId}
+          modelId={modelId}
+          nrmId={nrmId}
+          onClose={() => setConfigOperation(null)}
+        />
+      )}
+      {isAnalyzeOpen && (
+        <AnalyzeModal
+          operations={operations}
+          selectedIds={watchIds}
+          onConfirm={(ids) => {
+            setWatchIds(ids);
+            setIsAnalyzeOpen(false);
+          }}
+          onClose={() => setIsAnalyzeOpen(false)}
+        />
+      )}
     </div>
+  );
+}
+
+/** A watched result's value as text (null when it found nothing). */
+function resultText(result: ModelOperationResultPayload): string | null {
+  if (!result.success || result.value === null || result.value === undefined) return null;
+  return Array.isArray(result.value) ? result.value.map((item) => String(item ?? '')).join(', ') : String(result.value);
+}
+
+interface AnalyzeModalProps {
+  operations: ModelOperationRefPayload[];
+  selectedIds: string[];
+  onConfirm: (ids: string[]) => void;
+  onClose: () => void;
+}
+
+/** "Analisar modelo": every operation of the model as a checklist. What is ticked is sent with the
+ * next run (and every one after it), and its values show under the buttons. */
+function AnalyzeModal({ operations, selectedIds, onConfirm, onClose }: AnalyzeModalProps) {
+  const [search, setSearch] = useState('');
+  // Edited here and only applied by "Confirmar" — closing any other way leaves the choice as it was.
+  const [draftIds, setDraftIds] = useState(selectedIds);
+  const needle = search.trim().toLowerCase();
+  const visible = needle ? operations.filter((operation) => operation.name.toLowerCase().includes(needle)) : operations;
+  const selected = new Set(draftIds);
+
+  function toggle(id: string) {
+    setDraftIds(selected.has(id) ? draftIds.filter((item) => item !== id) : [...draftIds, id]);
+  }
+
+  return (
+    <Modal
+      title="Adicionar operações para análise"
+      size="md"
+      onClose={onClose}
+      actions={
+        <>
+          <button type="button" className="modal__button modal__button--ghost" onClick={onClose}>
+            Cancelar
+          </button>
+          <button type="button" className="modal__button action-button" onClick={() => onConfirm(draftIds)}>
+            Confirmar
+          </button>
+        </>
+      }
+    >
+      <p className="modal__hint">Escolha o que quer ver. Na próxima vez que correr o modelo, os valores aparecem no fim da página.</p>
+      <input
+        type="search"
+        className="modal__input"
+        placeholder="Pesquisar operação…"
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+      />
+      <div className="model-card__analyze-bulk">
+        <button
+          type="button"
+          className="modal__chip"
+          onClick={() => setDraftIds([...new Set([...draftIds, ...visible.map((operation) => operation.id)])])}
+        >
+          Selecionar {needle ? 'visíveis' : 'todas'}
+        </button>
+        <button type="button" className="modal__chip" onClick={() => setDraftIds([])} disabled={draftIds.length === 0}>
+          Limpar
+        </button>
+      </div>
+      <ul className="model-card__analyze-list">
+        {visible.map((operation) => (
+          <li key={operation.id}>
+            <label className="model-card__analyze-option">
+              <input type="checkbox" checked={selected.has(operation.id)} onChange={() => toggle(operation.id)} />
+              <span className="model-card__analyze-option-name">{operation.name}</span>
+              <span className="model-card__analyze-option-kind">{KIND_LABELS[operation.kind] ?? operation.kind}</span>
+            </label>
+          </li>
+        ))}
+        {visible.length === 0 && <li className="model-card__analysis-empty">Nenhuma operação encontrada.</li>}
+      </ul>
+    </Modal>
   );
 }
 
@@ -472,33 +731,15 @@ interface FullTextModalProps {
   onClose: () => void;
 }
 
-/** The eye button's own modal — just the field's full name (as a heading, in case that's what's
- * actually truncated, not the value) and its full value below, wrapped rather than clipped. No
- * portal (unlike OperationPanel's own card modal): nothing on this screen sits inside a
- * transformed ancestor, so a plain fixed overlay already covers the real viewport correctly. */
+/** Opens a field's full name (as the title, in case that is what is truncated) and its full value,
+ * wrapped rather than clipped. */
 function FullTextModal({ field, onClose }: FullTextModalProps) {
   if (!field) return null;
 
   return (
-    <div className="model-card__view-modal-overlay" onClick={onClose}>
-      <div
-        className="model-card__view-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="model-card-view-modal-title"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="model-card__view-modal-header">
-          <h3 id="model-card-view-modal-title" className="model-card__view-modal-title">
-            {field.name}
-          </h3>
-          <button type="button" className="model-card__view-modal-close" onClick={onClose} aria-label="Fechar">
-            ×
-          </button>
-        </div>
-        <p className="model-card__view-modal-value">{field.value || '(vazio)'}</p>
-      </div>
-    </div>
+    <Modal title={field.name} onClose={onClose}>
+      <p className="modal__text">{field.value || '(vazio)'}</p>
+    </Modal>
   );
 }
 

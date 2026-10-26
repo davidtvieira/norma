@@ -49,6 +49,21 @@ export interface ModelRegisterRequestPayload {
 export interface ModelRegisterResponsePayload {
   modelId: string;
   inputs: ModelInputFieldPayload[];
+  operations: ModelOperationRefPayload[];
+}
+
+/** One operation of a registered model as it can be picked to watch — id, display name and kind
+ * only, never its configuration. */
+export interface ModelOperationRefPayload {
+  id: string;
+  name: string;
+  kind: string;
+}
+
+/** What a model run returns: the designated outputs, plus the extra operations asked for. */
+export interface ModelRunResponsePayload {
+  results: ModelOperationResultPayload[];
+  watched: ModelOperationResultPayload[];
 }
 
 /** One designated input of a registered model (GET .../model/{modelId}/inputs) — just enough to
@@ -62,4 +77,5 @@ export interface ModelInputFieldPayload {
 
 export interface ModelInputsPayload {
   inputs: ModelInputFieldPayload[];
+  operations: ModelOperationRefPayload[];
 }

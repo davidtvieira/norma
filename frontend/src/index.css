@@ -41,6 +41,11 @@
      themes, not orange-tinted in light mode (--color-primary there) and grey in dark mode. */
   --color-neutral-accent: #9a9a9a;
 
+  /* "Correr modelo" while operations are picked in "Analisar modelo": the primary orange nudged
+     towards red, theme-invariant like the other action colors. */
+  --btn-analysis-bg: #e9784c;
+  --btn-analysis-bg-hover: #ee8e68;
+
   /* The two button variants used everywhere (see the button system in App.css): primary is orange in
      both themes, secondary is a dark grey in light mode and a lighter grey in dark mode. */
   --btn-primary-bg: #f0a150;

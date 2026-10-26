@@ -7,8 +7,8 @@ import type { LookupRequestPayload, LookupResponsePayload } from '../types/looku
 import type {
   ModelInputsPayload,
   ModelOperationInputPayload,
-  ModelOperationResultPayload,
   ModelRegisterResponsePayload,
+  ModelRunResponsePayload,
 } from '../types/modelCalculation';
 import type { SelectorRequestPayload, SelectorResponsePayload } from '../types/selector';
 import type { NrmImportStatusPayload, NrmInfoPayload } from '../types/nrm';
@@ -388,12 +388,38 @@ export async function getNrmInputs(nrmId: string, { silent = false } = {}): Prom
   return response.json();
 }
 
+/** One operation of a registered model with its configuration — read-only, for looking at it. */
+export async function getModelOperation(modelId: string, operationId: string): Promise<ModelOperationInputPayload> {
+  const response = await apiFetch(
+    `${API_BASE_URL}/api/v1/model/${encodeURIComponent(modelId)}/operations/${encodeURIComponent(operationId)}`,
+  );
+  if (!response.ok) {
+    throw await apiError(response, 'Falha ao obter a operação');
+  }
+  return response.json();
+}
+
+/** Same as getModelOperation, for a model that came with an imported .nrm. */
+export async function getNrmOperation(nrmId: string, operationId: string): Promise<ModelOperationInputPayload> {
+  const response = await apiFetch(
+    `${API_BASE_URL}/api/v1/nrm/${encodeURIComponent(nrmId)}/operations/${encodeURIComponent(operationId)}`,
+  );
+  if (!response.ok) {
+    throw await apiError(response, 'Falha ao obter a operação');
+  }
+  return response.json();
+}
+
 /** Runs an imported .nrm's model by the .nrm's id — the dataset and model are already known to it. */
-export async function runNrm(nrmId: string, inputValues: Record<string, string>): Promise<ModelOperationResultPayload[]> {
+export async function runNrm(
+  nrmId: string,
+  inputValues: Record<string, string>,
+  watchIds: string[] = [],
+): Promise<ModelRunResponsePayload> {
   const response = await apiFetch(`${API_BASE_URL}/api/v1/nrm/${encodeURIComponent(nrmId)}/run`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ inputValues }),
+    body: JSON.stringify({ inputValues, watchIds }),
   });
 
   if (!response.ok) {
@@ -429,19 +455,21 @@ export async function getNrmDataset(nrmId: string): Promise<DatasetImportRespons
  * operations server-side, the same way as a single-operation call — and returns one result per
  * designated output (always at least one), not every operation's. `inputValues`, keyed by
  * operation id, replaces each of the model's designated input operations' literal value for this
- * run (pass an empty object when the model has none).
+ * run (pass an empty object when the model has none). `watchIds` asks for the value of those
+ * operations too (any in the model), returned as `watched`.
  */
 export async function runModel(
   datasetId: string,
   modelId: string,
   inputValues: Record<string, string>,
-): Promise<ModelOperationResultPayload[]> {
+  watchIds: string[] = [],
+): Promise<ModelRunResponsePayload> {
   const response = await apiFetch(
     `${API_BASE_URL}/api/v1/dataset/${encodeURIComponent(datasetId)}/model/${encodeURIComponent(modelId)}/run`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ inputValues }),
+      body: JSON.stringify({ inputValues, watchIds }),
     },
   );
 
