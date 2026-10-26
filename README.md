@@ -19,20 +19,33 @@ result is reached.
 1. **Import a dataset.** Upload a spreadsheet. The backend parses every sheet and keeps it in memory.
 2. **Build a model** (*Criar Modelo*). Add operations on a canvas next to a view of the sheet data:
 
-   | Operation    | What it does                                                                 |
-   |--------------|------------------------------------------------------------------------------|
-   | `lookup`     | Finds a value in a search column and returns another column of the same row. |
-   | `find`       | Returns the position (row and column) of the first cell matching a value.    |
-   | `sum`        | Sums the numeric cells of a range.                                           |
-   | `counter`    | Adds up a list of values.                                                    |
-   | `node`       | Passes a value through, so other operations can reference it.                |
-   | `translator` | Maps a value to another using your own source → target rules.                |
+   | Operation    | What it does                                                                  |
+   |--------------|-------------------------------------------------------------------------------|
+   | `lookup`     | Finds a value in a search column and returns another column of the same row.  |
+   | `find`       | Returns the position (row and column) of the first cell matching a value.     |
+   | `sum`        | Sums the numeric cells of a range.                                            |
+   | `counter`    | Adds up the results of other operations.                                      |
+   | `calc`       | Adds, subtracts, multiplies or divides two values, with optional rounding.    |
+   | `node`       | Holds a value, so other operations can reference it.                          |
+   | `translator` | Maps a value to another using your own source → target rules.                 |
+   | `selector`   | Picks one of its values by position.                                          |
+   | `iterator`   | Runs the whole model once per sheet of a range, one result per sheet.         |
+   | `page`       | Chooses the sheet that the other operations read from.                        |
 
    An operation's input can be a typed value or a reference to another operation's result, so operations chain.
 3. **Pick the inputs and outputs** and save the model as a **`.nrm`** file. A `.nrm` is a zip with the original
    spreadsheet, the model (`.json`) and an `info.json` holding its name.
 4. **Use a model** (*Utilizar Modelo*). Import a `.nrm`, fill in the inputs and press *Correr modelo*. Only the inputs
    are shown beforehand, and the outputs appear after the run. You can also open the model for editing instead.
+   While using a model you can:
+   - open the dataset (*Ver dados*) in a side panel, which can be widened to the full screen; the eye on an
+     output opens it with exactly the columns, ranges and cells that output read highlighted;
+   - click an input or output name to read it in full;
+   - add any operation of the model to an **analysis** (the arrow on *Correr modelo*, then *Adicionar operações para
+     análise*): their values are returned with the next run and shown in a collapsible *Análise* section, where an
+     operation's type opens its configuration (read only).
+
+The app has a light and a dark theme, and works on phones.
 
 ## Requirements
 
