@@ -84,6 +84,27 @@ export async function saveSessionCacheEntry(id: string, fields: Omit<SessionCach
   db.close();
 }
 
+/**
+ * Autosave while editing: rewrites only the model half of an entry that already exists. Unlike
+ * saveSessionCacheEntry it neither lists every cached entry (each carries a whole dataset's
+ * bytes) nor trims — the entry count can't have changed — so a pause in typing or dragging no
+ * longer costs a read of every cached spreadsheet.
+ */
+export async function updateSessionCacheModel(id: string, modelJson: string | null): Promise<void> {
+  const db = await openDb();
+  try {
+    const existing = await new Promise<SessionCacheEntry | undefined>((resolve, reject) => {
+      const request = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).get(id);
+      request.onsuccess = () => resolve(request.result as SessionCacheEntry | undefined);
+      request.onerror = () => reject(request.error);
+    });
+    if (!existing) return;
+    await runWrite(db, (store) => store.put({ ...existing, modelJson, savedAt: Date.now() }));
+  } finally {
+    db.close();
+  }
+}
+
 export async function deleteSessionCacheEntry(id: string): Promise<void> {
   const db = await openDb();
   await runWrite(db, (store) => store.delete(id));

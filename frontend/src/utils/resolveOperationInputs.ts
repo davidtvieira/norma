@@ -24,7 +24,7 @@ export type ResolvedInput =
  * chainable "input", e.g. lookup), but a kind with several (counter's "inputs" list) can have
  * more than one, so this is a multi-edge graph rather than a single successor per node.
  */
-function buildReferenceGraph(entries: ChainableEntry[]): Map<string, string[]> {
+export function buildReferenceGraph(entries: ChainableEntry[]): Map<string, string[]> {
   const edges = new Map<string, string[]>();
   // Every sheet-based operation silently depends on the model's page selector (it reads from the
   // page that selector picks), even though nothing references it — so it is tested after it, and a
@@ -80,16 +80,29 @@ function findCyclicIds(edges: Map<string, string[]>): Set<string> {
  * Every entry that (transitively) reads any of its inputs from `entryId`'s result — used to keep
  * the "reference" dropdown from ever letting the user create a cycle in the first place.
  */
-export function getDependents(entryId: string, entries: ChainableEntry[]): Set<string> {
-  const edges = buildReferenceGraph(entries);
+export function getDependents(
+  entryId: string,
+  entries: ChainableEntry[],
+  edges: Map<string, string[]> = buildReferenceGraph(entries),
+): Set<string> {
+  const readers = new Map<string, string[]>();
+  for (const [from, tos] of edges) {
+    for (const to of tos) {
+      const list = readers.get(to);
+      if (list) list.push(from);
+      else readers.set(to, [from]);
+    }
+  }
   const dependents = new Set<string>();
   let frontier = [entryId];
   while (frontier.length > 0) {
     const next: string[] = [];
-    for (const [from, tos] of edges) {
-      if (tos.some((to) => frontier.includes(to)) && !dependents.has(from)) {
-        dependents.add(from);
-        next.push(from);
+    for (const id of frontier) {
+      for (const from of readers.get(id) ?? []) {
+        if (!dependents.has(from)) {
+          dependents.add(from);
+          next.push(from);
+        }
       }
     }
     frontier = next;
@@ -104,8 +117,11 @@ export function getDependents(entryId: string, entries: ChainableEntry[]): Set<s
  * confirmed operation on the canvas. A cycle involving `entryId` still terminates (each id is
  * only ever added, and therefore only ever expanded, once).
  */
-export function getDependencyChain(entryId: string, entries: ChainableEntry[]): Set<string> {
-  const edges = buildReferenceGraph(entries);
+export function getDependencyChain(
+  entryId: string,
+  entries: ChainableEntry[],
+  edges: Map<string, string[]> = buildReferenceGraph(entries),
+): Set<string> {
   const chain = new Set<string>();
   let frontier = [entryId];
   while (frontier.length > 0) {

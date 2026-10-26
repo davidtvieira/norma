@@ -17,7 +17,7 @@ import type { CellRange } from './types/cellRange';
 import { getInputSource, hasSingleInputField } from './types/valueSource';
 import { buildModelExport, parseModelImport, type SerializableEntry } from './utils/modelSerialization';
 import { buildNrmFile, readModelFile } from './utils/nrmSerialization';
-import { deleteSessionCacheEntry, listSessionCacheEntries, saveSessionCacheEntry, type SessionCacheEntry } from './utils/sessionCache';
+import { deleteSessionCacheEntry, listSessionCacheEntries, saveSessionCacheEntry, updateSessionCacheModel, type SessionCacheEntry } from './utils/sessionCache';
 import { downloadTestCase } from './utils/testCaseSerialization';
 import { LandingScreen } from './screens/LandingScreen';
 import { UtilizeScreen, type UtilizeModel } from './screens/UtilizeScreen';
@@ -438,11 +438,19 @@ function App() {
   // field re-renders with new modelEntries — no need to hit IndexedDB that often.
   useEffect(() => {
     if (!dataset || !datasetFile || !location.pathname.endsWith('/editor')) return;
-    const modelJson = hasConfirmedEntry
-      ? JSON.stringify(buildModelExport(modelEntries, modelName, dataset.datasetId, modelInputIds, modelOutputIds, nrmName))
-      : null;
     const timeoutId = window.setTimeout(() => {
-      cacheCurrentSession(dataset.datasetId, datasetFile.name, datasetFile, modelJson);
+      // Built here, not up front: serializing the whole model on every change (every mousemove of
+      // a drag) is what this debounce exists to avoid. Only the model half is rewritten — the
+      // dataset's bytes in the cache entry are already there and never change while editing.
+      const modelJson = hasConfirmedEntry
+        ? JSON.stringify(buildModelExport(modelEntries, modelName, dataset.datasetId, modelInputIds, modelOutputIds, nrmName))
+        : null;
+      const id = currentSessionIdRef.current;
+      if (id) {
+        updateSessionCacheModel(id, modelJson).catch((error) =>
+          console.warn('Falha ao atualizar a sessão no IndexedDB.', error),
+        );
+      }
     }, 500);
     return () => window.clearTimeout(timeoutId);
   }, [dataset, datasetFile, location.pathname, modelEntries, modelName, nrmName, modelInputIds, modelOutputIds, hasConfirmedEntry]);

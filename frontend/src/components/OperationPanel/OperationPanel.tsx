@@ -1,12 +1,12 @@
 import { BoltIcon, ClearIcon, LoadIcon, SaveIcon } from '../ButtonIcons/ButtonIcons';
-import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import type { DatasetImportResponse } from '../../types/dataset';
 import type { ColumnPickField, ColumnPickState, RangePickState } from '../../types/columnPick';
 import type { ColumnHighlight, OperationHighlight, RangeHighlight } from '../../types/highlight';
 import { useOperationTypes } from '../../hooks/useOperationTypes';
-import { getDependencyChain, getDependents, resolveOperationInputs } from '../../utils/resolveOperationInputs';
+import { buildReferenceGraph, getDependencyChain, getDependents, resolveOperationInputs } from '../../utils/resolveOperationInputs';
 import { getInputSource, getInputSources, hasSingleInputField, literalSource, outputResultKey, remapValueSourceReferences } from '../../types/valueSource';
 import type { SerializableEntry } from '../../utils/modelSerialization';
 import { parseTestCaseFile } from '../../utils/testCaseSerialization';
@@ -685,8 +685,8 @@ function hasEmptyInput(entry: OperationEntryState): boolean {
  * fill in (its field is a reference, not a literal), so hasEmptyInput alone would never catch it;
  * this is what actually decides whether "Testar até aqui" would succeed, same scope
  * runModelTest(upToEntryId) itself runs against. */
-function chainHasEmptyInput(entryId: string, entries: OperationEntryState[]): boolean {
-  const chain = getDependencyChain(entryId, entries);
+function chainHasEmptyInput(entryId: string, entries: OperationEntryState[], graph: Map<string, string[]>): boolean {
+  const chain = getDependencyChain(entryId, entries, graph);
   return entries.some((entry) => chain.has(entry.id) && hasEmptyInput(entry));
 }
 
@@ -955,7 +955,10 @@ export function OperationPanel({
   // every sheet-based operation reads from the page it picks.
   const pageSelectorEntry = entries.find((entry) => entry.kindId === PAGE_SELECTOR_KIND_ID && entry.confirmed) ?? null;
   const iteratorSheet = iteratorEntry && iteratorEntry.confirmed ? iteratorPreviewSheet(iteratorEntry.fields) : null;
-  const resolvedInputsByEntry = resolveOperationInputs(entries, results);
+  // The reference graph is rebuilt once per change to `entries` (not once per card per render, which
+  // is what made big models freeze on every hover/drag), and shared by every per-card lookup below.
+  const referenceGraph = useMemo(() => buildReferenceGraph(entries), [entries]);
+  const resolvedInputsByEntry = useMemo(() => resolveOperationInputs(entries, results), [entries, results]);
   // Which edges (see the `edges` computation below, keyed the same way — "fromId-toId") are lit
   // up as data has flowed through them — lit by flashEdgesFrom the moment the operation an edge
   // starts *from* reports a new result (see each renderBody's own onResultChange below), whether
@@ -1423,28 +1426,40 @@ export function OperationPanel({
     setPendingPaste(false);
   }
 
-  function labelForEntry(id: string): string {
-    return entries.find((entry) => entry.id === id)?.name || 'Operação sem nome';
-  }
+  const entryLabels = useMemo(
+    () => new Map(entries.map((entry) => [entry.id, entry.name || 'Operação sem nome'])),
+    [entries],
+  );
+  // Every confirmed operation as something an input could reference, built once per `entries`
+  // change; referenceOptionsFor then only filters it per card.
+  const referenceOptionPool = useMemo(
+    () =>
+      entries
+        .filter((entry) => entry.confirmed)
+        .map((entry) => {
+          // An operation with several outputs is referenced per output ("Tradutor › Pergunta 2").
+          const label = (id: string) => entryLabels.get(id) ?? 'Operação sem nome';
+          const outputLabels = KINDS_BY_ID[entry.kindId].getOutputLabels?.(entry.fields, label) ?? null;
+          const options: ReferenceOption[] =
+            outputLabels && outputLabels.length > 1
+              ? outputLabels.map((outputLabel, index) => ({
+                  operationId: outputResultKey(entry.id, index),
+                  label: `${label(entry.id)} › ${outputLabel}`,
+                }))
+              : [{ operationId: entry.id, label: label(entry.id) }];
+          return { entryId: entry.id, options };
+        }),
+    [entries, entryLabels],
+  );
 
   // What a given operation's "input" field can reference: every other confirmed operation,
   // except ones that (transitively) already read their own input from this one — offering those
   // would let the user wire up a cycle from the picker itself.
   function referenceOptionsFor(entryId: string): ReferenceOption[] {
-    const dependents = getDependents(entryId, entries);
-    return entries
-      .filter((entry) => entry.confirmed && entry.id !== entryId && !dependents.has(entry.id))
-      .flatMap((entry) => {
-        // An operation with several outputs is referenced per output ("Tradutor › Pergunta 2").
-        const outputLabels = KINDS_BY_ID[entry.kindId].getOutputLabels?.(entry.fields, labelForEntry) ?? null;
-        if (outputLabels && outputLabels.length > 1) {
-          return outputLabels.map((outputLabel, index) => ({
-            operationId: outputResultKey(entry.id, index),
-            label: `${labelForEntry(entry.id)} › ${outputLabel}`,
-          }));
-        }
-        return [{ operationId: entry.id, label: labelForEntry(entry.id) }];
-      });
+    const dependents = getDependents(entryId, entries, referenceGraph);
+    return referenceOptionPool
+      .filter((item) => item.entryId !== entryId && !dependents.has(item.entryId))
+      .flatMap((item) => item.options);
   }
 
   // The page the model's page selector picks for a sheet-based operation (-1 while it has no result
@@ -1742,7 +1757,10 @@ export function OperationPanel({
   // (drag, copy/paste, delete, a per-operation edit confirmed, ...) separately. Drives which
   // button(s) the canvas shows for leaving "Editar" (see that render below): "Guardar"/"Cancelar"
   // only once this is true, plain "Editar" (nothing to commit or discard yet) otherwise.
-  const hasEditModeChanges = tool === 'select' && JSON.stringify(entries) !== JSON.stringify(editModeSnapshot);
+  const hasEditModeChanges = useMemo(
+    () => tool === 'select' && JSON.stringify(entries) !== JSON.stringify(editModeSnapshot),
+    [tool, entries, editModeSnapshot],
+  );
 
   // Every confirmed operation whose input dynamically references another one's result — drawn
   // as a connecting line between the two nodes (see edgePath) instead of nesting one inside the
@@ -1872,7 +1890,7 @@ export function OperationPanel({
         hasFailed={failedIds.has(entry.id)}
         onTestUpToHere={() => runModelTest(entry.id)}
         onClearTest={() => clearChainTest(entry.id)}
-        hasEmptyInput={chainHasEmptyInput(entry.id, entries)}
+        hasEmptyInput={chainHasEmptyInput(entry.id, entries, referenceGraph)}
         onReveal={() => revealEntry(entry)}
         isRevealEligible={sheetIndexForEntry(entry) !== null}
         isModelInput={modelInputIds.includes(entry.id)}
