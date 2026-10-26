@@ -1,9 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Norma">
   <title>Norma</title>
-  <circle cx="60" cy="60" r="60" fill="#ef9d4f"/>
-  <g transform="translate(60 60) scale(0.7) translate(-60 -60)" stroke="#FFFFFF">
-    <path d="M30 88V54A30 28 0 0 1 90 54V81" fill="none" stroke-width="8" stroke-linecap="butt"/>
-    <circle cx="30" cy="88" r="10" fill="#FFFFFF" stroke="none"/>
-    <circle cx="90" cy="88" r="7.5" fill="none" stroke-width="5"/>
+  <g stroke="#ef9d4f" fill="none" stroke-width="8" stroke-linecap="butt">
+    <path d="M35 60C60 60 60 30 85 30"/>
+    <path d="M35 60C60 60 60 90 85 90"/>
+    <circle cx="24" cy="60" r="11"/>
+    <circle cx="96" cy="30" r="11"/>
+    <circle cx="96" cy="90" r="11"/>
   </g>
 </svg>

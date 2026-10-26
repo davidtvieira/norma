@@ -26,6 +26,8 @@ export function useTheme() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
+    // The tab icon follows the app's theme: orange on light, white on dark.
+    document.querySelector<HTMLLinkElement>('link[rel="icon"]')?.setAttribute('href', theme === 'dark' ? '/favicon-dark.svg' : '/favicon.svg');
     try {
       localStorage.setItem(STORAGE_KEY, theme);
     } catch {

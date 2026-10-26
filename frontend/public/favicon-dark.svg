@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Norma">
+  <title>Norma</title>
+  <g stroke="#FFFFFF" fill="none" stroke-width="8" stroke-linecap="butt">
+    <path d="M35 60C60 60 60 30 85 30"/>
+    <path d="M35 60C60 60 60 90 85 90"/>
+    <circle cx="24" cy="60" r="11"/>
+    <circle cx="96" cy="30" r="11"/>
+    <circle cx="96" cy="90" r="11"/>
+  </g>
+</svg>

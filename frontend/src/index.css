@@ -41,6 +41,10 @@
      themes, not orange-tinted in light mode (--color-primary there) and grey in dark mode. */
   --color-neutral-accent: #9a9a9a;
 
+  /* The Norma icon's color (see the loading animation and public/favicon*.svg): orange on the light theme,
+     white on the dark one. */
+  --logo-color: #ef9d4f;
+
   /* "Correr modelo" while operations are picked in "Analisar modelo": the primary orange nudged
      towards red, theme-invariant like the other action colors. */
   --btn-analysis-bg: #e9784c;
@@ -66,6 +70,8 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
+
+    --logo-color: #fff;
 
     --color-bg: #1c1c1c;
     --color-surface: #262626;
@@ -101,6 +107,8 @@
 
 :root[data-theme='dark'] {
   color-scheme: dark;
+
+  --logo-color: #fff;
 
   --color-bg: #1c1c1c;
   --color-surface: #262626;
