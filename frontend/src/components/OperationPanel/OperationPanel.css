@@ -707,10 +707,7 @@
   color: var(--color-surface);
 }
 
-/* ValueSourcePickerModal's static tab (see fields.tsx) — reuses AddOperationModal's own overlay/
-   dialog chrome (already loaded globally via OperationPanel.tsx's import of it) plus this file's
-   existing toggle/input styles; only the input row and the Confirmar button (added to that same
-   overlay's own actions row alongside Cancelar) are new. */
+/* ValueSourcePickerModal's static tab (see fields.tsx): the value's input row. */
 .value-source-modal__static {
   margin-top: 0.75rem;
   margin-bottom: 1rem;
@@ -726,29 +723,6 @@
   gap: 0.6rem;
   margin-top: 0.75rem;
   margin-bottom: 1rem;
-}
-
-.value-source-modal__confirm-button {
-  padding: 0.5rem 1.1rem;
-  border: 1px solid var(--color-primary);
-  border-radius: var(--radius-sm);
-  background: var(--color-primary);
-  color: var(--color-surface);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.875rem;
-  font-weight: 500;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
-}
-
-.value-source-modal__confirm-button:hover:not(:disabled) {
-  background: var(--color-primary-hover);
-  border-color: var(--color-primary-hover);
-}
-
-.value-source-modal__confirm-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
 }
 
 /* counterKind: one row per input, each a full ValueSourceField. The × to cancel the row only
@@ -1321,83 +1295,6 @@
   color: var(--color-primary);
 }
 
-/* The detail modal (see ConfirmedOperationCard) — portaled to document.body so it escapes the
-   canvas surface's own pan/zoom transform (a `position: fixed` descendant of a transformed
-   ancestor would otherwise be confined to, and scaled by, that ancestor instead of the real
-   viewport) and centers/sizes correctly regardless of the current zoom level. Same overlay +
-   dialog shape as SaveModal/AddOperationModal (see their own CSS), just scoped to this card. */
-.operation-card-modal__overlay {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1.5rem;
-  background: rgba(0, 0, 0, 0.4);
-  z-index: 100;
-}
-
-.operation-card-modal {
-  width: 100%;
-  max-width: 480px;
-  max-height: 85vh;
-  overflow-y: auto;
-  padding: 1.5rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-md);
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  cursor: default;
-}
-
-.operation-card-modal__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.operation-card-modal__name {
-  margin: 0 0 0.4rem;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.operation-card-modal__meta {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-}
-
-.operation-card-modal__close {
-  flex-shrink: 0;
-  width: 2rem;
-  height: 2rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--color-text-muted);
-  font-size: 1.3rem;
-  line-height: 1;
-  cursor: pointer;
-  transition: background-color 0.2s ease, color 0.2s ease;
-}
-
-.operation-card-modal__close:hover {
-  background: var(--color-surface-hover);
-  color: var(--color-text);
-}
-
 .operation-card-modal__body {
   display: flex;
   flex-direction: column;
@@ -1437,14 +1334,6 @@
 .operation-entry__dynamic-input-search {
   margin-top: 0.75rem;
   margin-bottom: -0.25rem;
-}
-
-/* Confirmar / Cancelar row at the bottom of a node's detail modal. */
-.operation-card-modal__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 1rem;
 }
 
 /* The minimap's dot for the collapsed inputs node — filled orange like the node itself. */

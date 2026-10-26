@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import type { CellRange } from '../../types/cellRange';
 import type { DatasetImportResponse } from '../../types/dataset';
 import { literalSource, referenceFromKey, referenceKey, type ValueSource } from '../../types/valueSource';
 import type { ReferenceOption } from './operationKind';
 import type { ResolvedInput } from '../../utils/resolveOperationInputs';
+import { Modal } from '../Modal/Modal';
 
 /**
  * Shared field widgets used inside an operation kind's draft config (see operationKind.ts) —
@@ -388,131 +388,123 @@ export function ValueSourcePickerModal({
     }
   }
 
-  return createPortal(
-    <div className="add-operation-modal__overlay" onClick={onClose}>
-      <div
-        className="add-operation-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="value-source-modal-title"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <h2 id="value-source-modal-title" className="add-operation-modal__title">
-          {label}
-        </h2>
-
-        {!referenceOnly && (
-          <div className="operation-entry__source-toggle">
-            <button
-              type="button"
-              className={`operation-entry__source-toggle-button${tab === 'static' ? ' operation-entry__source-toggle-button--active' : ''}`}
-              onClick={() => setTab('static')}
-            >
-              Input estático
-            </button>
-            <button
-              type="button"
-              className={`operation-entry__source-toggle-button${tab === 'dynamic' ? ' operation-entry__source-toggle-button--active' : ''}`}
-              onClick={() => setTab('dynamic')}
-            >
-              Input dinâmico
-            </button>
-            {hasColumnPicker && (
-              <button
-                type="button"
-                className={`operation-entry__source-toggle-button${tab === 'column' ? ' operation-entry__source-toggle-button--active' : ''}`}
-                onClick={() => setTab('column')}
-              >
-                Coluna da tabela
-              </button>
-            )}
-          </div>
-        )}
-
-        {isColumnMode && (
-          <div className="value-source-modal__column">
-            <p className="operation-entry__chain-status">Escolha diretamente uma coluna na tabela à direita.</p>
-            <button
-              type="button"
-              className="operation-entry__pick-button"
-              onClick={() => {
-                onStartColumnPick();
-                onClose();
-              }}
-            >
-              Selecionar coluna
-            </button>
-          </div>
-        )}
-
-        {!isDynamicMode && !isColumnMode && (
-          <div className="value-source-modal__static">
-            <input
-              type={inputType}
-              className="operation-entry__input"
-              placeholder={placeholder}
-              min={inputType === 'number' ? 0 : undefined}
-              value={draftValue}
-              onChange={(event) => setDraftValue(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') confirm();
-              }}
-              autoFocus
-            />
-          </div>
-        )}
-
-        {isDynamicMode && (
-          <>
-            {multiple && <p className="operation-entry__chain-status">Pode escolher várias operações; ficam pela ordem em que as escolher.</p>}
-            <input
-              type="search"
-              className="operation-entry__input operation-entry__dynamic-input-search"
-              placeholder="Pesquisar operação..."
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              autoFocus
-            />
-            <div className="operation-entry__dynamic-input-menu">
-              {visibleReferenceOptions.length === 0 && (
-                <p className="operation-entry__chain-status">Nenhuma operação encontrada.</p>
-              )}
-              {visibleReferenceOptions.map((option) => {
-                const position = selectedOperationIds.indexOf(option.operationId);
-                return (
-                  <button
-                    key={option.operationId}
-                    type="button"
-                    className={`operation-entry__dynamic-input-option${
-                      position !== -1 ? ' operation-entry__dynamic-input-option--active' : ''
-                    }`}
-                    onClick={() => selectOption(option.operationId)}
-                  >
-                    {multiple && position !== -1 ? `${position + 1}. ` : ''}
-                    {option.label}
-                  </button>
-                );
-              })}
-            </div>
-          </>
-        )}
-
-        <div className="add-operation-modal__actions">
-          <button type="button" className="add-operation-modal__close-button" onClick={onClose}>
+  return (
+    <Modal
+      title={label}
+      size="md"
+      onClose={onClose}
+      actions={
+        <>
+          <button type="button" className="modal__button modal__button--ghost" onClick={onClose}>
             Cancelar
           </button>
-          {/* The column tab has its own dedicated "Selecionar coluna" button above instead — a
-              disabled Confirmar next to it would just be dead weight, since that tab has nothing
-              of its own left for it to confirm. */}
+          {/* The column tab has its own dedicated "Selecionar coluna" button instead — a disabled
+              Confirmar next to it would just be dead weight, since that tab has nothing of its own
+              left for it to confirm. */}
           {!isColumnMode && (
-            <button type="button" className="value-source-modal__confirm-button" onClick={confirm} disabled={!canConfirm}>
+            <button type="button" className="modal__button action-button" onClick={confirm} disabled={!canConfirm}>
               Confirmar
             </button>
           )}
+        </>
+      }
+    >
+      {!referenceOnly && (
+        <div className="operation-entry__source-toggle">
+          <button
+            type="button"
+            className={`operation-entry__source-toggle-button${tab === 'static' ? ' operation-entry__source-toggle-button--active' : ''}`}
+            onClick={() => setTab('static')}
+          >
+            Input estático
+          </button>
+          <button
+            type="button"
+            className={`operation-entry__source-toggle-button${tab === 'dynamic' ? ' operation-entry__source-toggle-button--active' : ''}`}
+            onClick={() => setTab('dynamic')}
+          >
+            Input dinâmico
+          </button>
+          {hasColumnPicker && (
+            <button
+              type="button"
+              className={`operation-entry__source-toggle-button${tab === 'column' ? ' operation-entry__source-toggle-button--active' : ''}`}
+              onClick={() => setTab('column')}
+            >
+              Coluna da tabela
+            </button>
+          )}
         </div>
-      </div>
-    </div>,
-    document.body,
+      )}
+
+      {isColumnMode && (
+        <div className="value-source-modal__column">
+          <p className="operation-entry__chain-status">Escolha diretamente uma coluna na tabela à direita.</p>
+          <button
+            type="button"
+            className="operation-entry__pick-button"
+            onClick={() => {
+              onStartColumnPick();
+              onClose();
+            }}
+          >
+            Selecionar coluna
+          </button>
+        </div>
+      )}
+
+      {!isDynamicMode && !isColumnMode && (
+        <div className="value-source-modal__static">
+          <input
+            type={inputType}
+            className="operation-entry__input"
+            placeholder={placeholder}
+            min={inputType === 'number' ? 0 : undefined}
+            value={draftValue}
+            onChange={(event) => setDraftValue(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') confirm();
+            }}
+            autoFocus
+          />
+        </div>
+      )}
+
+      {isDynamicMode && (
+        <>
+          {multiple && <p className="operation-entry__chain-status">Pode escolher várias operações; ficam pela ordem em que as escolher.</p>}
+          <input
+            type="search"
+            className="operation-entry__input operation-entry__dynamic-input-search"
+            placeholder="Pesquisar operação..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            autoFocus
+          />
+          <div className="operation-entry__dynamic-input-menu">
+            {visibleReferenceOptions.length === 0 && (
+              <p className="operation-entry__chain-status">Nenhuma operação encontrada.</p>
+            )}
+            {visibleReferenceOptions.map((option) => {
+              const position = selectedOperationIds.indexOf(option.operationId);
+              return (
+                <button
+                  key={option.operationId}
+                  type="button"
+                  className={`operation-entry__dynamic-input-option${
+                    position !== -1 ? ' operation-entry__dynamic-input-option--active' : ''
+                  }`}
+                  onClick={() => selectOption(option.operationId)}
+                >
+                  {multiple && position !== -1 ? `${position + 1}. ` : ''}
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </Modal>
   );
 }
 

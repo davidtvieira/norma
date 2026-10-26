@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { Modal } from '../Modal/Modal';
+import { SplitButton } from '../SplitButton/SplitButton';
 import './SaveModal.css';
 
 /** What "Guardar modelo" can export: the full .nrm bundle (model + dataset), just the model .json, or just the dataset's original spreadsheet. */
@@ -61,35 +62,13 @@ export function SaveModal({
   if (!open) return null;
 
   return (
-    <div className="save-modal__overlay" onClick={onClose}>
-      <div className="save-modal" role="dialog" aria-modal="true" aria-labelledby="save-modal-title" onClick={(event) => event.stopPropagation()}>
-        <h2 id="save-modal-title" className="save-modal__title">
-          Guardar modelo
-        </h2>
-        <p className="save-modal__body">
-          Ainda não é possível guardar o modelo diretamente na plataforma. Pode, no entanto, exportá-lo como ficheiro .nrm
-          (inclui o conjunto de dados) e voltar a importá-lo mais tarde.
-        </p>
-
-        <label className="save-modal__name">
-          <span className="save-modal__io-label">Nome do ficheiro (.nrm)</span>
-          <input
-            type="text"
-            className="save-modal__name-input"
-            value={nrmName}
-            placeholder={nrmNamePlaceholder}
-            onChange={(event) => onNrmNameChange(event.target.value)}
-          />
-        </label>
-
-        <div className="save-modal__io">
-          <IoGroup label="Inputs" items={inputItems} emptyText={inputEmptyText} onReorder={onReorderInputs} />
-          <IoGroup label="Outputs" items={outputItems} emptyText="por definir" onReorder={onReorderOutputs} />
-        </div>
-
-        {exportHint && <p className="save-modal__hint">{exportHint}</p>}
-        <div className="save-modal__actions">
-          <button type="button" className="save-modal__close-button save-modal__close-button--secondary" onClick={onClose}>
+    <Modal
+      title="Guardar modelo"
+      size="lg"
+      onClose={onClose}
+      actions={
+        <>
+          <button type="button" className="modal__button modal__button--ghost" onClick={onClose}>
             Fechar
           </button>
           <ExportButton
@@ -99,9 +78,32 @@ export function SaveModal({
               onClose();
             }}
           />
-        </div>
+        </>
+      }
+    >
+      <p className="modal__hint">
+        Ainda não é possível guardar o modelo diretamente na plataforma. Pode, no entanto, exportá-lo como ficheiro .nrm (inclui o
+        conjunto de dados) e voltar a importá-lo mais tarde.
+      </p>
+
+      <label className="save-modal__name">
+        <span className="modal__label">Nome do ficheiro (.nrm)</span>
+        <input
+          type="text"
+          className="modal__input"
+          value={nrmName}
+          placeholder={nrmNamePlaceholder}
+          onChange={(event) => onNrmNameChange(event.target.value)}
+        />
+      </label>
+
+      <div className="save-modal__io">
+        <IoGroup label="Inputs" items={inputItems} emptyText={inputEmptyText} onReorder={onReorderInputs} />
+        <IoGroup label="Outputs" items={outputItems} emptyText="por definir" onReorder={onReorderOutputs} />
       </div>
-    </div>
+
+      {exportHint && <p className="modal__hint modal__hint--error">{exportHint}</p>}
+    </Modal>
   );
 }
 
@@ -111,62 +113,27 @@ interface ExportButtonProps {
 }
 
 /**
- * A split button: the main part exports the .nrm (model + dataset, the usual way to move a model
- * between sessions), and the arrow beside it opens a small menu to pick the format instead — the
- * .nrm again, or just the model's .json (no dataset; importable through "Importar Modelo" on a
- * dataset that's already loaded).
+ * The export button: the main part exports the .nrm (model + dataset, the usual way to move a
+ * model between sessions), and the arrow beside it picks the format instead — the .nrm again, or
+ * just the model's .json (no dataset; importable through "Importar Modelo" on a dataset that's
+ * already loaded), or just the dataset's own file.
  */
 function ExportButton({ disabled, onExport }: ExportButtonProps) {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-
-  function pick(format: ModelExportFormat) {
-    setIsMenuOpen(false);
-    onExport(format);
-  }
-
   return (
-    <div
-      className="save-modal__split"
-      // Closes the menu when focus leaves the whole control (a click elsewhere, tabbing away).
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setIsMenuOpen(false);
-      }}
+    <SplitButton
+      buttonClassName="modal__button"
+      onClick={() => onExport('nrm')}
+      disabled={disabled}
+      arrowDisabled={disabled}
+      arrowLabel="Escolher o formato de exportação"
+      items={[
+        { label: 'Ficheiro Norma (.nrm)', onSelect: () => onExport('nrm') },
+        { label: 'Só o modelo (.json)', onSelect: () => onExport('json') },
+        { label: 'Só os dados (ficheiro original)', onSelect: () => onExport('dataset') },
+      ]}
     >
-      <button
-        type="button"
-        className="save-modal__close-button save-modal__split-main"
-        onClick={() => pick('nrm')}
-        disabled={disabled}
-      >
-        Exportar modelo (.nrm)
-      </button>
-      <button
-        type="button"
-        className="save-modal__close-button save-modal__split-arrow"
-        onClick={() => setIsMenuOpen((open) => !open)}
-        disabled={disabled}
-        aria-label="Escolher o formato de exportação"
-        aria-haspopup="menu"
-        aria-expanded={isMenuOpen}
-      >
-        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
-      {isMenuOpen && (
-        <div className="save-modal__split-menu" role="menu">
-          <button type="button" role="menuitem" className="save-modal__split-item" onClick={() => pick('nrm')}>
-            Ficheiro Norma (.nrm)
-          </button>
-          <button type="button" role="menuitem" className="save-modal__split-item" onClick={() => pick('json')}>
-            Só o modelo (.json)
-          </button>
-          <button type="button" role="menuitem" className="save-modal__split-item" onClick={() => pick('dataset')}>
-            Só os dados (ficheiro original)
-          </button>
-        </div>
-      )}
-    </div>
+      Exportar modelo (.nrm)
+    </SplitButton>
   );
 }
 
@@ -200,12 +167,12 @@ function IoGroup({ label, items, emptyText, onReorder }: IoGroupProps) {
   return (
     <div className="save-modal__io-group">
       <div className="save-modal__io-header">
-        <span className="save-modal__io-label">
+        <span className="modal__label">
           {label}
           {items.length > 0 && ` (${items.length})`}
         </span>
         {items.length > 1 && (
-          <button type="button" className="save-modal__io-sort" onClick={sortByName}>
+          <button type="button" className="modal__chip" onClick={sortByName}>
             Ordenar por nome
           </button>
         )}

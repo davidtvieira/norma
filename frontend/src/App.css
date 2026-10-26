@@ -644,7 +644,7 @@
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.25s ease;
-  z-index: 20;
+  z-index: 120;
 }
 
 .sheet-panel__backdrop--visible {
@@ -665,7 +665,7 @@
   box-shadow: -12px 0 32px rgb(0 0 0 / 18%);
   transform: translateX(100%);
   transition: transform 0.28s ease;
-  z-index: 21;
+  z-index: 121;
 }
 
 .sheet-panel--open {
@@ -785,11 +785,8 @@
 button.action-button,
 button.model-card__run-button,
 button.app__save-button:not(.app__save-button--secondary),
-button.test-values-modal__run-button,
-button.save-modal__close-button:not(.save-modal__close-button--secondary),
 button.operation-canvas__test-button:not(.operation-canvas__test-button--cancel),
 button.operation-entry__confirm-button,
-button.value-source-modal__confirm-button,
 button.add-operation-panel__confirm-all,
 button.operation-canvas__tool-button--primary,
 button.operation-canvas__tool-button--active,
@@ -802,11 +799,8 @@ button.operation-card__io-toggle--active {
 button.action-button:hover:not(:disabled),
 button.model-card__run-button:hover:not(:disabled),
 button.app__save-button:not(.app__save-button--secondary):hover:not(:disabled),
-button.test-values-modal__run-button:hover:not(:disabled),
-button.save-modal__close-button:not(.save-modal__close-button--secondary):hover:not(:disabled),
 button.operation-canvas__test-button:not(.operation-canvas__test-button--cancel):hover:not(:disabled),
 button.operation-entry__confirm-button:hover:not(:disabled),
-button.value-source-modal__confirm-button:hover:not(:disabled),
 button.add-operation-panel__confirm-all:hover:not(:disabled),
 button.operation-canvas__tool-button--primary:hover:not(:disabled),
 button.operation-canvas__tool-button--active:hover:not(:disabled),
@@ -820,13 +814,10 @@ button.app__create-model-button--secondary,
 button.app__view-data-button,
 button.app__save-button--secondary,
 button.recent-sessions__clear-button,
-button.test-values-modal__button--secondary,
-button.save-modal__close-button--secondary,
 button.operation-canvas__tool-button:not(.operation-canvas__tool-button--primary):not(.operation-canvas__tool-button--active),
 button.operation-canvas__reset-button,
 button.operation-canvas__zoom-button,
 button.operation-canvas__zoom-level,
-button.add-operation-modal__close-button,
 button.operation-entry__pick-button,
 button.operation-column-picking__cancel,
 button.operation-card__io-toggle:not(.operation-card__io-toggle--active) {
@@ -839,13 +830,10 @@ button.app__create-model-button--secondary:hover:not(:disabled),
 button.app__view-data-button:hover:not(:disabled),
 button.app__save-button--secondary:hover:not(:disabled),
 button.recent-sessions__clear-button:hover:not(:disabled),
-button.test-values-modal__button--secondary:hover:not(:disabled),
-button.save-modal__close-button--secondary:hover:not(:disabled),
 button.operation-canvas__tool-button:not(.operation-canvas__tool-button--primary):not(.operation-canvas__tool-button--active):hover:not(:disabled),
 button.operation-canvas__reset-button:hover:not(:disabled),
 button.operation-canvas__zoom-button:hover:not(:disabled),
 button.operation-canvas__zoom-level:hover:not(:disabled),
-button.add-operation-modal__close-button:hover:not(:disabled),
 button.operation-entry__pick-button:hover:not(:disabled),
 button.operation-column-picking__cancel:hover:not(:disabled),
 button.operation-card__io-toggle:not(.operation-card__io-toggle--active):hover:not(:disabled) {

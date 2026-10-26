@@ -1,0 +1,66 @@
+/* A button with an arrow joined to its right edge (see SplitButton.tsx). */
+.split-button {
+  position: relative;
+  display: inline-flex;
+}
+
+.split-button .split-button__main {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.split-button .split-button__arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 0.7rem;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.45);
+}
+
+.split-button .split-button__arrow svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.split-button__menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.4rem);
+  z-index: 20;
+  min-width: 100%;
+  padding: 0.3rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
+}
+
+.split-button__item {
+  display: block;
+  width: 100%;
+  padding: 0.55rem 0.9rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.split-button__item:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.split-button__item:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}

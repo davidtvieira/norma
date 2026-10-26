@@ -1,0 +1,217 @@
+/* The one look every dialog shares (see Modal.tsx): backdrop, box, header with ×, scrolling body,
+   a row of actions. Sizes are the only thing a dialog picks. */
+.modal__overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  animation: modal-dim 0.25s ease both;
+}
+
+.modal {
+  width: 100%;
+  max-width: 500px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
+  animation: modal-rise 0.3s ease both;
+}
+
+.modal--md {
+  max-width: 620px;
+}
+
+.modal--lg {
+  max-width: 860px;
+}
+
+.modal__header {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.modal__heading {
+  min-width: 0;
+}
+
+.modal__title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-text);
+  word-break: break-word;
+}
+
+.modal__subtitle {
+  margin-top: 0.2rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.modal__close {
+  flex: none;
+  padding: 0.1rem 0.3rem;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.modal__close:hover:not(:disabled) {
+  color: var(--color-text);
+}
+
+.modal__close:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.modal__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.modal__actions {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+}
+
+/* Text helpers for a modal's body. */
+.modal__text {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--color-text);
+}
+
+.modal__hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.modal__hint--error {
+  color: var(--color-error);
+}
+
+.modal__label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.modal__input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.modal__input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+/* The buttons of a modal: one size, pill-shaped. The main one also carries `action-button` (the
+   orange of the button system); the dismiss one is `modal__button--ghost`, an outline. */
+button.modal__button {
+  min-height: 2.6rem;
+  padding: 0.5rem 1.4rem;
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+button.modal__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+button.modal__button--ghost {
+  border-color: var(--color-border);
+  background: transparent;
+  color: var(--color-text);
+}
+
+button.modal__button--ghost:hover:not(:disabled) {
+  border-color: var(--color-text-muted);
+  background: var(--color-surface-hover);
+}
+
+/* A small outlined pill for a modal's secondary actions ("Selecionar todas", "Ordenar por nome"). */
+button.modal__chip {
+  padding: 0.25rem 0.8rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+button.modal__chip:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  background: var(--color-surface-hover);
+}
+
+button.modal__chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Every modal comes up from below while the backdrop fades in, instead of both appearing at once. */
+@keyframes modal-dim {
+  from {
+    background: rgba(0, 0, 0, 0);
+  }
+}
+
+@keyframes modal-rise {
+  from {
+    opacity: 0;
+    transform: translateY(2.5rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal__overlay,
+  .modal {
+    animation: none;
+  }
+}

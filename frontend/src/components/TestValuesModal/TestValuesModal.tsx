@@ -1,3 +1,4 @@
+import { Modal } from '../Modal/Modal';
 import { LoadingOverlay } from '../LoadingOverlay/LoadingOverlay';
 import './TestValuesModal.css';
 
@@ -50,55 +51,51 @@ export function TestValuesModal({ open, onClose, inputs, onChangeValue, onRun, i
   const allFilled = inputs.every((input) => input.value.trim() !== '');
 
   return (
-    <div className="test-values-modal__overlay" onClick={isRunning ? undefined : onClose}>
+    <>
       {isRunning && <LoadingOverlay />}
-      <div
-        className="test-values-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="test-values-modal-title"
-        onClick={(event) => event.stopPropagation()}
+      <Modal
+        title="Testar modelo"
+        onClose={onClose}
+        closeDisabled={isRunning}
+        actions={
+          <>
+            <button type="button" className="modal__button modal__button--ghost" onClick={onClose} disabled={isRunning}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="modal__button action-button"
+              onClick={onRun}
+              disabled={!allFilled || isRunning}
+              aria-busy={isRunning}
+              title={allFilled ? undefined : 'Preencha todos os inputs antes de correr o teste.'}
+            >
+              Correr teste
+            </button>
+          </>
+        }
       >
-        <h2 id="test-values-modal-title" className="test-values-modal__title">
-          Testar modelo
-        </h2>
-        <p className="test-values-modal__body">Reveja o valor de cada input antes de correr o teste.</p>
+        <p className="modal__hint">Reveja o valor de cada input antes de correr o teste.</p>
 
         <div className="test-values-modal__fields">
           {inputs.map((input) => (
-            <div key={input.id} className="test-values-modal__field">
-              <label className="test-values-modal__label">{input.name || 'Input'}</label>
+            <label key={input.id} className="test-values-modal__field">
+              <span className="modal__label">{input.name || 'Input'}</span>
               <input
                 type="text"
-                className="test-values-modal__input"
+                className="modal__input"
                 value={input.value}
                 onChange={(event) => onChangeValue(input.id, event.target.value)}
                 disabled={isRunning}
                 placeholder="Introduza um valor"
               />
-            </div>
+            </label>
           ))}
         </div>
 
-        {warning && <p className="test-values-modal__hint">{warning}</p>}
-        {importError && <p className="test-values-modal__hint">{importError}</p>}
-
-        <div className="test-values-modal__actions">
-          <button type="button" className="test-values-modal__button test-values-modal__button--secondary" onClick={onClose} disabled={isRunning}>
-            Cancelar
-          </button>
-          <button
-            type="button"
-            className="test-values-modal__button test-values-modal__run-button"
-            onClick={onRun}
-            disabled={!allFilled || isRunning}
-            aria-busy={isRunning}
-            title={allFilled ? undefined : 'Preencha todos os inputs antes de correr o teste.'}
-          >
-            Correr teste
-          </button>
-        </div>
-      </div>
-    </div>
+        {warning && <p className="modal__hint modal__hint--error">{warning}</p>}
+        {importError && <p className="modal__hint modal__hint--error">{importError}</p>}
+      </Modal>
+    </>
   );
 }

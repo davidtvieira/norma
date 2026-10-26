@@ -6,6 +6,7 @@ import type { DatasetImportResponse } from '../../types/dataset';
 import type { ColumnPickField, ColumnPickState, RangePickState } from '../../types/columnPick';
 import type { ColumnHighlight, OperationHighlight, RangeHighlight } from '../../types/highlight';
 import { useOperationTypes } from '../../hooks/useOperationTypes';
+import { KIND_LABELS } from './kindLabels';
 import { buildReferenceGraph, getDependencyChain, getDependents, resolveOperationInputs } from '../../utils/resolveOperationInputs';
 import { getInputSource, getInputSources, hasSingleInputField, literalSource, outputResultKey, remapValueSourceReferences } from '../../types/valueSource';
 import type { SerializableEntry } from '../../utils/modelSerialization';
@@ -15,6 +16,9 @@ import { iteratorPreviewSheet } from './kinds/iteratorKind';
 import { PAGE_AWARE_KIND_IDS, PAGE_SELECTOR_KIND_ID, pageSheetFromResult } from '../../utils/pageSelector';
 import { KINDS, KINDS_BY_ID } from './kinds/registry';
 import { AddOperationModal } from '../AddOperationModal/AddOperationModal';
+import { DockedPanel } from './DockedPanel';
+import { ConfirmModal } from '../Modal/ConfirmModal';
+import { Modal } from '../Modal/Modal';
 import { TestValuesModal } from '../TestValuesModal/TestValuesModal';
 import { useCanvasViewport, MIN_ZOOM, MAX_ZOOM, ZOOM_STEP } from './useCanvasViewport';
 import type { NodePosition } from './useCanvasViewport';
@@ -424,20 +428,14 @@ function ConfirmedOperationCard({
 
   // Every way of leaving the modal other than "Confirmar" discards what was edited in it, so
   // when something did change it asks before throwing that away.
+  const [isDiscardConfirmOpen, setIsDiscardConfirmOpen] = useState(false);
   function requestCancel() {
-    if (isModalDirty && !window.confirm('Descartar as alterações feitas nesta operação?')) return;
+    if (isModalDirty) {
+      setIsDiscardConfirmOpen(true);
+      return;
+    }
     onCancelModal();
   }
-
-  useEffect(() => {
-    if (!isModalOpen) return;
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') requestCancel();
-    }
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isModalOpen, isModalDirty, onCancelModal]);
 
   return (
     <div
@@ -487,61 +485,46 @@ function ConfirmedOperationCard({
 
       {createPortal(children, isModalOpen ? modalSlot : inlineSlot)}
 
-      {isModalOpen &&
-        createPortal(
-          <div className="operation-card-modal__overlay" onClick={requestCancel}>
-            <div
-              className="operation-card-modal"
-              role="dialog"
-              aria-modal="true"
-              aria-label={name || 'Operação sem nome'}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="operation-card-modal__header">
-                <div>
-                  <h3 className="operation-card-modal__name">{name || 'Operação sem nome'}</h3>
-                  <div className="operation-card-modal__meta">
-                    <span className="operation-card__kind">{kindLabel}</span>
-                    <span className="operation-card__summary">{summary}</span>
-                  </div>
-                </div>
-                <button type="button" className="operation-card-modal__close" onClick={requestCancel} aria-label="Fechar">
-                  ×
-                </button>
-              </div>
-
-              <div ref={modalPlaceholderRef} />
-
-              <div className="operation-card-modal__actions">
-                <button type="button" className="add-operation-modal__close-button" onClick={requestCancel}>
-                  Cancelar
-                </button>
-                <button type="button" className="value-source-modal__confirm-button" onClick={onCloseModal}>
-                  Confirmar
-                </button>
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
+      {isModalOpen && (
+        <Modal
+          title={name || 'Operação sem nome'}
+          subtitle={
+            <>
+              <span className="operation-card__kind">{kindLabel}</span> <span className="operation-card__summary">{summary}</span>
+            </>
+          }
+          size="md"
+          onClose={requestCancel}
+          actions={
+            <>
+              <button type="button" className="modal__button modal__button--ghost" onClick={requestCancel}>
+                Cancelar
+              </button>
+              <button type="button" className="modal__button action-button" onClick={onCloseModal}>
+                Confirmar
+              </button>
+            </>
+          }
+        >
+          <div ref={modalPlaceholderRef} />
+        </Modal>
+      )}
+      {isDiscardConfirmOpen && (
+        <ConfirmModal
+          title="Descartar alterações?"
+          message="As alterações feitas nesta operação vão ser perdidas."
+          confirmLabel="Descartar"
+          cancelLabel="Continuar a editar"
+          onConfirm={() => {
+            setIsDiscardConfirmOpen(false);
+            onCancelModal();
+          }}
+          onCancel={() => setIsDiscardConfirmOpen(false)}
+        />
+      )}
     </div>
   );
 }
-
-// Overrides the API's (English) labels with their Portuguese display names — the id is still
-// what's sent to/matched against the API, only the label shown in the UI is translated here.
-const KIND_LABELS: Record<string, string> = {
-  lookup: 'Pesquisa aninhada',
-  sum: 'Somar',
-  counter: 'Contador',
-  node: 'Nó',
-  find: 'Localizar',
-  translator: 'Tradutor',
-  selector: 'Seletor',
-  iterator: 'Iterador',
-  calc: 'Calcular',
-  page: 'Seletor de página',
-};
 
 interface OperationEntryState {
   id: string;
@@ -1733,6 +1716,7 @@ export function OperationPanel({
     setEntries((current) => current.map((entry) => (staged.has(entry.id) ? { ...entry, confirmed: true } : entry)));
     onOperationConfirmed();
     setStagingEntryIds([]);
+    setIsAddModalOpen(false);
     // Adding the iterator leaves the model with a single output (each round's stop) — keep the
     // first one already chosen.
     if (entries.some((entry) => staged.has(entry.id) && entry.kindId === 'iterator') && modelOutputIds.length > 1) {
@@ -2147,12 +2131,14 @@ export function OperationPanel({
   // a centered/blocking dialog — picking a column/range auto-opens the off-canvas sheet panel on
   // the right (see App.tsx), and a full-screen backdrop would sit on top of it, making the sheet
   // unreachable.
-  function renderConfigPanel(): ReactNode {
+  function renderDockedPanel(): ReactNode {
     if (editingEntryId) {
       const editingEntry = entries.find((entry) => entry.id === editingEntryId);
       if (!editingEntry) return null;
 
       return (
+        <>
+        <div className="add-operation-panel__backdrop" onClick={() => cancelEntry(editingEntry.id)} />
         <div className="add-operation-panel" role="dialog" aria-modal="true" aria-labelledby="add-operation-panel-title">
           <div className="add-operation-panel__header">
             <h2 id="add-operation-panel-title" className="add-operation-panel__title">
@@ -2169,6 +2155,7 @@ export function OperationPanel({
           </div>
           <div className="add-operation-panel__body">{renderDraftCard(editingEntry, 'edit')}</div>
         </div>
+        </>
       );
     }
 
@@ -2185,6 +2172,8 @@ export function OperationPanel({
       const stagingKindId = stagingEntries[0]?.kindId;
 
       return (
+        <>
+        <div className="add-operation-panel__backdrop" onClick={cancelStaging} />
         <div className="add-operation-panel" role="dialog" aria-modal="true" aria-labelledby="add-operation-panel-title">
           <div className="add-operation-panel__header">
             <h2 id="add-operation-panel-title" className="add-operation-panel__title">
@@ -2243,18 +2232,39 @@ export function OperationPanel({
             </button>
           </div>
         </div>
+        </>
       );
     }
 
-    return (
+    return null;
+  }
+
+  // The docked panel (sliding in and out) with the kind picker open behind it while a new operation
+  // is being set up.
+  function renderConfigPanel(): ReactNode {
+    // The kind picker stays open behind the panel until the new operation has been added (confirmAllStaged)
+    // or cancelled from the modal.
+    const stagingKindOfBatch = entries.find((entry) => entry.id === stagingEntryIds[0])?.kindId ?? null;
+    const addModal = (
       <AddOperationModal
         open={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
+        onClose={() => {
+          setIsAddModalOpen(false);
+          if (stagingEntryIds.length > 0) cancelStaging();
+        }}
         kinds={KINDS.map((kind) => ({ id: kind.id, label: labelForKind(kind.id) }))}
         // A model has one iterator — it's the always-first loop around everything else.
         disabledKindIds={[...(iteratorEntry ? ['iterator'] : []), ...(entries.some((entry) => entry.kindId === PAGE_SELECTOR_KIND_ID) ? [PAGE_SELECTOR_KIND_ID] : [])]}
+        activeKindId={stagingKindOfBatch}
         onPick={addToStaging}
       />
+    );
+
+    return (
+      <>
+        {addModal}
+        <DockedPanel>{renderDockedPanel()}</DockedPanel>
+      </>
     );
   }
 

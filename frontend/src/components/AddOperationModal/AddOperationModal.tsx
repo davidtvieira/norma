@@ -1,3 +1,5 @@
+import { Modal } from '../Modal/Modal';
+import { KIND_DESCRIPTIONS } from '../OperationPanel/kindLabels';
 import './AddOperationModal.css';
 
 export interface OperationKindOption {
@@ -11,58 +13,57 @@ interface AddOperationModalProps {
   kinds: OperationKindOption[];
   /** Kinds that can't be added right now (e.g. a second iterator) — shown but disabled. */
   disabledKindIds?: string[];
+  /** The kind whose new operation is being set up in the panel docked beside this modal, if any. */
+  activeKindId?: string | null;
   onPick: (kindId: string) => void;
 }
 
 /**
  * Reachable from the canvas' "+ Adicionar operação" button. Only picks the operation's type
- * (Lookup, Sum, ...) — picking one closes the modal and drops a new draft node on the canvas,
- * configured in place exactly like before (table/column/range pickers on the node itself), so
- * the canvas doesn't need to host that configuration inside the modal too.
+ * (Lookup, Sum, ...) — clicking one opens its configuration in the panel docked to the left
+ * (see OperationPanel's renderConfigPanel) while this modal stays open behind it; the owner closes
+ * it once the operation has been added. Clicking another type meanwhile switches to that one.
  */
-export function AddOperationModal({ open, onClose, kinds, disabledKindIds = [], onPick }: AddOperationModalProps) {
+export function AddOperationModal({ open, onClose, kinds, disabledKindIds = [], activeKindId = null, onPick }: AddOperationModalProps) {
   if (!open) return null;
 
-  function pick(kindId: string) {
-    onPick(kindId);
-    onClose();
-  }
-
   return (
-    <div className="add-operation-modal__overlay" onClick={onClose}>
-      <div
-        className="add-operation-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="add-operation-modal-title"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <h2 id="add-operation-modal-title" className="add-operation-modal__title">
-          Nova operação
-        </h2>
-        <p className="add-operation-modal__body">Escolha o tipo de operação a adicionar ao modelo.</p>
+    <Modal
+      title="Nova operação"
+      size="lg"
+      onClose={onClose}
+      closeOnBackdrop={activeKindId === null}
+      actions={
+        <button type="button" className="modal__button modal__button--ghost" onClick={onClose}>
+          Cancelar
+        </button>
+      }
+    >
+      <p className="modal__hint">Escolha o tipo de operação a adicionar ao modelo.</p>
 
-        <div className="add-operation-modal__kinds">
-          {kinds.map((kind) => (
-            <button
-              key={kind.id}
-              type="button"
-              className="add-operation-modal__kind-option"
-              disabled={disabledKindIds.includes(kind.id)}
-              title={disabledKindIds.includes(kind.id) ? 'O modelo já tem uma operação deste tipo.' : undefined}
-              onClick={() => pick(kind.id)}
-            >
-              {kind.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="add-operation-modal__actions">
-          <button type="button" className="add-operation-modal__close-button" onClick={onClose}>
-            Cancelar
+      <div className="add-operation-modal__kinds">
+        {kinds.map((kind) => (
+          <button
+            key={kind.id}
+            type="button"
+            className={`add-operation-modal__kind-option${activeKindId === kind.id ? ' add-operation-modal__kind-option--selected' : ''}`}
+            aria-pressed={activeKindId === kind.id}
+            disabled={disabledKindIds.includes(kind.id)}
+            title={disabledKindIds.includes(kind.id) ? 'O modelo já tem uma operação deste tipo.' : undefined}
+            onClick={() => onPick(kind.id)}
+          >
+            <span className="add-operation-modal__kind-text">
+              <span className="add-operation-modal__kind-label">{kind.label}</span>
+              {KIND_DESCRIPTIONS[kind.id] && (
+                <span className="add-operation-modal__kind-description">{KIND_DESCRIPTIONS[kind.id]}</span>
+              )}
+            </span>
+            <svg className="add-operation-modal__kind-arrow" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
-        </div>
+        ))}
       </div>
-    </div>
+    </Modal>
   );
 }
