@@ -5,6 +5,8 @@ import com.norma.dataset.dto.DatasetTouch;
 import com.norma.dataset.dto.ModelInputField;
 import com.norma.dataset.dto.ModelInputsResponse;
 import com.norma.dataset.dto.ModelOperationInput;
+import com.norma.dataset.dto.ModelOperationRef;
+import com.norma.dataset.dto.ModelRunResponse;
 import com.norma.dataset.dto.ModelOperationResult;
 import com.norma.dataset.dto.ModelRegisterRequest;
 import com.norma.dataset.dto.SheetData;
@@ -117,6 +119,18 @@ public class ModelExecutionService {
      * output's chain depends on is only ever computed once per run.
      */
     public List<ModelOperationResult> runModel(String datasetId, String modelId, Map<String, String> inputValues) {
+        return runModelWatching(datasetId, modelId, inputValues, null).results();
+    }
+
+    /**
+     * {@link #runModel} that also returns the value of each operation in {@code watchIds} (any
+     * operation of the model, not only its outputs), in the order asked — resolved in the very same
+     * pass, so they share the outputs' computed values. An id the model doesn't have is skipped.
+     */
+    public ModelRunResponse runModelWatching(
+            String datasetId, String modelId, Map<String, String> inputValues, List<String> watchIds) {
+        List<String> watching = watchIds == null ? List.of() : watchIds;
+        List<ModelOperationResult> watched = new ArrayList<>();
         StoredModel model = modelStore.get(modelId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Model not found. Please prepare the model again before running it."));
@@ -135,10 +149,11 @@ public class ModelExecutionService {
                 .filter(operation -> ITERATOR_KIND.equals(operation.kind()))
                 .findFirst();
         if (iterator.isPresent()) {
-            return runIterations(model, operations, iterator.get(), dataset);
+            return new ModelRunResponse(runIterations(model, operations, iterator.get(), dataset, watching, watched), watched);
         }
 
-        return runOnce(operations, model.outputOperationIds(), dataset, "", "", false);
+        return new ModelRunResponse(
+                runOnce(operations, model.outputOperationIds(), dataset, "", "", false, watching, watched), watched);
     }
 
     /**
@@ -149,7 +164,8 @@ public class ModelExecutionService {
      * carries over between sheets except which sheet the iterator is currently on.
      */
     private List<ModelOperationResult> runIterations(
-            StoredModel model, List<ModelOperationInput> operations, ModelOperationInput iterator, DatasetImportResponse dataset) {
+            StoredModel model, List<ModelOperationInput> operations, ModelOperationInput iterator, DatasetImportResponse dataset,
+            List<String> watchIds, List<ModelOperationResult> watchedOut) {
         List<ModelOperationResult> results = new ArrayList<>();
         List<Integer> sheets = iteratorSheets(iterator, dataset);
         for (int position = 0; position < sheets.size(); position++) {
@@ -159,7 +175,7 @@ public class ModelExecutionService {
                     .map(operation -> forSheet(operation, sheet, roundPosition))
                     .toList();
             results.addAll(runOnce(round, model.outputOperationIds(), dataset, String.valueOf(position),
-                    descriptionAt(iterator, position), true));
+                    descriptionAt(iterator, position), true, watchIds, watchedOut));
         }
         return results;
     }
@@ -172,7 +188,8 @@ public class ModelExecutionService {
      */
     private List<ModelOperationResult> runOnce(
             List<ModelOperationInput> operations, List<String> outputOperationIds, DatasetImportResponse dataset,
-            String iteration, String iterationName, boolean iterating) {
+            String iteration, String iterationName, boolean iterating,
+            List<String> watchIds, List<ModelOperationResult> watchedOut) {
 
         Map<String, ModelOperationInput> byId = new LinkedHashMap<>();
         for (ModelOperationInput operation : operations) {
@@ -182,7 +199,7 @@ public class ModelExecutionService {
         Map<String, List<String>> referenceGraph = buildReferenceGraph(operations);
         Set<String> cyclicIds = findCyclicIds(referenceGraph);
         Map<String, ModelOperationResult> resolved = new HashMap<>();
-        return outputOperationIds.stream()
+        List<ModelOperationResult> outputResults = outputOperationIds.stream()
                 .flatMap(outputOperationId -> {
                     ModelOperationResult result = resolveOperation(outputOperationId, dataset, byId, cyclicIds, resolved);
                     if (!iterating) {
@@ -200,6 +217,27 @@ public class ModelExecutionService {
                     return java.util.stream.Stream.of(result.withName(nameOf(byId.get(outputOperationId))));
                 })
                 .toList();
+        for (String watchId : watchIds) {
+            ModelOperationInput watchedOperation = byId.get(watchId);
+            if (watchedOperation == null) {
+                continue;
+            }
+            ModelOperationResult result = resolveOperation(watchId, dataset, byId, cyclicIds, resolved);
+            String name = displayNameOf(watchedOperation);
+            watchedOut.add(new ModelOperationResult(
+                    iterating ? watchId + ":" + iteration : watchId,
+                    result.success(),
+                    result.value(),
+                    result.error(),
+                    iterating ? name + " · " + iterationName : name));
+        }
+        return outputResults;
+    }
+
+    /** The operation's own name, or its kind when it was never named — what a caller picking it sees. */
+    private String displayNameOf(ModelOperationInput operation) {
+        String name = nameOf(operation).trim();
+        return name.isEmpty() ? operation.kind() : name;
     }
 
     /**
@@ -346,7 +384,24 @@ public class ModelExecutionService {
                 .map(operation -> new ModelInputField(
                         operation.id(), nameOf(operation), operation.kind(), literalInputOf(operation)))
                 .toList();
-        return new ModelInputsResponse(inputs);
+        List<ModelOperationRef> operations = model.operations().stream()
+                .map(operation -> new ModelOperationRef(operation.id(), displayNameOf(operation), operation.kind()))
+                .toList();
+        return new ModelInputsResponse(inputs, operations);
+    }
+
+    /**
+     * One operation of a registered model, with its configuration — read-only, for a caller who
+     * wants to see how an operation they picked to watch is set up. Nothing here can change it.
+     */
+    public ModelOperationInput getModelOperation(String modelId, String operationId) {
+        StoredModel model = modelStore.get(modelId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Model not found. Please prepare the model again before using it."));
+        return model.operations().stream()
+                .filter(operation -> operation.id().equals(operationId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Operation not found in this model."));
     }
 
     private String nameOf(ModelOperationInput operation) {

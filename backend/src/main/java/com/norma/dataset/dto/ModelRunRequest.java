@@ -8,7 +8,13 @@ import java.util.Map;
  * missing an entry for a given input operation, is treated as an empty string for that one — same
  * as when the model has no input operations at all). The operations themselves — every
  * table/column/range detail — stay server-side, registered once; a run only ever sends the values
- * a caller is actually meant to supply, never the operations themselves.
+ * a caller is actually meant to supply, never the operations themselves. {@code watchIds} lists
+ * extra operations (any in the model, by id) whose values the caller also wants back, next to the
+ * outputs (null/omitted: none).
  */
-public record ModelRunRequest(Map<String, String> inputValues) {
+public record ModelRunRequest(Map<String, String> inputValues, java.util.List<String> watchIds) {
+
+    public ModelRunRequest(Map<String, String> inputValues) {
+        this(inputValues, null);
+    }
 }

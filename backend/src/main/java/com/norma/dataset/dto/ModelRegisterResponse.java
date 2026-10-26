@@ -8,5 +8,5 @@ import java.util.List;
  * same list GET /api/v1/model/{modelId}/inputs returns) so a caller registering a model doesn't
  * need a second request to learn what to fill in.
  */
-public record ModelRegisterResponse(String modelId, List<ModelInputField> inputs) {
+public record ModelRegisterResponse(String modelId, List<ModelInputField> inputs, List<ModelOperationRef> operations) {
 }

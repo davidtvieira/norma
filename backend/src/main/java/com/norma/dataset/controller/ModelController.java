@@ -6,6 +6,7 @@ import com.norma.dataset.dto.ModelOperationResult;
 import com.norma.dataset.dto.ModelRegisterRequest;
 import com.norma.dataset.dto.ModelRegisterResponse;
 import com.norma.dataset.dto.ModelRunRequest;
+import com.norma.dataset.dto.ModelRunResponse;
 import com.norma.dataset.service.ModelExecutionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -46,7 +47,7 @@ public class ModelController {
     public ResponseEntity<ModelRegisterResponse> registerModel(
             @PathVariable String datasetId, @RequestBody ModelRegisterRequest request) {
         String modelId = modelExecutionService.registerModel(datasetId, request);
-        return ResponseEntity.ok(new ModelRegisterResponse(modelId, modelExecutionService.getModelInputs(modelId).inputs()));
+        return ResponseEntity.ok(registerResponse(modelId));
     }
 
     @Operation(
@@ -76,6 +77,17 @@ public class ModelController {
     }
 
     @Operation(
+            summary = "Get one operation of a registered model",
+            description = "Returns an operation's id, name, kind and configuration (tables, columns, ranges, inputs) "
+                    + "so a caller can see how it is set up. Read-only: nothing about it can be changed from here."
+    )
+    @GetMapping("/api/v1/model/{modelId}/operations/{operationId}")
+    public ResponseEntity<com.norma.dataset.dto.ModelOperationInput> getModelOperation(
+            @PathVariable String modelId, @PathVariable String operationId) {
+        return ResponseEntity.ok(modelExecutionService.getModelOperation(modelId, operationId));
+    }
+
+    @Operation(
             summary = "Run a registered model",
             description = "Runs a previously registered model — resolving chained (reference) inputs between "
                     + "its operations server-side, the same way as a single-operation call — and returns one "
@@ -85,9 +97,9 @@ public class ModelController {
                     + "for one of them is treated as an empty string for that one)."
     )
     @PostMapping("/api/v1/dataset/{datasetId}/model/{modelId}/run")
-    public ResponseEntity<List<ModelOperationResult>> runModel(
+    public ResponseEntity<ModelRunResponse> runModel(
             @PathVariable String datasetId, @PathVariable String modelId, @RequestBody ModelRunRequest request) {
-        return ResponseEntity.ok(modelExecutionService.runModel(datasetId, modelId, request.inputValues()));
+        return ResponseEntity.ok(modelExecutionService.runModelWatching(datasetId, modelId, request.inputValues(), request.watchIds()));
     }
 
     @Operation(
@@ -101,5 +113,10 @@ public class ModelController {
     public ResponseEntity<Void> deleteModel(@PathVariable String datasetId, @PathVariable String modelId) {
         modelExecutionService.deleteModel(datasetId, modelId);
         return ResponseEntity.noContent().build();
+    }
+
+    private ModelRegisterResponse registerResponse(String modelId) {
+        var described = modelExecutionService.getModelInputs(modelId);
+        return new ModelRegisterResponse(modelId, described.inputs(), described.operations());
     }
 }

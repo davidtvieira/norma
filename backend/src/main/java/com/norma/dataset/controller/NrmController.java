@@ -5,6 +5,7 @@ import com.norma.dataset.dto.DatasetImportResponse;
 import com.norma.dataset.dto.ModelInputsResponse;
 import com.norma.dataset.dto.ModelOperationResult;
 import com.norma.dataset.dto.ModelRunRequest;
+import com.norma.dataset.dto.ModelRunResponse;
 import com.norma.dataset.dto.NrmImportStatus;
 import com.norma.dataset.dto.NrmInfo;
 import com.norma.dataset.service.NrmService;
@@ -61,14 +62,24 @@ public class NrmController {
     }
 
     @Operation(
+            summary = "Get one operation of an imported .nrm's model",
+            description = "Read-only: an operation's id, name, kind and configuration, as the .nrm's model holds it."
+    )
+    @GetMapping("/api/v1/nrm/{nrmId}/operations/{operationId}")
+    public ResponseEntity<com.norma.dataset.dto.ModelOperationInput> getOperation(
+            @PathVariable String nrmId, @PathVariable String operationId) {
+        return ResponseEntity.ok(nrmService.getOperation(nrmId, operationId));
+    }
+
+    @Operation(
             summary = "Run an imported .nrm's model",
             description = "Runs the model of a previously imported .nrm against its own dataset, with the given "
                     + "values for its inputs (keyed by input id), returning one named result per output."
     )
     @PostMapping("/api/v1/nrm/{nrmId}/run")
-    public ResponseEntity<List<ModelOperationResult>> run(
+    public ResponseEntity<ModelRunResponse> run(
             @PathVariable String nrmId, @org.springframework.web.bind.annotation.RequestBody ModelRunRequest request) {
-        return ResponseEntity.ok(nrmService.run(nrmId, request.inputValues()));
+        return ResponseEntity.ok(nrmService.runWatching(nrmId, request.inputValues(), request.watchIds()));
     }
 
     @Operation(

@@ -9,6 +9,7 @@ import com.norma.dataset.dto.DatasetImportResponse;
 import com.norma.dataset.dto.ModelInputsResponse;
 import com.norma.dataset.dto.ModelOperationInput;
 import com.norma.dataset.dto.ModelOperationResult;
+import com.norma.dataset.dto.ModelRunResponse;
 import com.norma.dataset.dto.ModelRegisterRequest;
 import com.norma.dataset.dto.NrmImportStatus;
 import com.norma.dataset.dto.NrmInfo;
@@ -94,6 +95,17 @@ public class NrmService {
     /** The imported .nrm's model's designated inputs — see {@link ModelExecutionService#getModelInputs}. */
     public ModelInputsResponse getInputs(String nrmId) {
         return modelExecutionService.getModelInputs(modelIdOf(get(nrmId)));
+    }
+
+    /** One operation of the imported .nrm's model with its configuration — see {@link ModelExecutionService#getModelOperation}. */
+    public com.norma.dataset.dto.ModelOperationInput getOperation(String nrmId, String operationId) {
+        return modelExecutionService.getModelOperation(modelIdOf(get(nrmId)), operationId);
+    }
+
+    /** Runs the imported .nrm's model and also reports the watched operations — see {@link ModelExecutionService#runModelWatching}. */
+    public ModelRunResponse runWatching(String nrmId, Map<String, String> inputValues, List<String> watchIds) {
+        StoredNrm nrm = get(nrmId);
+        return modelExecutionService.runModelWatching(nrm.datasetId(), modelIdOf(nrm), inputValues, watchIds);
     }
 
     /** Runs the imported .nrm's model — see {@link ModelExecutionService#runModel}. */

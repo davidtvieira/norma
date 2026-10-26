@@ -7,6 +7,7 @@ import com.norma.dataset.dto.ModelInputsResponse;
 import com.norma.dataset.dto.ModelOperationInput;
 import com.norma.dataset.dto.ModelOperationResult;
 import com.norma.dataset.dto.ModelRegisterRequest;
+import com.norma.dataset.dto.ModelRunResponse;
 import com.norma.dataset.dto.RowData;
 import com.norma.dataset.dto.SheetData;
 import org.junit.jupiter.api.Test;
@@ -126,6 +127,39 @@ class ModelExecutionServiceTest {
                 DatasetTouch.cell(0, "result", 1, 0),
                 DatasetTouch.column(1, "result", 1),
                 DatasetTouch.cell(1, "result", 1, 1));
+    }
+
+    @Test
+    void returnsTheWatchedOperationsNextToTheOutputsAndListsEveryOperation() {
+        String datasetId = twoSheetDataset();
+        ModelOperationInput first = node("op-1", "2");
+        ModelOperationInput second = new ModelOperationInput("op-2", "lookup", Map.of(
+                "startRow", literalInput("0"),
+                "input", referenceInput("op-1"),
+                "sheetIndex", 0,
+                "searchColumn", literalInput("0"),
+                "resultColumn", 0), "");
+        String modelId = modelExecutionService.registerModel(
+                datasetId, new ModelRegisterRequest("Test model", List.of(first, second), null, List.of("op-2")));
+
+        assertThat(modelExecutionService.getModelInputs(modelId).operations()).extracting("id", "name", "kind")
+                .containsExactly(
+                        org.assertj.core.api.Assertions.tuple("op-1", "op-1", "node"),
+                        org.assertj.core.api.Assertions.tuple("op-2", "lookup", "lookup"));
+
+        assertThat(modelExecutionService.getModelOperation(modelId, "op-2").fields()).containsKey("searchColumn");
+        assertThatThrownBy(() -> modelExecutionService.getModelOperation(modelId, "missing"))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        ModelRunResponse run = modelExecutionService.runModelWatching(
+                datasetId, modelId, null, List.of("op-1", "missing"));
+
+        assertThat(run.results()).hasSize(1);
+        assertThat(run.watched()).singleElement().satisfies(result -> {
+            assertThat(result.id()).isEqualTo("op-1");
+            assertThat(result.name()).isEqualTo("op-1");
+            assertThat(result.value()).isEqualTo("2");
+        });
     }
 
     @Test
