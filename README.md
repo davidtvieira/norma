@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="frontend/public/logo.svg" alt="Norma" width="120">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="frontend/public/favicon-dark.svg">
+    <img src="frontend/public/favicon.svg" alt="Norma" width="120">
+  </picture>
 </p>
 
 # Norma
