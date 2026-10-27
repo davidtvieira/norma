@@ -14,8 +14,8 @@
    nodes they reach pop in and light up as the lines arrive; they hold a
    moment, then it all plays backwards (see below) and starts again. */
 .loading-overlay__mark {
-  width: 4.5rem;
-  height: 4.5rem;
+  width: 7rem;
+  height: 7rem;
   /* No disc behind it, so a soft shadow keeps the lines readable over the page. */
   filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
 }

@@ -16,7 +16,6 @@ import { iteratorPreviewSheet } from './kinds/iteratorKind';
 import { PAGE_AWARE_KIND_IDS, PAGE_SELECTOR_KIND_ID, pageSheetFromResult } from '../../utils/pageSelector';
 import { KINDS, KINDS_BY_ID } from './kinds/registry';
 import { AddOperationModal } from '../AddOperationModal/AddOperationModal';
-import { DockedPanel } from './DockedPanel';
 import { ConfirmModal } from '../Modal/ConfirmModal';
 import { Modal } from '../Modal/Modal';
 import { TestValuesModal } from '../TestValuesModal/TestValuesModal';
@@ -104,13 +103,6 @@ function viewportPlacementFor(viewOffset: NodePosition, zoom: number, index: num
 interface DraftOperationCardProps {
   name: string;
   onNameChange: (name: string) => void;
-  canConfirm: boolean;
-  /** "Atualizar operação" for one reopened via "Editar" — undefined while staging a new-operation
-   * batch, where there's no per-card confirm at all (see renderDraftCard's 'stage' mode and
-   * OperationPanel's confirmAllStaged/renderConfigPanel's own "+", the batch's shared controls
-   * instead). */
-  confirmLabel?: string;
-  onConfirm?: () => void;
   children: ReactNode;
 }
 
@@ -126,7 +118,7 @@ interface DraftOperationCardProps {
  * there's no separate delete button here; deleting an already-confirmed operation outright is the
  * canvas selection bar's job now (select it, then "Eliminar" — see the select tool).
  */
-function DraftOperationCard({ name, onNameChange, canConfirm, confirmLabel, onConfirm, children }: DraftOperationCardProps) {
+function DraftOperationCard({ name, onNameChange, children }: DraftOperationCardProps) {
   return (
     <div className="operation-entry">
       <input
@@ -138,14 +130,6 @@ function DraftOperationCard({ name, onNameChange, canConfirm, confirmLabel, onCo
       />
 
       {children}
-
-      {canConfirm && onConfirm && confirmLabel && (
-        <div className="operation-entry__confirm-row">
-          <button type="button" className="operation-entry__confirm-button" onClick={onConfirm}>
-            {confirmLabel}
-          </button>
-        </div>
-      )}
     </div>
   );
 }
@@ -1808,16 +1792,10 @@ export function OperationPanel({
    * controls shared across every staged card, rendered once by renderConfigPanel itself rather
    * than duplicated on each one.
    */
-  function renderDraftCard(entry: OperationEntryState, mode: 'edit' | 'stage') {
+  function renderDraftCard(entry: OperationEntryState) {
     const kind = KINDS_BY_ID[entry.kindId];
     return (
-      <DraftOperationCard
-        name={entry.name}
-        onNameChange={(name) => updateEntry(entry.id, { name })}
-        canConfirm={kind.canConfirm(entry.fields)}
-        confirmLabel={mode === 'edit' ? 'Atualizar operação' : undefined}
-        onConfirm={mode === 'edit' ? () => confirmEdit(entry) : undefined}
-      >
+      <DraftOperationCard name={entry.name} onNameChange={(name) => updateEntry(entry.id, { name })}>
         {kind.renderDraftConfig({
           dataset,
           entryId: entry.id,
@@ -2131,119 +2109,11 @@ export function OperationPanel({
   // a centered/blocking dialog — picking a column/range auto-opens the off-canvas sheet panel on
   // the right (see App.tsx), and a full-screen backdrop would sit on top of it, making the sheet
   // unreachable.
-  function renderDockedPanel(): ReactNode {
-    if (editingEntryId) {
-      const editingEntry = entries.find((entry) => entry.id === editingEntryId);
-      if (!editingEntry) return null;
-
-      return (
-        <>
-        <div className="add-operation-panel__backdrop" onClick={() => cancelEntry(editingEntry.id)} />
-        <div className="add-operation-panel" role="dialog" aria-modal="true" aria-labelledby="add-operation-panel-title">
-          <div className="add-operation-panel__header">
-            <h2 id="add-operation-panel-title" className="add-operation-panel__title">
-              Editar operação
-            </h2>
-            <button
-              type="button"
-              className="add-operation-panel__close"
-              onClick={() => cancelEntry(editingEntry.id)}
-              aria-label="Cancelar"
-            >
-              ×
-            </button>
-          </div>
-          <div className="add-operation-panel__body">{renderDraftCard(editingEntry, 'edit')}</div>
-        </div>
-        </>
-      );
-    }
-
-    if (stagingEntryIds.length > 0) {
-      // Same order they were added in (stagingEntryIds), not entries' own order — entries also
-      // holds every already-confirmed operation, interleaved however addToStaging's own
-      // current.length-based placement (see createEntry) happened to land them. A batch is always
-      // a single kind — the kind picked to start it (see the fallback branch below) — so every
-      // staged entry here shares stagingEntries[0]'s own kindId.
-      const stagingEntries = stagingEntryIds
-        .map((id) => entries.find((entry) => entry.id === id))
-        .filter((entry): entry is OperationEntryState => entry !== undefined);
-      const canConfirmAllStaged = stagingEntries.every((entry) => KINDS_BY_ID[entry.kindId].canConfirm(entry.fields));
-      const stagingKindId = stagingEntries[0]?.kindId;
-
-      return (
-        <>
-        <div className="add-operation-panel__backdrop" onClick={cancelStaging} />
-        <div className="add-operation-panel" role="dialog" aria-modal="true" aria-labelledby="add-operation-panel-title">
-          <div className="add-operation-panel__header">
-            <h2 id="add-operation-panel-title" className="add-operation-panel__title">
-              {stagingKindId ? `Novas operações: ${labelForKind(stagingKindId)}` : 'Novas operações'}
-            </h2>
-            <button type="button" className="add-operation-panel__close" onClick={cancelStaging} aria-label="Cancelar">
-              ×
-            </button>
-          </div>
-          <div className="add-operation-panel__body">
-            {/* Each staged card gets its own × to drop just that one from the batch (see
-                removeFromStaging) — separate from the panel's own × above, which discards the
-                whole batch. None of them have their own confirm button (see renderDraftCard's
-                'stage' mode) — adding to the batch and confirming it are both shared across every
-                staged card at once (the "+" right after them, and the footer below), not
-                duplicated on each one. */}
-            {stagingEntries.map((entry) => (
-              <div key={entry.id} className="add-operation-panel__staged-card">
-                <button
-                  type="button"
-                  className="add-operation-panel__staged-card-remove"
-                  onClick={() => removeFromStaging(entry.id)}
-                  aria-label="Remover esta operação do lote"
-                  title="Remover esta operação do lote"
-                >
-                  ×
-                </button>
-                {renderDraftCard(entry, 'stage')}
-              </div>
-            ))}
-            {/* Adds another of the same kind the batch was started with, right after the ones
-                already chosen — a batch is always one kind (see stagingKindId above), so this
-                skips the kind picker entirely rather than asking again for something already
-                decided. */}
-            {stagingKindId && stagingKindId !== 'iterator' && (
-              <button
-                type="button"
-                className="add-operation-panel__add-more"
-                onClick={() => addToStaging(stagingKindId)}
-                aria-label={`Adicionar outra operação ${labelForKind(stagingKindId)}`}
-                title={`Adicionar outra operação ${labelForKind(stagingKindId)}`}
-              >
-                +
-              </button>
-            )}
-          </div>
-          <div className="add-operation-panel__footer">
-            <button
-              type="button"
-              className="add-operation-panel__confirm-all"
-              onClick={confirmAllStaged}
-              disabled={!canConfirmAllStaged}
-              title={canConfirmAllStaged ? undefined : 'Complete todas as operações antes de as adicionar.'}
-            >
-              {stagingEntries.length === 1 ? 'Adicionar operador' : `Adicionar ${stagingEntries.length} operadores`}
-            </button>
-          </div>
-        </div>
-        </>
-      );
-    }
-
-    return null;
-  }
-
-  // The docked panel (sliding in and out) with the kind picker open behind it while a new operation
-  // is being set up.
+  // Creating or editing an operation is a modal like every other dialog (the dataset is the only drawer).
+  // The kind picker stays open behind it while a new operation is being set up, and only closes once it has
+  // been added (confirmAllStaged) or cancelled from the modal. While the dataset panel is open to pick a
+  // column or range, the dialog moves aside to the left and Escape is left to that panel.
   function renderConfigPanel(): ReactNode {
-    // The kind picker stays open behind the panel until the new operation has been added (confirmAllStaged)
-    // or cancelled from the modal.
     const stagingKindOfBatch = entries.find((entry) => entry.id === stagingEntryIds[0])?.kindId ?? null;
     const addModal = (
       <AddOperationModal
@@ -2260,12 +2130,115 @@ export function OperationPanel({
       />
     );
 
-    return (
-      <>
-        {addModal}
-        <DockedPanel>{renderDockedPanel()}</DockedPanel>
-      </>
-    );
+    const modalPlacement = { align: isSheetPanelOpen ? ('left' as const) : ('center' as const), escapeCloses: !isSheetPanelOpen };
+
+    if (editingEntryId) {
+      const editingEntry = entries.find((entry) => entry.id === editingEntryId);
+      if (!editingEntry) return addModal;
+      return (
+        <>
+          {addModal}
+          <Modal
+            title="Editar operação"
+            size="md"
+            {...modalPlacement}
+            onClose={() => cancelEntry(editingEntry.id)}
+            actions={
+              <>
+                <button type="button" className="modal__button modal__button--ghost" onClick={() => cancelEntry(editingEntry.id)}>
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className="modal__button action-button"
+                  onClick={() => confirmEdit(editingEntry)}
+                  disabled={!KINDS_BY_ID[editingEntry.kindId].canConfirm(editingEntry.fields)}
+                >
+                  Atualizar operação
+                </button>
+              </>
+            }
+          >
+            {renderDraftCard(editingEntry)}
+          </Modal>
+        </>
+      );
+    }
+
+    if (stagingEntryIds.length > 0) {
+      // Same order they were added in (stagingEntryIds), not entries' own order — entries also
+      // holds every already-confirmed operation, interleaved however addToStaging's own
+      // current.length-based placement (see createEntry) happened to land them. A batch is always
+      // a single kind — the kind picked to start it — so every staged entry here shares
+      // stagingEntries[0]'s own kindId.
+      const stagingEntries = stagingEntryIds
+        .map((id) => entries.find((entry) => entry.id === id))
+        .filter((entry): entry is OperationEntryState => entry !== undefined);
+      const canConfirmAllStaged = stagingEntries.every((entry) => KINDS_BY_ID[entry.kindId].canConfirm(entry.fields));
+      const stagingKindId = stagingEntries[0]?.kindId;
+
+      return (
+        <>
+          {addModal}
+          <Modal
+            title={stagingKindId ? `Novas operações: ${labelForKind(stagingKindId)}` : 'Novas operações'}
+            size="md"
+            {...modalPlacement}
+            onClose={cancelStaging}
+            actions={
+              <>
+                <button type="button" className="modal__button modal__button--ghost" onClick={cancelStaging}>
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className="modal__button action-button"
+                  onClick={confirmAllStaged}
+                  disabled={!canConfirmAllStaged}
+                  title={canConfirmAllStaged ? undefined : 'Complete todas as operações antes de as adicionar.'}
+                >
+                  {stagingEntries.length === 1 ? 'Adicionar operador' : `Adicionar ${stagingEntries.length} operadores`}
+                </button>
+              </>
+            }
+          >
+            <div className="operation-staged">
+              {/* Each staged card gets its own × to drop just that one from the batch (see removeFromStaging) —
+                  separate from the modal's own Cancelar, which discards the whole batch. Adding to the batch and
+                  confirming it are shared across every staged card (the "+" after them and the buttons below). */}
+              {stagingEntries.map((entry) => (
+                <div key={entry.id} className="operation-staged__card">
+                  <button
+                    type="button"
+                    className="operation-staged__remove"
+                    onClick={() => removeFromStaging(entry.id)}
+                    aria-label="Remover esta operação do lote"
+                    title="Remover esta operação do lote"
+                  >
+                    ×
+                  </button>
+                  {renderDraftCard(entry)}
+                </div>
+              ))}
+              {/* Adds another of the same kind the batch was started with — a batch is always one kind. */}
+              {stagingKindId && stagingKindId !== 'iterator' && (
+                <button
+                  type="button"
+                  className="operation-staged__add"
+                  onClick={() => addToStaging(stagingKindId)}
+                  aria-label={`Adicionar outra operação ${labelForKind(stagingKindId)}`}
+                  title={`Adicionar outra operação ${labelForKind(stagingKindId)}`}
+                >
+                  +
+                </button>
+              )}
+            </div>
+          </Modal>
+        </>
+      );
+    }
+
+    return addModal;
   }
 
   return (
@@ -2773,7 +2746,7 @@ export function OperationPanel({
                     a confirmed card (see the comment on the filter above) rather than
                     renderDraftCard's 'stage' mode, which is for a staged batch's own layout, not
                     an existing card reopened for editing. */}
-                {entry.confirmed || entry.id === editingEntryId ? renderConfirmedCard(entry) : renderDraftCard(entry, 'stage')}
+                {entry.confirmed || entry.id === editingEntryId ? renderConfirmedCard(entry) : renderDraftCard(entry)}
               </div>
             );
           })}

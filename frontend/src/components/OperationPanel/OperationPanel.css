@@ -429,31 +429,6 @@
   color: var(--color-text);
 }
 
-.operation-entry__confirm-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.operation-entry__confirm-button {
-  flex: 1;
-  padding: 0.55rem 1.1rem;
-  border: 1px solid var(--color-primary);
-  border-radius: var(--radius-sm);
-  background: var(--color-primary);
-  color: var(--color-surface);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.875rem;
-  font-weight: 500;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
-}
-
-.operation-entry__confirm-button:hover {
-  background: var(--color-primary-hover);
-  border-color: var(--color-primary-hover);
-}
-
 .operation-entry__field {
   display: flex;
   flex-direction: column;
@@ -803,11 +778,7 @@
    of .operation-canvas__surface (not a child), so each group is positioned against the
    viewport's own corner (see the --left/--right modifiers below) and stays there regardless of
    how far the surface underneath it has been panned/zoomed. z-index clears the surface's own
-   nodes/edges so neither group is ever drawn over by them, but stays below the left-docked
-   "criar/editar operação" panel (see .add-operation-panel in AddOperationModal.css, z-index 22)
-   — that panel is position: fixed over the whole canvas while open, and without this staying
-   under it, this being nested several DOM levels deep inside the canvas didn't stop its own
-   z-index from still winning the stacking comparison and floating on top of the panel. */
+   nodes/edges so neither group is ever drawn over by them, but stays below the modals. */
 .operation-canvas__floating-toolbar {
   position: absolute;
   top: 0.75rem;

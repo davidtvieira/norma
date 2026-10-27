@@ -13,8 +13,13 @@ interface ModalProps {
   onClose: () => void;
   /** While true nothing closes it (a run is in progress). */
   closeDisabled?: boolean;
-  /** Whether a click on the backdrop closes it (default). Off while something docked beside it is being worked on. */
+  /** Whether a click on the backdrop closes it (default). */
   closeOnBackdrop?: boolean;
+  /** Whether Escape closes it (default) — off while something else on screen, like the dataset panel, is
+   * the one Escape should close. */
+  escapeCloses?: boolean;
+  /** `left` pushes the dialog to the left edge, leaving room for the dataset panel on the right. */
+  align?: 'center' | 'left';
   /** The buttons at the bottom, right-aligned: a `modal__button--ghost` dismiss button, then the
    * main action (`modal__button action-button`). Left out when the × is enough. */
   actions?: ReactNode;
@@ -29,21 +34,21 @@ const openModals: symbol[] = [];
  * Every dialog is built on it, so they all look and behave the same. Rendered in the page body so
  * no transformed or clipped ancestor can move or cut it.
  */
-export function Modal({ title, subtitle, size = 'sm', onClose, closeDisabled = false, closeOnBackdrop = true, actions, children }: ModalProps) {
+export function Modal({ title, subtitle, size = 'sm', onClose, closeDisabled = false, closeOnBackdrop = true, escapeCloses = true, align = 'center', actions, children }: ModalProps) {
   const titleId = useId();
 
   // The latest props, read by the one Escape listener below so it never has to be re-registered
   // (re-registering on every render would reshuffle which stacked modal is on top).
-  const latest = useRef({ onClose, closeDisabled });
+  const latest = useRef({ onClose, closeDisabled, escapeCloses });
   useEffect(() => {
-    latest.current = { onClose, closeDisabled };
+    latest.current = { onClose, closeDisabled, escapeCloses };
   });
 
   useEffect(() => {
     const id = Symbol('modal');
     openModals.push(id);
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape' && openModals[openModals.length - 1] === id && !latest.current.closeDisabled) {
+      if (event.key === 'Escape' && openModals[openModals.length - 1] === id && !latest.current.closeDisabled && latest.current.escapeCloses) {
         latest.current.onClose();
       }
     }
@@ -55,7 +60,7 @@ export function Modal({ title, subtitle, size = 'sm', onClose, closeDisabled = f
   }, []);
 
   return createPortal(
-    <div className="modal__overlay" onClick={closeDisabled || !closeOnBackdrop ? undefined : onClose}>
+    <div className={align === 'left' ? 'modal__overlay modal__overlay--left' : 'modal__overlay'} onClick={closeDisabled || !closeOnBackdrop ? undefined : onClose}>
       <div
         className={`modal modal--${size}`}
         role="dialog"
