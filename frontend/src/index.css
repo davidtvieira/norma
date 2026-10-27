@@ -76,6 +76,14 @@
     color-scheme: dark;
 
     --logo-color: #fff;
+    /* The orange is deeper on the dark theme, so it sits calmer on the dark surfaces. */
+    --color-action: #dd8c3a;
+    --btn-primary-bg: #dd8c3a;
+    --btn-primary-bg-hover: #e89d52;
+    --color-secondary: #dd8c3a;
+    --color-secondary-hover: #e89d52;
+    --color-secondary-contrast: #ffffff;
+    --color-action-contrast: #ffffff;
 
     --color-bg: #1c1c1c;
     --color-surface: #262626;
@@ -92,19 +100,13 @@
     --btn-secondary-bg-hover: #969696;
     --btn-secondary-contrast: #f5f5f5;
 
-    --color-secondary: #f0a150;
-    --color-secondary-hover: #f5b273;
-    --color-secondary-contrast: #241505;
 
     --color-error: #e0857e;
     --color-error-contrast: #2a0f0d;
     --color-success: #7fc68f;
     --color-success-contrast: #0f2415;
 
-    /* --color-action itself stays the same literal orange as light mode (see its own note above)
-       — only its contrast text/icon color swaps here, back to the dark tone that already reads
-       well against it. */
-    --color-action-contrast: #241505;
+    --color-action-hover: #e89d52;
 
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.24);
     --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.32);
@@ -115,6 +117,14 @@
   color-scheme: dark;
 
   --logo-color: #fff;
+  /* The orange is deeper on the dark theme, so it sits calmer on the dark surfaces. */
+  --color-action: #dd8c3a;
+  --btn-primary-bg: #dd8c3a;
+  --btn-primary-bg-hover: #e89d52;
+  --color-secondary: #dd8c3a;
+  --color-secondary-hover: #e89d52;
+  --color-secondary-contrast: #ffffff;
+  --color-action-contrast: #ffffff;
 
   --color-bg: #1c1c1c;
   --color-surface: #262626;
@@ -131,19 +141,13 @@
   --btn-secondary-bg-hover: #969696;
   --btn-secondary-contrast: #f5f5f5;
 
-  --color-secondary: #f0a150;
-  --color-secondary-hover: #f5b273;
-  --color-secondary-contrast: #241505;
 
   --color-error: #e0857e;
   --color-error-contrast: #2a0f0d;
   --color-success: #7fc68f;
   --color-success-contrast: #0f2415;
 
-  /* --color-action itself stays the same literal orange as light mode (see its own note above) —
-     only its contrast text/icon color swaps here, back to the dark tone that already reads well
-     against it. */
-  --color-action-contrast: #241505;
+  --color-action-hover: #e89d52;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.24);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.32);
