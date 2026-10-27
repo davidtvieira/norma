@@ -12,6 +12,7 @@ import type {
 } from '../types/modelCalculation';
 import type { SelectorRequestPayload, SelectorResponsePayload } from '../types/selector';
 import type { NrmImportStatusPayload, NrmInfoPayload } from '../types/nrm';
+import type { SavedNrmPayload } from '../types/savedNrm';
 import type { NodeRequestPayload, NodeResponsePayload } from '../types/node';
 import type { OperationType } from '../types/operation';
 import type { SumRequestPayload, SumResponsePayload } from '../types/sum';
@@ -134,6 +135,51 @@ async function postNrm<T>(path: string, file: File): Promise<T> {
  */
 export function importNrm(file: File): Promise<NrmImportStatusPayload> {
   return postNrm('/api/v1/nrm/import', file);
+}
+
+/** The library of saved .nrm files, most recently saved first. */
+export async function listSavedNrms(): Promise<SavedNrmPayload[]> {
+  const response = await apiFetch(`${API_BASE_URL}/api/v1/library`);
+  if (!response.ok) {
+    throw await apiError(response, 'Falha ao obter os modelos guardados');
+  }
+  return response.json();
+}
+
+async function sendSavedNrm(url: string, method: 'POST' | 'PUT', file: File): Promise<SavedNrmPayload> {
+  const body = new FormData();
+  body.append('file', file);
+  const response = await apiFetch(url, { method, body });
+  if (!response.ok) {
+    throw await apiError(response, 'Falha ao guardar o modelo');
+  }
+  return response.json();
+}
+
+/** Keeps a .nrm in the library (the backend validates it like an import does). */
+export function saveNrm(file: File): Promise<SavedNrmPayload> {
+  return sendSavedNrm(`${API_BASE_URL}/api/v1/library`, 'POST', file);
+}
+
+/** Puts a .nrm in place of a saved one, keeping its id. */
+export function replaceSavedNrm(id: string, file: File): Promise<SavedNrmPayload> {
+  return sendSavedNrm(`${API_BASE_URL}/api/v1/library/${encodeURIComponent(id)}`, 'PUT', file);
+}
+
+/** A saved .nrm's file, ready to be imported like one the user picked. */
+export async function downloadSavedNrm(saved: SavedNrmPayload): Promise<File> {
+  const response = await apiFetch(`${API_BASE_URL}/api/v1/library/${encodeURIComponent(saved.id)}/file`);
+  if (!response.ok) {
+    throw await apiError(response, 'Falha ao abrir o modelo guardado');
+  }
+  return new File([await response.blob()], `${saved.name}.nrm`, { type: 'application/octet-stream' });
+}
+
+export async function deleteSavedNrm(id: string): Promise<void> {
+  const response = await apiFetch(`${API_BASE_URL}/api/v1/library/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (!response.ok) {
+    throw await apiError(response, 'Falha ao apagar o modelo');
+  }
 }
 
 /** Same content validation as importNrm, but stores nothing — for when only the model half of the

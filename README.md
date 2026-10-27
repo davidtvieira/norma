@@ -32,7 +32,9 @@ result is reached.
 
    An operation's input can be a typed value or a reference to another operation's result, so operations chain.
 3. **Pick the inputs and outputs** and save the model as a **`.nrm`** file. A `.nrm` is a zip with the original
-   spreadsheet, the model (`.json`) and an `info.json` holding its name.
+   spreadsheet, the model (`.json`) and an `info.json` holding its name. You can also keep it on the platform
+   (*Guardar na plataforma*): the file goes into a folder on the backend and a PostgreSQL table lists it, so it
+   shows up under *Os meus modelos*, where it can be opened, downloaded or deleted.
 4. **Use a model** (*Utilizar Modelo*). Import a `.nrm`, fill in the inputs and press *Correr modelo*. Only the inputs
    are shown beforehand, and the outputs appear after the run. You can also open the model for editing instead.
    While using a model you can:

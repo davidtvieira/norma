@@ -894,7 +894,7 @@ button.naked-button:hover:not(:disabled) {
   color: var(--color-text);
 }
 
-/* /modelos: the placeholder container that will later hold the user's models. */
+/* /modelos: the list of saved models (or, while there is none, a dashed placeholder). */
 .app__models-body {
   flex: 1;
   display: flex;
@@ -921,6 +921,12 @@ button.naked-button:hover:not(:disabled) {
   border-radius: var(--radius-lg);
   /* A faint lift off the page: whitish in light mode, a touch lighter than the page in dark. */
   background: color-mix(in srgb, var(--color-surface) 55%, transparent);
+}
+
+.app__models-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .app__models-placeholder {

@@ -5,7 +5,19 @@ import type { ChangeEvent, ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { KINDS_BY_ID, OPERATION_KIND_IDS } from './components/OperationPanel/kinds/registry';
 import { useTheme } from './hooks/useTheme';
-import { checkDataset, getModelInputs, getNrmDataset, getNrmInputs, getNrmModel, importDataset, registerModel, validateModelForDataset } from './services/datasetApi';
+import {
+  checkDataset,
+  downloadSavedNrm,
+  getModelInputs,
+  getNrmDataset,
+  getNrmInputs,
+  getNrmModel,
+  importDataset,
+  registerModel,
+  replaceSavedNrm,
+  saveNrm,
+  validateModelForDataset,
+} from './services/datasetApi';
 import type { ModelExportFormat } from './components/SaveModal/SaveModal';
 import type { NrmImportStatusPayload } from './types/nrm';
 import type { DatasetHandle, DatasetImportStatus, DatasetImportResponse } from './types/dataset';
@@ -16,7 +28,9 @@ import type { ColumnHighlight, OperationHighlight, RangeHighlight } from './type
 import type { CellRange } from './types/cellRange';
 import { getInputSource, hasSingleInputField } from './types/valueSource';
 import { buildModelExport, parseModelImport, type SerializableEntry } from './utils/modelSerialization';
-import { buildNrmFile, readModelFile } from './utils/nrmSerialization';
+import { buildNrmFile, importNrmFile, readModelFile } from './utils/nrmSerialization';
+import { useSavedModels } from './hooks/useSavedModels';
+import type { SavedNrmPayload } from './types/savedNrm';
 import { deleteSessionCacheEntry, listSessionCacheEntries, saveSessionCacheEntry, updateSessionCacheModel, type SessionCacheEntry } from './utils/sessionCache';
 import { downloadTestCase } from './utils/testCaseSerialization';
 import { LandingScreen } from './screens/LandingScreen';
@@ -147,6 +161,12 @@ function App() {
   // of the full editor for as long as it's non-null.
   const [utilizeModel, setUtilizeModel] = useState<UtilizeModel | null>(null);
   const { theme, toggleTheme } = useTheme();
+  // The library of saved .nrm files (shown on /modelos), and which of its entries the model being edited
+  // came from or was last saved as — "Guardar na plataforma" then replaces that entry instead of adding a
+  // copy. A ref: it never needs a render of its own.
+  const savedModels = useSavedModels(location.pathname === '/modelos');
+  const savedNrmIdRef = useRef<string | null>(null);
+  const [openingSavedId, setOpeningSavedId] = useState<string | null>(null);
 
   // Up to the 4 most recently uploaded/saved .nrm sessions (see utils/sessionCache.ts) — shown on
   // the landing screen as "Sessões recentes", offering to resume any of them rather than silently
@@ -690,7 +710,7 @@ function App() {
   // "Guardar modelo": the .nrm bundles the model with the dataset's own spreadsheet; the .json is
   // the bare model only (same JSON that sits inside the .nrm), importable later through
   // "Importar Modelo" on a dataset that's already loaded.
-  function exportModel(format: ModelExportFormat) {
+  function exportModel(format: ModelExportFormat): void | Promise<void> {
     if (!dataset) return;
     if (format === 'dataset') {
       if (datasetFile) downloadBlob(datasetFile, datasetFile.name);
@@ -703,7 +723,39 @@ function App() {
       return;
     }
     if (!datasetFile) return;
+    if (format === 'library') {
+      return buildNrmFile(datasetFile, model, fileName).then(async (blob) => {
+        const file = new File([blob], `${fileName}.nrm`, { type: 'application/octet-stream' });
+        const saved = savedNrmIdRef.current ? await replaceSavedNrm(savedNrmIdRef.current, file) : await saveNrm(file);
+        savedNrmIdRef.current = saved.id;
+      });
+    }
     buildNrmFile(datasetFile, model, fileName).then((blob) => downloadBlob(blob, `${fileName}.nrm`));
+  }
+
+  // "Abrir" on a saved model: fetch its file and bring it in like a .nrm the user had just picked, landing on
+  // the Editar / Utilizar choice. The entry is remembered so saving it again replaces it.
+  async function openSavedModel(saved: SavedNrmPayload) {
+    setOpeningSavedId(saved.id);
+    try {
+      const file = await downloadSavedNrm(saved);
+      const { dataset: imported, datasetFile: importedFile, model, modelText } = await importNrmFile(file);
+      clearModelState();
+      handleReadyModelImportSuccess(imported, importedFile, model, modelText);
+      savedNrmIdRef.current = saved.id;
+    } catch {
+      // The API toast already says what went wrong.
+    } finally {
+      setOpeningSavedId(null);
+    }
+  }
+
+  async function downloadSavedModel(saved: SavedNrmPayload) {
+    try {
+      downloadBlob(await downloadSavedNrm(saved), `${saved.name}.nrm`);
+    } catch {
+      // The API toast already says what went wrong.
+    }
   }
 
   // The "Norma" footer's always-available way back to the very start, from any screen — resets
@@ -711,6 +763,7 @@ function App() {
   // (just without actually reloading the page).
   function goHome() {
     registeredModelRef.current = null;
+    savedNrmIdRef.current = null;
     setDataset(null);
     setDatasetFile(null);
     setModelName('');
@@ -742,6 +795,7 @@ function App() {
    * never inherit the old one's imported model (it would show up on the choose screen). */
   function clearModelState() {
     registeredModelRef.current = null;
+    savedNrmIdRef.current = null;
     setModelName('');
     setNrmName('');
     setModelEntries([]);
@@ -936,6 +990,12 @@ function App() {
             onBack={() => navigate('/')}
             onGoHome={goHome}
             onClearRecentSessions={discardAllEntries}
+            savedModels={savedModels.models}
+            savedModelsFailed={savedModels.failed}
+            openingSavedId={openingSavedId}
+            onOpenSaved={openSavedModel}
+            onDownloadSaved={downloadSavedModel}
+            onDeleteSaved={(saved) => savedModels.remove(saved.id)}
             recentSessions={recentSessions.map((entry) => ({
               id: entry.id,
               datasetFileName: entry.datasetFileName,

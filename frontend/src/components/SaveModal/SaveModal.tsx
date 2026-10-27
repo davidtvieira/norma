@@ -1,9 +1,11 @@
+import { useState } from 'react';
+import { LoadingOverlay } from '../LoadingOverlay/LoadingOverlay';
 import { Modal } from '../Modal/Modal';
 import { SplitButton } from '../SplitButton/SplitButton';
 import './SaveModal.css';
 
-/** What "Guardar modelo" can export: the full .nrm bundle (model + dataset), just the model .json, or just the dataset's original spreadsheet. */
-export type ModelExportFormat = 'nrm' | 'json' | 'dataset';
+/** What "Guardar modelo" can export: a copy kept in the platform's library, the full .nrm bundle (model + dataset), just the model .json, or just the dataset's original spreadsheet. */
+export type ModelExportFormat = 'library' | 'nrm' | 'json' | 'dataset';
 
 /** One designated input/output of the model, as listed (and reordered) in the dialog. */
 export interface IoItem {
@@ -14,7 +16,8 @@ export interface IoItem {
 interface SaveModalProps {
   open: boolean;
   onClose: () => void;
-  onExport: (format: ModelExportFormat) => void;
+  /** Resolves once the export is done — only the platform copy takes any time. */
+  onExport: (format: ModelExportFormat) => void | Promise<void>;
   nrmName: string;
   onNrmNameChange: (name: string) => void;
   /** Shown as the name field's placeholder — what the file is called if left blank. */
@@ -59,7 +62,28 @@ export function SaveModal({
   onReorderInputs,
   onReorderOutputs,
 }: SaveModalProps) {
+  const [isSaving, setIsSaving] = useState(false);
+  const [hasSavedToLibrary, setHasSavedToLibrary] = useState(false);
   if (!open) return null;
+
+  // Saving to the platform keeps the dialog open to say it worked; every other format downloads and closes.
+  async function exportAs(format: ModelExportFormat) {
+    if (format !== 'library') {
+      onExport(format);
+      onClose();
+      return;
+    }
+    setIsSaving(true);
+    setHasSavedToLibrary(false);
+    try {
+      await onExport(format);
+      setHasSavedToLibrary(true);
+    } catch {
+      // The API toast already says what went wrong.
+    } finally {
+      setIsSaving(false);
+    }
+  }
 
   return (
     <Modal
@@ -71,19 +95,13 @@ export function SaveModal({
           <button type="button" className="modal__button modal__button--ghost" onClick={onClose}>
             Fechar
           </button>
-          <ExportButton
-            disabled={!canExport}
-            onExport={(format) => {
-              onExport(format);
-              onClose();
-            }}
-          />
+          <ExportButton disabled={!canExport || isSaving} onExport={exportAs} />
         </>
       }
     >
       <p className="modal__hint">
-        Ainda não é possível guardar o modelo diretamente na plataforma. Pode, no entanto, exportá-lo como ficheiro .nrm (inclui o
-        conjunto de dados) e voltar a importá-lo mais tarde.
+        Guarde o modelo na plataforma, para o encontrar em "Os meus modelos", ou exporte-o como ficheiro .nrm (inclui o conjunto
+        de dados) para o voltar a importar mais tarde.
       </p>
 
       <label className="save-modal__name">
@@ -103,6 +121,8 @@ export function SaveModal({
       </div>
 
       {exportHint && <p className="modal__hint modal__hint--error">{exportHint}</p>}
+      {hasSavedToLibrary && <p className="modal__hint">Modelo guardado na plataforma.</p>}
+      {isSaving && <LoadingOverlay delayMs={200} />}
     </Modal>
   );
 }
@@ -127,6 +147,7 @@ function ExportButton({ disabled, onExport }: ExportButtonProps) {
       arrowDisabled={disabled}
       arrowLabel="Escolher o formato de exportação"
       items={[
+        { label: 'Guardar na plataforma', onSelect: () => onExport('library') },
         { label: 'Ficheiro Norma (.nrm)', onSelect: () => onExport('nrm') },
         { label: 'Só o modelo (.json)', onSelect: () => onExport('json') },
         { label: 'Só os dados (ficheiro original)', onSelect: () => onExport('dataset') },

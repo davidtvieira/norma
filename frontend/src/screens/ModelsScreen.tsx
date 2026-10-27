@@ -1,8 +1,12 @@
+import { useState } from 'react';
 import { AppFooter } from '../components/AppFooter/AppFooter';
 import { BackButton } from '../components/BackButton/BackButton';
 import { RecentSessionCard } from '../components/RecentSessionCard/RecentSessionCard';
 import { ThemeToggle } from '../components/ThemeToggle/ThemeToggle';
+import { ConfirmModal } from '../components/Modal/ConfirmModal';
+import { SavedModelCard } from '../components/SavedModelCard/SavedModelCard';
 import type { Theme } from '../hooks/useTheme';
+import type { SavedNrmPayload } from '../types/savedNrm';
 
 export interface RecentSessionEntryProps {
   id: string;
@@ -27,13 +31,37 @@ interface ModelsScreenProps {
    * recentSessions), newest first. Empty when there's none — "Sessões recentes" is always shown,
    * with an empty-state message. */
   recentSessions: RecentSessionEntryProps[];
+  /** The library of saved .nrm files, newest first — null until the backend has answered. */
+  savedModels: SavedNrmPayload[] | null;
+  /** True when the library could not be read (the toast already said why). */
+  savedModelsFailed: boolean;
+  /** The saved model being opened right now, if any. */
+  openingSavedId: string | null;
+  onOpenSaved: (model: SavedNrmPayload) => void;
+  onDownloadSaved: (model: SavedNrmPayload) => void;
+  onDeleteSaved: (model: SavedNrmPayload) => Promise<void>;
 }
 
 /**
  * "Explorar os meus modelos Norma" (`/modelos`), reached from the landing screen's browse button.
  * An empty container, to be populated later, with "Sessões recentes" below it.
  */
-export function ModelsScreen({ theme, onToggleTheme, onBack, onGoHome, onClearRecentSessions, recentSessions }: ModelsScreenProps) {
+export function ModelsScreen({
+  theme,
+  onToggleTheme,
+  onBack,
+  onGoHome,
+  onClearRecentSessions,
+  recentSessions,
+  savedModels,
+  savedModelsFailed,
+  openingSavedId,
+  onOpenSaved,
+  onDownloadSaved,
+  onDeleteSaved,
+}: ModelsScreenProps) {
+  const [pendingDelete, setPendingDelete] = useState<SavedNrmPayload | null>(null);
+
   return (
     <div className="app app--landing">
       <header className="app__topbar app__topbar--with-title">
@@ -43,9 +71,30 @@ export function ModelsScreen({ theme, onToggleTheme, onBack, onGoHome, onClearRe
 
       <div className="app__models-body">
         <h1 className="app__models-title">Os meus modelos</h1>
-        <div className="app__models-container">
-          <p className="app__models-placeholder">A base de dados ainda não está disponível.</p>
-        </div>
+        {savedModels !== null && savedModels.length > 0 ? (
+          <div className="app__models-list">
+            {savedModels.map((model) => (
+              <SavedModelCard
+                key={model.id}
+                model={model}
+                isOpening={openingSavedId === model.id}
+                onOpen={() => onOpenSaved(model)}
+                onDownload={() => onDownloadSaved(model)}
+                onDelete={() => setPendingDelete(model)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="app__models-container">
+            <p className="app__models-placeholder">
+              {savedModelsFailed
+                ? 'Não foi possível obter os modelos guardados.'
+                : savedModels === null
+                  ? 'A carregar…'
+                  : 'Ainda não há modelos guardados. Guarde um a partir do editor, em "Guardar modelo".'}
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="recent-sessions">
@@ -80,6 +129,20 @@ export function ModelsScreen({ theme, onToggleTheme, onBack, onGoHome, onClearRe
       </div>
 
       <AppFooter onGoHome={onGoHome} />
+
+      {pendingDelete && (
+        <ConfirmModal
+          title="Apagar o modelo?"
+          message={`"${pendingDelete.name}" vai ser removido da plataforma. Esta ação não se pode desfazer.`}
+          confirmLabel="Apagar"
+          onConfirm={() => {
+            const target = pendingDelete;
+            setPendingDelete(null);
+            onDeleteSaved(target).catch(() => undefined);
+          }}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
     </div>
   );
 }
