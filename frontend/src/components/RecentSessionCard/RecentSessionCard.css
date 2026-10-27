@@ -39,7 +39,9 @@
 }
 
 .recent-session-card__label {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
   margin-top: 0.125rem;
   font-size: 0.75rem;
   font-weight: 300;
@@ -54,4 +56,16 @@
   background: color-mix(in srgb, var(--color-error) 12%, var(--color-surface));
   color: var(--color-error);
   font-size: 0.8rem;
+}
+
+/* A model that is also kept on the platform: its label is in the accent color, with a disk. */
+.recent-session-card--saved .recent-session-card__label {
+  color: var(--color-action);
+  font-weight: 500;
+}
+
+.recent-session-card .recent-session-card__icon {
+  width: 0.85rem;
+  height: 0.85rem;
+  margin: 0;
 }

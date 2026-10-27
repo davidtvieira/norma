@@ -16,13 +16,27 @@ export interface SessionCacheEntry {
   /** The dataset's own spreadsheet bytes, unchanged — resuming replays the exact same
    * importDataset call a fresh upload would make, against whichever backend is up when the page
    * next loads (see App.tsx's resumeSession). */
-  datasetBlob: Blob;
+  /** Null for a model opened from the library: it is reopened from there (see savedNrmId), nothing is kept here. */
+  datasetBlob: Blob | null;
+  /** The model's name, when the entry has no model JSON of its own to read it from. */
+  nrmName?: string | null;
   /** The entry's model as exported JSON text (see utils/modelSerialization.ts's ExportedModel) —
    * kept live while editing (App.tsx debounces a save on every modelEntries/modelName/
    * modelInputIds/modelOutputIds change), not just on an explicit "Guardar modelo"/.nrm upload.
    * Null while a dataset is loaded but there's no model yet (or nothing confirmed to export). */
   modelJson: string | null;
+  /** The library entry this session's model is kept as (see App.tsx's savedNrmIdRef) — what tells a recent
+   * session that is also saved on the platform from one that only lives in this browser. */
+  savedNrmId?: string | null;
   savedAt: number;
+}
+
+// Writes are applied one after the other, so a mark made right after an entry is created finds it.
+let writeQueue: Promise<unknown> = Promise.resolve();
+function enqueue<T>(run: () => Promise<T>): Promise<T> {
+  const result = writeQueue.then(run);
+  writeQueue = result.catch(() => undefined);
+  return result;
 }
 
 function openDb(): Promise<IDBDatabase> {
@@ -70,7 +84,11 @@ export async function listSessionCacheEntries(): Promise<SessionCacheEntry[]> {
  * on every debounced autosave, so "last 4" tracks four distinct uploads/sessions, not four
  * snapshots of the same one. Trims down to MAX_ENTRIES afterward, oldest first.
  */
-export async function saveSessionCacheEntry(id: string, fields: Omit<SessionCacheEntry, 'id' | 'savedAt'>): Promise<void> {
+export function saveSessionCacheEntry(id: string, fields: Omit<SessionCacheEntry, 'id' | 'savedAt'>): Promise<void> {
+  return enqueue(() => writeSessionCacheEntry(id, fields));
+}
+
+async function writeSessionCacheEntry(id: string, fields: Omit<SessionCacheEntry, 'id' | 'savedAt'>): Promise<void> {
   const db = await openDb();
   await runWrite(db, (store) => store.put({ id, ...fields, savedAt: Date.now() }));
 
@@ -90,7 +108,40 @@ export async function saveSessionCacheEntry(id: string, fields: Omit<SessionCach
  * bytes) nor trims — the entry count can't have changed — so a pause in typing or dragging no
  * longer costs a read of every cached spreadsheet.
  */
-export async function updateSessionCacheModel(id: string, modelJson: string | null): Promise<void> {
+export function updateSessionCacheModel(id: string, modelJson: string | null): Promise<void> {
+  return enqueue(() => patchSessionCacheEntry(id, (existing) => ({ ...existing, modelJson, savedAt: Date.now() })));
+}
+
+/** Notes (or, with null, forgets) which library entry a session's model is kept as. */
+export function markSessionSaved(id: string, savedNrmId: string | null): Promise<void> {
+  return enqueue(() => patchSessionCacheEntry(id, (existing) => ({ ...existing, savedNrmId })));
+}
+
+/** A library entry is gone: every session that pointed at it is just a local one again. */
+export function forgetSavedNrm(savedNrmId: string): Promise<void> {
+  return enqueue(async () => {
+    const db = await openDb();
+    try {
+      const all = await new Promise<SessionCacheEntry[]>((resolve, reject) => {
+        const request = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).getAll();
+        request.onsuccess = () => resolve(request.result as SessionCacheEntry[]);
+        request.onerror = () => reject(request.error);
+      });
+      const affected = all.filter((entry) => entry.savedNrmId === savedNrmId);
+      if (affected.length === 0) return;
+      await runWrite(db, (store) => {
+        for (const entry of affected) store.put({ ...entry, savedNrmId: null });
+      });
+    } finally {
+      db.close();
+    }
+  });
+}
+
+async function patchSessionCacheEntry(
+  id: string,
+  patch: (existing: SessionCacheEntry) => SessionCacheEntry,
+): Promise<void> {
   const db = await openDb();
   try {
     const existing = await new Promise<SessionCacheEntry | undefined>((resolve, reject) => {
@@ -99,7 +150,7 @@ export async function updateSessionCacheModel(id: string, modelJson: string | nu
       request.onerror = () => reject(request.error);
     });
     if (!existing) return;
-    await runWrite(db, (store) => store.put({ ...existing, modelJson, savedAt: Date.now() }));
+    await runWrite(db, (store) => store.put(patch(existing)));
   } finally {
     db.close();
   }

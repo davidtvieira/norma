@@ -1,4 +1,4 @@
-import { strToU8, unzip, zipSync } from 'fflate';
+import { strToU8, unzip, unzipSync, zipSync } from 'fflate';
 import { importNrm, validateNrm } from '../services/datasetApi';
 import type { NrmImportStatusPayload } from '../types/nrm';
 import type { ExportedModel } from './modelSerialization';
@@ -194,9 +194,56 @@ function modelNameOf(modelText: string): string {
  */
 export async function importNrmFile(file: File): Promise<NrmImportResult> {
   const dataset = await importNrm(file);
-  const { datasetFile, modelText, info } = await extractNrmFile(file);
+  return describeImport(dataset, file, await extractNrmFile(file));
+}
+
+function describeImport(dataset: NrmImportStatusPayload, file: File, contents: NrmContents): NrmImportResult {
+  const { datasetFile, modelText, info } = contents;
   // info.json is the source of truth; a .nrm without one falls back to its own filename, so it
   // always has something to identify it by in "Sessões recentes".
   const nrmName = info?.name || file.name.replace(/\.nrm$/i, '');
   return { dataset, datasetFile, modelText, model: { modelName: modelNameOf(modelText) || nrmName, nrmName, nrmId: dataset.nrmId, nrmCreatedAt: info?.createdAt } };
+}
+
+/**
+ * A copy of a .nrm saved under another name: the name in its `info.json` (the source of truth) and the
+ * model's own `nrmName` change, everything else — the spreadsheet, the operations, when it was created —
+ * stays byte for byte. The file's own name stays as it was.
+ */
+export async function renameNrmFile(file: File, name: string): Promise<File> {
+  const newName = name.trim();
+  let entries: Record<string, Uint8Array>;
+  try {
+    entries = unzipSync(new Uint8Array(await file.arrayBuffer()));
+  } catch {
+    throw new NrmImportError('Não foi possível ler o ficheiro .nrm.');
+  }
+
+  const renamed: Record<string, Uint8Array> = {};
+  let hadInfo = false;
+  for (const [path, bytes] of Object.entries(entries)) {
+    if (path.endsWith('/')) continue;
+    if (isInfoEntry(path)) {
+      hadInfo = true;
+      const info = readNrmInfo(bytes);
+      renamed[path] = strToU8(
+        JSON.stringify({ version: NRM_INFO_VERSION, name: newName, createdAt: info?.createdAt || new Date().toISOString() }, null, 2),
+      );
+    } else if (isModelEntry(path)) {
+      try {
+        const model = JSON.parse(new TextDecoder('utf-8').decode(bytes)) as Record<string, unknown>;
+        renamed[path] = strToU8(JSON.stringify({ ...model, nrmName: newName }, null, 2));
+      } catch {
+        renamed[path] = bytes;
+      }
+    } else {
+      renamed[path] = bytes;
+    }
+  }
+  if (!hadInfo) {
+    renamed[INFO_ENTRY_NAME] = strToU8(
+      JSON.stringify({ version: NRM_INFO_VERSION, name: newName, createdAt: new Date().toISOString() }, null, 2),
+    );
+  }
+  return new File([zipSync(renamed)], file.name, { type: 'application/octet-stream' });
 }

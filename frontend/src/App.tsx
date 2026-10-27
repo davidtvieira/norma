@@ -7,13 +7,14 @@ import { KINDS_BY_ID, OPERATION_KIND_IDS } from './components/OperationPanel/kin
 import { useTheme } from './hooks/useTheme';
 import {
   checkDataset,
-  downloadSavedNrm,
   getModelInputs,
   getNrmDataset,
   getNrmInputs,
   getNrmModel,
   importDataset,
   registerModel,
+  downloadSavedNrm,
+  openSavedNrm,
   replaceSavedNrm,
   saveNrm,
   validateModelForDataset,
@@ -28,10 +29,10 @@ import type { ColumnHighlight, OperationHighlight, RangeHighlight } from './type
 import type { CellRange } from './types/cellRange';
 import { getInputSource, hasSingleInputField } from './types/valueSource';
 import { buildModelExport, parseModelImport, type SerializableEntry } from './utils/modelSerialization';
-import { buildNrmFile, importNrmFile, readModelFile } from './utils/nrmSerialization';
+import { buildNrmFile, extractNrmFile, importNrmFile, readModelFile, renameNrmFile } from './utils/nrmSerialization';
 import { useSavedModels } from './hooks/useSavedModels';
 import { DEFAULT_SAVED_QUERY, type SavedNrmPayload, type SavedNrmQuery } from './types/savedNrm';
-import { deleteSessionCacheEntry, listSessionCacheEntries, saveSessionCacheEntry, updateSessionCacheModel, type SessionCacheEntry } from './utils/sessionCache';
+import { deleteSessionCacheEntry, forgetSavedNrm, listSessionCacheEntries, markSessionSaved, saveSessionCacheEntry, updateSessionCacheModel, type SessionCacheEntry } from './utils/sessionCache';
 import { downloadTestCase } from './utils/testCaseSerialization';
 import { LandingScreen } from './screens/LandingScreen';
 import { UtilizeScreen, type UtilizeModel } from './screens/UtilizeScreen';
@@ -167,11 +168,26 @@ function App() {
   const [savedQuery, setSavedQuery] = useState<SavedNrmQuery>(DEFAULT_SAVED_QUERY);
   const savedModels = useSavedModels(location.pathname === '/modelos', savedQuery);
   const savedNrmIdRef = useRef<string | null>(null);
+  // Whether that entry exists — what the editor's save button reads ("Atualizar" instead of "Guardar").
+  const [isSavedInLibrary, setIsSavedInLibrary] = useState(false);
+  function setSavedNrmId(id: string | null) {
+    savedNrmIdRef.current = id;
+    setIsSavedInLibrary(id !== null);
+    // The recent session of this model says it is kept on the platform too.
+    const sessionId = currentSessionIdRef.current;
+    if (id && sessionId) {
+      markSessionSaved(sessionId, id)
+        .then(refreshRecentSessions)
+        .catch((error) => console.warn('Falha ao atualizar a sessão no IndexedDB.', error));
+    }
+  }
   const [openingSavedId, setOpeningSavedId] = useState<string | null>(null);
   // The .nrm file the user uploaded on the landing screen, kept as it came so "Guardar na plataforma" can put it
   // in the library from the Editar / Utilizar choice. Null for anything else (a model opened from the library is
   // already there; one rebuilt from a cached session has no original file).
   const [uploadedNrmFile, setUploadedNrmFile] = useState<File | null>(null);
+  // The .nrm file the session is showing (uploaded or opened from the library) — what "Mudar o nome" rewrites.
+  const currentNrmFileRef = useRef<File | null>(null);
 
   // Up to the 4 most recently uploaded/saved .nrm sessions (see utils/sessionCache.ts) — shown on
   // the landing screen as "Sessões recentes", offering to resume any of them rather than silently
@@ -214,10 +230,10 @@ function App() {
 
   /** Updates the currently active entry (see currentSessionIdRef) in place — a no-op if there
    * somehow isn't one, which shouldn't happen whenever `dataset` is set. */
-  function cacheCurrentSession(datasetId: string, datasetFileName: string, datasetBlob: Blob, modelJson: string | null) {
+  function cacheCurrentSession(datasetId: string, datasetFileName: string, datasetBlob: Blob | null, modelJson: string | null) {
     const id = currentSessionIdRef.current;
     if (!id) return;
-    saveSessionCacheEntry(id, { datasetId, datasetFileName, datasetBlob, modelJson })
+    saveSessionCacheEntry(id, { datasetId, datasetFileName, datasetBlob, modelJson, savedNrmId: savedNrmIdRef.current })
       .then(refreshRecentSessions)
       .catch((error) => console.warn('Falha ao atualizar a sessão no IndexedDB.', error));
   }
@@ -287,8 +303,23 @@ function App() {
   ): Promise<boolean> {
     setResumingId(entry.id);
     setResumeError(null);
+    // A model that came from the library keeps nothing here: it is opened from the platform again.
+    if (entry.savedNrmId && !entry.datasetBlob) {
+      return openSavedById(entry.savedNrmId)
+        .then(() => {
+          deleteSessionCacheEntry(entry.id).then(refreshRecentSessions).catch(() => undefined);
+          return true;
+        })
+        .catch(() => false)
+        .finally(() => setResumingId(null));
+    }
+    const datasetBlob = entry.datasetBlob;
+    if (!datasetBlob) {
+      setResumingId(null);
+      return Promise.resolve(false);
+    }
     clearModelState();
-    const file = new File([entry.datasetBlob], entry.datasetFileName);
+    const file = new File([datasetBlob], entry.datasetFileName);
     // A reload already knows its dataset id from the URL: if the backend still has that dataset,
     // fetch it instead of re-uploading, which also keeps the URL exactly as it was. Only when it
     // doesn't (the backend restarted) is the cached file re-imported, getting a fresh id.
@@ -300,6 +331,7 @@ function App() {
         setDataset({ datasetId: restoredDataset.datasetId, filename: entry.datasetFileName });
         setDatasetFile(file);
         currentSessionIdRef.current = entry.id;
+        setSavedNrmId(entry.savedNrmId ?? null);
         const base = `/d/${restoredDataset.datasetId}`;
 
         if (entry.modelJson) {
@@ -335,7 +367,7 @@ function App() {
         }
         // Bumps this entry back to the top of "recent" (same content, fresh savedAt, and the new
         // dataset id) without needing its own separate "touch" call.
-        cacheCurrentSession(restoredDataset.datasetId, entry.datasetFileName, entry.datasetBlob, entry.modelJson);
+        cacheCurrentSession(restoredDataset.datasetId, entry.datasetFileName, datasetBlob, entry.modelJson);
         return true;
       })
       .catch((error) => {
@@ -352,6 +384,13 @@ function App() {
   // which gives it a new id. Falls back to "/" when no entry matches (a bookmarked link from before ids were tracked, etc.).
   const [isRestoring, setIsRestoring] = useState(() => window.location.pathname.startsWith('/d/'));
   const didRestoreFromUrl = useRef(false);
+  // A rename swaps the loaded .nrm for a new one (new id): the screen stays held until the router has moved to it.
+  const [renamingTo, setRenamingTo] = useState<string | null>(null);
+  useEffect(() => {
+    if (!renamingTo || !location.pathname.startsWith(`/d/${renamingTo}`)) return;
+    setRenamingTo(null);
+    setIsRestoring(false);
+  }, [renamingTo, location.pathname]);
   useEffect(() => {
     if (didRestoreFromUrl.current || !isRestoring) return;
     didRestoreFromUrl.current = true;
@@ -650,6 +689,7 @@ function App() {
   ) {
     setImportError(null);
     setUploadedNrmFile(nrmFile ?? null);
+    currentNrmFileRef.current = nrmFile ?? null;
     // The .nrm's id doubles as the session key: its dataset's own id is never handed out.
     setDataset({ datasetId: importedNrm.nrmId, filename: file.name, nrmId: importedNrm.nrmId });
     setDatasetFile(file);
@@ -717,10 +757,11 @@ function App() {
   // "Guardar modelo": the .nrm bundles the model with the dataset's own spreadsheet; the .json is
   // the bare model only (same JSON that sits inside the .nrm), importable later through
   // "Importar Modelo" on a dataset that's already loaded.
-  function exportModel(format: ModelExportFormat): void | Promise<void> {
+  async function exportModel(format: ModelExportFormat): Promise<void> {
     if (!dataset) return;
     if (format === 'dataset') {
-      if (datasetFile) downloadBlob(datasetFile, datasetFile.name);
+      const file = await ensureDatasetFile();
+      if (file) downloadBlob(file, file.name);
       return;
     }
     const model = buildModelExport(modelEntries, modelName, dataset.datasetId, modelInputIds, modelOutputIds, nrmName);
@@ -729,17 +770,39 @@ function App() {
       downloadBlob(new Blob([JSON.stringify(model, null, 2)], { type: 'application/json' }), `${fileName}.json`);
       return;
     }
-    if (!datasetFile) return;
+    const sourceFile = await ensureDatasetFile();
+    if (!sourceFile) return;
+    const blob = await buildNrmFile(sourceFile, model, fileName);
     if (format === 'library') {
-      return buildNrmFile(datasetFile, model, fileName).then(async (blob) => {
-        const file = new File([blob], `${fileName}.nrm`, { type: 'application/octet-stream' });
-        const isReplacing = savedNrmIdRef.current !== null;
-        const saved = savedNrmIdRef.current ? await replaceSavedNrm(savedNrmIdRef.current, file) : await saveNrm(file);
-        savedNrmIdRef.current = saved.id;
-        reportSuccess(isReplacing ? 'Modelo atualizado na plataforma' : 'Modelo guardado na plataforma', `Encontra-o em "Os meus modelos": ${saved.name}.`);
-      });
+      const file = new File([blob], `${fileName}.nrm`, { type: 'application/octet-stream' });
+      const isReplacing = savedNrmIdRef.current !== null;
+      const saved = savedNrmIdRef.current ? await replaceSavedNrm(savedNrmIdRef.current, file) : await saveNrm(file);
+      setSavedNrmId(saved.id);
+      reportSuccess(isReplacing ? 'Modelo atualizado na plataforma' : 'Modelo guardado na plataforma', `Encontra-o em "Os meus modelos Norma": ${saved.name}.`);
+      return;
     }
-    buildNrmFile(datasetFile, model, fileName).then((blob) => downloadBlob(blob, `${fileName}.nrm`));
+    downloadBlob(blob, `${fileName}.nrm`);
+  }
+
+  // The .nrm file of the session. One that was uploaded is already here; a model opened from the library is fetched
+  // only now, when something needs the file itself (exporting it again, renaming it) — opening it needed none.
+  async function ensureNrmFile(): Promise<File | null> {
+    if (currentNrmFileRef.current) return currentNrmFileRef.current;
+    const savedId = savedNrmIdRef.current;
+    if (!savedId) return null;
+    const file = await downloadSavedNrm(savedId, nrmName || importedModel?.nrmName || 'modelo');
+    currentNrmFileRef.current = file;
+    return file;
+  }
+
+  // The dataset's own spreadsheet, from the same place.
+  async function ensureDatasetFile(): Promise<File | null> {
+    if (datasetFile) return datasetFile;
+    const nrmFile = await ensureNrmFile();
+    if (!nrmFile) return null;
+    const { datasetFile: extracted } = await extractNrmFile(nrmFile);
+    setDatasetFile(extracted);
+    return extracted;
   }
 
   // The "Guardar na plataforma" under Editar / Utilizar: keeps the .nrm that was just uploaded, as it came. Later saves
@@ -747,8 +810,39 @@ function App() {
   async function saveUploadedNrm() {
     if (!uploadedNrmFile) return;
     const saved = await saveNrm(uploadedNrmFile);
-    savedNrmIdRef.current = saved.id;
-    reportSuccess('Modelo guardado na plataforma', `Encontra-o em "Os meus modelos": ${saved.name}.`);
+    setSavedNrmId(saved.id);
+    reportSuccess('Modelo guardado na plataforma', `Encontra-o em "Os meus modelos Norma": ${saved.name}.`);
+  }
+
+  // "Mudar o nome" on the Modelo Norma screen: rewrites the name inside the .nrm and brings the renamed file in again
+  // (it is a new .nrm on the backend). A file that is already in the library is replaced there too, still listed under
+  // the name it had: only the name inside the file changes.
+  async function renameNrm(name: string) {
+    const current = await ensureNrmFile();
+    if (!current) return;
+    // The new file has a new id, so for a moment the loaded dataset would not match the URL's: hold the route
+    // guard (and show the loading overlay) until the navigation has landed.
+    setIsRestoring(true);
+    try {
+      const renamed = await renameNrmFile(current, name);
+      const savedId = savedNrmIdRef.current;
+      if (savedId) {
+        // The platform keeps the renamed file (still listed under the name it had) and opens it again from there.
+        await replaceSavedNrm(savedId, renamed, true);
+        await openSavedById(savedId, setRenamingTo);
+      } else {
+        const { dataset: imported, datasetFile: importedFile, model, modelText } = await importNrmFile(renamed);
+        clearModelState();
+        setRenamingTo(imported.nrmId);
+        handleReadyModelImportSuccess(imported, importedFile, model, modelText, renamed);
+        currentNrmFileRef.current = renamed;
+      }
+      reportSuccess('Nome alterado', `O modelo chama-se agora "${name.trim()}".`);
+    } catch (error) {
+      setRenamingTo(null);
+      setIsRestoring(false);
+      throw error;
+    }
   }
 
   // The "+" card on /modelos: adds each picked .nrm to the library, one after the other (a refused file only costs
@@ -767,16 +861,12 @@ function App() {
     if (added > 0) reportSuccess(added === 1 ? 'Modelo guardado na plataforma' : `${added} modelos guardados na plataforma`);
   }
 
-  // "Abrir" on a saved model: fetch its file and bring it in like a .nrm the user had just picked, landing on
-  // the Editar / Utilizar choice. The entry is remembered so saving it again replaces it.
+  // "Abrir" on a saved model: the backend loads the file it keeps (nothing is downloaded or uploaded) and the model
+  // lands on the Editar / Utilizar choice. The entry is remembered so saving it again replaces it.
   async function openSavedModel(saved: SavedNrmPayload) {
     setOpeningSavedId(saved.id);
     try {
-      const file = await downloadSavedNrm(saved);
-      const { dataset: imported, datasetFile: importedFile, model, modelText } = await importNrmFile(file);
-      clearModelState();
-      handleReadyModelImportSuccess(imported, importedFile, model, modelText);
-      savedNrmIdRef.current = saved.id;
+      await openSavedById(saved.id);
     } catch {
       // The API toast already says what went wrong.
     } finally {
@@ -784,12 +874,42 @@ function App() {
     }
   }
 
+  async function openSavedById(savedId: string, beforeNavigate?: (nrmId: string) => void) {
+    const opened = await openSavedNrm(savedId);
+    clearModelState();
+    beforeNavigate?.(opened.nrmId);
+    setImportError(null);
+    setDataset({ datasetId: opened.nrmId, filename: opened.datasetFilename, nrmId: opened.nrmId });
+    setDatasetFile(null);
+    setImportedModel({
+      modelName: opened.modelName || opened.name,
+      nrmName: opened.name,
+      nrmId: opened.nrmId,
+      nrmCreatedAt: opened.createdAt,
+    });
+    navigate(`/d/${opened.nrmId}`);
+    // The recent session only points at the library entry: the file itself stays on the platform.
+    const sessionId = generateSessionId();
+    currentSessionIdRef.current = sessionId;
+    saveSessionCacheEntry(sessionId, {
+      datasetId: opened.nrmId,
+      datasetFileName: opened.datasetFilename,
+      datasetBlob: null,
+      modelJson: null,
+      nrmName: opened.name,
+      savedNrmId: savedId,
+    })
+      .then(refreshRecentSessions)
+      .catch((error) => console.warn('Falha ao guardar a sessão no IndexedDB.', error));
+    setSavedNrmId(savedId);
+  }
+
   // The "Norma" footer's always-available way back to the very start, from any screen — resets
   // every piece of state this component owns to its initial value, same as a fresh page load
   // (just without actually reloading the page).
   function goHome() {
     registeredModelRef.current = null;
-    savedNrmIdRef.current = null;
+    setSavedNrmId(null);
     setUploadedNrmFile(null);
     setDataset(null);
     setDatasetFile(null);
@@ -822,8 +942,9 @@ function App() {
    * never inherit the old one's imported model (it would show up on the choose screen). */
   function clearModelState() {
     registeredModelRef.current = null;
-    savedNrmIdRef.current = null;
+    setSavedNrmId(null);
     setUploadedNrmFile(null);
+    currentNrmFileRef.current = null;
     setModelName('');
     setNrmName('');
     setModelEntries([]);
@@ -849,7 +970,7 @@ function App() {
   const pageTitle = (() => {
     const path = location.pathname;
     if (path === '/') return null;
-    if (path === '/modelos') return 'Os meus modelos';
+    if (path === '/modelos') return 'Os meus modelos Norma';
     if (path.endsWith('/editor')) return `A editar ${nrmName.trim() || modelName.trim() || 'o modelo'}`;
     if (path.endsWith('/utilizar')) return utilizeModel?.modelName || 'Utilizar modelo';
     if (path.startsWith('/d/')) return importedModel?.nrmName || importedModel?.modelName || dataset?.filename || 'Conjunto de dados';
@@ -866,7 +987,7 @@ function App() {
   // decides which of them is on screen, not where their data lives.
   return (
     <>
-    {(resumingId !== null || isRestoring || isPreparingModel) && <LoadingOverlay />}
+    {(resumingId !== null || isRestoring || isPreparingModel || openingSavedId !== null) && <LoadingOverlay />}
     <Routes>
       <Route
         path="/"
@@ -895,6 +1016,7 @@ function App() {
                   onEdit={goToEditorWithImportedModel}
                   onUtilize={goToUtilizeWithImportedModel}
                   onSaveToLibrary={uploadedNrmFile ? saveUploadedNrm : undefined}
+                  onRename={renameNrm}
                   onViewModels={() => navigate('/modelos')}
                   onBack={handleBackToLanding}
                   onGoHome={goHome}
@@ -961,6 +1083,7 @@ function App() {
                     rangeHighlights={rangeHighlights}
                     cellHighlight={cellHighlight}
                     isSaveModalOpen={isSaveModalOpen}
+                    isSavedInLibrary={isSavedInLibrary}
                     onOpenSaveModal={() => setIsSaveModalOpen(true)}
                     onCloseSaveModal={() => setIsSaveModalOpen(false)}
                     onExportModel={exportModel}
@@ -1020,18 +1143,25 @@ function App() {
             onGoHome={goHome}
             onClearRecentSessions={discardAllEntries}
             savedModels={savedModels.models}
+            savedModelsTotal={savedModels.total}
             savedModelsFailed={savedModels.failed}
             savedQuery={savedQuery}
             onSavedQueryChange={setSavedQuery}
             openingSavedId={openingSavedId}
             onOpenSaved={openSavedModel}
-            onDeleteSaved={(saved) => savedModels.remove(saved.id)}
+            onDeleteSaved={(saved) =>
+              savedModels
+                .remove(saved.id)
+                .then(() => forgetSavedNrm(saved.id))
+                .then(refreshRecentSessions)
+            }
             onUploadModels={uploadSavedModels}
             recentSessions={recentSessions.map((entry) => ({
               id: entry.id,
               datasetFileName: entry.datasetFileName,
-              nrmName: cachedNrmName(entry.modelJson),
-              hasModel: entry.modelJson !== null,
+              nrmName: entry.nrmName ?? cachedNrmName(entry.modelJson),
+              hasModel: entry.modelJson !== null || Boolean(entry.savedNrmId),
+              isSaved: Boolean(entry.savedNrmId),
               isResuming: resumingId === entry.id,
               error: resumeError?.id === entry.id ? resumeError.message : null,
               onResume: () => resumeSession(entry),

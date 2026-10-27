@@ -18,7 +18,15 @@
   }
 }
 
-/* One block per "Input"/"Output" (see SaveModal's IoGroup), capped and scrollable so a model with many
+/* One column per "Input"/"Output": its title row sits above the box that holds the list. */
+.save-modal__io-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+/* The box of one "Input"/"Output" (see SaveModal's IoGroup), capped and scrollable so a model with many
    of them can't push the dialog taller than the screen. */
 .save-modal__io-group {
   display: flex;
@@ -44,7 +52,9 @@
   color: var(--color-text-muted);
 }
 
+/* As tall as the "Ordenar por nome" chip, so a title without one (a single item) still lines up with its neighbour. */
 .save-modal__io-header {
+  min-height: 1.95rem;
   display: flex;
   align-items: center;
   justify-content: space-between;

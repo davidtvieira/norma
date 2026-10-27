@@ -1055,3 +1055,57 @@ button.naked-button:hover:not(:disabled) {
   width: 1.1em;
   height: 1.1em;
 }
+
+/* The model's name with the pencil that renames it. */
+.app__nrm-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.app__nrm-title-row .app__create-model-title {
+  margin: 0;
+}
+
+.app__nrm-rename {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.app__nrm-rename:hover {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.app__nrm-rename .app__nrm-rename-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* How many models the library holds, as a small pill next to the title. */
+.app__models-count {
+  display: inline-block;
+  margin-left: 0.6rem;
+  padding: 0.05rem 0.6rem;
+  border-radius: 999px;
+  background: var(--color-surface-hover);
+  border: 1px solid var(--color-border);
+  font-size: 0.9rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  vertical-align: middle;
+  color: var(--color-text-muted);
+}

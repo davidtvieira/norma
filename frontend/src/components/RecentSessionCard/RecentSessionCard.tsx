@@ -1,3 +1,4 @@
+import { DiskIcon } from '../ButtonIcons/ButtonIcons';
 import './RecentSessionCard.css';
 
 interface RecentSessionCardProps {
@@ -7,6 +8,8 @@ interface RecentSessionCardProps {
   nrmName: string | null;
   /** Whether the session has a model (a .nrm) or is only a dataset — drives the label under the name. */
   hasModel: boolean;
+  /** The model is also kept on the platform (in "Os meus modelos"), not only in this browser. */
+  isSaved: boolean;
   isResuming: boolean;
   /** Only ever set on the one entry an actual resume attempt just failed on, for a local (non-API)
    * reason — an API failure is a toast instead, see services/apiErrors. */
@@ -21,13 +24,16 @@ interface RecentSessionCardProps {
  * asked for until they click. There's no per-entry remove: the row's "Limpar tudo" is the only way
  * to clear them.
  */
-export function RecentSessionCard({ datasetFileName, nrmName, hasModel, isResuming, error, onResume }: RecentSessionCardProps) {
+export function RecentSessionCard({ datasetFileName, nrmName, hasModel, isSaved, isResuming, error, onResume }: RecentSessionCardProps) {
   const name = nrmName ?? datasetFileName;
   return (
-    <div className="recent-session-card">
+    <div className={`recent-session-card${isSaved ? ' recent-session-card--saved' : ''}`}>
       <button type="button" className="recent-session-card__button" onClick={onResume} disabled={isResuming} aria-busy={isResuming} title={name}>
         <span className="recent-session-card__name">{name}</span>
-        <span className="recent-session-card__label">{hasModel ? 'Modelo (.nrm)' : 'Conjunto de dados'}</span>
+        <span className="recent-session-card__label">
+          {isSaved && <DiskIcon className="recent-session-card__icon" />}
+          {!hasModel ? 'Conjunto de dados' : isSaved ? 'Guardado na plataforma' : 'Modelo (.nrm) · não guardado'}
+        </span>
       </button>
       {error && <p className="recent-session-card__error">{error}</p>}
     </div>

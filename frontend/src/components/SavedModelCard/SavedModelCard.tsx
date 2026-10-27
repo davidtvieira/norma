@@ -40,14 +40,12 @@ export function SavedModelCard({ model, isOpening, onOpen, onDelete }: SavedMode
         </h3>
         {model.available ? (
           <ul className="saved-model-card__meta">
-            <li title={model.datasetFilename}>{model.datasetFilename}</li>
             <li>
               {plural(model.operationCount, 'operação', 'operações')} · {plural(model.inputCount, 'input', 'inputs')} ·{' '}
               {plural(model.outputCount, 'output', 'outputs')}
             </li>
-            <li>
-              {formatSize(model.sizeBytes)} · guardado em {new Date(model.updatedAt).toLocaleDateString('pt-PT')}
-            </li>
+            <li>Guardado em {new Date(model.updatedAt).toLocaleDateString('pt-PT')}</li>
+            <li>{formatSize(model.sizeBytes)}</li>
           </ul>
         ) : (
           <p className="saved-model-card__meta">O ficheiro deste modelo já não existe na plataforma.</p>

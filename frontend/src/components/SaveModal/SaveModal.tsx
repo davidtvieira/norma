@@ -16,6 +16,8 @@ export interface IoItem {
 
 interface SaveModalProps {
   open: boolean;
+  /** The model is already in the library: the main button updates that entry. */
+  isUpdate: boolean;
   onClose: () => void;
   /** Resolves once the export is done — only the platform copy takes any time. */
   onExport: (format: ModelExportFormat) => void | Promise<void>;
@@ -50,6 +52,7 @@ interface SaveModalProps {
  */
 export function SaveModal({
   open,
+  isUpdate,
   onClose,
   onExport,
   nrmName,
@@ -87,7 +90,7 @@ export function SaveModal({
 
   return (
     <Modal
-      title="Guardar modelo"
+      title={isUpdate ? 'Atualizar modelo' : 'Guardar modelo'}
       size="lg"
       onClose={onClose}
       actions={
@@ -95,17 +98,18 @@ export function SaveModal({
           <button type="button" className="modal__button modal__button--ghost" onClick={onClose}>
             Fechar
           </button>
-          <ExportButton disabled={!canExport || isSaving} onExport={exportAs} />
+          <ExportButton label={isUpdate ? 'Atualizar' : 'Guardar'} disabled={!canExport || isSaving} onExport={exportAs} />
         </>
       }
     >
       <p className="modal__hint">
-        Guarde o modelo na plataforma, para o encontrar em "Os meus modelos", ou exporte-o como ficheiro .nrm (inclui o conjunto
-        de dados) para o voltar a importar mais tarde.
+        {isUpdate
+          ? '"Atualizar" substitui o modelo guardado em "Os meus modelos Norma".'
+          : '"Guardar" mantém o modelo na plataforma, em "Os meus modelos Norma".'}
       </p>
 
       <label className="save-modal__name">
-        <span className="modal__label">Nome do ficheiro (.nrm)</span>
+        <span className="modal__label">Nome do modelo Norma</span>
         <input
           type="text"
           className="modal__input"
@@ -127,6 +131,7 @@ export function SaveModal({
 }
 
 interface ExportButtonProps {
+  label: string;
   disabled: boolean;
   onExport: (format: ModelExportFormat) => void;
 }
@@ -137,7 +142,7 @@ interface ExportButtonProps {
  * usual way to move a model between machines), just the model's .json (importable through "Importar
  * Modelo" on a dataset that's already loaded), or just the dataset's own file.
  */
-function ExportButton({ disabled, onExport }: ExportButtonProps) {
+function ExportButton({ label, disabled, onExport }: ExportButtonProps) {
   return (
     <SplitButton
       buttonClassName="modal__button"
@@ -151,7 +156,7 @@ function ExportButton({ disabled, onExport }: ExportButtonProps) {
         { label: 'Só os dados (ficheiro original)', onSelect: () => onExport('dataset') },
       ]}
     >
-      Guardar na plataforma
+      {label}
     </SplitButton>
   );
 }
@@ -184,7 +189,7 @@ function IoGroup({ label, items, emptyText, onReorder }: IoGroupProps) {
   }
 
   return (
-    <div className="save-modal__io-group">
+    <div className="save-modal__io-column">
       <div className="save-modal__io-header">
         <span className="modal__label">
           {label}
@@ -196,54 +201,56 @@ function IoGroup({ label, items, emptyText, onReorder }: IoGroupProps) {
           </button>
         )}
       </div>
-      {items.length === 0 ? (
-        <p className="save-modal__io-item save-modal__io-item--muted">{emptyText}</p>
-      ) : (
-        items.map((item, index) => (
-          <div key={item.id} className="save-modal__io-row">
-            <span className="save-modal__io-position">{index + 1}</span>
-            <p className="save-modal__io-item save-modal__io-name" title={item.label}>
-              {item.label}
-            </p>
-            <button
-              type="button"
-              className="save-modal__io-move"
-              onClick={() => moveTo(index, 0)}
-              disabled={index === 0}
-              aria-label={`Mover para o início: ${item.label}`}
-            >
-              <ChevronsUpIcon />
-            </button>
-            <button
-              type="button"
-              className="save-modal__io-move"
-              onClick={() => moveTo(index, index - 1)}
-              disabled={index === 0}
-              aria-label={`Subir ${item.label}`}
-            >
-              <ChevronUpIcon />
-            </button>
-            <button
-              type="button"
-              className="save-modal__io-move"
-              onClick={() => moveTo(index, index + 1)}
-              disabled={index === items.length - 1}
-              aria-label={`Descer ${item.label}`}
-            >
-              <ChevronDownIcon />
-            </button>
-            <button
-              type="button"
-              className="save-modal__io-move"
-              onClick={() => moveTo(index, items.length - 1)}
-              disabled={index === items.length - 1}
-              aria-label={`Mover para o fim: ${item.label}`}
-            >
-              <ChevronsDownIcon />
-            </button>
-          </div>
-        ))
-      )}
+      <div className="save-modal__io-group">
+        {items.length === 0 ? (
+          <p className="save-modal__io-item save-modal__io-item--muted">{emptyText}</p>
+        ) : (
+          items.map((item, index) => (
+            <div key={item.id} className="save-modal__io-row">
+              <span className="save-modal__io-position">{index + 1}</span>
+              <p className="save-modal__io-item save-modal__io-name" title={item.label}>
+                {item.label}
+              </p>
+              <button
+                type="button"
+                className="save-modal__io-move"
+                onClick={() => moveTo(index, 0)}
+                disabled={index === 0}
+                aria-label={`Mover para o início: ${item.label}`}
+              >
+                <ChevronsUpIcon />
+              </button>
+              <button
+                type="button"
+                className="save-modal__io-move"
+                onClick={() => moveTo(index, index - 1)}
+                disabled={index === 0}
+                aria-label={`Subir ${item.label}`}
+              >
+                <ChevronUpIcon />
+              </button>
+              <button
+                type="button"
+                className="save-modal__io-move"
+                onClick={() => moveTo(index, index + 1)}
+                disabled={index === items.length - 1}
+                aria-label={`Descer ${item.label}`}
+              >
+                <ChevronDownIcon />
+              </button>
+              <button
+                type="button"
+                className="save-modal__io-move"
+                onClick={() => moveTo(index, items.length - 1)}
+                disabled={index === items.length - 1}
+                aria-label={`Mover para o fim: ${item.label}`}
+              >
+                <ChevronsDownIcon />
+              </button>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }

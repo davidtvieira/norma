@@ -22,7 +22,7 @@ describe('sessionCache', () => {
     expect(entries[0].id).toBe('a');
     expect(entries[0].datasetFileName).toBe('vendas.xlsx');
     expect(entries[0].modelJson).toBe('{"operations":[]}');
-    expect(await entries[0].datasetBlob.text()).toBe('fake-xlsx-bytes');
+    expect(await entries[0].datasetBlob!.text()).toBe('fake-xlsx-bytes');
   });
 
   it('updates an entry in place when saved again under the same id, instead of duplicating it', async () => {

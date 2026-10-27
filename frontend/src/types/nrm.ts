@@ -12,3 +12,14 @@ export interface NrmInfoPayload {
   /** ISO 8601 timestamp. */
   createdAt: string;
 }
+
+/** Mirrors the backend's NrmOpenResponse: opening a saved .nrm returns its id and what the screen shows about it. */
+export interface NrmOpenPayload {
+  status: string;
+  nrmId: string;
+  name: string;
+  /** ISO 8601 timestamp. */
+  createdAt: string;
+  modelName: string;
+  datasetFilename: string;
+}

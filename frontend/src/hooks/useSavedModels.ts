@@ -14,6 +14,8 @@ const SEARCH_DEBOUNCE_MS = 250;
 export function useSavedModels(active: boolean, query: SavedNrmQuery) {
   const [models, setModels] = useState<SavedNrmPayload[] | null>(null);
   const [failed, setFailed] = useState(false);
+  // How many models the library holds, whatever the search: read off any answer that was not searched.
+  const [total, setTotal] = useState<number | null>(null);
   // Only the newest request may fill the list: an older, slower answer must not overwrite it.
   const latestRequest = useRef(0);
   const queryRef = useRef(query);
@@ -27,6 +29,7 @@ export function useSavedModels(active: boolean, query: SavedNrmQuery) {
       .then((list) => {
         if (request !== latestRequest.current) return;
         setModels(list);
+        if (!queryRef.current.search.trim()) setTotal(list.length);
         setFailed(false);
       })
       .catch(() => {
@@ -48,9 +51,13 @@ export function useSavedModels(active: boolean, query: SavedNrmQuery) {
   }, [active, refresh, query.search, query.sort, query.direction]);
 
   const remove = useCallback(
-    (id: string) => deleteSavedNrm(id).then(() => setModels((current) => current?.filter((model) => model.id !== id) ?? current)),
+    (id: string) =>
+      deleteSavedNrm(id).then(() => {
+        setModels((current) => current?.filter((model) => model.id !== id) ?? current);
+        setTotal((current) => (current === null ? current : Math.max(0, current - 1)));
+      }),
     [],
   );
 
-  return { models, failed, refresh, remove };
+  return { models, total, failed, refresh, remove };
 }

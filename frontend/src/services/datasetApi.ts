@@ -11,7 +11,7 @@ import type {
   ModelRunResponsePayload,
 } from '../types/modelCalculation';
 import type { SelectorRequestPayload, SelectorResponsePayload } from '../types/selector';
-import type { NrmImportStatusPayload, NrmInfoPayload } from '../types/nrm';
+import type { NrmImportStatusPayload, NrmInfoPayload, NrmOpenPayload } from '../types/nrm';
 import type { SavedNrmPayload, SavedNrmQuery } from '../types/savedNrm';
 import type { NodeRequestPayload, NodeResponsePayload } from '../types/node';
 import type { OperationType } from '../types/operation';
@@ -168,18 +168,28 @@ export function saveNrm(file: File): Promise<SavedNrmPayload> {
   return sendSavedNrm(`${API_BASE_URL}/api/v1/library`, 'POST', file);
 }
 
-/** Puts a .nrm in place of a saved one, keeping its id. */
-export function replaceSavedNrm(id: string, file: File): Promise<SavedNrmPayload> {
-  return sendSavedNrm(`${API_BASE_URL}/api/v1/library/${encodeURIComponent(id)}`, 'PUT', file);
+/** Puts a .nrm in place of a saved one, keeping its id — and, with keepName, the name it is listed under. */
+export function replaceSavedNrm(id: string, file: File, keepName = false): Promise<SavedNrmPayload> {
+  const query = keepName ? '?keepName=true' : '';
+  return sendSavedNrm(`${API_BASE_URL}/api/v1/library/${encodeURIComponent(id)}${query}`, 'PUT', file);
 }
 
-/** A saved .nrm's file, ready to be imported like one the user picked. */
-export async function downloadSavedNrm(saved: SavedNrmPayload): Promise<File> {
-  const response = await apiFetch(`${API_BASE_URL}/api/v1/library/${encodeURIComponent(saved.id)}/file`);
+/** Brings a saved .nrm into use from the file the backend already keeps — nothing is uploaded. */
+export async function openSavedNrm(id: string): Promise<NrmOpenPayload> {
+  const response = await apiFetch(`${API_BASE_URL}/api/v1/library/${encodeURIComponent(id)}/open`, { method: 'POST' });
   if (!response.ok) {
     throw await apiError(response, 'Falha ao abrir o modelo guardado');
   }
-  return new File([await response.blob()], `${saved.name}.nrm`, { type: 'application/octet-stream' });
+  return response.json();
+}
+
+/** A saved .nrm's file, only for what needs the file itself (exporting it again, renaming it) — opening needs none. */
+export async function downloadSavedNrm(id: string, name = 'modelo'): Promise<File> {
+  const response = await apiFetch(`${API_BASE_URL}/api/v1/library/${encodeURIComponent(id)}/file`);
+  if (!response.ok) {
+    throw await apiError(response, 'Falha ao abrir o modelo guardado');
+  }
+  return new File([await response.blob()], `${name}.nrm`, { type: 'application/octet-stream' });
 }
 
 export async function deleteSavedNrm(id: string): Promise<void> {

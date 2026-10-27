@@ -52,6 +52,8 @@ interface EditorScreenProps {
   cellHighlight: OperationHighlight | null;
 
   isSaveModalOpen: boolean;
+  /** The model already has an entry in the library: saving updates it. */
+  isSavedInLibrary: boolean;
   onOpenSaveModal: () => void;
   onCloseSaveModal: () => void;
   onExportModel: (format: ModelExportFormat) => void;
@@ -108,6 +110,7 @@ export function EditorScreen({
   rangeHighlights,
   cellHighlight,
   isSaveModalOpen,
+  isSavedInLibrary,
   onOpenSaveModal,
   onCloseSaveModal,
   onExportModel,
@@ -174,7 +177,7 @@ export function EditorScreen({
             </div>
             <button type="button" className="app__save-button action-button" onClick={onOpenSaveModal}>
               <DiskIcon />
-              Guardar modelo
+              {isSavedInLibrary ? 'Atualizar modelo' : 'Guardar modelo'}
             </button>
           </div>
         </div>
@@ -201,6 +204,7 @@ export function EditorScreen({
 
       <SaveModal
         open={isSaveModalOpen}
+        isUpdate={isSavedInLibrary}
         onClose={onCloseSaveModal}
         onExport={onExportModel}
         nrmName={nrmName}

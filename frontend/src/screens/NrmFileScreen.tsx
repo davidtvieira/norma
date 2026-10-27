@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Modal } from '../components/Modal/Modal';
 import { BoltIcon, DiskIcon, FolderIcon, PencilIcon } from '../components/ButtonIcons/ButtonIcons';
 import { BackButton } from '../components/BackButton/BackButton';
 import { AppFooter } from '../components/AppFooter/AppFooter';
@@ -18,6 +19,8 @@ interface NrmFileScreenProps {
   onSaveToLibrary?: () => Promise<void>;
   /** Opens the list of saved models — what the save button turns into once the file is saved. */
   onViewModels: () => void;
+  /** Rewrites the name inside the file — absent when the session has no .nrm file to rewrite. */
+  onRename?: (name: string) => Promise<void>;
   onBack: () => void;
   onGoHome: () => void;
 }
@@ -37,10 +40,33 @@ export function NrmFileScreen({
   onUtilize,
   onSaveToLibrary,
   onViewModels,
+  onRename,
   onBack,
   onGoHome,
 }: NrmFileScreenProps) {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [draftName, setDraftName] = useState('');
+  const [isRenameSaving, setIsRenameSaving] = useState(false);
+  const currentName = importedModel.nrmName || importedModel.modelName || 'Modelo sem nome';
+
+  function openRename() {
+    setDraftName(importedModel.nrmName || importedModel.modelName);
+    setIsRenaming(true);
+  }
+
+  async function confirmRename() {
+    if (!onRename || !draftName.trim() || isRenameSaving) return;
+    setIsRenameSaving(true);
+    try {
+      await onRename(draftName);
+      setIsRenaming(false);
+    } catch {
+      // The API toast already says what went wrong.
+    } finally {
+      setIsRenameSaving(false);
+    }
+  }
 
   async function saveToLibrary() {
     if (!onSaveToLibrary) return;
@@ -64,7 +90,14 @@ export function NrmFileScreen({
       <div className="app__create-model-body">
         <div className="app__create-model-content">
           <p className="app__create-model-eyebrow">Modelo Norma</p>
-          <h1 className="app__create-model-title app__create-model-title--name">{importedModel.nrmName || importedModel.modelName || 'Modelo sem nome'}</h1>
+          <div className="app__nrm-title-row">
+            <h1 className="app__create-model-title app__create-model-title--name">{currentName}</h1>
+            {onRename && (
+              <button type="button" className="app__nrm-rename" onClick={openRename} aria-label="Mudar o nome" title="Mudar o nome">
+                <PencilIcon className="app__nrm-rename-icon" />
+              </button>
+            )}
+          </div>
           {importedModel.nrmCreatedAt && (
             <dl className="app__nrm-details">
               <div>
@@ -115,6 +148,38 @@ export function NrmFileScreen({
           {importError && <p className="app__create-model-error">{importError}</p>}
         </div>
       </div>
+
+      {isRenaming && (
+        <Modal
+          title="Mudar o nome"
+          size="sm"
+          onClose={() => setIsRenaming(false)}
+          closeDisabled={isRenameSaving}
+          actions={
+            <>
+              <button type="button" className="modal__button modal__button--ghost" onClick={() => setIsRenaming(false)} disabled={isRenameSaving}>
+                Cancelar
+              </button>
+              <button type="button" className="modal__button action-button" onClick={confirmRename} disabled={!draftName.trim() || isRenameSaving}>
+                {isRenameSaving ? 'A guardar…' : 'Guardar'}
+              </button>
+            </>
+          }
+        >
+          <p className="modal__hint">O nome é alterado dentro do ficheiro .nrm.</p>
+          <label>
+            <span className="modal__label">Nome do modelo</span>
+            <input
+              type="text"
+              className="modal__input"
+              value={draftName}
+              autoFocus
+              onChange={(event) => setDraftName(event.target.value)}
+              onKeyDown={(event) => event.key === 'Enter' && confirmRename()}
+            />
+          </label>
+        </Modal>
+      )}
 
       <AppFooter onGoHome={onGoHome} />
     </div>

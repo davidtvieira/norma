@@ -17,6 +17,8 @@ export interface RecentSessionEntryProps {
   nrmName: string | null;
   /** False for a dataset-only entry — nothing built or imported on it yet. */
   hasModel: boolean;
+  /** Also kept on the platform, not only in this browser. */
+  isSaved: boolean;
   isResuming: boolean;
   error: string | null;
   onResume: () => void;
@@ -35,6 +37,8 @@ interface ModelsScreenProps {
   recentSessions: RecentSessionEntryProps[];
   /** The library of saved .nrm files, newest first — null until the backend has answered. */
   savedModels: SavedNrmPayload[] | null;
+  /** How many models the library holds in all (null until known) — the list may be showing only the search's matches. */
+  savedModelsTotal: number | null;
   /** True when the library could not be read (the toast already said why). */
   savedModelsFailed: boolean;
   /** What the list is searched and ordered by, and how to change it. */
@@ -60,6 +64,7 @@ export function ModelsScreen({
   onClearRecentSessions,
   recentSessions,
   savedModels,
+  savedModelsTotal,
   savedModelsFailed,
   savedQuery,
   onSavedQueryChange,
@@ -85,7 +90,14 @@ export function ModelsScreen({
 
       <div className="app__models-body">
         <div className="app__models-header">
-          <h1 className="app__models-title">Os meus modelos</h1>
+          <h1 className="app__models-title">
+            Os meus modelos Norma
+            {savedModelsTotal !== null && (
+              <span className="app__models-count" title="Modelos guardados na plataforma">
+                {savedModelsTotal}
+              </span>
+            )}
+          </h1>
           <SavedModelsToolbar query={savedQuery} onChange={onSavedQueryChange} />
         </div>
         {savedModels !== null && savedModels.length === 0 && savedQuery.search.trim() !== '' && (
@@ -137,6 +149,7 @@ export function ModelsScreen({
                 datasetFileName={entry.datasetFileName}
                 nrmName={entry.nrmName}
                 hasModel={entry.hasModel}
+                isSaved={entry.isSaved}
                 isResuming={entry.isResuming}
                 error={entry.error}
                 onResume={entry.onResume}
