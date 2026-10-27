@@ -2,6 +2,7 @@ package com.norma.dataset.library;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import com.norma.dataset.dto.NrmOpenResponse;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -58,10 +59,20 @@ public class NrmLibraryController {
         return ResponseEntity.status(HttpStatus.CREATED).body(library.save(file.getBytes()));
     }
 
-    @Operation(summary = "Replace a saved .nrm file", description = "Keeps the id and the creation date.")
+    @Operation(summary = "Replace a saved .nrm file",
+            description = "Keeps the id and the creation date, and with keepName the name the entry is listed under.")
     @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public SavedNrmSummary replace(@PathVariable UUID id, @RequestParam("file") MultipartFile file) throws IOException {
-        return library.replace(id, file.getBytes());
+    public SavedNrmSummary replace(@PathVariable UUID id, @RequestParam("file") MultipartFile file,
+                                   @RequestParam(value = "keepName", defaultValue = "false") boolean keepName) throws IOException {
+        return library.replace(id, file.getBytes(), keepName);
+    }
+
+    @Operation(summary = "Open a saved .nrm file",
+            description = "Imports the saved file as if it had been uploaded, without uploading it: its dataset and model "
+                    + "are stored and the .nrm id every later /nrm request uses is returned, with its name, dates and dataset file name.")
+    @PostMapping("/{id}/open")
+    public NrmOpenResponse open(@PathVariable UUID id) {
+        return library.open(id);
     }
 
     @Operation(summary = "Download a saved .nrm file")

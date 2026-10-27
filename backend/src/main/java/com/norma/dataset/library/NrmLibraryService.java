@@ -1,6 +1,7 @@
 package com.norma.dataset.library;
 
 import com.norma.dataset.dto.NrmSummary;
+import com.norma.dataset.dto.NrmOpenResponse;
 import com.norma.dataset.service.NrmService;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -83,14 +84,28 @@ public class NrmLibraryService {
         }
     }
 
-    /** Validates the .nrm and puts it in place of a saved one, keeping its id and creation date. */
+    /**
+     * Validates the .nrm and puts it in place of a saved one, keeping its id and creation date. With
+     * {@code keepName} the entry keeps the name it is listed under, whatever name the new file carries inside.
+     */
     @Transactional
-    public SavedNrmSummary replace(UUID id, byte[] bytes) {
+    public SavedNrmSummary replace(UUID id, byte[] bytes, boolean keepName) {
         SavedNrm saved = find(id);
         NrmSummary summary = nrmService.inspect(bytes);
+        String listedName = saved.getName();
         storage.write(id, bytes);
         describe(saved, summary, bytes);
+        if (keepName) {
+            saved.rename(listedName);
+        }
         return toSummary(repository.saveAndFlush(saved));
+    }
+
+    /** Brings a saved .nrm into use — its dataset and model are stored like an import's — from the file already kept. */
+    @Transactional(readOnly = true)
+    public NrmOpenResponse open(UUID id) {
+        SavedNrm saved = find(id);
+        return nrmService.open(id + ".nrm", bytesOf(saved));
     }
 
     @Transactional(readOnly = true)

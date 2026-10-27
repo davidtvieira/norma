@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.norma.dataset.dto.DatasetImportResponse;
-import com.norma.dataset.dto.DatasetImportResponse;
+import com.norma.dataset.dto.DatasetImportStatus;
 import com.norma.dataset.dto.ModelInputsResponse;
 import com.norma.dataset.dto.ModelOperationInput;
 import com.norma.dataset.dto.ModelOperationResult;
@@ -13,6 +13,7 @@ import com.norma.dataset.dto.ModelRunResponse;
 import com.norma.dataset.dto.ModelRegisterRequest;
 import com.norma.dataset.dto.NrmImportStatus;
 import com.norma.dataset.dto.NrmInfo;
+import com.norma.dataset.dto.NrmOpenResponse;
 import com.norma.dataset.dto.NrmSummary;
 import com.norma.dataset.exception.DatasetParsingException;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -105,7 +106,21 @@ public class NrmService {
      * unregistered when it has no usable output) and the .nrm itself, under the id returned.
      */
     public NrmImportStatus importNrm(MultipartFile file) {
-        Contents contents = read(file);
+        return importContents(read(file));
+    }
+
+    /**
+     * The same import for a .nrm already held as bytes (a saved one, see NrmLibraryService) — nothing is uploaded,
+     * and what the screen shows about the file comes back with the id, so the caller needs no copy of it.
+     */
+    public NrmOpenResponse open(String originalName, byte[] bytes) {
+        Contents contents = read(originalName, bytes);
+        String nrmId = importContents(contents).nrmId();
+        return new NrmOpenResponse(DatasetImportStatus.SUCCESS, nrmId, contents.info().name(), contents.info().createdAt(),
+                contents.model().path("modelName").asText(""), contents.spreadsheetName());
+    }
+
+    private NrmImportStatus importContents(Contents contents) {
         ModelDatasetValidator.assertFits(contents.model(), sheetCountOf(contents));
         DatasetImportResponse dataset = datasetParserService.parse(
                 new ByteArrayInputStream(contents.spreadsheetBytes()), contents.spreadsheetName());

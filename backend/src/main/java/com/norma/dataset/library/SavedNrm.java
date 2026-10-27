@@ -96,6 +96,11 @@ public class SavedNrm {
         return updatedAt;
     }
 
+    /** The name the entry is listed under, apart from the name the file carries inside. */
+    public void rename(String name) {
+        this.name = name;
+    }
+
     /** Takes over everything the file says about itself, as saved or replaced at {@code now}. */
     public void describe(String name, String datasetFilename, long sizeBytes, String sha256,
                          int operationCount, int inputCount, int outputCount, Instant now) {

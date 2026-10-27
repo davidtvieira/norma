@@ -1,5 +1,6 @@
 package com.norma.dataset.library;
 
+import com.norma.dataset.dto.NrmOpenResponse;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -30,6 +31,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -118,6 +120,37 @@ class NrmLibraryIntegrationTest {
         assertThat(replaced.getBody().createdAt()).isEqualTo(saved.createdAt());
         assertThat(replaced.getBody().updatedAt()).isAfterOrEqualTo(saved.updatedAt());
         assertThat(repository.count()).isEqualTo(1);
+    }
+
+    @Test
+    void openingImportsTheSavedFileWithoutUploadingIt() throws IOException {
+        SavedNrmSummary saved = save("Vendas", "dados.xlsx");
+
+        ResponseEntity<NrmOpenResponse> opened = http.postForEntity(
+                "/api/v1/library/" + saved.id() + "/open", null, NrmOpenResponse.class);
+
+        assertThat(opened.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(opened.getBody().nrmId()).isNotBlank();
+        assertThat(opened.getBody().name()).isEqualTo("Vendas");
+        assertThat(opened.getBody().datasetFilename()).isEqualTo("dados.xlsx");
+        assertThat(http.getForEntity("/api/v1/nrm/" + opened.getBody().nrmId() + "/dataset", String.class).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+        assertThat(http.postForEntity("/api/v1/library/" + UUID.randomUUID() + "/open", null, String.class).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void replacingWithKeepNameLeavesTheListedNameAlone() throws IOException {
+        SavedNrmSummary saved = save("Vendas", "dados.xlsx");
+
+        MultiValueMap<String, Object> body = filePart(nrmBytes("Outro nome", "dados.xlsx"));
+        ResponseEntity<SavedNrmSummary> replaced = http.exchange(
+                "/api/v1/library/" + saved.id() + "?keepName=true", HttpMethod.PUT, multipart(body), SavedNrmSummary.class);
+
+        assertThat(replaced.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(replaced.getBody().name()).isEqualTo("Vendas");
+        assertThat(http.getForEntity("/api/v1/library/" + saved.id() + "/file", byte[].class).getBody())
+                .isEqualTo(nrmBytes("Outro nome", "dados.xlsx"));
     }
 
     @Test
