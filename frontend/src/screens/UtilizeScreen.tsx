@@ -1,3 +1,4 @@
+import { LoadingOverlay } from '../components/LoadingOverlay/LoadingOverlay';
 import { useState } from 'react';
 import { SpreadsheetIcon } from '../components/ButtonIcons/ButtonIcons';
 import { SheetPanel } from '../components/SheetPanel/SheetPanel';
@@ -85,7 +86,7 @@ function DataViewer({
 }) {
   const { dataset: sheets, error } = useDatasetSheets(dataset.datasetId, dataset.nrmId);
   if (error) return <p className="app__create-model-error">{error}</p>;
-  if (!sheets) return <p>A carregar…</p>;
+  if (!sheets) return <LoadingOverlay />;
   return (
     <SheetViewer
       dataset={sheets}

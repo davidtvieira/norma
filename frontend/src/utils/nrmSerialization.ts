@@ -1,4 +1,4 @@
-import { strToU8, unzip, unzipSync, zipSync } from 'fflate';
+import { strToU8, unzip, zipSync } from 'fflate';
 import { importNrm, validateNrm } from '../services/datasetApi';
 import type { NrmImportStatusPayload } from '../types/nrm';
 import type { ExportedModel } from './modelSerialization';
@@ -128,9 +128,9 @@ export function extractNrmFile(file: File): Promise<NrmContents> {
  * separately first (see ReadyModelUploader's landing-page counterpart). Also writes an
  * `info.json` (see NrmInfo) recording `fileName` and when this file was created.
  */
-export async function buildNrmFile(datasetFile: File, model: ExportedModel, fileName: string): Promise<Blob> {
+export async function buildNrmFile(datasetFile: File, model: ExportedModel, fileName: string, createdAt?: string): Promise<Blob> {
   const datasetBytes = new Uint8Array(await datasetFile.arrayBuffer());
-  const info: NrmInfo = { version: NRM_INFO_VERSION, name: fileName, createdAt: new Date().toISOString() };
+  const info: NrmInfo = { version: NRM_INFO_VERSION, name: fileName, createdAt: createdAt || new Date().toISOString() };
   // The dataset's and the model's own names inside the .nrm are overwritten by the export name.
   const extension = datasetFile.name.slice(datasetFile.name.lastIndexOf('.'));
   const renamedModel: ExportedModel = { ...model, modelName: fileName, nrmName: fileName };
@@ -203,47 +203,4 @@ function describeImport(dataset: NrmImportStatusPayload, file: File, contents: N
   // always has something to identify it by in "Sessões recentes".
   const nrmName = info?.name || file.name.replace(/\.nrm$/i, '');
   return { dataset, datasetFile, modelText, model: { modelName: modelNameOf(modelText) || nrmName, nrmName, nrmId: dataset.nrmId, nrmCreatedAt: info?.createdAt } };
-}
-
-/**
- * A copy of a .nrm saved under another name: the name in its `info.json` (the source of truth) and the
- * model's own `nrmName` change, everything else — the spreadsheet, the operations, when it was created —
- * stays byte for byte. The file's own name stays as it was.
- */
-export async function renameNrmFile(file: File, name: string): Promise<File> {
-  const newName = name.trim();
-  let entries: Record<string, Uint8Array>;
-  try {
-    entries = unzipSync(new Uint8Array(await file.arrayBuffer()));
-  } catch {
-    throw new NrmImportError('Não foi possível ler o ficheiro .nrm.');
-  }
-
-  const renamed: Record<string, Uint8Array> = {};
-  let hadInfo = false;
-  for (const [path, bytes] of Object.entries(entries)) {
-    if (path.endsWith('/')) continue;
-    if (isInfoEntry(path)) {
-      hadInfo = true;
-      const info = readNrmInfo(bytes);
-      renamed[path] = strToU8(
-        JSON.stringify({ version: NRM_INFO_VERSION, name: newName, createdAt: info?.createdAt || new Date().toISOString() }, null, 2),
-      );
-    } else if (isModelEntry(path)) {
-      try {
-        const model = JSON.parse(new TextDecoder('utf-8').decode(bytes)) as Record<string, unknown>;
-        renamed[path] = strToU8(JSON.stringify({ ...model, nrmName: newName }, null, 2));
-      } catch {
-        renamed[path] = bytes;
-      }
-    } else {
-      renamed[path] = bytes;
-    }
-  }
-  if (!hadInfo) {
-    renamed[INFO_ENTRY_NAME] = strToU8(
-      JSON.stringify({ version: NRM_INFO_VERSION, name: newName, createdAt: new Date().toISOString() }, null, 2),
-    );
-  }
-  return new File([zipSync(renamed)], file.name, { type: 'application/octet-stream' });
 }

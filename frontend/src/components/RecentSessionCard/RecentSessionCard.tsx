@@ -21,8 +21,7 @@ interface RecentSessionCardProps {
  * One tile in the landing screen's "Sessões recentes" row (see LandingScreen — up to 4, see
  * App.tsx's utils/sessionCache.ts-backed recentSessions state). Shows the session's name, with a label saying whether it's a model or a dataset, and
  * is itself the button that resumes it — a resume is a real backend re-upload the user hasn't
- * asked for until they click. There's no per-entry remove: the row's "Limpar tudo" is the only way
- * to clear them.
+ * asked for until they click. There's no remove: the cache keeps only the last few, and the oldest drops out.
  */
 export function RecentSessionCard({ datasetFileName, nrmName, hasModel, isSaved, isResuming, error, onResume }: RecentSessionCardProps) {
   const name = nrmName ?? datasetFileName;
@@ -32,7 +31,7 @@ export function RecentSessionCard({ datasetFileName, nrmName, hasModel, isSaved,
         <span className="recent-session-card__name">{name}</span>
         <span className="recent-session-card__label">
           {isSaved && <DiskIcon className="recent-session-card__icon" />}
-          {!hasModel ? 'Conjunto de dados' : isSaved ? 'Guardado na plataforma' : 'Modelo (.nrm) · não guardado'}
+          {!hasModel ? 'Conjunto de dados' : isSaved ? 'Guardado na plataforma' : 'Não guardado na plataforma'}
         </span>
       </button>
       {error && <p className="recent-session-card__error">{error}</p>}

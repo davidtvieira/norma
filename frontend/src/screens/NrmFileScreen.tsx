@@ -1,11 +1,15 @@
 import { useState } from 'react';
-import { Modal } from '../components/Modal/Modal';
+import { LoadingOverlay } from '../components/LoadingOverlay/LoadingOverlay';
 import { BoltIcon, DiskIcon, FolderIcon, PencilIcon } from '../components/ButtonIcons/ButtonIcons';
 import { BackButton } from '../components/BackButton/BackButton';
 import { AppFooter } from '../components/AppFooter/AppFooter';
 import { ThemeToggle } from '../components/ThemeToggle/ThemeToggle';
 import type { Theme } from '../hooks/useTheme';
 import type { ImportedModel } from './ChooseModelScreen';
+
+function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString('pt-PT', { dateStyle: 'medium', timeStyle: 'short' });
+}
 
 interface NrmFileScreenProps {
   importedModel: ImportedModel;
@@ -19,8 +23,6 @@ interface NrmFileScreenProps {
   onSaveToLibrary?: () => Promise<void>;
   /** Opens the list of saved models — what the save button turns into once the file is saved. */
   onViewModels: () => void;
-  /** Rewrites the name inside the file — absent when the session has no .nrm file to rewrite. */
-  onRename?: (name: string) => Promise<void>;
   onBack: () => void;
   onGoHome: () => void;
 }
@@ -40,33 +42,11 @@ export function NrmFileScreen({
   onUtilize,
   onSaveToLibrary,
   onViewModels,
-  onRename,
   onBack,
   onGoHome,
 }: NrmFileScreenProps) {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
-  const [isRenaming, setIsRenaming] = useState(false);
-  const [draftName, setDraftName] = useState('');
-  const [isRenameSaving, setIsRenameSaving] = useState(false);
   const currentName = importedModel.nrmName || importedModel.modelName || 'Modelo sem nome';
-
-  function openRename() {
-    setDraftName(importedModel.nrmName || importedModel.modelName);
-    setIsRenaming(true);
-  }
-
-  async function confirmRename() {
-    if (!onRename || !draftName.trim() || isRenameSaving) return;
-    setIsRenameSaving(true);
-    try {
-      await onRename(draftName);
-      setIsRenaming(false);
-    } catch {
-      // The API toast already says what went wrong.
-    } finally {
-      setIsRenameSaving(false);
-    }
-  }
 
   async function saveToLibrary() {
     if (!onSaveToLibrary) return;
@@ -92,20 +72,21 @@ export function NrmFileScreen({
           <p className="app__create-model-eyebrow">Modelo Norma</p>
           <div className="app__nrm-title-row">
             <h1 className="app__create-model-title app__create-model-title--name">{currentName}</h1>
-            {onRename && (
-              <button type="button" className="app__nrm-rename" onClick={openRename} aria-label="Mudar o nome" title="Mudar o nome">
-                <PencilIcon className="app__nrm-rename-icon" />
-              </button>
-            )}
           </div>
-          {importedModel.nrmCreatedAt && (
+          {(importedModel.nrmCreatedAt || importedModel.nrmUpdatedAt) && (
             <dl className="app__nrm-details">
-              <div>
-                <dt>Criado em</dt>
-                <dd>
-                  {new Date(importedModel.nrmCreatedAt).toLocaleString('pt-PT', { dateStyle: 'medium', timeStyle: 'short' })}
-                </dd>
-              </div>
+              {importedModel.nrmCreatedAt && (
+                <div>
+                  <dt>Criado em</dt>
+                  <dd>{formatDateTime(importedModel.nrmCreatedAt)}</dd>
+                </div>
+              )}
+              {importedModel.nrmUpdatedAt && (
+                <div>
+                  <dt>Atualizado em</dt>
+                  <dd>{formatDateTime(importedModel.nrmUpdatedAt)}</dd>
+                </div>
+              )}
             </dl>
           )}
           {onSaveToLibrary ? (
@@ -149,37 +130,7 @@ export function NrmFileScreen({
         </div>
       </div>
 
-      {isRenaming && (
-        <Modal
-          title="Mudar o nome"
-          size="sm"
-          onClose={() => setIsRenaming(false)}
-          closeDisabled={isRenameSaving}
-          actions={
-            <>
-              <button type="button" className="modal__button modal__button--ghost" onClick={() => setIsRenaming(false)} disabled={isRenameSaving}>
-                Cancelar
-              </button>
-              <button type="button" className="modal__button action-button" onClick={confirmRename} disabled={!draftName.trim() || isRenameSaving}>
-                {isRenameSaving ? 'A guardar…' : 'Guardar'}
-              </button>
-            </>
-          }
-        >
-          <p className="modal__hint">O nome é alterado dentro do ficheiro .nrm.</p>
-          <label>
-            <span className="modal__label">Nome do modelo</span>
-            <input
-              type="text"
-              className="modal__input"
-              value={draftName}
-              autoFocus
-              onChange={(event) => setDraftName(event.target.value)}
-              onKeyDown={(event) => event.key === 'Enter' && confirmRename()}
-            />
-          </label>
-        </Modal>
-      )}
+      {saveStatus === 'saving' && <LoadingOverlay delayMs={200} />}
 
       <AppFooter onGoHome={onGoHome} />
     </div>

@@ -41,6 +41,9 @@ export interface DatasetHandle {
   /** Set when the dataset came from importing a .nrm: that .nrm's own id, used instead of the
    * dataset's wherever the backend offers an endpoint for it (sheets, and the model's inputs/run). */
   nrmId?: string;
+  /** Set when the model was opened from the platform: the library entry's own id, which is what its address uses
+   * (`/modelos/:savedId`) because — unlike the ids above — it survives a reload and a backend restart. */
+  savedId?: string;
 }
 
 export interface DatasetImportResponse {

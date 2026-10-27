@@ -14,6 +14,8 @@ const SEARCH_DEBOUNCE_MS = 250;
 export function useSavedModels(active: boolean, query: SavedNrmQuery) {
   const [models, setModels] = useState<SavedNrmPayload[] | null>(null);
   const [failed, setFailed] = useState(false);
+  // True while a request (the first one, a search or a new order) is waiting for its answer.
+  const [loading, setLoading] = useState(false);
   // How many models the library holds, whatever the search: read off any answer that was not searched.
   const [total, setTotal] = useState<number | null>(null);
   // Only the newest request may fill the list: an older, slower answer must not overwrite it.
@@ -25,6 +27,7 @@ export function useSavedModels(active: boolean, query: SavedNrmQuery) {
 
   const refresh = useCallback(() => {
     const request = ++latestRequest.current;
+    setLoading(true);
     return listSavedNrms(queryRef.current)
       .then((list) => {
         if (request !== latestRequest.current) return;
@@ -34,6 +37,9 @@ export function useSavedModels(active: boolean, query: SavedNrmQuery) {
       })
       .catch(() => {
         if (request === latestRequest.current) setFailed(true);
+      })
+      .finally(() => {
+        if (request === latestRequest.current) setLoading(false);
       });
   }, []);
 
@@ -59,5 +65,5 @@ export function useSavedModels(active: boolean, query: SavedNrmQuery) {
     [],
   );
 
-  return { models, total, failed, refresh, remove };
+  return { models, total, failed, loading, refresh, remove };
 }

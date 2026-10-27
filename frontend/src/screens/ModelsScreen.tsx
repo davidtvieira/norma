@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { LoadingOverlay } from '../components/LoadingOverlay/LoadingOverlay';
 import { AppFooter } from '../components/AppFooter/AppFooter';
 import { BackButton } from '../components/BackButton/BackButton';
 import { RecentSessionCard } from '../components/RecentSessionCard/RecentSessionCard';
@@ -29,8 +30,6 @@ interface ModelsScreenProps {
   onToggleTheme: () => void;
   onBack: () => void;
   onGoHome: () => void;
-  /** "Limpar tudo" — discards every entry in recentSessions at once. */
-  onClearRecentSessions: () => void;
   /** Up to the 4 most recently uploaded/saved sessions (see App.tsx's utils/sessionCache.ts-backed
    * recentSessions), newest first. Empty when there's none — "Sessões recentes" is always shown,
    * with an empty-state message. */
@@ -39,6 +38,8 @@ interface ModelsScreenProps {
   savedModels: SavedNrmPayload[] | null;
   /** How many models the library holds in all (null until known) — the list may be showing only the search's matches. */
   savedModelsTotal: number | null;
+  /** A request for the list (first load, a search, a new order) is still waiting for its answer. */
+  savedModelsLoading: boolean;
   /** True when the library could not be read (the toast already said why). */
   savedModelsFailed: boolean;
   /** What the list is searched and ordered by, and how to change it. */
@@ -61,10 +62,10 @@ export function ModelsScreen({
   onToggleTheme,
   onBack,
   onGoHome,
-  onClearRecentSessions,
   recentSessions,
   savedModels,
   savedModelsTotal,
+  savedModelsLoading,
   savedModelsFailed,
   savedQuery,
   onSavedQueryChange,
@@ -75,6 +76,7 @@ export function ModelsScreen({
 }: ModelsScreenProps) {
   const [pendingDelete, setPendingDelete] = useState<SavedNrmPayload | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   function uploadModels(files: File[]) {
     setIsUploading(true);
@@ -121,7 +123,7 @@ export function ModelsScreen({
         ) : (
           <div className="app__models-container">
             <p className="app__models-placeholder">
-              {savedModelsFailed ? 'Não foi possível obter os modelos guardados.' : 'A carregar…'}
+              {savedModelsFailed ? 'Não foi possível obter os modelos guardados.' : ''}
             </p>
           </div>
         )}
@@ -130,14 +132,6 @@ export function ModelsScreen({
       <div className="recent-sessions recent-sessions--fixed">
         <div className="recent-sessions__header">
           <p className="recent-sessions__title">Sessões recentes</p>
-          <button
-            type="button"
-            className="recent-sessions__clear-button"
-            onClick={onClearRecentSessions}
-            disabled={recentSessions.length === 0 || recentSessions.some((entry) => entry.isResuming)}
-          >
-            Limpar tudo
-          </button>
         </div>
         {recentSessions.length === 0 ? (
           <p className="recent-sessions__empty">Ainda não há sessões recentes.</p>
@@ -159,6 +153,8 @@ export function ModelsScreen({
         )}
       </div>
 
+      {(isUploading || isDeleting || savedModelsLoading || (savedModels === null && !savedModelsFailed)) && <LoadingOverlay delayMs={200} />}
+
       <AppFooter onGoHome={onGoHome} />
 
       {pendingDelete && (
@@ -170,7 +166,10 @@ export function ModelsScreen({
           onConfirm={() => {
             const target = pendingDelete;
             setPendingDelete(null);
-            onDeleteSaved(target).catch(() => undefined);
+            setIsDeleting(true);
+            onDeleteSaved(target)
+              .catch(() => undefined)
+              .finally(() => setIsDeleting(false));
           }}
           onCancel={() => setPendingDelete(null)}
         />

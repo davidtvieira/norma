@@ -168,10 +168,9 @@ export function saveNrm(file: File): Promise<SavedNrmPayload> {
   return sendSavedNrm(`${API_BASE_URL}/api/v1/library`, 'POST', file);
 }
 
-/** Puts a .nrm in place of a saved one, keeping its id — and, with keepName, the name it is listed under. */
-export function replaceSavedNrm(id: string, file: File, keepName = false): Promise<SavedNrmPayload> {
-  const query = keepName ? '?keepName=true' : '';
-  return sendSavedNrm(`${API_BASE_URL}/api/v1/library/${encodeURIComponent(id)}${query}`, 'PUT', file);
+/** Puts a .nrm in place of a saved one, keeping its id. */
+export function replaceSavedNrm(id: string, file: File): Promise<SavedNrmPayload> {
+  return sendSavedNrm(`${API_BASE_URL}/api/v1/library/${encodeURIComponent(id)}`, 'PUT', file);
 }
 
 /** Brings a saved .nrm into use from the file the backend already keeps — nothing is uploaded. */

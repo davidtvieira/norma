@@ -69,14 +69,9 @@ export function SaveModal({
   const [isSaving, setIsSaving] = useState(false);
   if (!open) return null;
 
-  // Saving to the platform takes a moment, so the dialog stays (with a loading overlay) until it is done; the
-  // confirmation is a toast, shown by whoever did the saving. Every other format downloads and closes at once.
+  // Saving or exporting can take a moment (a model opened from the platform has its file fetched first), so the
+  // dialog stays, with a loading overlay, until it is done; a saving's confirmation is a toast, shown by whoever did it.
   async function exportAs(format: ModelExportFormat) {
-    if (format !== 'library') {
-      onExport(format);
-      onClose();
-      return;
-    }
     setIsSaving(true);
     try {
       await onExport(format);

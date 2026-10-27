@@ -12,6 +12,11 @@ export interface ImportedModel {
   nrmName: string;
   /** When the .nrm was made (ISO), when it said so. */
   nrmCreatedAt?: string;
+  /** Set for a model the browser parsed (a model .json, or one restored from the cache) once the backend has it
+   * registered: the backend's id for it, which its address uses (`/d/:datasetId/m/:routeId`). */
+  routeId?: string;
+  /** When the library entry the model was opened from was last updated (ISO) — only for a saved model. */
+  nrmUpdatedAt?: string;
   /** The operations and the designated inputs/outputs — present for a model parsed in the browser
    * (a bare model .json, or one restored from the cache). Absent for a model that arrived with an
    * imported .nrm: that one stays on the backend under `nrmId` and is only fetched if opened for

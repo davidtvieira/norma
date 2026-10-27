@@ -1,3 +1,4 @@
+import { LoadingOverlay } from '../LoadingOverlay/LoadingOverlay';
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { inlineErrorMessage } from '../../services/apiErrors';
@@ -58,7 +59,7 @@ export function OperationConfigModal({ operation, operations, datasetId, modelId
   return (
     <Modal title={operation.name} subtitle={KIND_LABELS[operation.kind] ?? operation.kind} onClose={onClose}>
       {error && <p className="modal__text">{error}</p>}
-      {!error && !config && <p className="modal__hint">A carregar…</p>}
+      {!error && !config && <LoadingOverlay delayMs={200} />}
       {config && (
         <div className="model-card__config">
           {summary && <div className="model-card__config-summary">{summary}</div>}

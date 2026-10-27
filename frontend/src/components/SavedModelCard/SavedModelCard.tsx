@@ -22,6 +22,10 @@ function plural(count: number, one: string, many: string): string {
  * One saved model in the "Os meus modelos" grid: a card with its name, what it is made of and when it was last
  * saved, and the actions on it at the bottom. A model whose file is gone from the backend's storage can only be deleted.
  */
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' });
+}
+
 export function SavedModelCard({ model, isOpening, onOpen, onDelete }: SavedModelCardProps) {
   return (
     <div className="saved-model-card">
@@ -44,7 +48,7 @@ export function SavedModelCard({ model, isOpening, onOpen, onDelete }: SavedMode
               {plural(model.operationCount, 'operação', 'operações')} · {plural(model.inputCount, 'input', 'inputs')} ·{' '}
               {plural(model.outputCount, 'output', 'outputs')}
             </li>
-            <li>Guardado em {new Date(model.updatedAt).toLocaleDateString('pt-PT')}</li>
+            <li>Atualizado em {formatDate(model.updatedAt)}</li>
             <li>{formatSize(model.sizeBytes)}</li>
           </ul>
         ) : (

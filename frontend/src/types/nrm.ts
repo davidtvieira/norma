@@ -22,4 +22,6 @@ export interface NrmOpenPayload {
   createdAt: string;
   modelName: string;
   datasetFilename: string;
+  /** ISO 8601 timestamp: when the saved entry was last updated. */
+  updatedAt: string;
 }
