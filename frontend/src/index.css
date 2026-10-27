@@ -22,6 +22,10 @@
   --color-error: #b3413a;
   --color-error-contrast: #ffffff;
 
+  /* A confirmation toast (see services/apiErrors' reportSuccess). */
+  --color-success: #3f7d4e;
+  --color-success-contrast: #ffffff;
+
   /* Action: "this is running/active/output" — the operation canvas' own test play/stop icon,
      an operation's own output box, and a lit-up edge (see OperationPanel.css) all share this one
      color, deliberately fixed rather than swapped per theme like --color-secondary above (which
@@ -94,6 +98,8 @@
 
     --color-error: #e0857e;
     --color-error-contrast: #2a0f0d;
+    --color-success: #7fc68f;
+    --color-success-contrast: #0f2415;
 
     /* --color-action itself stays the same literal orange as light mode (see its own note above)
        — only its contrast text/icon color swaps here, back to the dark tone that already reads
@@ -131,6 +137,8 @@
 
   --color-error: #e0857e;
   --color-error-contrast: #2a0f0d;
+  --color-success: #7fc68f;
+  --color-success-contrast: #0f2415;
 
   /* --color-action itself stays the same literal orange as light mode (see its own note above) —
      only its contrast text/icon color swaps here, back to the dark tone that already reads well

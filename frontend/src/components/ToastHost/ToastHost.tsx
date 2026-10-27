@@ -12,7 +12,7 @@ const TOAST_DURATION_MS = 6000;
 const MAX_TOASTS = 4;
 
 /**
- * Renders a toast for every API failure reported through services/apiErrors. Mounted once, at the
+ * Renders a toast for every API failure (or confirmation) reported through services/apiErrors. Mounted once, at the
  * app root (see main.tsx) — nothing else needs to know toasts exist.
  */
 export function ToastHost() {
@@ -51,7 +51,11 @@ export function ToastHost() {
   return (
     <div className="toast-host" role="region" aria-label="Notificações">
       {toasts.map((toast) => (
-        <div key={toast.id} className="toast toast--error" role="alert">
+        <div
+          key={toast.id}
+          className={toast.kind === 'success' ? 'toast toast--success' : 'toast toast--error'}
+          role={toast.kind === 'success' ? 'status' : 'alert'}
+        >
           <div className="toast__text">
             <p className="toast__title">{toast.title}</p>
             {toast.detail && <p className="toast__detail">{toast.detail}</p>}

@@ -63,10 +63,10 @@ export function SaveModal({
   onReorderOutputs,
 }: SaveModalProps) {
   const [isSaving, setIsSaving] = useState(false);
-  const [hasSavedToLibrary, setHasSavedToLibrary] = useState(false);
   if (!open) return null;
 
-  // Saving to the platform keeps the dialog open to say it worked; every other format downloads and closes.
+  // Saving to the platform takes a moment, so the dialog stays (with a loading overlay) until it is done; the
+  // confirmation is a toast, shown by whoever did the saving. Every other format downloads and closes at once.
   async function exportAs(format: ModelExportFormat) {
     if (format !== 'library') {
       onExport(format);
@@ -74,10 +74,9 @@ export function SaveModal({
       return;
     }
     setIsSaving(true);
-    setHasSavedToLibrary(false);
     try {
       await onExport(format);
-      setHasSavedToLibrary(true);
+      onClose();
     } catch {
       // The API toast already says what went wrong.
     } finally {
@@ -121,7 +120,6 @@ export function SaveModal({
       </div>
 
       {exportHint && <p className="modal__hint modal__hint--error">{exportHint}</p>}
-      {hasSavedToLibrary && <p className="modal__hint">Modelo guardado na plataforma.</p>}
       {isSaving && <LoadingOverlay delayMs={200} />}
     </Modal>
   );
@@ -133,27 +131,26 @@ interface ExportButtonProps {
 }
 
 /**
- * The export button: the main part exports the .nrm (model + dataset, the usual way to move a
- * model between sessions), and the arrow beside it picks the format instead — the .nrm again, or
- * just the model's .json (no dataset; importable through "Importar Modelo" on a dataset that's
- * already loaded), or just the dataset's own file.
+ * The save button: the main part keeps the model in the platform's library (it then shows under "Os meus
+ * modelos"), and the arrow beside it picks another way instead — download the .nrm (model + dataset, the
+ * usual way to move a model between machines), just the model's .json (importable through "Importar
+ * Modelo" on a dataset that's already loaded), or just the dataset's own file.
  */
 function ExportButton({ disabled, onExport }: ExportButtonProps) {
   return (
     <SplitButton
       buttonClassName="modal__button"
-      onClick={() => onExport('nrm')}
+      onClick={() => onExport('library')}
       disabled={disabled}
       arrowDisabled={disabled}
-      arrowLabel="Escolher o formato de exportação"
+      arrowLabel="Outras formas de guardar"
       items={[
-        { label: 'Guardar na plataforma', onSelect: () => onExport('library') },
-        { label: 'Ficheiro Norma (.nrm)', onSelect: () => onExport('nrm') },
+        { label: 'Exportar ficheiro Norma (.nrm)', onSelect: () => onExport('nrm') },
         { label: 'Só o modelo (.json)', onSelect: () => onExport('json') },
         { label: 'Só os dados (ficheiro original)', onSelect: () => onExport('dataset') },
       ]}
     >
-      Exportar modelo (.nrm)
+      Guardar na plataforma
     </SplitButton>
   );
 }

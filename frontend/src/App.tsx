@@ -1,5 +1,5 @@
 import { LoadingOverlay } from './components/LoadingOverlay/LoadingOverlay';
-import { inlineErrorMessage } from './services/apiErrors';
+import { inlineErrorMessage, reportSuccess } from './services/apiErrors';
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -726,8 +726,10 @@ function App() {
     if (format === 'library') {
       return buildNrmFile(datasetFile, model, fileName).then(async (blob) => {
         const file = new File([blob], `${fileName}.nrm`, { type: 'application/octet-stream' });
+        const isReplacing = savedNrmIdRef.current !== null;
         const saved = savedNrmIdRef.current ? await replaceSavedNrm(savedNrmIdRef.current, file) : await saveNrm(file);
         savedNrmIdRef.current = saved.id;
+        reportSuccess(isReplacing ? 'Modelo atualizado na plataforma' : 'Modelo guardado na plataforma', `Encontra-o em "Os meus modelos": ${saved.name}.`);
       });
     }
     buildNrmFile(datasetFile, model, fileName).then((blob) => downloadBlob(blob, `${fileName}.nrm`));

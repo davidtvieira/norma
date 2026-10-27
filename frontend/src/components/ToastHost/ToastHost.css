@@ -25,6 +25,12 @@
   animation: toast-in 0.25s ease both;
 }
 
+.toast--success {
+  border-color: var(--color-success);
+  background: var(--color-success);
+  color: var(--color-success-contrast);
+}
+
 .toast__text {
   flex: 1 1 auto;
   min-width: 0;

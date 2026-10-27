@@ -22,6 +22,8 @@ export function inlineErrorMessage(error: unknown, fallback: string): string {
 }
 
 export interface ApiErrorReport {
+  /** `success` for a confirmation (see reportSuccess); a failure when left out. */
+  kind?: 'error' | 'success';
   /** Portuguese summary of what failed, e.g. "Falha ao procurar o valor". */
   title: string;
   /** The server's own message, when it sent one — omitted where it adds nothing for the user. */
@@ -41,4 +43,9 @@ export function subscribeApiErrors(listener: Listener): () => void {
 
 export function reportApiError(report: ApiErrorReport): void {
   listeners.forEach((listener) => listener(report));
+}
+
+/** A short confirmation shown in the same toasts as the failures, e.g. "Modelo guardado". */
+export function reportSuccess(title: string, detail?: string): void {
+  reportApiError({ kind: 'success', title, detail });
 }
