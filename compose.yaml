@@ -1,0 +1,52 @@
+# Norma, whole: the database, the API and the web app.
+#
+#   docker compose up -d --build     everything, then open http://localhost:8080
+#   docker compose up -d db          only the database, to run the API and the web app from source (see README)
+#
+# Set NORMA_PORT to publish the web app somewhere else than 8080, and NORMA_DB_PASSWORD to change the
+# database password (the default only suits a development machine).
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: norma
+      POSTGRES_USER: norma
+      POSTGRES_PASSWORD: ${NORMA_DB_PASSWORD:-norma}
+    ports:
+      # Only this machine can reach the database from outside the containers.
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - norma-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U norma -d norma"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    build: ./backend
+    environment:
+      NORMA_DB_URL: jdbc:postgresql://db:5432/norma
+      NORMA_DB_USER: norma
+      NORMA_DB_PASSWORD: ${NORMA_DB_PASSWORD:-norma}
+      NORMA_STORAGE_DIR: /data/nrm
+    volumes:
+      # The saved .nrm files. Back this volume up together with the database.
+      - norma-nrm:/data/nrm
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build: ./frontend
+    ports:
+      - "${NORMA_PORT:-8080}:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  norma-db:
+  norma-nrm:

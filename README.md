@@ -47,19 +47,32 @@ result is reached.
 
 The app has a light and a dark theme, and works on phones.
 
-## Requirements
+## Running it with Docker
 
-- Java 21 and Maven 3.6+
-- PostgreSQL 14 or newer (Docker is the easy way, see below)
-- Node.js (developed on Node 20) and npm
-
-## Running it locally
-
-The library of saved `.nrm` files needs a PostgreSQL database (it only holds each file's name, size and counts,
-the files themselves are kept in a folder). Start one with Docker:
+Everything (the database, the API and the web app) runs as three containers:
 
 ```bash
-docker compose up -d
+docker compose up -d --build
+```
+
+Then open http://localhost:8080 (set `NORMA_PORT` to use another port). The web container serves the app and
+forwards `/api` to the API container, so the browser only ever talks to one host. The database and the saved `.nrm`
+files live in two named volumes (`norma-db` and `norma-nrm`), which are what to back up. Set `NORMA_DB_PASSWORD`
+to change the database password (the default only suits a development machine).
+
+## Requirements (to run it from source)
+
+- Java 21 and Maven 3.6+
+- PostgreSQL 14 or newer (the `db` container is the easy way)
+- Node.js (developed on Node 20) and npm
+
+## Running it from source
+
+The library of saved `.nrm` files needs a PostgreSQL database (it only holds each file's name, size and counts,
+the files themselves are kept in a folder). Start only the database container:
+
+```bash
+docker compose up -d db
 ```
 
 The backend's defaults match it (`jdbc:postgresql://localhost:5432/norma`, user and password `norma`). To use
@@ -108,6 +121,7 @@ The backend does not hot-reload: restart it after changing Java code.
 
 ## Project layout
 
+- `compose.yaml`: the three containers (`db`, `api`, `web`); each of `backend/` and `frontend/` has a `Dockerfile`.
 - `backend/`: Spring Boot 3 (Java 21) API. Apache POI parses spreadsheets, and imported datasets, registered models and
   `.nrm` files are kept in in-memory stores. Saved `.nrm` files live in a folder, indexed by a PostgreSQL table.
 - `frontend/`: React 19 + TypeScript + Vite single-page app. `src/services/datasetApi.ts` is the only place that calls the
