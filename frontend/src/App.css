@@ -338,6 +338,23 @@
   border-top: 1px solid var(--color-border);
 }
 
+/* On /modelos the block keeps one height whether there are no recents or four, and scrolls inside itself when they
+   don't fit, so what it holds never moves the grid of saved models above it. */
+.recent-sessions--fixed {
+  flex: none;
+  height: 8.25rem;
+  margin-top: 1rem;
+  padding-block: 0.6rem;
+  gap: 0.25rem;
+  box-sizing: border-box;
+}
+
+.recent-sessions--fixed .recent-sessions__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .recent-sessions__list {
   display: flex;
   flex-direction: row;
@@ -510,10 +527,32 @@
   color: var(--color-text);
 }
 
+/* A model's own name used as the title (the Modelo Norma screen): smaller than a headline, and a long name wraps. */
+.app__create-model-title--name {
+  font-size: clamp(1.15rem, 1rem + 0.8vw, 1.5rem);
+  overflow-wrap: anywhere;
+}
+
 .app__create-model-hint {
   margin: 0 0 0.5rem;
   color: var(--color-text-muted);
   font-size: 0.95rem;
+}
+
+/* Utilizar over Editar / Guardar: the stack is as wide as the lower row, and Utilizar fills it. */
+.app__create-model-stack {
+  display: flex;
+  flex-direction: column;
+  align-self: center;
+  gap: 0.75rem;
+}
+
+.app__create-model-stack .app__create-model-actions {
+  margin-top: 0;
+}
+
+.app__create-model-button--wide {
+  flex: 1;
 }
 
 .app__create-model-actions {
@@ -873,6 +912,21 @@ button.operation-card__io-toggle:not(.operation-card__io-toggle--active):hover:n
   color: var(--btn-secondary-contrast);
 }
 
+/* The danger variant, for the button that destroys something ("Apagar"): the same red the "stop" of the
+   model test uses, so it reads as irreversible; the text is white in both themes. Add it next to the button's own sizing class. */
+button.app__create-model-button--danger {
+  border-color: var(--color-error);
+  background: var(--color-error);
+  color: #fff;
+}
+
+button.app__create-model-button--danger:hover:not(:disabled) {
+  border-color: var(--color-error);
+  background: var(--color-error);
+  color: #fff;
+  opacity: 0.85;
+}
+
 /* The naked variant, for quiet navigation buttons ("← Voltar"): no background and no outline, just
    muted text that turns to the full text color on hover. Add it next to the button's own sizing
    class. */
@@ -894,12 +948,28 @@ button.naked-button:hover:not(:disabled) {
   color: var(--color-text);
 }
 
-/* /modelos: the list of saved models (or, while there is none, a dashed placeholder). */
+/* /modelos: the saved models as a grid of cards, four across (or, while there is none, a dashed placeholder). */
 .app__models-body {
   flex: 1;
+  /* So the grid below can shrink and scroll by itself instead of stretching the page. */
+  min-height: 0;
   display: flex;
   flex-direction: column;
   padding: 1.5rem var(--landing-gutter, 2.5rem);
+}
+
+/* The title and, on its right, the search and order of the saved models: one row, so they cost no extra height. */
+.app__models-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.app__models-header .app__models-title {
+  margin: 0;
 }
 
 .app__page-title,
@@ -923,10 +993,49 @@ button.naked-button:hover:not(:disabled) {
   background: color-mix(in srgb, var(--color-surface) 55%, transparent);
 }
 
+/* The saved models fill the space between the title and "Sessões recentes" as exactly three rows of four cards:
+   each row is a third of that space (less the gaps), so the cards grow with the window. The list is a container so
+   its own height is what a row is measured against; in a window too short for that, rows keep a minimum height and
+   the list scrolls instead. More than three rows scroll too, never the page. */
+.app__models-scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  container-type: size;
+}
+
 .app__models-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+  height: 100%;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: max(10.5rem, calc((100cqh - 2rem) / 3));
+  align-content: start;
+  gap: 1rem;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+@media (max-width: 1100px) {
+  .app__models-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 800px) {
+  .app__models-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .app__models-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.app__models-no-match {
+  margin-bottom: 0.75rem;
+  padding: 0;
+  text-align: left;
 }
 
 .app__models-placeholder {
@@ -935,4 +1044,14 @@ button.naked-button:hover:not(:disabled) {
   text-align: center;
   font-size: 0.95rem;
   color: var(--color-text-muted);
+}
+
+/* The × of every close button is an icon now: sized to the button's own font size. */
+.modal__close svg,
+.toast__close svg,
+.sheet-panel__close svg,
+.operation-staged__remove svg {
+  display: block;
+  width: 1.1em;
+  height: 1.1em;
 }

@@ -1,28 +1,51 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { deleteSavedNrm, listSavedNrms } from '../services/datasetApi';
-import type { SavedNrmPayload } from '../types/savedNrm';
+import type { SavedNrmPayload, SavedNrmQuery } from '../types/savedNrm';
+
+/** How long typing in the search box has to pause before the list is asked for again. */
+const SEARCH_DEBOUNCE_MS = 250;
 
 /**
  * The library of saved .nrm files, read from the backend whenever `active` turns on (the screen that shows
- * them is open). `models` is null until the first answer arrives; `failed` says the list could not be read
- * (the toast already told why).
+ * them is open) and again whenever `query` changes — a new search waits for the typing to pause, a new order
+ * is immediate. `models` is null until the first answer arrives; `failed` says the list could not be read (the
+ * toast already told why).
  */
-export function useSavedModels(active: boolean) {
+export function useSavedModels(active: boolean, query: SavedNrmQuery) {
   const [models, setModels] = useState<SavedNrmPayload[] | null>(null);
   const [failed, setFailed] = useState(false);
+  // Only the newest request may fill the list: an older, slower answer must not overwrite it.
+  const latestRequest = useRef(0);
+  const queryRef = useRef(query);
+  useEffect(() => {
+    queryRef.current = query;
+  });
 
   const refresh = useCallback(() => {
-    return listSavedNrms()
+    const request = ++latestRequest.current;
+    return listSavedNrms(queryRef.current)
       .then((list) => {
+        if (request !== latestRequest.current) return;
         setModels(list);
         setFailed(false);
       })
-      .catch(() => setFailed(true));
+      .catch(() => {
+        if (request === latestRequest.current) setFailed(true);
+      });
   }, []);
 
+  const askedSearch = useRef<string | null>(null);
   useEffect(() => {
-    if (active) refresh();
-  }, [active, refresh]);
+    if (!active) return;
+    // Typing waits for a pause; opening the screen or changing the order does not.
+    const delay = askedSearch.current !== null && askedSearch.current !== query.search ? SEARCH_DEBOUNCE_MS : 0;
+    const timeoutId = window.setTimeout(() => {
+      askedSearch.current = query.search;
+      refresh();
+    }, delay);
+    return () => window.clearTimeout(timeoutId);
+    // The search is a dependency by value (not the whole query object, which is a new one on every render).
+  }, [active, refresh, query.search, query.sort, query.direction]);
 
   const remove = useCallback(
     (id: string) => deleteSavedNrm(id).then(() => setModels((current) => current?.filter((model) => model.id !== id) ?? current)),

@@ -10,6 +10,8 @@ export interface ImportedModel {
   modelName: string;
   /** The .nrm's own name — empty when the model came from a bare .json or an unnamed .nrm. */
   nrmName: string;
+  /** When the .nrm was made (ISO), when it said so. */
+  nrmCreatedAt?: string;
   /** The operations and the designated inputs/outputs — present for a model parsed in the browser
    * (a bare model .json, or one restored from the cache). Absent for a model that arrived with an
    * imported .nrm: that one stays on the backend under `nrmId` and is only fetched if opened for

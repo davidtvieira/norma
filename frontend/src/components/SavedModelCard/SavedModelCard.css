@@ -1,9 +1,11 @@
 .saved-model-card {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 0.9rem 1.1rem;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  /* A fixed height comes from the grid's rows: the content has to fit. */
+  min-height: 0;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface);
@@ -14,53 +16,80 @@
 }
 
 .saved-model-card__name {
-  margin: 0;
+  margin: 0 0 0.4rem;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: 1rem;
+  /* The text grows with the card (cqh is the height of the grid's area, see .app__models-scroll). */
+  font-size: clamp(1.05rem, 0.35rem + 2cqh, 1.45rem);
   font-weight: 600;
+  line-height: 1.25;
   color: var(--color-text);
 }
 
 .saved-model-card__meta {
-  margin: 0.2rem 0 0;
-  font-size: 0.8rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.1rem, 0.6cqh, 0.4rem);
+  font-size: clamp(0.8rem, 0.2rem + 1.6cqh, 1rem);
   color: var(--color-text-muted);
 }
 
+.saved-model-card__meta li {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The two buttons share the card's width. */
 .saved-model-card__actions {
-  flex: none;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.saved-model-card__actions .app__create-model-button {
+  flex: 1;
+  /* Slim pills: a small, fixed height however big the card gets. */
+  padding: 0.3rem 0.9rem;
+  font-size: clamp(0.85rem, 0.4rem + 1.1cqh, 1rem);
+}
+
+/* Apagar: icon only, in the top-right corner, red on hover. */
+.saved-model-card {
+  position: relative;
+}
+
+.saved-model-card__name {
+  padding-right: 1.8rem;
+}
+
+.saved-model-card__delete {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.55rem;
   display: flex;
   align-items: center;
-  gap: 1rem;
-}
-
-button.saved-model-card__open {
-  padding: 0.45rem 1.3rem;
-  border-radius: 999px;
-  font: inherit;
-  font-size: 0.9rem;
-  font-weight: 600;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
   cursor: pointer;
+  transition: background 0.15s, color 0.15s;
 }
 
-button.saved-model-card__open:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
+.saved-model-card__delete:hover {
+  background: color-mix(in srgb, #b94a48 14%, transparent);
+  color: #b94a48;
 }
 
-button.saved-model-card__delete:hover:not(:disabled) {
-  color: var(--color-error);
-}
-
-@media (max-width: 640px) {
-  .saved-model-card {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .saved-model-card__actions {
-    justify-content: flex-end;
-  }
+.saved-model-card__delete .saved-model-card__delete-icon {
+  width: 1.05rem;
+  height: 1.05rem;
 }

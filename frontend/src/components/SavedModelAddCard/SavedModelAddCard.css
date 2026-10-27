@@ -1,0 +1,45 @@
+.saved-model-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 1.1rem;
+  border: 1.5px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-surface) 55%, transparent);
+  color: var(--color-text-muted);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
+}
+
+.saved-model-add:hover:not(:disabled),
+.saved-model-add--drag {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-surface);
+}
+
+.saved-model-add:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.saved-model-add__icon .button-icon {
+  width: clamp(2rem, 1rem + 2.4cqh, 3rem);
+  height: clamp(2rem, 1rem + 2.4cqh, 3rem);
+}
+
+.saved-model-add__label {
+  font-size: clamp(0.95rem, 0.4rem + 1.6cqh, 1.25rem);
+  font-weight: 600;
+}
+
+.saved-model-add__hint {
+  font-size: clamp(0.75rem, 0.2rem + 1.2cqh, 0.95rem);
+}
+
+.saved-model-add__input {
+  display: none;
+}

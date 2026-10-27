@@ -1,3 +1,4 @@
+import { FolderOpenIcon } from '../ButtonIcons/ButtonIcons';
 import { LoadingOverlay } from '../LoadingOverlay/LoadingOverlay';
 import { inlineErrorMessage } from '../../services/apiErrors';
 import { useRef, useState } from 'react';
@@ -10,8 +11,8 @@ import './ReadyModelUploader.css';
 interface ReadyModelUploaderProps {
   /** Also hands back the dataset file extracted from the .nrm (not just the parsed dataset), same
    * reason as DatasetUploader's own onImportSuccess — so it's available again if "Guardar modelo"
-   * re-exports this model later. */
-  onImportSuccess: (dataset: NrmImportStatusPayload, datasetFile: File, model: ImportedModel, modelText: string) => void;
+   * re-exports this model later — and the .nrm itself, so it can be kept in the library as it came. */
+  onImportSuccess: (dataset: NrmImportStatusPayload, datasetFile: File, model: ImportedModel, modelText: string, nrmFile: File) => void;
 }
 
 /**
@@ -36,7 +37,7 @@ export function ReadyModelUploader({ onImportSuccess }: ReadyModelUploaderProps)
 
     try {
       const { dataset, datasetFile, model, modelText } = await importNrmFile(file);
-      onImportSuccess(dataset, datasetFile, model, modelText);
+      onImportSuccess(dataset, datasetFile, model, modelText, file);
     } catch (error) {
       setErrorMessage(inlineErrorMessage(error, 'Falha ao importar o modelo Norma.') || null);
       setHasError(true);
@@ -87,15 +88,7 @@ export function ReadyModelUploader({ onImportSuccess }: ReadyModelUploaderProps)
         onKeyDown={(event) => event.key === 'Enter' && fileInputRef.current?.click()}
       >
         <div className="ready-model-uploader__icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path
-              d="M4 7.5V6a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v1.5M4 7.5h16M4 7.5v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-9"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+          <FolderOpenIcon />
         </div>
         <p className="ready-model-uploader__title">
           Carregue um modelo Norma

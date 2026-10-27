@@ -5,12 +5,14 @@ interface ConfirmModalProps {
   message: string;
   confirmLabel: string;
   cancelLabel?: string;
+  /** Paints the confirm button red, for something that cannot be undone. */
+  danger?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
 
 /** A yes/no question in the app's own style, instead of the browser's confirm box. */
-export function ConfirmModal({ title, message, confirmLabel, cancelLabel = 'Cancelar', onConfirm, onCancel }: ConfirmModalProps) {
+export function ConfirmModal({ title, message, confirmLabel, cancelLabel = 'Cancelar', danger = false, onConfirm, onCancel }: ConfirmModalProps) {
   return (
     <Modal
       title={title}
@@ -21,7 +23,11 @@ export function ConfirmModal({ title, message, confirmLabel, cancelLabel = 'Canc
           <button type="button" className="modal__button modal__button--ghost" onClick={onCancel}>
             {cancelLabel}
           </button>
-          <button type="button" className="modal__button action-button" onClick={onConfirm}>
+          <button
+            type="button"
+            className={`modal__button ${danger ? 'app__create-model-button--danger' : 'action-button'}`}
+            onClick={onConfirm}
+          >
             {confirmLabel}
           </button>
         </>

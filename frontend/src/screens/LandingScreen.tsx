@@ -1,3 +1,4 @@
+import { StoreIcon } from '../components/ButtonIcons/ButtonIcons';
 import { AppFooter } from '../components/AppFooter/AppFooter';
 import { DatasetUploader } from '../components/DatasetUploader/DatasetUploader';
 import { ReadyModelUploader } from '../components/ReadyModelUploader/ReadyModelUploader';
@@ -11,7 +12,13 @@ interface LandingScreenProps {
   theme: Theme;
   onToggleTheme: () => void;
   onImportSuccess: (dataset: DatasetImportStatus, file: File) => void;
-  onReadyModelImportSuccess: (dataset: NrmImportStatusPayload, datasetFile: File, model: ImportedModel, modelText: string) => void;
+  onReadyModelImportSuccess: (
+    dataset: NrmImportStatusPayload,
+    datasetFile: File,
+    model: ImportedModel,
+    modelText: string,
+    nrmFile: File,
+  ) => void;
   onGoHome: () => void;
   /** "Explorar os meus modelos Norma" — opens the `/modelos` route. */
   onBrowseModels: () => void;
@@ -52,15 +59,7 @@ export function LandingScreen({
               <DatasetUploader onImportSuccess={onImportSuccess} />
             </div>
             <button type="button" className="app__browse-button" onClick={onBrowseModels}>
-              <svg className="app__browse-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <path
-                  d="M4 9.5 5.5 4h13L20 9.5M4 9.5a2.5 2.5 0 0 0 4 2 2.5 2.5 0 0 0 4 0 2.5 2.5 0 0 0 4 0 2.5 2.5 0 0 0 4-2M5.5 12.5V20h13v-7.5M10 20v-4h4v4"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <StoreIcon className="app__browse-icon" />
               <span>Explorar os meus modelos Norma</span>
               <span className="app__browse-hint">Veja e abra os modelos que já criou</span>
             </button>

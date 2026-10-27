@@ -12,7 +12,7 @@ import type {
 } from '../types/modelCalculation';
 import type { SelectorRequestPayload, SelectorResponsePayload } from '../types/selector';
 import type { NrmImportStatusPayload, NrmInfoPayload } from '../types/nrm';
-import type { SavedNrmPayload } from '../types/savedNrm';
+import type { SavedNrmPayload, SavedNrmQuery } from '../types/savedNrm';
 import type { NodeRequestPayload, NodeResponsePayload } from '../types/node';
 import type { OperationType } from '../types/operation';
 import type { SumRequestPayload, SumResponsePayload } from '../types/sum';
@@ -137,9 +137,16 @@ export function importNrm(file: File): Promise<NrmImportStatusPayload> {
   return postNrm('/api/v1/nrm/import', file);
 }
 
-/** The library of saved .nrm files, most recently saved first. */
-export async function listSavedNrms(): Promise<SavedNrmPayload[]> {
-  const response = await apiFetch(`${API_BASE_URL}/api/v1/library`);
+/** The library of saved .nrm files, most recently saved first unless `query` says otherwise. */
+export async function listSavedNrms(query?: SavedNrmQuery): Promise<SavedNrmPayload[]> {
+  const params = new URLSearchParams();
+  if (query?.search.trim()) params.set('search', query.search.trim());
+  if (query) {
+    params.set('sort', query.sort);
+    params.set('direction', query.direction);
+  }
+  const queryString = params.size > 0 ? `?${params}` : '';
+  const response = await apiFetch(`${API_BASE_URL}/api/v1/library${queryString}`);
   if (!response.ok) {
     throw await apiError(response, 'Falha ao obter os modelos guardados');
   }

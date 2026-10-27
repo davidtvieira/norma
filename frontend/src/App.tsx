@@ -30,7 +30,7 @@ import { getInputSource, hasSingleInputField } from './types/valueSource';
 import { buildModelExport, parseModelImport, type SerializableEntry } from './utils/modelSerialization';
 import { buildNrmFile, importNrmFile, readModelFile } from './utils/nrmSerialization';
 import { useSavedModels } from './hooks/useSavedModels';
-import type { SavedNrmPayload } from './types/savedNrm';
+import { DEFAULT_SAVED_QUERY, type SavedNrmPayload, type SavedNrmQuery } from './types/savedNrm';
 import { deleteSessionCacheEntry, listSessionCacheEntries, saveSessionCacheEntry, updateSessionCacheModel, type SessionCacheEntry } from './utils/sessionCache';
 import { downloadTestCase } from './utils/testCaseSerialization';
 import { LandingScreen } from './screens/LandingScreen';
@@ -164,9 +164,14 @@ function App() {
   // The library of saved .nrm files (shown on /modelos), and which of its entries the model being edited
   // came from or was last saved as — "Guardar na plataforma" then replaces that entry instead of adding a
   // copy. A ref: it never needs a render of its own.
-  const savedModels = useSavedModels(location.pathname === '/modelos');
+  const [savedQuery, setSavedQuery] = useState<SavedNrmQuery>(DEFAULT_SAVED_QUERY);
+  const savedModels = useSavedModels(location.pathname === '/modelos', savedQuery);
   const savedNrmIdRef = useRef<string | null>(null);
   const [openingSavedId, setOpeningSavedId] = useState<string | null>(null);
+  // The .nrm file the user uploaded on the landing screen, kept as it came so "Guardar na plataforma" can put it
+  // in the library from the Editar / Utilizar choice. Null for anything else (a model opened from the library is
+  // already there; one rebuilt from a cached session has no original file).
+  const [uploadedNrmFile, setUploadedNrmFile] = useState<File | null>(null);
 
   // Up to the 4 most recently uploaded/saved .nrm sessions (see utils/sessionCache.ts) — shown on
   // the landing screen as "Sessões recentes", offering to resume any of them rather than silently
@@ -641,8 +646,10 @@ function App() {
     file: File,
     model: ImportedModel,
     modelText: string,
+    nrmFile?: File,
   ) {
     setImportError(null);
+    setUploadedNrmFile(nrmFile ?? null);
     // The .nrm's id doubles as the session key: its dataset's own id is never handed out.
     setDataset({ datasetId: importedNrm.nrmId, filename: file.name, nrmId: importedNrm.nrmId });
     setDatasetFile(file);
@@ -735,6 +742,31 @@ function App() {
     buildNrmFile(datasetFile, model, fileName).then((blob) => downloadBlob(blob, `${fileName}.nrm`));
   }
 
+  // The "Guardar na plataforma" under Editar / Utilizar: keeps the .nrm that was just uploaded, as it came. Later saves
+  // from the editor then replace this entry instead of adding a copy.
+  async function saveUploadedNrm() {
+    if (!uploadedNrmFile) return;
+    const saved = await saveNrm(uploadedNrmFile);
+    savedNrmIdRef.current = saved.id;
+    reportSuccess('Modelo guardado na plataforma', `Encontra-o em "Os meus modelos": ${saved.name}.`);
+  }
+
+  // The "+" card on /modelos: adds each picked .nrm to the library, one after the other (a refused file only costs
+  // its own toast), then refreshes the list and says how many went in.
+  async function uploadSavedModels(files: File[]) {
+    let added = 0;
+    for (const file of files) {
+      try {
+        await saveNrm(file);
+        added += 1;
+      } catch {
+        // The API toast already says what went wrong with this file.
+      }
+    }
+    await savedModels.refresh();
+    if (added > 0) reportSuccess(added === 1 ? 'Modelo guardado na plataforma' : `${added} modelos guardados na plataforma`);
+  }
+
   // "Abrir" on a saved model: fetch its file and bring it in like a .nrm the user had just picked, landing on
   // the Editar / Utilizar choice. The entry is remembered so saving it again replaces it.
   async function openSavedModel(saved: SavedNrmPayload) {
@@ -752,20 +784,13 @@ function App() {
     }
   }
 
-  async function downloadSavedModel(saved: SavedNrmPayload) {
-    try {
-      downloadBlob(await downloadSavedNrm(saved), `${saved.name}.nrm`);
-    } catch {
-      // The API toast already says what went wrong.
-    }
-  }
-
   // The "Norma" footer's always-available way back to the very start, from any screen — resets
   // every piece of state this component owns to its initial value, same as a fresh page load
   // (just without actually reloading the page).
   function goHome() {
     registeredModelRef.current = null;
     savedNrmIdRef.current = null;
+    setUploadedNrmFile(null);
     setDataset(null);
     setDatasetFile(null);
     setModelName('');
@@ -798,6 +823,7 @@ function App() {
   function clearModelState() {
     registeredModelRef.current = null;
     savedNrmIdRef.current = null;
+    setUploadedNrmFile(null);
     setModelName('');
     setNrmName('');
     setModelEntries([]);
@@ -862,13 +888,14 @@ function App() {
             {(activeDataset) =>
               activeDataset.nrmId && importedModel?.nrmId ? (
                 <NrmFileScreen
-                  datasetFileName={datasetFile?.name ?? activeDataset.filename}
                   importedModel={importedModel}
                   importError={importError}
                   theme={theme}
                   onToggleTheme={toggleTheme}
                   onEdit={goToEditorWithImportedModel}
                   onUtilize={goToUtilizeWithImportedModel}
+                  onSaveToLibrary={uploadedNrmFile ? saveUploadedNrm : undefined}
+                  onViewModels={() => navigate('/modelos')}
                   onBack={handleBackToLanding}
                   onGoHome={goHome}
                 />
@@ -994,10 +1021,12 @@ function App() {
             onClearRecentSessions={discardAllEntries}
             savedModels={savedModels.models}
             savedModelsFailed={savedModels.failed}
+            savedQuery={savedQuery}
+            onSavedQueryChange={setSavedQuery}
             openingSavedId={openingSavedId}
             onOpenSaved={openSavedModel}
-            onDownloadSaved={downloadSavedModel}
             onDeleteSaved={(saved) => savedModels.remove(saved.id)}
+            onUploadModels={uploadSavedModels}
             recentSessions={recentSessions.map((entry) => ({
               id: entry.id,
               datasetFileName: entry.datasetFileName,

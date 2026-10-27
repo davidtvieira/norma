@@ -13,3 +13,13 @@ export interface SavedNrmPayload {
   /** False when the entry is listed but its file is gone from the backend's storage folder. */
   available: boolean;
 }
+
+/** What the library list can be narrowed and ordered by — GET /api/v1/library's search, sort and direction. */
+export interface SavedNrmQuery {
+  search: string;
+  sort: 'name' | 'updatedAt' | 'createdAt' | 'sizeBytes' | 'operationCount';
+  direction: 'asc' | 'desc';
+}
+
+/** The query the library starts with: most recently saved first, nothing searched. */
+export const DEFAULT_SAVED_QUERY: SavedNrmQuery = { search: '', sort: 'updatedAt', direction: 'desc' };

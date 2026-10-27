@@ -1,3 +1,4 @@
+import { FolderIcon, TrashIcon } from '../ButtonIcons/ButtonIcons';
 import type { SavedNrmPayload } from '../../types/savedNrm';
 import './SavedModelCard.css';
 
@@ -5,7 +6,6 @@ interface SavedModelCardProps {
   model: SavedNrmPayload;
   isOpening: boolean;
   onOpen: () => void;
-  onDownload: () => void;
   onDelete: () => void;
 }
 
@@ -19,42 +19,47 @@ function plural(count: number, one: string, many: string): string {
 }
 
 /**
- * One saved model in the "Os meus modelos" list: its name, what it is made of and when it was last saved, with
- * the actions on it. A model whose file is gone from the backend's storage can only be deleted.
+ * One saved model in the "Os meus modelos" grid: a card with its name, what it is made of and when it was last
+ * saved, and the actions on it at the bottom. A model whose file is gone from the backend's storage can only be deleted.
  */
-export function SavedModelCard({ model, isOpening, onOpen, onDownload, onDelete }: SavedModelCardProps) {
+export function SavedModelCard({ model, isOpening, onOpen, onDelete }: SavedModelCardProps) {
   return (
     <div className="saved-model-card">
+      <button
+        type="button"
+        className="saved-model-card__delete"
+        onClick={onDelete}
+        aria-label={`Apagar ${model.name}`}
+        title="Apagar"
+      >
+        <TrashIcon className="saved-model-card__delete-icon" />
+      </button>
       <div className="saved-model-card__text">
         <h3 className="saved-model-card__name" title={model.name}>
           {model.name}
         </h3>
-        <p className="saved-model-card__meta">
-          {model.available ? (
-            <>
-              {model.datasetFilename} · {plural(model.operationCount, 'operação', 'operações')} · {plural(model.inputCount, 'input', 'inputs')} ·{' '}
-              {plural(model.outputCount, 'output', 'outputs')} · {formatSize(model.sizeBytes)} · guardado em{' '}
-              {new Date(model.updatedAt).toLocaleDateString('pt-PT')}
-            </>
-          ) : (
-            'O ficheiro deste modelo já não existe na plataforma.'
-          )}
-        </p>
+        {model.available ? (
+          <ul className="saved-model-card__meta">
+            <li title={model.datasetFilename}>{model.datasetFilename}</li>
+            <li>
+              {plural(model.operationCount, 'operação', 'operações')} · {plural(model.inputCount, 'input', 'inputs')} ·{' '}
+              {plural(model.outputCount, 'output', 'outputs')}
+            </li>
+            <li>
+              {formatSize(model.sizeBytes)} · guardado em {new Date(model.updatedAt).toLocaleDateString('pt-PT')}
+            </li>
+          </ul>
+        ) : (
+          <p className="saved-model-card__meta">O ficheiro deste modelo já não existe na plataforma.</p>
+        )}
       </div>
       <div className="saved-model-card__actions">
         {model.available && (
-          <>
-            <button type="button" className="naked-button" onClick={onDownload}>
-              Descarregar
-            </button>
-            <button type="button" className="action-button saved-model-card__open" onClick={onOpen} disabled={isOpening}>
-              Abrir
-            </button>
-          </>
+          <button type="button" className="app__create-model-button action-button" onClick={onOpen} disabled={isOpening}>
+            <FolderIcon />
+            Abrir
+          </button>
         )}
-        <button type="button" className="naked-button saved-model-card__delete" onClick={onDelete}>
-          Apagar
-        </button>
       </div>
     </div>
   );

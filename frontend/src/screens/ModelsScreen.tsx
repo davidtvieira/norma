@@ -4,9 +4,11 @@ import { BackButton } from '../components/BackButton/BackButton';
 import { RecentSessionCard } from '../components/RecentSessionCard/RecentSessionCard';
 import { ThemeToggle } from '../components/ThemeToggle/ThemeToggle';
 import { ConfirmModal } from '../components/Modal/ConfirmModal';
+import { SavedModelAddCard } from '../components/SavedModelAddCard/SavedModelAddCard';
 import { SavedModelCard } from '../components/SavedModelCard/SavedModelCard';
+import { SavedModelsToolbar } from '../components/SavedModelsToolbar/SavedModelsToolbar';
 import type { Theme } from '../hooks/useTheme';
-import type { SavedNrmPayload } from '../types/savedNrm';
+import type { SavedNrmPayload, SavedNrmQuery } from '../types/savedNrm';
 
 export interface RecentSessionEntryProps {
   id: string;
@@ -35,11 +37,15 @@ interface ModelsScreenProps {
   savedModels: SavedNrmPayload[] | null;
   /** True when the library could not be read (the toast already said why). */
   savedModelsFailed: boolean;
+  /** What the list is searched and ordered by, and how to change it. */
+  savedQuery: SavedNrmQuery;
+  onSavedQueryChange: (query: SavedNrmQuery) => void;
   /** The saved model being opened right now, if any. */
   openingSavedId: string | null;
   onOpenSaved: (model: SavedNrmPayload) => void;
-  onDownloadSaved: (model: SavedNrmPayload) => void;
   onDeleteSaved: (model: SavedNrmPayload) => Promise<void>;
+  /** Adds the picked or dropped .nrm files to the library (the "+" card at the end of the grid). */
+  onUploadModels: (files: File[]) => Promise<void>;
 }
 
 /**
@@ -55,12 +61,20 @@ export function ModelsScreen({
   recentSessions,
   savedModels,
   savedModelsFailed,
+  savedQuery,
+  onSavedQueryChange,
   openingSavedId,
   onOpenSaved,
-  onDownloadSaved,
   onDeleteSaved,
+  onUploadModels,
 }: ModelsScreenProps) {
   const [pendingDelete, setPendingDelete] = useState<SavedNrmPayload | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  function uploadModels(files: File[]) {
+    setIsUploading(true);
+    onUploadModels(files).finally(() => setIsUploading(false));
+  }
 
   return (
     <div className="app app--landing">
@@ -70,34 +84,38 @@ export function ModelsScreen({
       </header>
 
       <div className="app__models-body">
-        <h1 className="app__models-title">Os meus modelos</h1>
-        {savedModels !== null && savedModels.length > 0 ? (
-          <div className="app__models-list">
-            {savedModels.map((model) => (
-              <SavedModelCard
-                key={model.id}
-                model={model}
-                isOpening={openingSavedId === model.id}
-                onOpen={() => onOpenSaved(model)}
-                onDownload={() => onDownloadSaved(model)}
-                onDelete={() => setPendingDelete(model)}
-              />
-            ))}
+        <div className="app__models-header">
+          <h1 className="app__models-title">Os meus modelos</h1>
+          <SavedModelsToolbar query={savedQuery} onChange={onSavedQueryChange} />
+        </div>
+        {savedModels !== null && savedModels.length === 0 && savedQuery.search.trim() !== '' && (
+          <p className="app__models-placeholder app__models-no-match">Nenhum modelo corresponde à pesquisa.</p>
+        )}
+        {savedModels !== null ? (
+          <div className="app__models-scroll">
+            <div className="app__models-list">
+              {savedModels.map((model) => (
+                <SavedModelCard
+                  key={model.id}
+                  model={model}
+                  isOpening={openingSavedId === model.id}
+                  onOpen={() => onOpenSaved(model)}
+                  onDelete={() => setPendingDelete(model)}
+                />
+              ))}
+              <SavedModelAddCard isUploading={isUploading} onFiles={uploadModels} />
+            </div>
           </div>
         ) : (
           <div className="app__models-container">
             <p className="app__models-placeholder">
-              {savedModelsFailed
-                ? 'Não foi possível obter os modelos guardados.'
-                : savedModels === null
-                  ? 'A carregar…'
-                  : 'Ainda não há modelos guardados. Guarde um a partir do editor, em "Guardar modelo".'}
+              {savedModelsFailed ? 'Não foi possível obter os modelos guardados.' : 'A carregar…'}
             </p>
           </div>
         )}
       </div>
 
-      <div className="recent-sessions">
+      <div className="recent-sessions recent-sessions--fixed">
         <div className="recent-sessions__header">
           <p className="recent-sessions__title">Sessões recentes</p>
           <button
@@ -135,6 +153,7 @@ export function ModelsScreen({
           title="Apagar o modelo?"
           message={`"${pendingDelete.name}" vai ser removido da plataforma. Esta ação não se pode desfazer.`}
           confirmLabel="Apagar"
+          danger
           onConfirm={() => {
             const target = pendingDelete;
             setPendingDelete(null);

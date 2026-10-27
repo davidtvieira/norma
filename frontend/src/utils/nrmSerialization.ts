@@ -170,6 +170,8 @@ export interface NrmImportResult {
     modelName: string;
     nrmName: string;
     nrmId: string;
+    /** When the .nrm was made, from its info.json — absent for one without it. */
+    nrmCreatedAt?: string;
   };
 }
 
@@ -196,5 +198,5 @@ export async function importNrmFile(file: File): Promise<NrmImportResult> {
   // info.json is the source of truth; a .nrm without one falls back to its own filename, so it
   // always has something to identify it by in "Sessões recentes".
   const nrmName = info?.name || file.name.replace(/\.nrm$/i, '');
-  return { dataset, datasetFile, modelText, model: { modelName: modelNameOf(modelText) || nrmName, nrmName, nrmId: dataset.nrmId } };
+  return { dataset, datasetFile, modelText, model: { modelName: modelNameOf(modelText) || nrmName, nrmName, nrmId: dataset.nrmId, nrmCreatedAt: info?.createdAt } };
 }
