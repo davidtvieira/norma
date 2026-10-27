@@ -33,10 +33,19 @@ public class NrmLibraryController {
         this.library = library;
     }
 
-    @Operation(summary = "List the saved .nrm files", description = "Most recently saved first.")
+    @Operation(
+            summary = "List the saved .nrm files",
+            description = "Most recently saved first, unless told otherwise. search keeps the models whose name or "
+                    + "dataset file name contains the text (any case). sort is one of name, updatedAt, createdAt, "
+                    + "sizeBytes and operationCount; direction is asc or desc (by default A to Z for the name and "
+                    + "newest or biggest first for the rest). An unknown sort or direction is a 400."
+    )
     @GetMapping
-    public List<SavedNrmSummary> list() {
-        return library.list();
+    public List<SavedNrmSummary> list(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String direction) {
+        return library.list(search, sort, direction);
     }
 
     @Operation(

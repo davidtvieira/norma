@@ -2,6 +2,8 @@ package com.norma.dataset.library;
 
 import com.norma.dataset.dto.NrmSummary;
 import com.norma.dataset.service.NrmService;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,6 +13,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 /**
@@ -36,9 +39,27 @@ public class NrmLibraryService {
     public record StoredFile(String filename, byte[] bytes) {
     }
 
+    /**
+     * The saved .nrm files, most recently saved first. {@code search} keeps those whose name or dataset file name
+     * contains it (any case, nothing else is special); {@code sort} and {@code direction} are the spellings of
+     * {@link SavedNrmSort}, each optional.
+     */
     @Transactional(readOnly = true)
-    public List<SavedNrmSummary> list() {
-        return repository.findAllByOrderByUpdatedAtDesc().stream().map(this::toSummary).toList();
+    public List<SavedNrmSummary> list(String search, String sort, String direction) {
+        SavedNrmSort field = SavedNrmSort.fromParameter(sort);
+        Sort ordering = field.toSort(field.directionFrom(direction));
+        return repository.findAll(matching(search), ordering).stream().map(this::toSummary).toList();
+    }
+
+    private static Specification<SavedNrm> matching(String search) {
+        if (search == null || search.isBlank()) {
+            return Specification.where(null);
+        }
+        // % and _ are LIKE wildcards: escape them (and the escape character) so they match themselves.
+        String pattern = "%" + search.trim().toLowerCase(Locale.ROOT).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+        return (root, query, builder) -> builder.or(
+                builder.like(builder.lower(root.get("name")), pattern, '\\'),
+                builder.like(builder.lower(root.get("datasetFilename")), pattern, '\\'));
     }
 
     @Transactional(readOnly = true)

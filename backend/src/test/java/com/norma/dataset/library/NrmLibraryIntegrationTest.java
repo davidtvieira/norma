@@ -22,10 +22,13 @@ import org.springframework.util.MultiValueMap;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
@@ -152,6 +155,57 @@ class NrmLibraryIntegrationTest {
                 .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
+    @Test
+    void searchKeepsTheModelsWhoseNameOrDatasetFileContainsTheTextInAnyCase() throws IOException {
+        save("Vendas Norte", "norte.xlsx");
+        save("Compras", "fornecedores.xlsx");
+        save("Stock 100%", "armazem_1.xlsx");
+
+        assertThat(names("search=VENDAS")).containsExactly("Vendas Norte");
+        assertThat(names("search=forneced")).containsExactly("Compras");
+        // % and _ only match themselves, not "anything".
+        assertThat(names("search=100%25")).containsExactly("Stock 100%");
+        assertThat(names("search=armazem_")).containsExactly("Stock 100%");
+        assertThat(names("search=%25")).containsExactly("Stock 100%");
+        assertThat(names("search=nada")).isEmpty();
+        assertThat(names("search=")).hasSize(3);
+    }
+
+    @Test
+    void theListIsOrderedBySortAndDirectionAndByDefaultNewestFirst() throws IOException {
+        save("Banana", "b.xlsx", 50);
+        save("Abacate", "a.xlsx", 1);
+        save("Cereja", "c.xlsx", 200);
+
+        assertThat(names("")).containsExactly("Cereja", "Abacate", "Banana"); // most recently saved first
+        assertThat(names("sort=name")).containsExactly("Abacate", "Banana", "Cereja"); // A to Z for the name
+        assertThat(names("sort=name&direction=desc")).containsExactly("Cereja", "Banana", "Abacate");
+        assertThat(names("sort=sizeBytes")).containsExactly("Cereja", "Banana", "Abacate"); // biggest first
+        assertThat(names("sort=sizeBytes&direction=asc")).containsExactly("Abacate", "Banana", "Cereja");
+        assertThat(names("sort=updatedAt&direction=asc")).containsExactly("Banana", "Abacate", "Cereja");
+        assertThat(names("sort=NAME&direction=DESC&search=a")).containsExactly("Cereja", "Banana", "Abacate");
+    }
+
+    @Test
+    void anUnknownSortOrDirectionIsRejected() {
+        assertThat(http.getForEntity("/api/v1/library?sort=colour", String.class).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(http.getForEntity("/api/v1/library?direction=sideways", String.class).getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    private List<String> names(String query) {
+        // A URI, not a string: a string is run through URI templating, which would encode the "%" of "%25" a second time.
+        URI uri = URI.create(http.getRootUri() + "/api/v1/library" + (query.isEmpty() ? "" : "?" + query));
+        SavedNrmSummary[] listed = http.getForObject(uri, SavedNrmSummary[].class);
+        return Arrays.stream(listed).map(SavedNrmSummary::name).toList();
+    }
+
+    private SavedNrmSummary save(String name, String datasetFilename, int rows) throws IOException {
+        ResponseEntity<SavedNrmSummary> response = upload(nrmBytes(name, datasetFilename, rows));
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        return response.getBody();
+    }
+
     private SavedNrmSummary save(String name, String datasetFilename) throws IOException {
         ResponseEntity<SavedNrmSummary> response = upload(nrmBytes(name, datasetFilename));
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
@@ -180,8 +234,12 @@ class NrmLibraryIntegrationTest {
     }
 
     private static byte[] nrmBytes(String name, String datasetFilename) throws IOException {
+        return nrmBytes(name, datasetFilename, 1);
+    }
+
+    private static byte[] nrmBytes(String name, String datasetFilename, int rows) throws IOException {
         Map<String, byte[]> entries = new LinkedHashMap<>();
-        entries.put(datasetFilename, workbookBytes());
+        entries.put(datasetFilename, workbookBytes(rows));
         entries.put("modelo.json", MODEL.getBytes(StandardCharsets.UTF_8));
         entries.put("info.json", INFO.formatted(name).getBytes(StandardCharsets.UTF_8));
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -195,9 +253,12 @@ class NrmLibraryIntegrationTest {
         return out.toByteArray();
     }
 
-    private static byte[] workbookBytes() throws IOException {
+    private static byte[] workbookBytes(int rows) throws IOException {
         try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            workbook.createSheet("Sheet1").createRow(0).createCell(0).setCellValue("ID");
+            var sheet = workbook.createSheet("Sheet1");
+            for (int row = 0; row < rows; row++) {
+                sheet.createRow(row).createCell(0).setCellValue("ID " + row + " " + "x".repeat(40));
+            }
             workbook.write(out);
             return out.toByteArray();
         }
