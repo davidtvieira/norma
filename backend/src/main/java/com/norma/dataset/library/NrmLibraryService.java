@@ -1,6 +1,5 @@
 package com.norma.dataset.library;
 
-import com.norma.dataset.dto.NrmImportStatus;
 import com.norma.dataset.dto.NrmSummary;
 import com.norma.dataset.service.NrmService;
 import org.springframework.stereotype.Service;
@@ -17,8 +16,8 @@ import java.util.UUID;
 /**
  * The library of saved .nrm files: the files are kept whole in the storage folder ({@link NrmFileStorage}) and
  * the database ({@link SavedNrm}) only knows what is needed to list them and find them again. Every file is
- * validated like an upload before it is kept, so what is in the library can always be opened. Opening one
- * hands it to the same import as an uploaded .nrm, so everything that works on an imported .nrm works on it.
+ * validated like an upload before it is kept, so what is in the library can always be opened: the app
+ * downloads a saved file and imports it like any uploaded .nrm.
  */
 @Service
 public class NrmLibraryService {
@@ -77,12 +76,6 @@ public class NrmLibraryService {
     public StoredFile file(UUID id) {
         SavedNrm saved = find(id);
         return new StoredFile(downloadName(saved.getName()), bytesOf(saved));
-    }
-
-    /** Loads the saved .nrm into memory like an uploaded one, returning the id to address it by. */
-    @Transactional(readOnly = true)
-    public NrmImportStatus open(UUID id) {
-        return nrmService.importNrm(bytesOf(find(id)));
     }
 
     @Transactional

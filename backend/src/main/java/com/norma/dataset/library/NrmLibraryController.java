@@ -1,6 +1,5 @@
 package com.norma.dataset.library;
 
-import com.norma.dataset.dto.NrmImportStatus;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ContentDisposition;
@@ -54,15 +53,6 @@ public class NrmLibraryController {
     @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public SavedNrmSummary replace(@PathVariable UUID id, @RequestParam("file") MultipartFile file) throws IOException {
         return library.replace(id, file.getBytes());
-    }
-
-    @Operation(
-            summary = "Open a saved .nrm",
-            description = "Loads it like an imported .nrm and returns the id every /nrm/{nrmId}/... endpoint takes."
-    )
-    @PostMapping("/{id}/open")
-    public NrmImportStatus open(@PathVariable UUID id) {
-        return library.open(id);
     }
 
     @Operation(summary = "Download a saved .nrm file")

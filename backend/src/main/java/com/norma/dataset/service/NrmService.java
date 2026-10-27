@@ -105,15 +105,7 @@ public class NrmService {
      * unregistered when it has no usable output) and the .nrm itself, under the id returned.
      */
     public NrmImportStatus importNrm(MultipartFile file) {
-        return importContents(read(file));
-    }
-
-    /** {@link #importNrm(MultipartFile)} for a .nrm held as bytes, such as one read from the library. */
-    public NrmImportStatus importNrm(byte[] bytes) {
-        return importContents(read("library.nrm", bytes));
-    }
-
-    private NrmImportStatus importContents(Contents contents) {
+        Contents contents = read(file);
         ModelDatasetValidator.assertFits(contents.model(), sheetCountOf(contents));
         DatasetImportResponse dataset = datasetParserService.parse(
                 new ByteArrayInputStream(contents.spreadsheetBytes()), contents.spreadsheetName());

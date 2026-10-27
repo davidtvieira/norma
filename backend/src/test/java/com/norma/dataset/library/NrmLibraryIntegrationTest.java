@@ -1,6 +1,5 @@
 package com.norma.dataset.library;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -90,19 +89,6 @@ class NrmLibraryIntegrationTest {
     }
 
     @Test
-    void openingASavedNrmGivesTheIdTheNrmEndpointsTake() throws IOException {
-        SavedNrmSummary saved = save("Vendas", "dados.xlsx");
-
-        JsonNode opened = http.postForObject("/api/v1/library/" + saved.id() + "/open", null, JsonNode.class);
-        String nrmId = opened.path("nrmId").asText();
-        assertThat(nrmId).isNotBlank();
-
-        JsonNode inputs = http.getForObject("/api/v1/nrm/" + nrmId + "/inputs", JsonNode.class);
-        assertThat(inputs.path("inputs")).hasSize(1);
-        assertThat(inputs.path("inputs").get(0).path("name").asText()).isEqualTo("Valor");
-    }
-
-    @Test
     void downloadingGivesTheExactBytesUnderTheModelsName() throws IOException {
         byte[] bytes = nrmBytes("Vendas Q1/2026", "dados.xlsx");
         SavedNrmSummary saved = upload(bytes).getBody();
@@ -156,13 +142,13 @@ class NrmLibraryIntegrationTest {
     }
 
     @Test
-    void anEntryWhoseFileIsGoneIsListedAsUnavailableAndCannotBeOpened() throws IOException {
+    void anEntryWhoseFileIsGoneIsListedAsUnavailableAndCannotBeDownloaded() throws IOException {
         SavedNrmSummary saved = save("Vendas", "dados.xlsx");
         Files.delete(STORAGE.resolve(saved.id() + ".nrm"));
 
         SavedNrmSummary[] listed = http.getForObject("/api/v1/library", SavedNrmSummary[].class);
         assertThat(listed).singleElement().satisfies(entry -> assertThat(entry.available()).isFalse());
-        assertThat(http.postForEntity("/api/v1/library/" + saved.id() + "/open", null, String.class).getStatusCode())
+        assertThat(http.getForEntity("/api/v1/library/" + saved.id() + "/file", String.class).getStatusCode())
                 .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
