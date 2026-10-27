@@ -1,5 +1,6 @@
 package com.norma.dataset.exception;
 
+import com.norma.dataset.library.SavedNrmNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -22,6 +23,11 @@ public class DatasetExceptionHandler {
     @ExceptionHandler(ModelDatasetMismatchException.class)
     public ResponseEntity<ApiErrorResponse> handleModelDatasetMismatch(ModelDatasetMismatchException ex) {
         return buildResponse(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    @ExceptionHandler(SavedNrmNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleSavedNrmNotFound(SavedNrmNotFoundException ex) {
+        return buildResponse(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)

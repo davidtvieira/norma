@@ -48,9 +48,21 @@ The app has a light and a dark theme, and works on phones.
 ## Requirements
 
 - Java 21 and Maven 3.6+
+- PostgreSQL 14 or newer (Docker is the easy way, see below)
 - Node.js (developed on Node 20) and npm
 
 ## Running it locally
+
+The library of saved `.nrm` files needs a PostgreSQL database (it only holds each file's name, size and counts,
+the files themselves are kept in a folder). Start one with Docker:
+
+```bash
+docker compose up -d
+```
+
+The backend's defaults match it (`jdbc:postgresql://localhost:5432/norma`, user and password `norma`). To use
+another database, or another folder for the files (`./data/nrm` by default), set `NORMA_DB_URL`, `NORMA_DB_USER`,
+`NORMA_DB_PASSWORD` and `NORMA_STORAGE_DIR`. The schema is created by Flyway when the backend starts.
 
 Start the backend on port **8081**, which is where the frontend dev server proxies `/api` to:
 
@@ -80,7 +92,7 @@ The API documentation (Swagger UI) is at http://localhost:8081/api/swagger once 
 ```bash
 # backend
 cd backend
-mvn test              # all tests
+mvn test              # all tests (the database ones start their own PostgreSQL, nothing to install)
 mvn package           # build the jar
 
 # frontend
@@ -95,6 +107,6 @@ The backend does not hot-reload: restart it after changing Java code.
 ## Project layout
 
 - `backend/`: Spring Boot 3 (Java 21) API. Apache POI parses spreadsheets, and imported datasets, registered models and
-  `.nrm` files are kept in in-memory stores.
+  `.nrm` files are kept in in-memory stores. Saved `.nrm` files live in a folder, indexed by a PostgreSQL table.
 - `frontend/`: React 19 + TypeScript + Vite single-page app. `src/services/datasetApi.ts` is the only place that calls the
   API. Each operation type is a plugin under `src/components/OperationPanel/kinds/`.

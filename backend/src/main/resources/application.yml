@@ -1,6 +1,17 @@
 spring:
   application:
     name: dataset-service
+  datasource:
+    # The library of saved .nrm files (see NrmLibraryService). Override with these environment variables, or
+    # start the database from docker-compose.yml at the repository root, which matches these defaults.
+    url: ${NORMA_DB_URL:jdbc:postgresql://localhost:5432/norma}
+    username: ${NORMA_DB_USER:norma}
+    password: ${NORMA_DB_PASSWORD:norma}
+  jpa:
+    open-in-view: false
+    hibernate:
+      # The schema belongs to the Flyway migrations (src/main/resources/db/migration); Hibernate only checks it.
+      ddl-auto: validate
   servlet:
     multipart:
       max-file-size: 10MB
@@ -10,6 +21,9 @@ server:
   port: 8080
 
 norma:
+  storage:
+    # Where the saved .nrm files are kept, one <id>.nrm each. Back this folder up together with the database.
+    dir: ${NORMA_STORAGE_DIR:./data/nrm}
   cors:
     # Comma-separated exact origins (scheme+host+port), or "*" to allow any — see WebCorsConfig.
     # "*" here because this is reached through a proxy/tunnel whose host:port isn't fixed (the

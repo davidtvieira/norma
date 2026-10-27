@@ -13,6 +13,7 @@ import com.norma.dataset.dto.ModelRunResponse;
 import com.norma.dataset.dto.ModelRegisterRequest;
 import com.norma.dataset.dto.NrmImportStatus;
 import com.norma.dataset.dto.NrmInfo;
+import com.norma.dataset.dto.NrmSummary;
 import com.norma.dataset.exception.DatasetParsingException;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
@@ -78,12 +79,41 @@ public class NrmService {
     }
 
     /**
+     * Validates a .nrm held as bytes — the same checks as an upload — and describes it for the library
+     * (see NrmLibraryService): its name, when it was made, its dataset's file name and how many
+     * operations, inputs and outputs the model has.
+     */
+    public NrmSummary inspect(byte[] bytes) {
+        Contents contents = read("library.nrm", bytes);
+        ModelDatasetValidator.assertFits(contents.model(), sheetCountOf(contents));
+        List<ModelOperationInput> operations = new ArrayList<>();
+        for (JsonNode node : contents.model().path("operations")) {
+            flatten(node, operations);
+        }
+        return new NrmSummary(
+                contents.info().name(),
+                contents.info().createdAt(),
+                contents.spreadsheetName(),
+                operations.size(),
+                readIds(contents.model(), "inputOperationIds", "inputOperationId").size(),
+                readIds(contents.model(), "outputOperationIds", "outputOperationId").size());
+    }
+
+    /**
      * Validates the file, then stores everything in it: its dataset (parsed the same way a plain
      * import would), its model (registered the same way POST /dataset/{id}/model would — left
      * unregistered when it has no usable output) and the .nrm itself, under the id returned.
      */
     public NrmImportStatus importNrm(MultipartFile file) {
-        Contents contents = read(file);
+        return importContents(read(file));
+    }
+
+    /** {@link #importNrm(MultipartFile)} for a .nrm held as bytes, such as one read from the library. */
+    public NrmImportStatus importNrm(byte[] bytes) {
+        return importContents(read("library.nrm", bytes));
+    }
+
+    private NrmImportStatus importContents(Contents contents) {
         ModelDatasetValidator.assertFits(contents.model(), sheetCountOf(contents));
         DatasetImportResponse dataset = datasetParserService.parse(
                 new ByteArrayInputStream(contents.spreadsheetBytes()), contents.spreadsheetName());
@@ -192,11 +222,21 @@ public class NrmService {
     }
 
     private Contents read(MultipartFile file) {
-        String originalName = file.getOriginalFilename();
+        byte[] bytes;
+        try {
+            bytes = file.getBytes();
+        } catch (IOException e) {
+            log.debug("Rejected .nrm: its bytes cannot be read.", e);
+            throw new DatasetParsingException(INVALID_MESSAGE, e);
+        }
+        return read(file.getOriginalFilename(), bytes);
+    }
+
+    private Contents read(String originalName, byte[] fileBytes) {
         if (originalName == null || !originalName.toLowerCase(Locale.ROOT).endsWith(".nrm")) {
             throw new IllegalArgumentException(INVALID_MESSAGE);
         }
-        if (file.isEmpty()) {
+        if (fileBytes.length == 0) {
             throw new IllegalArgumentException(INVALID_MESSAGE);
         }
 
@@ -207,7 +247,7 @@ public class NrmService {
         int entryCount = 0;
         long totalBytes = 0;
 
-        try (ZipInputStream zip = new ZipInputStream(file.getInputStream())) {
+        try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(fileBytes))) {
             ZipEntry entry;
             while ((entry = zip.getNextEntry()) != null) {
                 if (entry.isDirectory()) {
