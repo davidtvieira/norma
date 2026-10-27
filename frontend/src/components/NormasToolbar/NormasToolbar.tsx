@@ -1,5 +1,5 @@
 import type { SavedNrmQuery } from '../../types/savedNrm';
-import './SavedModelsToolbar.css';
+import './NormasToolbar.css';
 
 /** The ways to order the library, as the select offers them. */
 const ORDERS: { label: string; sort: SavedNrmQuery['sort']; direction: SavedNrmQuery['direction'] }[] = [
@@ -11,30 +11,30 @@ const ORDERS: { label: string; sort: SavedNrmQuery['sort']; direction: SavedNrmQ
   { label: 'Mais operações', sort: 'operationCount', direction: 'desc' },
 ];
 
-interface SavedModelsToolbarProps {
+interface NormasToolbarProps {
   query: SavedNrmQuery;
   onChange: (query: SavedNrmQuery) => void;
 }
 
-/** A search box and an order select above the grid of saved models. */
-export function SavedModelsToolbar({ query, onChange }: SavedModelsToolbarProps) {
+/** A search box and an order select above the grid of normas. */
+export function NormasToolbar({ query, onChange }: NormasToolbarProps) {
   const orderIndex = Math.max(
     0,
     ORDERS.findIndex((order) => order.sort === query.sort && order.direction === query.direction),
   );
 
   return (
-    <div className="saved-models-toolbar">
+    <div className="normas-toolbar">
       <input
         type="search"
-        className="saved-models-toolbar__search"
+        className="normas-toolbar__search"
         placeholder="Pesquisar por nome ou ficheiro de dados…"
         aria-label="Pesquisar normas"
         value={query.search}
         onChange={(event) => onChange({ ...query, search: event.target.value })}
       />
       <select
-        className="saved-models-toolbar__order"
+        className="normas-toolbar__order"
         aria-label="Ordenar normas"
         value={orderIndex}
         onChange={(event) => {

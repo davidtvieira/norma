@@ -11,7 +11,7 @@ const SEARCH_DEBOUNCE_MS = 250;
  * is immediate. `models` is null until the first answer arrives; `failed` says the list could not be read (the
  * toast already told why).
  */
-export function useSavedModels(active: boolean, query: SavedNrmQuery) {
+export function useNormas(active: boolean, query: SavedNrmQuery) {
   const [models, setModels] = useState<SavedNrmPayload[] | null>(null);
   const [failed, setFailed] = useState(false);
   // True while a request (the first one, a search or a new order) is waiting for its answer.

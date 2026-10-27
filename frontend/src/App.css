@@ -150,7 +150,7 @@
 }
 
 /* Both dropzones fill their (equal-height) column, with the same padding, so the two boxes match. */
-.app__landing-uploaders .ready-model-uploader__dropzone,
+.app__landing-uploaders .norma-uploader__dropzone,
 .app__landing-uploaders .dataset-uploader__dropzone {
   flex: 1;
   padding: 2.5rem 1.5rem;
@@ -221,7 +221,7 @@
 
 /* Both uploaders on the landing screen sit in the shared container above: their own dropzones are
    borderless and transparent, and the dataset one takes the .nrm one's sizing. */
-.app__landing-uploaders .ready-model-uploader__dropzone,
+.app__landing-uploaders .norma-uploader__dropzone,
 .app__landing-uploaders .dataset-uploader__dropzone {
   border: 0;
   border-radius: 0;
@@ -230,8 +230,8 @@
 }
 
 /* Hover / drag-over: the dropzone itself stays put; its icon circle fills with the primary color. */
-.app__landing-uploaders .ready-model-uploader__dropzone:hover,
-.app__landing-uploaders .ready-model-uploader__dropzone--active,
+.app__landing-uploaders .norma-uploader__dropzone:hover,
+.app__landing-uploaders .norma-uploader__dropzone--active,
 .app__landing-uploaders .dataset-uploader__dropzone:hover,
 .app__landing-uploaders .dataset-uploader__dropzone--active {
   background: transparent;
@@ -239,13 +239,13 @@
   transform: none;
 }
 
-.app__landing-uploaders .ready-model-uploader__icon,
+.app__landing-uploaders .norma-uploader__icon,
 .app__landing-uploaders .dataset-uploader__icon {
   transition: background-color 0.25s ease, color 0.25s ease;
 }
 
-.app__landing-uploaders .ready-model-uploader__dropzone:hover .ready-model-uploader__icon,
-.app__landing-uploaders .ready-model-uploader__dropzone--active .ready-model-uploader__icon,
+.app__landing-uploaders .norma-uploader__dropzone:hover .norma-uploader__icon,
+.app__landing-uploaders .norma-uploader__dropzone--active .norma-uploader__icon,
 .app__landing-uploaders .dataset-uploader__dropzone:hover .dataset-uploader__icon,
 .app__landing-uploaders .dataset-uploader__dropzone--active .dataset-uploader__icon {
   background: var(--color-primary);
@@ -339,12 +339,12 @@
 }
 
 /* On /modelos the block keeps one height whether there are no recents or four, and scrolls inside itself when they
-   don't fit, so what it holds never moves the grid of saved models above it. */
+   don't fit, so what it holds never moves the grid of normas above it. */
 .recent-sessions--fixed {
   flex: none;
   height: 8.25rem;
   margin-top: 1rem;
-  padding-block: 0.6rem;
+  padding: 0.6rem 1.5rem;
   gap: 0.25rem;
   box-sizing: border-box;
 }
@@ -355,17 +355,27 @@
   overflow-y: auto;
 }
 
+/* The same grid as the normas above it: four across (three, then two, on narrower screens), the same gap. */
 .recent-sessions__list {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: nowrap;
-  overflow-x: auto;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
 }
 
 .recent-sessions__list > .recent-session-card {
-  flex: 1 1 0;
-  min-width: 220px;
-  max-width: 320px;
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .recent-sessions__list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 800px) {
+  .recent-sessions__list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .recent-sessions__header {
@@ -447,20 +457,8 @@
     max-width: none;
   }
 
-  /* Recents stack in a column instead of a sideways-scrolling row. */
   .recent-sessions {
     padding: 1rem 1.5rem;
-  }
-
-  .recent-sessions__list {
-    flex-direction: column;
-    overflow-x: visible;
-  }
-
-  .recent-sessions__list > .recent-session-card {
-    flex: 0 0 auto;
-    min-width: 0;
-    max-width: none;
   }
 }
 
@@ -937,18 +935,19 @@ button.naked-button:hover:not(:disabled) {
   color: var(--color-text);
 }
 
-/* /modelos: the saved models as a grid of cards, four across (or, while there is none, a dashed placeholder). */
-.app__models-body {
+/* /normas: the saved normas as a grid of cards, four across (or, while there is none, a dashed placeholder). */
+.app__normas-body {
   flex: 1;
   /* So the grid below can shrink and scroll by itself instead of stretching the page. */
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 1.5rem var(--landing-gutter, 2.5rem);
+  /* The same side margin as the top bar (Voltar on the left, the theme button on the right). */
+  padding: 1.5rem;
 }
 
-/* The title and, on its right, the search and order of the saved models: one row, so they cost no extra height. */
-.app__models-header {
+/* The title and, on its right, the search and order of the normas: one row, so they cost no extra height. */
+.app__normas-header {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -957,12 +956,12 @@ button.naked-button:hover:not(:disabled) {
   margin-bottom: 1rem;
 }
 
-.app__models-header .app__models-title {
+.app__normas-header .app__normas-title {
   margin: 0;
 }
 
 .app__page-title,
-.app__models-title {
+.app__normas-title {
   margin: 0 0 1rem;
   font-size: 1.75rem;
   font-weight: 600;
@@ -970,7 +969,7 @@ button.naked-button:hover:not(:disabled) {
   color: var(--color-text);
 }
 
-.app__models-container {
+.app__normas-container {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -982,17 +981,17 @@ button.naked-button:hover:not(:disabled) {
   background: color-mix(in srgb, var(--color-surface) 55%, transparent);
 }
 
-/* The saved models fill the space between the title and "Sessões recentes" as exactly three rows of four cards:
+/* The normas fill the space between the title and "Sessões recentes" as exactly three rows of four cards:
    each row is a third of that space (less the gaps), so the cards grow with the window. The list is a container so
    its own height is what a row is measured against; in a window too short for that, rows keep a minimum height and
    the list scrolls instead. More than three rows scroll too, never the page. */
-.app__models-scroll {
+.app__normas-scroll {
   flex: 1 1 0;
   min-height: 0;
   container-type: size;
 }
 
-.app__models-list {
+.app__normas-list {
   height: 100%;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1000,34 +999,39 @@ button.naked-button:hover:not(:disabled) {
   align-content: start;
   gap: 1rem;
   overflow-y: auto;
-  scrollbar-gutter: stable;
+  /* The list scrolls (wheel, touch, keys) without drawing a scrollbar. */
+  scrollbar-width: none;
+}
+
+.app__normas-list::-webkit-scrollbar {
+  display: none;
 }
 
 @media (max-width: 1100px) {
-  .app__models-list {
+  .app__normas-list {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 800px) {
-  .app__models-list {
+  .app__normas-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 520px) {
-  .app__models-list {
+  .app__normas-list {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 
-.app__models-no-match {
+.app__normas-no-match {
   margin-bottom: 0.75rem;
   padding: 0;
   text-align: left;
 }
 
-.app__models-placeholder {
+.app__normas-placeholder {
   margin: 0;
   padding: 0 1.5rem;
   text-align: center;
@@ -1058,17 +1062,18 @@ button.naked-button:hover:not(:disabled) {
   margin: 0;
 }
 
-/* How many models the library holds, as a small pill next to the title. */
-.app__models-count {
+/* How many normas there are: a small, quiet badge centred on the middle of the title's letters (vertical-align: middle
+   is font-independent, so no nudge is needed). */
+.app__normas-count {
   display: inline-block;
   margin-left: 0.6rem;
-  padding: 0.05rem 0.6rem;
+  padding: 0.1rem 0.55rem;
   border-radius: 999px;
-  background: var(--color-surface-hover);
-  border: 1px solid var(--color-border);
-  font-size: 0.9rem;
-  font-weight: 500;
-  letter-spacing: 0;
-  vertical-align: middle;
+  background: color-mix(in srgb, var(--color-text) 9%, transparent);
   color: var(--color-text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.3;
+  vertical-align: middle;
 }

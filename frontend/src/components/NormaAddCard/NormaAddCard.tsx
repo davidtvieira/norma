@@ -1,19 +1,19 @@
 import { useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent } from 'react';
 import { PlusIcon } from '../ButtonIcons/ButtonIcons';
-import './SavedModelAddCard.css';
+import './NormaAddCard.css';
 
-interface SavedModelAddCardProps {
+interface NormaAddCardProps {
   isUploading: boolean;
   /** The .nrm files picked or dropped — one or several. */
   onFiles: (files: File[]) => void;
 }
 
 /**
- * The "+" card that closes the grid of saved models: click it to pick .nrm files (or drop them on it) and add
+ * The "+" card that closes the grid of normas: click it to pick .nrm files (or drop them on it) and add
  * them to the library.
  */
-export function SavedModelAddCard({ isUploading, onFiles }: SavedModelAddCardProps) {
+export function NormaAddCard({ isUploading, onFiles }: NormaAddCardProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragActive, setIsDragActive] = useState(false);
 
@@ -34,7 +34,7 @@ export function SavedModelAddCard({ isUploading, onFiles }: SavedModelAddCardPro
     <>
       <button
         type="button"
-        className={`saved-model-add${isDragActive ? ' saved-model-add--drag' : ''}`}
+        className={`norma-add${isDragActive ? ' norma-add--drag' : ''}`}
         onClick={() => inputRef.current?.click()}
         onDragOver={(event) => {
           event.preventDefault();
@@ -45,13 +45,13 @@ export function SavedModelAddCard({ isUploading, onFiles }: SavedModelAddCardPro
         disabled={isUploading}
         aria-busy={isUploading}
       >
-        <span className="saved-model-add__icon">
+        <span className="norma-add__icon">
           <PlusIcon />
         </span>
-        <span className="saved-model-add__label">{isUploading ? 'A guardar…' : 'Adicionar norma'}</span>
-        <span className="saved-model-add__hint">Ficheiros .nrm</span>
+        <span className="norma-add__label">{isUploading ? 'A guardar…' : 'Adicionar norma'}</span>
+        <span className="norma-add__hint">Ficheiros .nrm</span>
       </button>
-      <input ref={inputRef} type="file" accept=".nrm" multiple className="saved-model-add__input" onChange={handleChange} />
+      <input ref={inputRef} type="file" accept=".nrm" multiple className="norma-add__input" onChange={handleChange} />
     </>
   );
 }

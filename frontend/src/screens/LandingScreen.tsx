@@ -1,7 +1,7 @@
 import { StoreIcon } from '../components/ButtonIcons/ButtonIcons';
 import { AppFooter } from '../components/AppFooter/AppFooter';
 import { DatasetUploader } from '../components/DatasetUploader/DatasetUploader';
-import { ReadyModelUploader } from '../components/ReadyModelUploader/ReadyModelUploader';
+import { NormaUploader } from '../components/NormaUploader/NormaUploader';
 import { ThemeToggle } from '../components/ThemeToggle/ThemeToggle';
 import type { DatasetImportStatus } from '../types/dataset';
 import type { NrmImportStatusPayload } from '../types/nrm';
@@ -12,7 +12,7 @@ interface LandingScreenProps {
   theme: Theme;
   onToggleTheme: () => void;
   onImportSuccess: (dataset: DatasetImportStatus, file: File) => void;
-  onReadyModelImportSuccess: (
+  onNormaImportSuccess: (
     dataset: NrmImportStatusPayload,
     datasetFile: File,
     model: ImportedModel,
@@ -21,7 +21,7 @@ interface LandingScreenProps {
   ) => void;
   onGoHome: () => void;
   /** "Explorar as minhas normas" — opens the `/normas` route. */
-  onBrowseModels: () => void;
+  onBrowseNormas: () => void;
 }
 
 /**
@@ -35,9 +35,9 @@ export function LandingScreen({
   theme,
   onToggleTheme,
   onImportSuccess,
-  onReadyModelImportSuccess,
+  onNormaImportSuccess,
   onGoHome,
-  onBrowseModels,
+  onBrowseNormas,
 }: LandingScreenProps) {
   return (
     <div className="app app--landing">
@@ -52,13 +52,13 @@ export function LandingScreen({
         <div className="app__landing-right">
           <div className="app__landing-content">
             <div className="app__landing-uploaders">
-              <ReadyModelUploader onImportSuccess={onReadyModelImportSuccess} />
+              <NormaUploader onImportSuccess={onNormaImportSuccess} />
               <div className="app__landing-uploaders-or">
                 <span>ou</span>
               </div>
               <DatasetUploader onImportSuccess={onImportSuccess} />
             </div>
-            <button type="button" className="app__browse-button" onClick={onBrowseModels}>
+            <button type="button" className="app__browse-button" onClick={onBrowseNormas}>
               <StoreIcon className="app__browse-icon" />
               <span>Explorar as minhas normas</span>
               <span className="app__browse-hint">Veja e abra as normas que já criou</span>

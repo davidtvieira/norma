@@ -21,8 +21,8 @@ interface NrmFileScreenProps {
   /** Keeps the uploaded .nrm in the library — only given when there is an uploaded file to keep (a model opened
    * from the library is already there). */
   onSaveToLibrary?: () => Promise<void>;
-  /** Opens the list of saved models — what the save button turns into once the file is saved. */
-  onViewModels: () => void;
+  /** Opens the list of normas — what the save button turns into once the file is saved. */
+  onViewNormas: () => void;
   onBack: () => void;
   onGoHome: () => void;
 }
@@ -41,7 +41,7 @@ export function NrmFileScreen({
   onEdit,
   onUtilize,
   onSaveToLibrary,
-  onViewModels,
+  onViewNormas,
   onBack,
   onGoHome,
 }: NrmFileScreenProps) {
@@ -105,7 +105,7 @@ export function NrmFileScreen({
                 <button
                   type="button"
                   className="app__create-model-button app__create-model-button--secondary"
-                  onClick={saveStatus === 'saved' ? onViewModels : saveToLibrary}
+                  onClick={saveStatus === 'saved' ? onViewNormas : saveToLibrary}
                   disabled={saveStatus === 'saving'}
                 >
                   {saveStatus === 'saved' ? <FolderIcon /> : <DiskIcon />}

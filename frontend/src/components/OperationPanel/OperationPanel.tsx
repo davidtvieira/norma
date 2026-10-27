@@ -2226,12 +2226,14 @@ export function OperationPanel({
         {/* The operation count, at the start of this same row — .operation-canvas__toolbar-actions'
             own margin-left: auto is what pushes "Importar teste"/"Testar modelo" to the opposite end. */}
         <div className="operation-canvas__model-name-row">
-          <span className="operation-canvas__editing-label">A editar o modelo</span>
-          <span
-            className="operation-panel__count"
-            title={confirmedCount === 1 ? '1 operação' : `${confirmedCount} operações`}
-          >
-            {confirmedCount}
+          <span className="operation-canvas__editing-label">
+            A editar o modelo
+            <span
+              className="operation-panel__count"
+              title={confirmedCount === 1 ? '1 operação' : `${confirmedCount} operações`}
+            >
+              {confirmedCount}
+            </span>
           </span>
         </div>
         <div className="operation-canvas__toolbar-actions">

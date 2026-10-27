@@ -30,13 +30,13 @@ import type { CellRange } from './types/cellRange';
 import { getInputSource, hasSingleInputField } from './types/valueSource';
 import { buildModelExport, parseModelImport, type SerializableEntry } from './utils/modelSerialization';
 import { buildNrmFile, extractNrmFile, readModelFile } from './utils/nrmSerialization';
-import { useSavedModels } from './hooks/useSavedModels';
+import { useNormas } from './hooks/useNormas';
 import { DEFAULT_SAVED_QUERY, type SavedNrmPayload, type SavedNrmQuery } from './types/savedNrm';
 import { deleteSessionCacheEntry, forgetSavedNrm, listSessionCacheEntries, markSessionSaved, saveSessionCacheEntry, updateSessionCacheModel, type SessionCacheEntry } from './utils/sessionCache';
 import { downloadTestCase } from './utils/testCaseSerialization';
 import { LandingScreen } from './screens/LandingScreen';
 import { UtilizeScreen, type UtilizeModel } from './screens/UtilizeScreen';
-import { ModelsScreen } from './screens/ModelsScreen';
+import { NormasScreen } from './screens/NormasScreen';
 import { NrmFileScreen } from './screens/NrmFileScreen';
 import { ChooseModelScreen, type ImportedModel } from './screens/ChooseModelScreen';
 import { EditorScreen } from './screens/EditorScreen';
@@ -149,7 +149,7 @@ function App() {
   // from a .nrm) — kept around purely so "Guardar modelo" can re-zip it into a new .nrm without
   // needing the backend to serve the original bytes back (DatasetStore only keeps the parsed
   // JSON). Always set together with `dataset` — see handleDatasetImportSuccess/
-  // handleReadyModelImportSuccess, the only two places `dataset` is ever set to non-null.
+  // handleNormaImportSuccess, the only two places `dataset` is ever set to non-null.
   const [datasetFile, setDatasetFile] = useState<File | null>(null);
   const [modelName, setModelName] = useState('');
   // The .nrm file's own name (see ExportedModel.nrmName) — what "Sessões recentes" identifies a
@@ -191,7 +191,7 @@ function App() {
   // came from or was last saved as — "Guardar na plataforma" then replaces that entry instead of adding a
   // copy. A ref: it never needs a render of its own.
   const [savedQuery, setSavedQuery] = useState<SavedNrmQuery>(DEFAULT_SAVED_QUERY);
-  const savedModels = useSavedModels(location.pathname === '/normas', savedQuery);
+  const normas = useNormas(location.pathname === '/normas', savedQuery);
   const savedNrmIdRef = useRef<string | null>(null);
   // Whether that entry exists — what the editor's save button reads ("Atualizar" instead of "Guardar").
   const [isSavedInLibrary, setIsSavedInLibrary] = useState(false);
@@ -546,7 +546,7 @@ function App() {
   // Keeps the session cache's model half current while actually editing — gated on the editor
   // route (not just `dataset`/`datasetFile` being set) so this never fires while on the choose
   // screen, where modelEntries is still empty because OperationPanel hasn't mounted yet; without
-  // that guard this would immediately overwrite the good modelJson handleReadyModelImportSuccess/
+  // that guard this would immediately overwrite the good modelJson handleNormaImportSuccess/
   // handleImportModelFile just cached with a premature null. Debounced since every keystroke in a
   // field re-renders with new modelEntries — no need to hit IndexedDB that often.
   useEffect(() => {
@@ -741,7 +741,7 @@ function App() {
   // once, so the very next render already satisfies ChooseModelScreen's "dataset ready" check
   // with importedModel non-null, landing straight on its Editar/Utilizar choice — same place a
   // dataset import followed by a separate "Importar Modelo" would land, just in one step.
-  function handleReadyModelImportSuccess(
+  function handleNormaImportSuccess(
     importedNrm: NrmImportStatusPayload,
     file: File,
     model: ImportedModel,
@@ -879,7 +879,7 @@ function App() {
 
   // The "+" card on /normas: adds each picked .nrm to the library, one after the other (a refused file only costs
   // its own toast), then refreshes the list and says how many went in.
-  async function uploadSavedModels(files: File[]) {
+  async function uploadNormas(files: File[]) {
     let added = 0;
     for (const file of files) {
       try {
@@ -889,13 +889,13 @@ function App() {
         // The API toast already says what went wrong with this file.
       }
     }
-    await savedModels.refresh();
+    await normas.refresh();
     if (added > 0) reportSuccess(added === 1 ? 'Norma guardada na plataforma' : `${added} normas guardadas na plataforma`);
   }
 
-  // "Abrir" on a saved model: the backend loads the file it keeps (nothing is downloaded or uploaded) and the model
+  // "Abrir" on a saved norma: the backend loads the file it keeps (nothing is downloaded or uploaded) and the model
   // lands on the Editar / Utilizar choice. The entry is remembered so saving it again replaces it.
-  async function openSavedModel(saved: SavedNrmPayload) {
+  async function openNorma(saved: SavedNrmPayload) {
     setOpeningSavedId(saved.id);
     try {
       await openSavedById(saved.id);
@@ -911,15 +911,17 @@ function App() {
     clearModelState();
     beforeNavigate?.(`/normas/${savedId}`);
     setImportError(null);
-    setDataset({ datasetId: opened.nrmId, filename: opened.datasetFilename, nrmId: opened.nrmId, savedId });
-    setDatasetFile(null);
-    setImportedModel({
+    const handle: DatasetHandle = { datasetId: opened.nrmId, filename: opened.datasetFilename, nrmId: opened.nrmId, savedId };
+    const model: ImportedModel = {
       modelName: opened.modelName || opened.name,
       nrmName: opened.name,
       nrmId: opened.nrmId,
       nrmCreatedAt: opened.createdAt,
       nrmUpdatedAt: opened.updatedAt,
-    });
+    };
+    setDataset(handle);
+    setDatasetFile(null);
+    setImportedModel(model);
     navigate(`/normas/${savedId}`);
     // The recent session only points at the library entry: the file itself stays on the platform.
     const sessionId = generateSessionId();
@@ -995,7 +997,7 @@ function App() {
     setDataset(null);
     setDatasetFile(null);
     currentSessionIdRef.current = null;
-    // Back to the page the file was opened from (the home page, or "Os meus modelos Norma"), not always the home page.
+    // Back to the page the file was opened from (the home page, or "As minhas normas"), not always the home page.
     navigate(lastOutsidePathRef.current);
     refreshRecentSessions();
   }
@@ -1039,7 +1041,7 @@ function App() {
                       onEdit={goToEditorWithImportedModel}
                       onUtilize={goToUtilizeWithImportedModel}
                       onSaveToLibrary={uploadedNrmFile ? saveUploadedNrm : undefined}
-                          onViewModels={() => navigate('/normas')}
+                          onViewNormas={() => navigate('/normas')}
                       onBack={handleBackToLanding}
                       onGoHome={goHome}
                     />
@@ -1170,12 +1172,12 @@ function App() {
             theme={theme}
             onToggleTheme={toggleTheme}
             onImportSuccess={handleDatasetImportSuccess}
-            onReadyModelImportSuccess={(...args) => {
-              handleReadyModelImportSuccess(...args);
+            onNormaImportSuccess={(...args) => {
+              handleNormaImportSuccess(...args);
               reportSuccess('Norma importada');
             }}
             onGoHome={goHome}
-            onBrowseModels={() => navigate('/normas')}
+            onBrowseNormas={() => navigate('/normas')}
           />
         }
       />
@@ -1185,26 +1187,26 @@ function App() {
       <Route
         path="/normas"
         element={
-          <ModelsScreen
+          <NormasScreen
             theme={theme}
             onToggleTheme={toggleTheme}
             onBack={() => navigate('/')}
             onGoHome={goHome}
-            savedModels={savedModels.models}
-            savedModelsTotal={savedModels.total}
-            savedModelsLoading={savedModels.loading}
-            savedModelsFailed={savedModels.failed}
+            normas={normas.models}
+            normasTotal={normas.total}
+            normasLoading={normas.loading}
+            normasFailed={normas.failed}
             savedQuery={savedQuery}
             onSavedQueryChange={setSavedQuery}
             openingSavedId={openingSavedId}
-            onOpenSaved={openSavedModel}
+            onOpenSaved={openNorma}
             onDeleteSaved={(saved) =>
-              savedModels
+              normas
                 .remove(saved.id)
                 .then(() => forgetSavedNrm(saved.id))
                 .then(refreshRecentSessions)
             }
-            onUploadModels={uploadSavedModels}
+            onUploadNormas={uploadNormas}
             recentSessions={recentSessions
               .filter((entry) => entry.modelJson !== null || entry.savedNrmId)
               .map((entry) => ({

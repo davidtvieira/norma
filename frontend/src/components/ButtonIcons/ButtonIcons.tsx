@@ -87,7 +87,7 @@ export const GridIcon = make(LayoutGrid);
 export const ListIcon = make(List);
 export const SunIcon = make(Sun);
 export const MoonIcon = make(Moon);
-/** Shop front — browsing the saved models. */
+/** Shop front — browsing the normas. */
 export const StoreIcon = make(Store);
 /** Arrow into a tray, for the dropzones. */
 export const UploadIcon = make(Upload);

@@ -125,7 +125,7 @@ export function extractNrmFile(file: File): Promise<NrmContents> {
  * spreadsheet (its original bytes, renamed to `fileName`) together with the exported model JSON.
  * Used by "Guardar modelo", which now saves .nrm instead of a bare model JSON file so the one
  * saved file is also enough to reopen the model later without the dataset having to be imported
- * separately first (see ReadyModelUploader's landing-page counterpart). Also writes an
+ * separately first (see NormaUploader's landing-page counterpart). Also writes an
  * `info.json` (see NrmInfo) recording `fileName` and when this file was created.
  */
 export async function buildNrmFile(datasetFile: File, model: ExportedModel, fileName: string, createdAt?: string): Promise<Blob> {

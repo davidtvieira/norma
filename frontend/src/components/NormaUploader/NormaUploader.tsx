@@ -6,9 +6,9 @@ import type { ChangeEvent, DragEvent } from 'react';
 import { importNrmFile } from '../../utils/nrmSerialization';
 import type { NrmImportStatusPayload } from '../../types/nrm';
 import type { ImportedModel } from '../../screens/ChooseModelScreen';
-import './ReadyModelUploader.css';
+import './NormaUploader.css';
 
-interface ReadyModelUploaderProps {
+interface NormaUploaderProps {
   /** Also hands back the dataset file extracted from the .nrm (not just the parsed dataset), same
    * reason as DatasetUploader's own onImportSuccess — so it's available again if "Guardar modelo"
    * re-exports this model later — and the .nrm itself, so it can be kept in the library as it came. */
@@ -21,7 +21,7 @@ interface ReadyModelUploaderProps {
  * importing the dataset and then the model separately (see ChooseModelScreen's own, separate
  * "Importar Modelo" flow, which still only handles the model half once a dataset already exists).
  */
-export function ReadyModelUploader({ onImportSuccess }: ReadyModelUploaderProps) {
+export function NormaUploader({ onImportSuccess }: NormaUploaderProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -75,10 +75,10 @@ export function ReadyModelUploader({ onImportSuccess }: ReadyModelUploaderProps)
   }
 
   return (
-    <div className="ready-model-uploader">
+    <div className="norma-uploader">
       {isUploading && <LoadingOverlay />}
       <div
-        className={`ready-model-uploader__dropzone${isDragActive ? ' ready-model-uploader__dropzone--active' : ''}${isUploading ? ' ready-model-uploader__dropzone--busy' : ''}${hasError ? ' ready-model-uploader__dropzone--error' : ''}`}
+        className={`norma-uploader__dropzone${isDragActive ? ' norma-uploader__dropzone--active' : ''}${isUploading ? ' norma-uploader__dropzone--busy' : ''}${hasError ? ' norma-uploader__dropzone--error' : ''}`}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -87,25 +87,25 @@ export function ReadyModelUploader({ onImportSuccess }: ReadyModelUploaderProps)
         tabIndex={0}
         onKeyDown={(event) => event.key === 'Enter' && fileInputRef.current?.click()}
       >
-        <div className="ready-model-uploader__icon" aria-hidden="true">
+        <div className="norma-uploader__icon" aria-hidden="true">
           <FolderOpenIcon />
         </div>
-        <p className="ready-model-uploader__title">
+        <p className="norma-uploader__title">
           Carregue uma norma
         </p>
-        <p className="ready-model-uploader__hint">Arraste e largue um ficheiro .nrm, ou clique para procurar</p>
+        <p className="norma-uploader__hint">Arraste e largue um ficheiro .nrm, ou clique para procurar</p>
 
         <input
-          id="ready-model-file-input"
+          id="norma-file-input"
           ref={fileInputRef}
           type="file"
           accept=".nrm"
           onChange={handleFileChange}
           disabled={isUploading}
-          className="ready-model-uploader__input"
+          className="norma-uploader__input"
         />
       </div>
-      {errorMessage && <p className="ready-model-uploader__error">{errorMessage}</p>}
+      {errorMessage && <p className="norma-uploader__error">{errorMessage}</p>}
     </div>
   );
 }

@@ -1,12 +1,12 @@
-.saved-models-toolbar {
+.normas-toolbar {
   display: flex;
   flex: 1;
   justify-content: flex-end;
   gap: 0.75rem;
 }
 
-.saved-models-toolbar__search,
-.saved-models-toolbar__order {
+.normas-toolbar__search,
+.normas-toolbar__order {
   height: 2.5rem;
   box-sizing: border-box;
   padding: 0 0.9rem;
@@ -18,29 +18,29 @@
   font-size: 0.9rem;
 }
 
-.saved-models-toolbar__search {
+.normas-toolbar__search {
   flex: 1;
   min-width: 0;
   max-width: 24rem;
 }
 
-.saved-models-toolbar__search:focus,
-.saved-models-toolbar__order:focus {
+.normas-toolbar__search:focus,
+.normas-toolbar__order:focus {
   outline: none;
   border-color: var(--color-primary);
 }
 
-.saved-models-toolbar__order {
+.normas-toolbar__order {
   cursor: pointer;
 }
 
 @media (max-width: 640px) {
-  .saved-models-toolbar {
+  .normas-toolbar {
     flex: 1 1 100%;
     flex-direction: column;
   }
 
-  .saved-models-toolbar__search {
+  .normas-toolbar__search {
     max-width: none;
   }
 }

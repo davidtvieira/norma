@@ -1,0 +1,201 @@
+.norma-card {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.9rem;
+  /* The logo is quiet grey until the card is pointed at (see --openable below). */
+  --logo-color: var(--color-text-muted);
+  padding: 0.9rem 1rem;
+  /* A fixed height comes from the grid's rows: the content has to fit. */
+  min-height: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.norma-card__text {
+  min-width: 0;
+}
+
+.norma-card__name {
+  margin: 0 0 0.4rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  /* The text grows with the card (cqh is the height of the grid's area, see .app__normas-scroll). */
+  font-size: clamp(1.05rem, 0.35rem + 2cqh, 1.45rem);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-text);
+}
+
+.norma-card__meta {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.1rem, 0.6cqh, 0.4rem);
+  font-size: clamp(0.8rem, 0.2rem + 1.6cqh, 1rem);
+  color: var(--color-text-muted);
+}
+
+.norma-card__meta li {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Apagar: icon only, in the top-right corner, red on hover. */
+.norma-card {
+  position: relative;
+}
+
+.norma-card__name {
+  padding-right: 1.8rem;
+}
+
+.norma-card__delete {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.55rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.norma-card__delete:hover {
+  background: color-mix(in srgb, #b94a48 14%, transparent);
+  color: #b94a48;
+}
+
+.norma-card__delete .norma-card__delete-icon {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+
+.norma-card__text {
+  flex: 1;
+}
+
+.norma-card__mark {
+  flex: none;
+  width: clamp(2rem, 0.4rem + 4.4cqh, 2.8rem);
+  height: clamp(2rem, 0.4rem + 4.4cqh, 2.8rem);
+  opacity: 0.7;
+  /* Its colour fades in and out gradually. */
+  transition: opacity 0.2s ease, stroke 0.2s ease;
+}
+
+/* The whole card is the way in. */
+.norma-card--openable {
+  cursor: pointer;
+}
+
+/* Pointing at it (or focusing it) only touches the logo: it fades from grey to its original orange and plays the
+   animation below — the card itself (background, outline) stays as it is. */
+.norma-card--openable:hover,
+.norma-card--openable:focus-visible {
+  --logo-color: #ef9d4f;
+  outline: none;
+}
+
+.norma-card--openable:hover .norma-card__mark,
+.norma-card--openable:focus-visible .norma-card__mark {
+  opacity: 1;
+}
+
+/* The logo draws itself once, like the loading animation: the two connections grow out of the first node and the
+   nodes they reach pop in as the lines arrive. */
+.norma-card--openable:hover .norma-mark__edge,
+.norma-card--openable:focus-visible .norma-mark__edge {
+  stroke-dasharray: 100;
+  animation: norma-mark-edge 0.28s ease-out both;
+}
+
+.norma-card--openable:hover .norma-mark__edge--b,
+.norma-card--openable:focus-visible .norma-mark__edge--b {
+  animation-delay: 0.06s;
+}
+
+.norma-card--openable:hover .norma-mark__node,
+.norma-card--openable:focus-visible .norma-mark__node,
+.norma-card--openable:hover .norma-mark__target,
+.norma-card--openable:focus-visible .norma-mark__target {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.norma-card--openable:hover .norma-mark__node,
+.norma-card--openable:focus-visible .norma-mark__node {
+  animation: norma-mark-node 0.22s ease-out both;
+}
+
+.norma-card--openable:hover .norma-mark__target,
+.norma-card--openable:focus-visible .norma-mark__target {
+  animation: norma-mark-target 0.24s ease-out 0.2s both;
+}
+
+.norma-card--openable:hover .norma-mark__target--b,
+.norma-card--openable:focus-visible .norma-mark__target--b {
+  animation-delay: 0.26s;
+}
+
+@keyframes norma-mark-edge {
+  from {
+    stroke-dashoffset: 100;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes norma-mark-node {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.3);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes norma-mark-target {
+  from {
+    opacity: 0;
+    transform: scale(0);
+  }
+  65% {
+    opacity: 1;
+    transform: scale(1.3);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.norma-card--opening {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .norma-card--openable .norma-mark__edge,
+  .norma-card--openable .norma-mark__node,
+  .norma-card--openable .norma-mark__target {
+    animation: none;
+  }
+}

@@ -5,9 +5,9 @@ import { BackButton } from '../components/BackButton/BackButton';
 import { RecentSessionCard } from '../components/RecentSessionCard/RecentSessionCard';
 import { ThemeToggle } from '../components/ThemeToggle/ThemeToggle';
 import { ConfirmModal } from '../components/Modal/ConfirmModal';
-import { SavedModelAddCard } from '../components/SavedModelAddCard/SavedModelAddCard';
-import { SavedModelCard } from '../components/SavedModelCard/SavedModelCard';
-import { SavedModelsToolbar } from '../components/SavedModelsToolbar/SavedModelsToolbar';
+import { NormaAddCard } from '../components/NormaAddCard/NormaAddCard';
+import { NormaCard } from '../components/NormaCard/NormaCard';
+import { NormasToolbar } from '../components/NormasToolbar/NormasToolbar';
 import type { Theme } from '../hooks/useTheme';
 import type { SavedNrmPayload, SavedNrmQuery } from '../types/savedNrm';
 
@@ -25,7 +25,7 @@ export interface RecentSessionEntryProps {
   onResume: () => void;
 }
 
-interface ModelsScreenProps {
+interface NormasScreenProps {
   theme: Theme;
   onToggleTheme: () => void;
   onBack: () => void;
@@ -35,52 +35,52 @@ interface ModelsScreenProps {
    * with an empty-state message. */
   recentSessions: RecentSessionEntryProps[];
   /** The library of saved .nrm files, newest first — null until the backend has answered. */
-  savedModels: SavedNrmPayload[] | null;
+  normas: SavedNrmPayload[] | null;
   /** How many models the library holds in all (null until known) — the list may be showing only the search's matches. */
-  savedModelsTotal: number | null;
+  normasTotal: number | null;
   /** A request for the list (first load, a search, a new order) is still waiting for its answer. */
-  savedModelsLoading: boolean;
+  normasLoading: boolean;
   /** True when the library could not be read (the toast already said why). */
-  savedModelsFailed: boolean;
+  normasFailed: boolean;
   /** What the list is searched and ordered by, and how to change it. */
   savedQuery: SavedNrmQuery;
   onSavedQueryChange: (query: SavedNrmQuery) => void;
-  /** The saved model being opened right now, if any. */
+  /** The norma being opened right now, if any. */
   openingSavedId: string | null;
   onOpenSaved: (model: SavedNrmPayload) => void;
   onDeleteSaved: (model: SavedNrmPayload) => Promise<void>;
   /** Adds the picked or dropped .nrm files to the library (the "+" card at the end of the grid). */
-  onUploadModels: (files: File[]) => Promise<void>;
+  onUploadNormas: (files: File[]) => Promise<void>;
 }
 
 /**
  * "Explorar as minhas normas" (`/normas`), reached from the landing screen's browse button.
  * An empty container, to be populated later, with "Sessões recentes" below it.
  */
-export function ModelsScreen({
+export function NormasScreen({
   theme,
   onToggleTheme,
   onBack,
   onGoHome,
   recentSessions,
-  savedModels,
-  savedModelsTotal,
-  savedModelsLoading,
-  savedModelsFailed,
+  normas,
+  normasTotal,
+  normasLoading,
+  normasFailed,
   savedQuery,
   onSavedQueryChange,
   openingSavedId,
   onOpenSaved,
   onDeleteSaved,
-  onUploadModels,
-}: ModelsScreenProps) {
+  onUploadNormas,
+}: NormasScreenProps) {
   const [pendingDelete, setPendingDelete] = useState<SavedNrmPayload | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  function uploadModels(files: File[]) {
+  function uploadNormas(files: File[]) {
     setIsUploading(true);
-    onUploadModels(files).finally(() => setIsUploading(false));
+    onUploadNormas(files).finally(() => setIsUploading(false));
   }
 
   return (
@@ -90,26 +90,26 @@ export function ModelsScreen({
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
       </header>
 
-      <div className="app__models-body">
-        <div className="app__models-header">
-          <h1 className="app__models-title">
+      <div className="app__normas-body">
+        <div className="app__normas-header">
+          <h1 className="app__normas-title">
             As minhas normas
-            {savedModelsTotal !== null && (
-              <span className="app__models-count" title="Normas guardadas na plataforma">
-                {savedModelsTotal}
+            {normasTotal !== null && (
+              <span className="app__normas-count" title="Normas guardadas na plataforma">
+                {normasTotal}
               </span>
             )}
           </h1>
-          <SavedModelsToolbar query={savedQuery} onChange={onSavedQueryChange} />
+          <NormasToolbar query={savedQuery} onChange={onSavedQueryChange} />
         </div>
-        {savedModels !== null && savedModels.length === 0 && savedQuery.search.trim() !== '' && (
-          <p className="app__models-placeholder app__models-no-match">Nenhuma norma corresponde à pesquisa.</p>
+        {normas !== null && normas.length === 0 && savedQuery.search.trim() !== '' && (
+          <p className="app__normas-placeholder app__normas-no-match">Nenhuma norma corresponde à pesquisa.</p>
         )}
-        {savedModels !== null ? (
-          <div className="app__models-scroll">
-            <div className="app__models-list">
-              {savedModels.map((model) => (
-                <SavedModelCard
+        {normas !== null ? (
+          <div className="app__normas-scroll">
+            <div className="app__normas-list">
+              {normas.map((model) => (
+                <NormaCard
                   key={model.id}
                   model={model}
                   isOpening={openingSavedId === model.id}
@@ -117,13 +117,13 @@ export function ModelsScreen({
                   onDelete={() => setPendingDelete(model)}
                 />
               ))}
-              <SavedModelAddCard isUploading={isUploading} onFiles={uploadModels} />
+              <NormaAddCard isUploading={isUploading} onFiles={uploadNormas} />
             </div>
           </div>
         ) : (
-          <div className="app__models-container">
-            <p className="app__models-placeholder">
-              {savedModelsFailed ? 'Não foi possível obter as normas guardadas.' : ''}
+          <div className="app__normas-container">
+            <p className="app__normas-placeholder">
+              {normasFailed ? 'Não foi possível obter as normas guardadas.' : ''}
             </p>
           </div>
         )}
@@ -153,7 +153,7 @@ export function ModelsScreen({
         )}
       </div>
 
-      {(isUploading || isDeleting || savedModelsLoading || (savedModels === null && !savedModelsFailed)) && <LoadingOverlay delayMs={200} />}
+      {(isUploading || isDeleting || normasLoading || (normas === null && !normasFailed)) && <LoadingOverlay delayMs={200} />}
 
       <AppFooter onGoHome={onGoHome} />
 
