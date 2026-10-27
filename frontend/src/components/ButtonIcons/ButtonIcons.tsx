@@ -24,9 +24,9 @@ import {
   Undo2,
   Upload,
   X,
-  Zap,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { NormaMark } from '../NormaMark/NormaMark';
 
 /**
  * The app's only icon set: Lucide line icons, all drawn with the same stroke so every screen looks
@@ -56,8 +56,10 @@ export const ClearIcon = make(X, 'button-icon');
 export const DiskIcon = make(Save, 'button-icon');
 /** Table grid — looking at the dataset ("Ver dados"). */
 export const SpreadsheetIcon = make(Table2, 'button-icon');
-/** Lightning bolt — running a test ("Testar modelo"). */
-export const BoltIcon = make(Zap, 'button-icon');
+/** The app's logo — running or using a model ("Correr modelo", "Utilizar", "Testar modelo"). */
+export function LogoIcon({ className }: IconProps) {
+  return <NormaMark className={['button-icon', 'button-icon--logo', className].filter(Boolean).join(' ')} color="current" />;
+}
 /** Pencil — editing ("Editar"). */
 export const PencilIcon = make(Pencil, 'button-icon');
 /** Open folder — opening something ("Abrir"). */

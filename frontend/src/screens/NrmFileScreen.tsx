@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { LoadingOverlay } from '../components/LoadingOverlay/LoadingOverlay';
-import { BoltIcon, DiskIcon, FolderIcon, PencilIcon } from '../components/ButtonIcons/ButtonIcons';
+import { LogoIcon, DiskIcon, FolderIcon, PencilIcon } from '../components/ButtonIcons/ButtonIcons';
 import { BackButton } from '../components/BackButton/BackButton';
 import { AppFooter } from '../components/AppFooter/AppFooter';
 import { ThemeToggle } from '../components/ThemeToggle/ThemeToggle';
@@ -93,7 +93,7 @@ export function NrmFileScreen({
             <div className="app__create-model-stack">
               <div className="app__create-model-actions">
                 <button type="button" className="app__create-model-button action-button app__create-model-button--wide" onClick={onUtilize}>
-                  <BoltIcon />
+                  <LogoIcon />
                 Utilizar
                 </button>
               </div>
@@ -120,7 +120,7 @@ export function NrmFileScreen({
                 Editar
               </button>
               <button type="button" className="app__create-model-button action-button" onClick={onUtilize}>
-                <BoltIcon />
+                <LogoIcon />
                 Utilizar
               </button>
             </div>

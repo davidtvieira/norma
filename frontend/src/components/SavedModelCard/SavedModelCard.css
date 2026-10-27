@@ -93,3 +93,22 @@
   width: 1.05rem;
   height: 1.05rem;
 }
+
+/* The Norma icon at the left, the text beside it; the button closes the card across its whole width. */
+.saved-model-card__top {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  min-width: 0;
+}
+
+.saved-model-card__top .saved-model-card__text {
+  flex: 1;
+}
+
+.saved-model-card__mark {
+  flex: none;
+  width: clamp(2rem, 0.4rem + 4.4cqh, 2.8rem);
+  height: clamp(2rem, 0.4rem + 4.4cqh, 2.8rem);
+  opacity: 0.7;
+}

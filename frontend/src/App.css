@@ -829,6 +829,12 @@
   height: 1.1em;
 }
 
+/* The logo has margins inside its box and thin strokes: a little larger than the line icons. */
+.button-icon.button-icon--logo {
+  width: 1.35em;
+  height: 1.35em;
+}
+
 /* ---------------------------------------------------------------------------------------------
    The button system: every text button in the app is one of two variants, in both themes.
      primary   — orange (--btn-primary-*)                              the decisive step: run, save, confirm, create

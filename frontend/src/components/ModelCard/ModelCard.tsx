@@ -1,4 +1,4 @@
-import { BoltIcon, ChevronDownIcon, ClearIcon, EyeIcon, GridIcon, ListIcon, LoadIcon, SaveIcon } from '../ButtonIcons/ButtonIcons';
+import { LogoIcon, ChevronDownIcon, ClearIcon, EyeIcon, GridIcon, ListIcon, LoadIcon, SaveIcon } from '../ButtonIcons/ButtonIcons';
 import { LoadingOverlay } from '../LoadingOverlay/LoadingOverlay';
 import { inlineErrorMessage } from '../../services/apiErrors';
 import { useRef, useState } from 'react';
@@ -518,7 +518,7 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
                 },
               ]}
             >
-              <BoltIcon />
+              <LogoIcon />
               {watchIds.length > 0 ? 'Correr modelo com análise' : 'Correr modelo'}
             </SplitButton>
           </div>

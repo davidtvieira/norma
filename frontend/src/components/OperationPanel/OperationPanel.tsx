@@ -1,4 +1,4 @@
-import { BoltIcon, ClearIcon, CloseIcon, EyeIcon, LoadIcon, PencilIcon, PlayIcon, RedoIcon, SaveIcon, StopIcon, UndoIcon } from '../ButtonIcons/ButtonIcons';
+import { LogoIcon, ClearIcon, CloseIcon, EyeIcon, LoadIcon, PencilIcon, PlayIcon, RedoIcon, SaveIcon, StopIcon, UndoIcon } from '../ButtonIcons/ButtonIcons';
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
@@ -2322,7 +2322,7 @@ export function OperationPanel({
               />
             )}
             <span className="operation-canvas__test-button-label">
-              {testProgress ? <ClearIcon /> : <BoltIcon />}
+              {testProgress ? <ClearIcon /> : <LogoIcon />}
               {testProgress ? 'Cancelar teste' : 'Testar modelo'}
             </span>
           </button>
