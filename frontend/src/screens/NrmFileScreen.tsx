@@ -46,7 +46,7 @@ export function NrmFileScreen({
   onGoHome,
 }: NrmFileScreenProps) {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
-  const currentName = importedModel.nrmName || importedModel.modelName || 'Modelo sem nome';
+  const currentName = importedModel.nrmName || importedModel.modelName || 'Norma sem nome';
 
   async function saveToLibrary() {
     if (!onSaveToLibrary) return;
@@ -69,7 +69,7 @@ export function NrmFileScreen({
 
       <div className="app__create-model-body">
         <div className="app__create-model-content">
-          <p className="app__create-model-eyebrow">Modelo Norma</p>
+          <p className="app__create-model-eyebrow">Norma</p>
           <div className="app__nrm-title-row">
             <h1 className="app__create-model-title app__create-model-title--name">{currentName}</h1>
           </div>
@@ -109,7 +109,7 @@ export function NrmFileScreen({
                   disabled={saveStatus === 'saving'}
                 >
                   {saveStatus === 'saved' ? <FolderIcon /> : <DiskIcon />}
-                  {saveStatus === 'saved' ? 'Ver modelos' : saveStatus === 'saving' ? 'A guardar…' : 'Guardar'}
+                  {saveStatus === 'saved' ? 'Ver normas' : saveStatus === 'saving' ? 'A guardar…' : 'Guardar'}
                 </button>
               </div>
             </div>

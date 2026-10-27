@@ -177,7 +177,7 @@ export function EditorScreen({
             </div>
             <button type="button" className="app__save-button action-button" onClick={onOpenSaveModal}>
               <DiskIcon />
-              {isSavedInLibrary ? 'Atualizar modelo' : 'Guardar modelo'}
+              {isSavedInLibrary ? 'Atualizar norma' : 'Guardar norma'}
             </button>
           </div>
         </div>

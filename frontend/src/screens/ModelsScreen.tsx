@@ -54,7 +54,7 @@ interface ModelsScreenProps {
 }
 
 /**
- * "Explorar os meus modelos Norma" (`/modelos`), reached from the landing screen's browse button.
+ * "Explorar as minhas normas" (`/normas`), reached from the landing screen's browse button.
  * An empty container, to be populated later, with "Sessões recentes" below it.
  */
 export function ModelsScreen({
@@ -93,9 +93,9 @@ export function ModelsScreen({
       <div className="app__models-body">
         <div className="app__models-header">
           <h1 className="app__models-title">
-            Os meus modelos Norma
+            As minhas normas
             {savedModelsTotal !== null && (
-              <span className="app__models-count" title="Modelos guardados na plataforma">
+              <span className="app__models-count" title="Normas guardadas na plataforma">
                 {savedModelsTotal}
               </span>
             )}
@@ -103,7 +103,7 @@ export function ModelsScreen({
           <SavedModelsToolbar query={savedQuery} onChange={onSavedQueryChange} />
         </div>
         {savedModels !== null && savedModels.length === 0 && savedQuery.search.trim() !== '' && (
-          <p className="app__models-placeholder app__models-no-match">Nenhum modelo corresponde à pesquisa.</p>
+          <p className="app__models-placeholder app__models-no-match">Nenhuma norma corresponde à pesquisa.</p>
         )}
         {savedModels !== null ? (
           <div className="app__models-scroll">
@@ -123,7 +123,7 @@ export function ModelsScreen({
         ) : (
           <div className="app__models-container">
             <p className="app__models-placeholder">
-              {savedModelsFailed ? 'Não foi possível obter os modelos guardados.' : ''}
+              {savedModelsFailed ? 'Não foi possível obter as normas guardadas.' : ''}
             </p>
           </div>
         )}
@@ -159,7 +159,7 @@ export function ModelsScreen({
 
       {pendingDelete && (
         <ConfirmModal
-          title="Apagar o modelo?"
+          title="Apagar a norma?"
           message={`"${pendingDelete.name}" vai ser removido da plataforma. Esta ação não se pode desfazer.`}
           confirmLabel="Apagar"
           danger

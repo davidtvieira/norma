@@ -20,7 +20,7 @@ interface LandingScreenProps {
     nrmFile: File,
   ) => void;
   onGoHome: () => void;
-  /** "Explorar os meus modelos Norma" — opens the `/modelos` route. */
+  /** "Explorar as minhas normas" — opens the `/normas` route. */
   onBrowseModels: () => void;
 }
 
@@ -60,8 +60,8 @@ export function LandingScreen({
             </div>
             <button type="button" className="app__browse-button" onClick={onBrowseModels}>
               <StoreIcon className="app__browse-icon" />
-              <span>Explorar os meus modelos Norma</span>
-              <span className="app__browse-hint">Veja e abra os modelos que já criou</span>
+              <span>Explorar as minhas normas</span>
+              <span className="app__browse-hint">Veja e abra as normas que já criou</span>
             </button>
           </div>
         </div>

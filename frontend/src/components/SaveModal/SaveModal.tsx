@@ -85,7 +85,7 @@ export function SaveModal({
 
   return (
     <Modal
-      title={isUpdate ? 'Atualizar modelo' : 'Guardar modelo'}
+      title={isUpdate ? 'Atualizar norma' : 'Guardar norma'}
       size="lg"
       onClose={onClose}
       actions={
@@ -99,12 +99,12 @@ export function SaveModal({
     >
       <p className="modal__hint">
         {isUpdate
-          ? '"Atualizar" substitui o modelo guardado em "Os meus modelos Norma".'
-          : '"Guardar" mantém o modelo na plataforma, em "Os meus modelos Norma".'}
+          ? '"Atualizar" substitui a norma guardada em "As minhas normas".'
+          : '"Guardar" mantém a norma na plataforma, em "As minhas normas".'}
       </p>
 
       <label className="save-modal__name">
-        <span className="modal__label">Nome do modelo Norma</span>
+        <span className="modal__label">Nome da norma</span>
         <input
           type="text"
           className="modal__input"

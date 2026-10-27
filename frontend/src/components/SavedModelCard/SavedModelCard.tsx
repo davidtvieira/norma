@@ -55,7 +55,7 @@ export function SavedModelCard({ model, isOpening, onOpen, onDelete }: SavedMode
               <li>{formatSize(model.sizeBytes)}</li>
             </ul>
           ) : (
-            <p className="saved-model-card__meta">O ficheiro deste modelo já não existe na plataforma.</p>
+            <p className="saved-model-card__meta">O ficheiro desta norma já não existe na plataforma.</p>
           )}
         </div>
       </div>

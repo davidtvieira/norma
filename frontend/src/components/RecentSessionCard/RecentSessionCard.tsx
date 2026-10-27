@@ -8,7 +8,7 @@ interface RecentSessionCardProps {
   nrmName: string | null;
   /** Whether the session has a model (a .nrm) or is only a dataset — drives the label under the name. */
   hasModel: boolean;
-  /** The model is also kept on the platform (in "Os meus modelos"), not only in this browser. */
+  /** The model is also kept on the platform (in "As minhas normas"), not only in this browser. */
   isSaved: boolean;
   isResuming: boolean;
   /** Only ever set on the one entry an actual resume attempt just failed on, for a local (non-API)

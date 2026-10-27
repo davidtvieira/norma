@@ -148,7 +148,7 @@ export async function listSavedNrms(query?: SavedNrmQuery): Promise<SavedNrmPayl
   const queryString = params.size > 0 ? `?${params}` : '';
   const response = await apiFetch(`${API_BASE_URL}/api/v1/library${queryString}`);
   if (!response.ok) {
-    throw await apiError(response, 'Falha ao obter os modelos guardados');
+    throw await apiError(response, 'Falha ao obter as normas guardadas');
   }
   return response.json();
 }
@@ -158,7 +158,7 @@ async function sendSavedNrm(url: string, method: 'POST' | 'PUT', file: File): Pr
   body.append('file', file);
   const response = await apiFetch(url, { method, body });
   if (!response.ok) {
-    throw await apiError(response, 'Falha ao guardar o modelo');
+    throw await apiError(response, 'Falha ao guardar a norma');
   }
   return response.json();
 }
@@ -177,7 +177,7 @@ export function replaceSavedNrm(id: string, file: File): Promise<SavedNrmPayload
 export async function openSavedNrm(id: string): Promise<NrmOpenPayload> {
   const response = await apiFetch(`${API_BASE_URL}/api/v1/library/${encodeURIComponent(id)}/open`, { method: 'POST' });
   if (!response.ok) {
-    throw await apiError(response, 'Falha ao abrir o modelo guardado');
+    throw await apiError(response, 'Falha ao abrir a norma guardada');
   }
   return response.json();
 }
@@ -186,7 +186,7 @@ export async function openSavedNrm(id: string): Promise<NrmOpenPayload> {
 export async function downloadSavedNrm(id: string, name = 'modelo'): Promise<File> {
   const response = await apiFetch(`${API_BASE_URL}/api/v1/library/${encodeURIComponent(id)}/file`);
   if (!response.ok) {
-    throw await apiError(response, 'Falha ao abrir o modelo guardado');
+    throw await apiError(response, 'Falha ao abrir a norma guardada');
   }
   return new File([await response.blob()], `${name}.nrm`, { type: 'application/octet-stream' });
 }
@@ -194,7 +194,7 @@ export async function downloadSavedNrm(id: string, name = 'modelo'): Promise<Fil
 export async function deleteSavedNrm(id: string): Promise<void> {
   const response = await apiFetch(`${API_BASE_URL}/api/v1/library/${encodeURIComponent(id)}`, { method: 'DELETE' });
   if (!response.ok) {
-    throw await apiError(response, 'Falha ao apagar o modelo');
+    throw await apiError(response, 'Falha ao apagar a norma');
   }
 }
 

@@ -29,13 +29,13 @@ export function SavedModelsToolbar({ query, onChange }: SavedModelsToolbarProps)
         type="search"
         className="saved-models-toolbar__search"
         placeholder="Pesquisar por nome ou ficheiro de dados…"
-        aria-label="Pesquisar modelos"
+        aria-label="Pesquisar normas"
         value={query.search}
         onChange={(event) => onChange({ ...query, search: event.target.value })}
       />
       <select
         className="saved-models-toolbar__order"
-        aria-label="Ordenar modelos"
+        aria-label="Ordenar normas"
         value={orderIndex}
         onChange={(event) => {
           const order = ORDERS[Number(event.target.value)];

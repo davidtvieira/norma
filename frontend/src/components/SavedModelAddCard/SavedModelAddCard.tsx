@@ -48,7 +48,7 @@ export function SavedModelAddCard({ isUploading, onFiles }: SavedModelAddCardPro
         <span className="saved-model-add__icon">
           <PlusIcon />
         </span>
-        <span className="saved-model-add__label">{isUploading ? 'A guardar…' : 'Adicionar modelo'}</span>
+        <span className="saved-model-add__label">{isUploading ? 'A guardar…' : 'Adicionar norma'}</span>
         <span className="saved-model-add__hint">Ficheiros .nrm</span>
       </button>
       <input ref={inputRef} type="file" accept=".nrm" multiple className="saved-model-add__input" onChange={handleChange} />

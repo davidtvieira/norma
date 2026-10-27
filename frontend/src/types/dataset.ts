@@ -42,7 +42,7 @@ export interface DatasetHandle {
    * dataset's wherever the backend offers an endpoint for it (sheets, and the model's inputs/run). */
   nrmId?: string;
   /** Set when the model was opened from the platform: the library entry's own id, which is what its address uses
-   * (`/modelos/:savedId`) because — unlike the ids above — it survives a reload and a backend restart. */
+   * (`/normas/:savedId`) because — unlike the ids above — it survives a reload and a backend restart. */
   savedId?: string;
 }
 

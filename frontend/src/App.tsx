@@ -44,14 +44,14 @@ import './App.css';
 
 /** The address of a loaded file's page: under its own id for a model opened from the platform, else under its dataset's. */
 function pagePath(dataset: DatasetHandle, page?: 'editor' | 'utilizar', modelRouteId?: string): string {
-  const base = dataset.savedId ? `/modelos/${dataset.savedId}` : `/d/${dataset.datasetId}`;
+  const base = dataset.savedId ? `/normas/${dataset.savedId}` : `/d/${dataset.datasetId}`;
   const withModel = modelRouteId && !dataset.savedId ? `${base}/m/${modelRouteId}` : base;
   return page ? `${withModel}/${page}` : withModel;
 }
 
-/** True for the address of any loaded file (`/d/...` or `/modelos/<id>...`), as opposed to a list page. */
+/** True for the address of any loaded file (`/d/...` or `/normas/<id>...`), as opposed to a list page. */
 function isFilePath(pathname: string): boolean {
-  return pathname.startsWith('/d/') || /^\/modelos\/[^/]+/.test(pathname);
+  return pathname.startsWith('/d/') || /^\/normas\/[^/]+/.test(pathname);
 }
 
 /**
@@ -187,11 +187,11 @@ function App() {
   // of the full editor for as long as it's non-null.
   const [utilizeModel, setUtilizeModel] = useState<UtilizeModel | null>(null);
   const { theme, toggleTheme } = useTheme();
-  // The library of saved .nrm files (shown on /modelos), and which of its entries the model being edited
+  // The library of saved .nrm files (shown on /normas), and which of its entries the model being edited
   // came from or was last saved as — "Guardar na plataforma" then replaces that entry instead of adding a
   // copy. A ref: it never needs a render of its own.
   const [savedQuery, setSavedQuery] = useState<SavedNrmQuery>(DEFAULT_SAVED_QUERY);
-  const savedModels = useSavedModels(location.pathname === '/modelos', savedQuery);
+  const savedModels = useSavedModels(location.pathname === '/normas', savedQuery);
   const savedNrmIdRef = useRef<string | null>(null);
   // Whether that entry exists — what the editor's save button reads ("Atualizar" instead of "Guardar").
   const [isSavedInLibrary, setIsSavedInLibrary] = useState(false);
@@ -320,18 +320,6 @@ function App() {
     return { modelName: model.nrmName || model.modelName, modelId, datasetId, inputs, operations };
   }
 
-  // Registers a model the browser parsed (a model .json, or one restored from the cache) on the backend so it has an id
-  // of its own to show in the address. Undefined when it cannot be (a model with no output yet, a backend that refuses it):
-  // the address then just names the dataset.
-  async function registerForAddress(handle: DatasetHandle, model: ImportedModel): Promise<string | undefined> {
-    try {
-      const prepared = await prepareUtilize(handle, model);
-      return prepared.modelId || undefined;
-    } catch {
-      return undefined;
-    }
-  }
-
   // The actual replay, only run once the user has chosen to resume a given entry (or a page reload
   // is restoring the one its URL belonged to, see below) — a plain re-upload of its cached dataset
   // bytes against whichever backend is up right now (there's no way to ask it for a dataset by id
@@ -385,8 +373,6 @@ function App() {
             inputOperationIds: imported.inputOperationIds,
             outputOperationIds: imported.outputOperationIds,
           };
-          model.routeId = await registerForAddress({ datasetId: restoredDataset.datasetId, filename: entry.datasetFileName }, model);
-          const modelBase = model.routeId ? `${base}/m/${model.routeId}` : base;
           setImportError(null);
           if (target === 'editor') {
             setModelName(imported.modelName);
@@ -395,16 +381,18 @@ function App() {
             setModelInputIds(imported.inputOperationIds);
             setModelOutputIds(imported.outputOperationIds);
             setImportedModel(model);
-            landOn(`${modelBase}/editor`);
+            landOn(`${base}/editor`);
           } else {
             // Kept as the imported model so the choose screen's Editar/Utilizar pair (and "back"
             // from Utilizar) still work.
             setImportedModel(model);
             if (target === 'choose') {
-              landOn(modelBase);
+              landOn(base);
             } else {
-              setUtilizeModel(await prepareUtilize({ datasetId: restoredDataset.datasetId, filename: entry.datasetFileName }, model));
-              landOn(`${modelBase}/utilizar`);
+              const prepared = await prepareUtilize({ datasetId: restoredDataset.datasetId, filename: entry.datasetFileName }, model);
+              setUtilizeModel(prepared);
+              // The model is registered now, and the address names it.
+              landOn(prepared.modelId ? `${base}/m/${prepared.modelId}/utilizar` : `${base}/utilizar`);
             }
           }
         } else {
@@ -448,11 +436,11 @@ function App() {
     if (didRestoreFromUrl.current || !isRestoring) return;
     didRestoreFromUrl.current = true;
     const [, root, urlId] = window.location.pathname.split('/');
-    if (root === 'modelos') {
+    if (root === 'normas') {
       // A model opened from the platform: its address holds the library entry's id, so it is simply opened again.
-      lastOutsidePathRef.current = '/modelos';
+      lastOutsidePathRef.current = '/normas';
       openSavedById(urlId)
-        .catch(() => navigate('/modelos', { replace: true }))
+        .catch(() => navigate('/normas', { replace: true }))
         .finally(() => setIsRestoring(false));
       return;
     }
@@ -702,12 +690,9 @@ function App() {
           inputOperationIds: imported.inputOperationIds,
           outputOperationIds: imported.outputOperationIds,
         };
-        // The backend registers it now, and its id for the model is what the address shows.
-        const routeId = dataset ? await registerForAddress(dataset, model) : undefined;
-        setImportedModel({ ...model, routeId });
+        setImportedModel(model);
         setImportError(null);
         reportSuccess('Modelo importado');
-        if (dataset) navigate(pagePath(dataset, undefined, routeId));
         if (dataset && datasetFile) {
           const modelJson = JSON.stringify(
             buildModelExport(
@@ -802,7 +787,7 @@ function App() {
         setModelInputIds(model.inputOperationIds ?? []);
         setModelOutputIds(model.outputOperationIds ?? []);
         setIsSheetPanelOpen(false);
-        navigate(pagePath(dataset, 'editor', importedModel.routeId));
+        navigate(pagePath(dataset, 'editor'));
       })
       .catch((error) => setImportError(inlineErrorMessage(error, 'Falha ao abrir o modelo para edição.')))
       .finally(() => setIsPreparingModel(false));
@@ -815,7 +800,8 @@ function App() {
     prepareUtilize(dataset, importedModel)
       .then((model) => {
         setUtilizeModel(model);
-        navigate(pagePath(dataset, 'utilizar', importedModel.routeId));
+        // Registering the model gave it its id: the address names it from here on.
+        navigate(pagePath(dataset, 'utilizar', model.modelId || undefined));
       })
       .catch((error) => setImportError(inlineErrorMessage(error, 'Falha ao preparar o modelo.')))
       .finally(() => setIsPreparingModel(false));
@@ -855,7 +841,7 @@ function App() {
       const isReplacing = savedNrmIdRef.current !== null;
       const saved = savedNrmIdRef.current ? await replaceSavedNrm(savedNrmIdRef.current, file) : await saveNrm(file);
       setSavedNrmId(saved.id);
-      reportSuccess(isReplacing ? 'Modelo atualizado na plataforma' : 'Modelo guardado na plataforma');
+      reportSuccess(isReplacing ? 'Norma atualizada na plataforma' : 'Norma guardada na plataforma');
       return;
     }
     downloadBlob(blob, `${fileName}.nrm`);
@@ -888,10 +874,10 @@ function App() {
     if (!uploadedNrmFile) return;
     const saved = await saveNrm(uploadedNrmFile);
     setSavedNrmId(saved.id);
-    reportSuccess('Modelo guardado na plataforma');
+    reportSuccess('Norma guardada na plataforma');
   }
 
-  // The "+" card on /modelos: adds each picked .nrm to the library, one after the other (a refused file only costs
+  // The "+" card on /normas: adds each picked .nrm to the library, one after the other (a refused file only costs
   // its own toast), then refreshes the list and says how many went in.
   async function uploadSavedModels(files: File[]) {
     let added = 0;
@@ -904,7 +890,7 @@ function App() {
       }
     }
     await savedModels.refresh();
-    if (added > 0) reportSuccess(added === 1 ? 'Modelo guardado na plataforma' : `${added} modelos guardados na plataforma`);
+    if (added > 0) reportSuccess(added === 1 ? 'Norma guardada na plataforma' : `${added} normas guardadas na plataforma`);
   }
 
   // "Abrir" on a saved model: the backend loads the file it keeps (nothing is downloaded or uploaded) and the model
@@ -923,7 +909,7 @@ function App() {
   async function openSavedById(savedId: string, beforeNavigate?: (nrmId: string) => void) {
     const opened = await openSavedNrm(savedId);
     clearModelState();
-    beforeNavigate?.(`/modelos/${savedId}`);
+    beforeNavigate?.(`/normas/${savedId}`);
     setImportError(null);
     setDataset({ datasetId: opened.nrmId, filename: opened.datasetFilename, nrmId: opened.nrmId, savedId });
     setDatasetFile(null);
@@ -934,7 +920,7 @@ function App() {
       nrmCreatedAt: opened.createdAt,
       nrmUpdatedAt: opened.updatedAt,
     });
-    navigate(`/modelos/${savedId}`);
+    navigate(`/normas/${savedId}`);
     // The recent session only points at the library entry: the file itself stays on the platform.
     const sessionId = generateSessionId();
     currentSessionIdRef.current = sessionId;
@@ -955,6 +941,8 @@ function App() {
   // every piece of state this component owns to its initial value, same as a fresh page load
   // (just without actually reloading the page).
   function goHome() {
+    // The footer always means the root: the route guard of the page being left must not send it "back" anywhere else.
+    lastOutsidePathRef.current = '/';
     registeredModelRef.current = null;
     setSavedNrmId(null);
     setUploadedNrmFile(null);
@@ -1017,7 +1005,7 @@ function App() {
   const pageTitle = (() => {
     const path = location.pathname;
     if (path === '/') return null;
-    if (path === '/modelos') return 'Os meus modelos Norma';
+    if (path === '/normas') return 'As minhas normas';
     if (path.endsWith('/editor')) return `A editar ${nrmName.trim() || modelName.trim() || 'o modelo'}`;
     if (path.endsWith('/utilizar')) return utilizeModel?.modelName || 'Utilizar modelo';
     if (isFilePath(path)) return importedModel?.nrmName || importedModel?.modelName || dataset?.filename || 'Conjunto de dados';
@@ -1033,14 +1021,14 @@ function App() {
   // Every actual screen component still reads the same lifted state as before — routing only
   // decides which of them is on screen, not where their data lives.
   // The screens of a loaded file, under two kinds of address: `/d/:datasetId` (an uploaded file, whose id is the one
-  // the backend gave it) and `/modelos/:savedId` (a model opened from the platform, whose id is its own and stays).
+  // the backend gave it) and `/normas/:savedId` (a norma opened from the platform, whose id is its own and stays).
   function fileRoutes(prefix: string) {
     return (
       <>
           <Route
             path={prefix}
             element={
-              <DatasetRoute dataset={dataset} isRestoring={isRestoring} bounceTo={lastOutsidePathRef.current} modelRouteId={importedModel?.routeId}>
+              <DatasetRoute dataset={dataset} isRestoring={isRestoring} bounceTo={lastOutsidePathRef.current} modelRouteId={utilizeModel?.modelId || undefined}>
                 {(activeDataset) =>
                   activeDataset.nrmId && importedModel?.nrmId ? (
                     <NrmFileScreen
@@ -1051,7 +1039,7 @@ function App() {
                       onEdit={goToEditorWithImportedModel}
                       onUtilize={goToUtilizeWithImportedModel}
                       onSaveToLibrary={uploadedNrmFile ? saveUploadedNrm : undefined}
-                          onViewModels={() => navigate('/modelos')}
+                          onViewModels={() => navigate('/normas')}
                       onBack={handleBackToLanding}
                       onGoHome={goHome}
                     />
@@ -1080,7 +1068,7 @@ function App() {
           <Route
             path={`${prefix}/editor`}
             element={
-              <DatasetRoute dataset={dataset} isRestoring={isRestoring} bounceTo={lastOutsidePathRef.current} modelRouteId={importedModel?.routeId}>
+              <DatasetRoute dataset={dataset} isRestoring={isRestoring} bounceTo={lastOutsidePathRef.current} modelRouteId={utilizeModel?.modelId || undefined}>
                 {(activeDataset) => (
                   <EditorDataset datasetId={activeDataset.datasetId} nrmId={activeDataset.nrmId}>
                     {(fullDataset) => (
@@ -1088,7 +1076,7 @@ function App() {
                         dataset={fullDataset}
                         theme={theme}
                         onToggleTheme={toggleTheme}
-                        onBackToChoose={() => navigate(pagePath(activeDataset, undefined, importedModel?.routeId))}
+                        onBackToChoose={() => navigate(pagePath(activeDataset))}
                         modelName={modelName}
                         pendingImportEntries={pendingImportEntries}
                         columnPick={columnPick}
@@ -1142,7 +1130,7 @@ function App() {
           <Route
             path={`${prefix}/utilizar`}
             element={
-              <DatasetRoute dataset={dataset} isRestoring={isRestoring} bounceTo={lastOutsidePathRef.current} modelRouteId={importedModel?.routeId}>
+              <DatasetRoute dataset={dataset} isRestoring={isRestoring} bounceTo={lastOutsidePathRef.current} modelRouteId={utilizeModel?.modelId || undefined}>
                 {(activeDataset) =>
                   utilizeModel ? (
                     <UtilizeScreen
@@ -1152,7 +1140,7 @@ function App() {
                       onToggleTheme={toggleTheme}
                       onBack={() => {
                         setUtilizeModel(null);
-                        navigate(pagePath(activeDataset, undefined, importedModel?.routeId));
+                        navigate(pagePath(activeDataset));
                       }}
                       onGoHome={goHome}
                     />
@@ -1161,7 +1149,7 @@ function App() {
                     // same "nothing to recover" case DatasetRoute itself handles, just one level
                     // down: back to the choose screen for this same dataset instead of all the way
                     // to "/", since the dataset itself is still perfectly valid.
-                    <Navigate to={pagePath(activeDataset, undefined, importedModel?.routeId)} replace />
+                    <Navigate to={pagePath(activeDataset)} replace />
                   )
                 }
               </DatasetRoute>
@@ -1184,18 +1172,18 @@ function App() {
             onImportSuccess={handleDatasetImportSuccess}
             onReadyModelImportSuccess={(...args) => {
               handleReadyModelImportSuccess(...args);
-              reportSuccess('Modelo Norma importado');
+              reportSuccess('Norma importada');
             }}
             onGoHome={goHome}
-            onBrowseModels={() => navigate('/modelos')}
+            onBrowseModels={() => navigate('/normas')}
           />
         }
       />
       {fileRoutes('/d/:datasetId')}
       {fileRoutes('/d/:datasetId/m/:modelId')}
-      {fileRoutes('/modelos/:savedId')}
+      {fileRoutes('/normas/:savedId')}
       <Route
-        path="/modelos"
+        path="/normas"
         element={
           <ModelsScreen
             theme={theme}
