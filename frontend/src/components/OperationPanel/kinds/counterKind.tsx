@@ -1,3 +1,4 @@
+import { CloseIcon } from '../../ButtonIcons/ButtonIcons';
 import { inlineErrorMessage } from '../../../services/apiErrors';
 import { useEffect, useState } from 'react';
 import { counterValues } from '../../../services/datasetApi';
@@ -163,9 +164,7 @@ function CounterInputs({ inputs, onChange, referenceOptions, resolvedInputs, tes
                 onClick={removeRow}
                 aria-label="Remover entrada"
               >
-                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                  <path d="M6 6 18 18M6 18 18 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+                <CloseIcon />
               </button>
             )}
           </div>

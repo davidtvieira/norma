@@ -1,3 +1,4 @@
+import { CloseIcon } from '../ButtonIcons/ButtonIcons';
 import { useEffect, useId, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -76,7 +77,7 @@ export function Modal({ title, subtitle, size = 'sm', onClose, closeDisabled = f
             {subtitle && <div className="modal__subtitle">{subtitle}</div>}
           </div>
           <button type="button" className="modal__close" onClick={onClose} disabled={closeDisabled} aria-label="Fechar">
-            ×
+            <CloseIcon />
           </button>
         </div>
         <div className="modal__body">{children}</div>

@@ -1,3 +1,4 @@
+import { ChevronDownIcon, ChevronUpIcon, ChevronsDownIcon, ChevronsUpIcon } from '../ButtonIcons/ButtonIcons';
 import { useState } from 'react';
 import { LoadingOverlay } from '../LoadingOverlay/LoadingOverlay';
 import { Modal } from '../Modal/Modal';
@@ -211,9 +212,7 @@ function IoGroup({ label, items, emptyText, onReorder }: IoGroupProps) {
               disabled={index === 0}
               aria-label={`Mover para o início: ${item.label}`}
             >
-              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <path d="m6 11 6-6 6 6M6 18l6-6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <ChevronsUpIcon />
             </button>
             <button
               type="button"
@@ -222,9 +221,7 @@ function IoGroup({ label, items, emptyText, onReorder }: IoGroupProps) {
               disabled={index === 0}
               aria-label={`Subir ${item.label}`}
             >
-              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <path d="m6 15 6-6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <ChevronUpIcon />
             </button>
             <button
               type="button"
@@ -233,9 +230,7 @@ function IoGroup({ label, items, emptyText, onReorder }: IoGroupProps) {
               disabled={index === items.length - 1}
               aria-label={`Descer ${item.label}`}
             >
-              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <ChevronDownIcon />
             </button>
             <button
               type="button"
@@ -244,9 +239,7 @@ function IoGroup({ label, items, emptyText, onReorder }: IoGroupProps) {
               disabled={index === items.length - 1}
               aria-label={`Mover para o fim: ${item.label}`}
             >
-              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <path d="m6 6 6 6 6-6M6 13l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <ChevronsDownIcon />
             </button>
           </div>
         ))

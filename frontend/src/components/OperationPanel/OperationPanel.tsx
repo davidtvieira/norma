@@ -1,4 +1,4 @@
-import { BoltIcon, ClearIcon, LoadIcon, SaveIcon } from '../ButtonIcons/ButtonIcons';
+import { BoltIcon, ClearIcon, CloseIcon, EyeIcon, LoadIcon, PencilIcon, PlayIcon, RedoIcon, SaveIcon, StopIcon, UndoIcon } from '../ButtonIcons/ButtonIcons';
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
@@ -149,15 +149,7 @@ function EditButton({ onEdit, disabled }: EditButtonProps) {
       aria-label="Editar operação"
       title={disabled ? 'Termine a operação em curso antes de editar outra.' : undefined}
     >
-      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <path
-          d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
+      <PencilIcon />
     </button>
   );
 }
@@ -175,16 +167,7 @@ interface RevealButtonProps {
 function RevealButton({ onReveal }: RevealButtonProps) {
   return (
     <button type="button" className="operation-card__reveal" onClick={onReveal} aria-label="Ver na folha de dados" title="Ver na folha de dados">
-      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <path
-          d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12Z"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <circle cx="12" cy="12" r="2.5" stroke="currentColor" strokeWidth="1.5" />
-      </svg>
+      <EyeIcon />
     </button>
   );
 }
@@ -222,9 +205,7 @@ function TestUpToHereButton({ onTest, isTested, onClear, hasEmptyInput }: TestUp
   if (isTested) {
     return (
       <button type="button" className="operation-card__test operation-card__test--stop" onClick={onClear} aria-label="Limpar teste desta operação" title="Limpar teste desta operação">
-        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor" />
-        </svg>
+        <StopIcon />
       </button>
     );
   }
@@ -233,9 +214,7 @@ function TestUpToHereButton({ onTest, isTested, onClear, hasEmptyInput }: TestUp
   if (hasEmptyInput) return null;
   return (
     <button type="button" className="operation-card__test" onClick={onTest} aria-label="Testar até aqui" title="Testar até aqui">
-      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <path d="M6 4.5v15l13-7.5-13-7.5Z" fill="currentColor" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
-      </svg>
+      <PlayIcon />
     </button>
   );
 }
@@ -2215,7 +2194,7 @@ export function OperationPanel({
                     aria-label="Remover esta operação do lote"
                     title="Remover esta operação do lote"
                   >
-                    ×
+                    <CloseIcon />
                   </button>
                   {renderDraftCard(entry)}
                 </div>
@@ -2465,10 +2444,7 @@ export function OperationPanel({
                 aria-label="Desfazer"
                 title="Desfazer"
               >
-                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                  <path d="M7 7 3 11l4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  <path d="M3 11h11a6 6 0 1 1 0 12h-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+                <UndoIcon />
               </button>
               <button
                 type="button"
@@ -2478,10 +2454,7 @@ export function OperationPanel({
                 aria-label="Refazer"
                 title="Refazer"
               >
-                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                  <path d="M17 7l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  <path d="M21 11H10a6 6 0 1 0 0 12h2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+                <RedoIcon />
               </button>
             </>
           )}
@@ -2604,16 +2577,7 @@ export function OperationPanel({
                   : 'Esconde as entradas num só nó (apenas visual).'
             }
           >
-            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <path
-                d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.5" />
-            </svg>
+            <EyeIcon />
             {inputsHidden ? 'Entradas escondidas' : 'Esconder entradas'}
           </button>
 
@@ -2645,15 +2609,7 @@ export function OperationPanel({
                   : 'Ativa o modo de edição: mover operações no canvas.'
               }
             >
-              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <path
-                  d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <PencilIcon />
               {tool === 'select' ? 'A editar' : 'Editar'}
             </button>
           )}

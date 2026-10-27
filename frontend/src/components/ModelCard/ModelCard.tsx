@@ -1,4 +1,4 @@
-import { BoltIcon, ClearIcon, LoadIcon, SaveIcon } from '../ButtonIcons/ButtonIcons';
+import { BoltIcon, ChevronDownIcon, ClearIcon, EyeIcon, GridIcon, ListIcon, LoadIcon, SaveIcon } from '../ButtonIcons/ButtonIcons';
 import { LoadingOverlay } from '../LoadingOverlay/LoadingOverlay';
 import { inlineErrorMessage } from '../../services/apiErrors';
 import { useRef, useState } from 'react';
@@ -292,7 +292,7 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
           title="Grelha"
           onClick={() => setLayout('grid')}
         >
-          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.2" stroke="currentColor" strokeWidth="1.5" /><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.2" stroke="currentColor" strokeWidth="1.5" /><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.2" stroke="currentColor" strokeWidth="1.5" /><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.2" stroke="currentColor" strokeWidth="1.5" /></svg>
+          <GridIcon />
         </button>
         <button
           type="button"
@@ -301,7 +301,7 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
           title="Lista"
           onClick={() => setLayout('list')}
         >
-          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+          <ListIcon />
         </button>
       </div>
       {canToggleIo && (
@@ -534,15 +534,7 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
               aria-expanded={isAnalysisExpanded}
               onClick={() => setIsAnalysisExpanded((current) => !current)}
             >
-              <svg
-                className={`model-card__analysis-arrow${isAnalysisExpanded ? ' model-card__analysis-arrow--open' : ''}`}
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                aria-hidden="true"
-              >
-                <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <ChevronDownIcon className={`model-card__analysis-arrow${isAnalysisExpanded ? ' model-card__analysis-arrow--open' : ''}`} />
               Análise
               <span className="model-card__analysis-count">({watched.length})</span>
             </button>
@@ -710,16 +702,7 @@ interface EyeButtonProps {
 function EyeButton({ onView, label = 'Ver texto completo' }: EyeButtonProps) {
   return (
     <button type="button" className="model-card__field-view" onClick={onView} aria-label={label} title={label}>
-      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <path
-          d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12Z"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <circle cx="12" cy="12" r="2.5" stroke="currentColor" strokeWidth="1.5" />
-      </svg>
+      <EyeIcon />
     </button>
   );
 }

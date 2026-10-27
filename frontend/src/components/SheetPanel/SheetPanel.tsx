@@ -1,3 +1,4 @@
+import { ChevronsLeftIcon, CloseIcon } from '../ButtonIcons/ButtonIcons';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 
@@ -37,20 +38,12 @@ export function SheetPanel({ title, open, onClose, children }: SheetPanelProps) 
           title={isExpanded ? 'Voltar ao tamanho normal' : 'Abrir os dados em ecrã inteiro'}
           aria-pressed={isExpanded}
         >
-          <svg
-            className={isExpanded ? 'sheet-panel__expand-icon sheet-panel__expand-icon--collapse' : 'sheet-panel__expand-icon'}
-            viewBox="0 0 24 24"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            aria-hidden="true"
-          >
-            <path d="M11 6l-6 6 6 6M19 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <ChevronsLeftIcon className={isExpanded ? 'sheet-panel__expand-icon sheet-panel__expand-icon--collapse' : 'sheet-panel__expand-icon'} />
         </button>
         <div className="sheet-panel__header">
           <span className="sheet-panel__title">{title}</span>
           <button type="button" className="sheet-panel__close" onClick={onClose} aria-label="Fechar">
-            ×
+            <CloseIcon />
           </button>
         </div>
         <div className="sheet-panel__body">{children}</div>

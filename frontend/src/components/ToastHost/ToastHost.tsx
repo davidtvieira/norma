@@ -1,3 +1,4 @@
+import { CloseIcon } from '../ButtonIcons/ButtonIcons';
 import { useEffect, useRef, useState } from 'react';
 import { subscribeApiErrors, type ApiErrorReport } from '../../services/apiErrors';
 import './ToastHost.css';
@@ -61,7 +62,7 @@ export function ToastHost() {
             {toast.detail && <p className="toast__detail">{toast.detail}</p>}
           </div>
           <button type="button" className="toast__close" onClick={() => dismiss(toast.id)} aria-label="Fechar notificação">
-            ×
+            <CloseIcon />
           </button>
         </div>
       ))}

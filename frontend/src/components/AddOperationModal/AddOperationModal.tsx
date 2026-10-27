@@ -1,3 +1,4 @@
+import { ChevronRightIcon } from '../ButtonIcons/ButtonIcons';
 import { Modal } from '../Modal/Modal';
 import { KIND_DESCRIPTIONS } from '../OperationPanel/kindLabels';
 import './AddOperationModal.css';
@@ -58,9 +59,7 @@ export function AddOperationModal({ open, onClose, kinds, disabledKindIds = [], 
                 <span className="add-operation-modal__kind-description">{KIND_DESCRIPTIONS[kind.id]}</span>
               )}
             </span>
-            <svg className="add-operation-modal__kind-arrow" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            <ChevronRightIcon className="add-operation-modal__kind-arrow" />
           </button>
         ))}
       </div>
