@@ -59,12 +59,10 @@ public class NrmLibraryController {
         return ResponseEntity.status(HttpStatus.CREATED).body(library.save(file.getBytes()));
     }
 
-    @Operation(summary = "Replace a saved .nrm file",
-            description = "Keeps the id and the creation date, and with keepName the name the entry is listed under.")
+    @Operation(summary = "Replace a saved .nrm file", description = "Keeps the id and the creation date.")
     @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public SavedNrmSummary replace(@PathVariable UUID id, @RequestParam("file") MultipartFile file,
-                                   @RequestParam(value = "keepName", defaultValue = "false") boolean keepName) throws IOException {
-        return library.replace(id, file.getBytes(), keepName);
+    public SavedNrmSummary replace(@PathVariable UUID id, @RequestParam("file") MultipartFile file) throws IOException {
+        return library.replace(id, file.getBytes());
     }
 
     @Operation(summary = "Open a saved .nrm file",

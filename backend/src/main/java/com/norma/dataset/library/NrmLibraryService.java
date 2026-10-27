@@ -3,6 +3,10 @@ package com.norma.dataset.library;
 import com.norma.dataset.dto.NrmSummary;
 import com.norma.dataset.dto.NrmOpenResponse;
 import com.norma.dataset.service.NrmService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -25,6 +29,8 @@ import java.util.UUID;
  */
 @Service
 public class NrmLibraryService {
+
+    private static final Logger log = LoggerFactory.getLogger(NrmLibraryService.class);
 
     private final SavedNrmRepository repository;
     private final NrmFileStorage storage;
@@ -84,28 +90,41 @@ public class NrmLibraryService {
         }
     }
 
-    /**
-     * Validates the .nrm and puts it in place of a saved one, keeping its id and creation date. With
-     * {@code keepName} the entry keeps the name it is listed under, whatever name the new file carries inside.
-     */
+    /** Validates the .nrm and puts it in place of a saved one, keeping its id and creation date. */
     @Transactional
-    public SavedNrmSummary replace(UUID id, byte[] bytes, boolean keepName) {
+    public SavedNrmSummary replace(UUID id, byte[] bytes) {
         SavedNrm saved = find(id);
         NrmSummary summary = nrmService.inspect(bytes);
-        String listedName = saved.getName();
         storage.write(id, bytes);
         describe(saved, summary, bytes);
-        if (keepName) {
-            saved.rename(listedName);
-        }
         return toSummary(repository.saveAndFlush(saved));
+    }
+
+    /**
+     * Makes every listed name the one inside its file (the name in its info.json), which is the only name a saved
+     * .nrm has. Run when the application starts, for entries listed under a name an older version had kept.
+     * An entry whose file is missing or unreadable is left as it is.
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    @Transactional
+    public void syncNamesWithFiles() {
+        for (SavedNrm saved : repository.findAll()) {
+            try {
+                String name = nrmService.inspect(bytesOf(saved)).name();
+                if (!name.equals(saved.getName())) {
+                    saved.rename(name);
+                }
+            } catch (RuntimeException e) {
+                log.debug("Left the name of saved .nrm {} as it is: its file cannot be read.", saved.getId(), e);
+            }
+        }
     }
 
     /** Brings a saved .nrm into use — its dataset and model are stored like an import's — from the file already kept. */
     @Transactional(readOnly = true)
     public NrmOpenResponse open(UUID id) {
         SavedNrm saved = find(id);
-        return nrmService.open(id + ".nrm", bytesOf(saved));
+        return nrmService.open(id + ".nrm", bytesOf(saved), saved.getCreatedAt(), saved.getUpdatedAt());
     }
 
     @Transactional(readOnly = true)

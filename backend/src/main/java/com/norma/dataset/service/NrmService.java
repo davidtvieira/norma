@@ -113,11 +113,11 @@ public class NrmService {
      * The same import for a .nrm already held as bytes (a saved one, see NrmLibraryService) — nothing is uploaded,
      * and what the screen shows about the file comes back with the id, so the caller needs no copy of it.
      */
-    public NrmOpenResponse open(String originalName, byte[] bytes) {
+    public NrmOpenResponse open(String originalName, byte[] bytes, java.time.Instant createdAt, java.time.Instant updatedAt) {
         Contents contents = read(originalName, bytes);
         String nrmId = importContents(contents).nrmId();
-        return new NrmOpenResponse(DatasetImportStatus.SUCCESS, nrmId, contents.info().name(), contents.info().createdAt(),
-                contents.model().path("modelName").asText(""), contents.spreadsheetName());
+        return new NrmOpenResponse(DatasetImportStatus.SUCCESS, nrmId, contents.info().name(), createdAt,
+                contents.model().path("modelName").asText(""), contents.spreadsheetName(), updatedAt);
     }
 
     private NrmImportStatus importContents(Contents contents) {

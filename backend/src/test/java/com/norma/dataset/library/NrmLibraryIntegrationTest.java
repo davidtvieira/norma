@@ -66,6 +66,8 @@ class NrmLibraryIntegrationTest {
     private TestRestTemplate http;
     @Autowired
     private SavedNrmRepository repository;
+    @Autowired
+    private NrmLibraryService library;
 
     @BeforeEach
     void emptyTheLibrary() throws IOException {
@@ -133,6 +135,8 @@ class NrmLibraryIntegrationTest {
         assertThat(opened.getBody().nrmId()).isNotBlank();
         assertThat(opened.getBody().name()).isEqualTo("Vendas");
         assertThat(opened.getBody().datasetFilename()).isEqualTo("dados.xlsx");
+        assertThat(opened.getBody().createdAt()).isEqualTo(saved.createdAt());
+        assertThat(opened.getBody().updatedAt()).isEqualTo(saved.updatedAt());
         assertThat(http.getForEntity("/api/v1/nrm/" + opened.getBody().nrmId() + "/dataset", String.class).getStatusCode())
                 .isEqualTo(HttpStatus.OK);
         assertThat(http.postForEntity("/api/v1/library/" + UUID.randomUUID() + "/open", null, String.class).getStatusCode())
@@ -140,17 +144,15 @@ class NrmLibraryIntegrationTest {
     }
 
     @Test
-    void replacingWithKeepNameLeavesTheListedNameAlone() throws IOException {
+    void startingUpPutsTheNameInsideEachFileAsTheListedName() throws IOException {
         SavedNrmSummary saved = save("Vendas", "dados.xlsx");
+        SavedNrm stale = repository.findById(saved.id()).orElseThrow();
+        stale.rename("Nome antigo");
+        repository.saveAndFlush(stale);
 
-        MultiValueMap<String, Object> body = filePart(nrmBytes("Outro nome", "dados.xlsx"));
-        ResponseEntity<SavedNrmSummary> replaced = http.exchange(
-                "/api/v1/library/" + saved.id() + "?keepName=true", HttpMethod.PUT, multipart(body), SavedNrmSummary.class);
+        library.syncNamesWithFiles();
 
-        assertThat(replaced.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(replaced.getBody().name()).isEqualTo("Vendas");
-        assertThat(http.getForEntity("/api/v1/library/" + saved.id() + "/file", byte[].class).getBody())
-                .isEqualTo(nrmBytes("Outro nome", "dados.xlsx"));
+        assertThat(repository.findById(saved.id()).orElseThrow().getName()).isEqualTo("Vendas");
     }
 
     @Test
