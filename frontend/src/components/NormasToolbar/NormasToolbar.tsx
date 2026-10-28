@@ -1,4 +1,4 @@
-import { LoadIcon, SearchIcon } from '../ButtonIcons/ButtonIcons';
+import { CloseIcon, LoadIcon, SearchIcon } from '../ButtonIcons/ButtonIcons';
 import type { SavedNrmQuery } from '../../types/savedNrm';
 import './NormasToolbar.css';
 
@@ -30,7 +30,7 @@ export function NormasToolbar({ query, onChange, folderName, searchEverywhere, o
 
   return (
     <div className="normas-toolbar">
-      <div className="normas-toolbar__searchbox">
+      <div className={`normas-toolbar__searchbox${folderName !== null ? ' normas-toolbar__searchbox--scoped' : ''}`}>
         <SearchIcon className="normas-toolbar__search-icon" />
         <input
           type="search"
@@ -40,17 +40,30 @@ export function NormasToolbar({ query, onChange, folderName, searchEverywhere, o
           value={query.search}
           onChange={(event) => onChange({ ...query, search: event.target.value })}
         />
-        {folderName !== null && (
-          <button
-            type="button"
-            className={`normas-toolbar__scope${searchEverywhere ? ' normas-toolbar__scope--on' : ''}`}
-            aria-pressed={searchEverywhere}
-            title={`Pesquisar em todas as normas, não só nas de "${folderName}"`}
-            onClick={() => onSearchEverywhereChange(!searchEverywhere)}
-          >
-            Em todas as pastas
-          </button>
-        )}
+        <div className="normas-toolbar__tail">
+          {query.search !== '' && (
+            <button
+              type="button"
+              className="normas-toolbar__clear"
+              aria-label="Limpar pesquisa"
+              title="Limpar pesquisa"
+              onClick={() => onChange({ ...query, search: '' })}
+            >
+              <CloseIcon />
+            </button>
+          )}
+          {folderName !== null && (
+            <button
+              type="button"
+              className={`normas-toolbar__scope${searchEverywhere ? ' normas-toolbar__scope--on' : ''}`}
+              aria-pressed={searchEverywhere}
+              title={`Pesquisar também nas subpastas de "${folderName}"`}
+              onClick={() => onSearchEverywhereChange(!searchEverywhere)}
+            >
+              Em subpastas
+            </button>
+          )}
+        </div>
       </div>
       <select
         className="normas-toolbar__order"

@@ -31,10 +31,6 @@
   height: 1.05rem;
 }
 
-.norma-card__category {
-  color: var(--color-text);
-}
-
 /* While it is being dragged onto a folder. */
 .norma-card--dragging {
   opacity: 0.45;

@@ -22,6 +22,10 @@
   width: 100%;
 }
 
+.normas-toolbar__searchbox .normas-toolbar__search {
+  padding-right: 2.6rem;
+}
+
 /* The search and, inside a folder, the toggle that sits in its right end. */
 .normas-toolbar__searchbox {
   position: relative;
@@ -44,16 +48,56 @@
   pointer-events: none;
 }
 
-.normas-toolbar__search--scoped {
+/* Our own "x" (the browser's is hidden), just left of the folder toggle when there is one. */
+.normas-toolbar__search::-webkit-search-cancel-button {
+  display: none;
+}
+
+.normas-toolbar__tail {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  bottom: 1px;
+  display: flex;
+  align-items: center;
+}
+
+.normas-toolbar__clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  margin-right: 0.6rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.normas-toolbar__clear:hover {
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
+  color: var(--color-text);
+}
+
+.normas-toolbar__clear svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.normas-toolbar__searchbox--scoped .normas-toolbar__clear {
+  margin-right: 0.3rem;
+}
+
+.normas-toolbar__searchbox .normas-toolbar__search--scoped {
   padding-right: 10.6rem;
 }
 
 /* A segment of the search bar itself: it fills the bar's right end (inside its border), split from the field by a line. */
 .normas-toolbar__scope {
-  position: absolute;
-  top: 1px;
-  right: 1px;
-  bottom: 1px;
+  align-self: stretch;
   padding: 0 1rem;
   border: 0;
   border-left: 1px solid var(--color-border);
@@ -84,6 +128,12 @@
 }
 
 .normas-toolbar__order {
+  /* The browser's arrow sticks to the edge and cannot be moved: draw our own, with room to its right. */
+  appearance: none;
+  padding-right: 2.2rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
   cursor: pointer;
 }
 

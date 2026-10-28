@@ -195,7 +195,6 @@ export function NormasScreen({
                 <NormaCard
                   key={model.id}
                   model={model}
-                  categoryLabel={model.categoryPath.join(' › ')}
                   isOpening={openingSavedId === model.id}
                   onOpen={() => onOpenSaved(model)}
                   onDelete={() => setPendingDelete(model)}

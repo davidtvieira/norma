@@ -534,6 +534,15 @@
   margin-top: 0;
 }
 
+/* Buttons stacked one above the other: each as wide as it would be on its own (the usual padding around its text),
+   both the width of the wider one. */
+.app__create-model-column {
+  display: grid;
+  grid-template-columns: minmax(14rem, max-content);
+  justify-content: center;
+  gap: 0.75rem;
+}
+
 .app__create-model-button--wide {
   flex: 1;
 }

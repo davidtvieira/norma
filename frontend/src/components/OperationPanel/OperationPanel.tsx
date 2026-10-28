@@ -1502,6 +1502,9 @@ export function OperationPanel({
     }
 
     setEntries((current) => current.map((entry) => (entry.id === id ? snapshot : entry)));
+    // Closed in the same update (not left to the effect above, one render later): for that render the dialog would still be
+    // open, now holding an operation that is no longer a draft, and it is that look that fades out as the dialog closes.
+    setEditingEntryId(null);
     setEditSnapshots((current) => {
       const { [id]: _discarded, ...rest } = current;
       return rest;
@@ -1824,6 +1827,7 @@ export function OperationPanel({
   // close the sheet panel. Staging has no equivalent per-card confirm — see confirmAllStaged.
   function confirmEdit(entry: OperationEntryState) {
     updateEntry(entry.id, { confirmed: true });
+    setEditingEntryId(null);
     setSelectedOperationId(entry.id);
     onOperationConfirmed();
   }

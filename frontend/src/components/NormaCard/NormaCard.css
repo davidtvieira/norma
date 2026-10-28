@@ -23,7 +23,7 @@
   white-space: nowrap;
   text-overflow: ellipsis;
   /* The text grows with the card (cqh is the height of the grid's area, see .app__normas-scroll). */
-  font-size: clamp(1.05rem, 0.35rem + 2cqh, 1.45rem);
+  font-size: clamp(0.95rem, 0.3rem + 1.6cqh, 1.2rem);
   font-weight: 600;
   line-height: 1.25;
   color: var(--color-text);

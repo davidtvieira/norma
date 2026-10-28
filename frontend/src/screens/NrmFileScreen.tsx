@@ -114,14 +114,14 @@ export function NrmFileScreen({
               </div>
             </div>
           ) : (
-            <div className="app__create-model-actions">
-              <button type="button" className="app__create-model-button app__create-model-button--secondary" onClick={onEdit}>
-                <PencilIcon />
-                Editar
-              </button>
+            <div className="app__create-model-column">
               <button type="button" className="app__create-model-button action-button" onClick={onUtilize}>
                 <LogoIcon />
                 Utilizar
+              </button>
+              <button type="button" className="app__create-model-button app__create-model-button--secondary" onClick={onEdit}>
+                <PencilIcon />
+                Editar
               </button>
             </div>
           )}

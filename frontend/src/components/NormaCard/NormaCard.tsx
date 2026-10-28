@@ -11,8 +11,6 @@ interface NormaCardProps {
   isOpening: boolean;
   onOpen: () => void;
   onDelete: () => void;
-  /** Where it is filed ("Fiscal › IVA"), or '' when it is under no category. */
-  categoryLabel: string;
   /** The card started (true) or stopped (false) being dragged. */
   onDragChange: (isDragging: boolean) => void;
 }
@@ -35,7 +33,7 @@ function formatDate(iso: string): string {
  * The whole card opens it (click, Enter or Space); the bin in its corner deletes it. A norma whose file is gone from
  * the backend's storage cannot be opened, only deleted.
  */
-export function NormaCard({ model, isOpening, onOpen, onDelete, categoryLabel, onDragChange }: NormaCardProps) {
+export function NormaCard({ model, isOpening, onOpen, onDelete, onDragChange }: NormaCardProps) {
   const canOpen = model.available && !isOpening;
   const [isDragging, setIsDragging] = useState(false);
 
@@ -94,10 +92,7 @@ export function NormaCard({ model, isOpening, onOpen, onDelete, categoryLabel, o
               {plural(model.outputCount, 'output', 'outputs')}
             </li>
             <li>Atualizado em {formatDate(model.updatedAt)}</li>
-            <li title={categoryLabel || undefined}>
-              {formatSize(model.sizeBytes)}
-              {categoryLabel && <span className="norma-card__category"> · {categoryLabel}</span>}
-            </li>
+            <li>{formatSize(model.sizeBytes)}</li>
           </ul>
         ) : (
           <p className="norma-card__meta">O ficheiro desta norma já não existe na plataforma.</p>
