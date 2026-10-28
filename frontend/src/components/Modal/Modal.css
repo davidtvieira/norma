@@ -216,6 +216,31 @@ button.modal__chip:disabled {
   }
 }
 
+/* ...and goes back down while it fades out when it closes (see animateOut in Modal.tsx): a copy of the closed modal, over
+   whatever is on screen, that can't be clicked. */
+.modal__overlay--leaving {
+  pointer-events: none;
+  animation: modal-dim-out 0.22s ease forwards;
+}
+
+.modal__overlay--leaving .modal {
+  animation: modal-sink 0.22s ease forwards;
+}
+
+@keyframes modal-dim-out {
+  to {
+    background: rgba(0, 0, 0, 0);
+  }
+}
+
+/* `translate`, not `transform`: a modal pushed aside to the left keeps its own transform while it sinks. */
+@keyframes modal-sink {
+  to {
+    opacity: 0;
+    translate: 0 2.5rem;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .modal__overlay,
   .modal {

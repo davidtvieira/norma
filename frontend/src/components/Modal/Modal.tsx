@@ -27,6 +27,25 @@ interface ModalProps {
   children?: ReactNode;
 }
 
+/** How long the closing animation of a modal lasts (see animateOut and `.modal__overlay--leaving` in Modal.css). */
+const LEAVE_MS = 220;
+
+/**
+ * Plays a modal's entrance backwards once it has been removed: a copy of its last look is put back on screen, fades out
+ * while the box sinks, and is dropped. Done here, once, for every modal — the owners just stop rendering it, as they
+ * always did, so none of them needs an exit state of its own. The copy is inert (it can't be clicked or focused).
+ */
+function animateOut(overlay: HTMLElement) {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const ghost = overlay.cloneNode(true) as HTMLElement;
+  ghost.classList.add('modal__overlay--leaving');
+  ghost.setAttribute('aria-hidden', 'true');
+  ghost.setAttribute('inert', '');
+  ghost.querySelectorAll('[id]').forEach((element) => element.removeAttribute('id'));
+  document.body.appendChild(ghost);
+  window.setTimeout(() => ghost.remove(), LEAVE_MS + 80);
+}
+
 /** The modals stacked on screen, oldest first — Escape only closes the top one. */
 const openModals: symbol[] = [];
 
@@ -37,6 +56,16 @@ const openModals: symbol[] = [];
  */
 export function Modal({ title, subtitle, size = 'sm', onClose, closeDisabled = false, closeOnBackdrop = true, escapeCloses = true, align = 'center', actions, children }: ModalProps) {
   const titleId = useId();
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  // When the modal goes away for real (its owner stopped rendering it) its box is already out of the document by the time
+  // this cleanup runs; React's development double-run (mount, cleanup, mount) happens with it still in place — skipped.
+  useEffect(() => {
+    const overlay = overlayRef.current;
+    return () => {
+      if (overlay && !overlay.isConnected) animateOut(overlay);
+    };
+  }, []);
 
   // The latest props, read by the one Escape listener below so it never has to be re-registered
   // (re-registering on every render would reshuffle which stacked modal is on top).
@@ -61,7 +90,7 @@ export function Modal({ title, subtitle, size = 'sm', onClose, closeDisabled = f
   }, []);
 
   return createPortal(
-    <div className={align === 'left' ? 'modal__overlay modal__overlay--left' : 'modal__overlay'} onClick={closeDisabled || !closeOnBackdrop ? undefined : onClose}>
+    <div ref={overlayRef} className={align === 'left' ? 'modal__overlay modal__overlay--left' : 'modal__overlay'} onClick={closeDisabled || !closeOnBackdrop ? undefined : onClose}>
       <div
         className={`modal modal--${size}`}
         role="dialog"
