@@ -5,8 +5,11 @@ import com.norma.dataset.dto.RowData;
 import com.norma.dataset.dto.SheetData;
 import com.norma.dataset.dto.DatasetImportResponse;
 import com.norma.dataset.dto.TranslatorRule;
+import com.norma.dataset.dto.ValueFormat;
 
 import java.util.HashSet;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Set;
 
@@ -256,6 +259,70 @@ final class OperationSupport {
         } catch (NumberFormatException ex) {
             throw new IllegalArgumentException("Invalid number in " + fieldName + ": " + trimmed);
         }
+    }
+
+    /**
+     * Checks {@code value} against a formatter's rules and returns it as the model carries it on: unchanged for a text,
+     * a number written canonically ("007" and "7.50" become "7" and "7.5"). An empty value is refused when the formatter
+     * is required and otherwise left as it is. Anything that breaks a rule is an {@link IllegalArgumentException} that
+     * says which one.
+     */
+    static String applyFormat(ValueFormat format, String value) {
+        String type = format.type() == null || format.type().isBlank() ? "text" : format.type();
+        if (format.minLength() != null && format.maxLength() != null && format.minLength() > format.maxLength()) {
+            throw new IllegalArgumentException("The minimum length cannot be greater than the maximum length.");
+        }
+        if (format.min() != null && format.max() != null && format.min().compareTo(format.max()) > 0) {
+            throw new IllegalArgumentException("The minimum cannot be greater than the maximum.");
+        }
+        String text = value == null ? "" : value;
+        if (text.trim().isEmpty()) {
+            if (Boolean.TRUE.equals(format.required())) {
+                throw new IllegalArgumentException("A value is required.");
+            }
+            return text;
+        }
+        return switch (type) {
+            case "text" -> {
+                int length = text.codePointCount(0, text.length());
+                if (format.minLength() != null && length < format.minLength()) {
+                    throw new IllegalArgumentException("At least " + format.minLength() + " characters are needed (it has " + length + ").");
+                }
+                if (format.maxLength() != null && length > format.maxLength()) {
+                    throw new IllegalArgumentException("At most " + format.maxLength() + " characters are allowed (it has " + length + ").");
+                }
+                yield text;
+            }
+            case "integer" -> {
+                String trimmed = text.trim();
+                if (!trimmed.matches("[+-]?\\d+")) {
+                    throw new IllegalArgumentException("Not a whole number.");
+                }
+                yield checkRange(format, new BigDecimal(new BigInteger(trimmed.startsWith("+") ? trimmed.substring(1) : trimmed))).toPlainString();
+            }
+            case "decimal" -> {
+                String trimmed = text.trim().replace(',', '.');
+                BigDecimal number;
+                try {
+                    number = new BigDecimal(trimmed);
+                } catch (NumberFormatException ex) {
+                    throw new IllegalArgumentException("Not a number.");
+                }
+                BigDecimal checked = checkRange(format, number);
+                yield checked.signum() == 0 ? "0" : checked.stripTrailingZeros().toPlainString();
+            }
+            default -> throw new IllegalArgumentException("Unknown value type: " + type);
+        };
+    }
+
+    private static BigDecimal checkRange(ValueFormat format, BigDecimal number) {
+        if (format.min() != null && number.compareTo(format.min()) < 0) {
+            throw new IllegalArgumentException("Must be at least " + format.min().toPlainString() + ".");
+        }
+        if (format.max() != null && number.compareTo(format.max()) > 0) {
+            throw new IllegalArgumentException("Must be at most " + format.max().toPlainString() + ".");
+        }
+        return number;
     }
 
     /**

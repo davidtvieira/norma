@@ -11,11 +11,13 @@ import com.norma.dataset.dto.ModelOperationResult;
 import com.norma.dataset.dto.ModelRegisterRequest;
 import com.norma.dataset.dto.SheetData;
 import com.norma.dataset.dto.TranslatorRule;
+import com.norma.dataset.dto.ValueFormat;
 import com.norma.dataset.service.OperationSupport.FindOutcome;
 import com.norma.dataset.service.OperationSupport.MatchMode;
 import com.norma.dataset.service.OperationSupport.SumOutcome;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -41,6 +43,7 @@ import java.util.stream.Collectors;
 public class ModelExecutionService {
 
     private static final String ITERATOR_KIND = "iterator";
+    private static final String FORMATTER_KIND = "formatter";
     private static final String PAGE_KIND = "page";
     /** The kinds that read from a page of the dataset, and so follow the model's page selector. */
     private static final Set<String> PAGE_AWARE_KINDS = Set.of("lookup", "sum", "find");
@@ -382,7 +385,10 @@ public class ModelExecutionService {
         List<ModelInputField> inputs = model.inputOperationIds().stream()
                 .map(byId::get)
                 .map(operation -> new ModelInputField(
-                        operation.id(), nameOf(operation), operation.kind(), literalInputOf(operation)))
+                        operation.id(), nameOf(operation), operation.kind(), literalInputOf(operation),
+                        byId.values().stream()
+                                .filter(candidate -> isFormatterFor(candidate, operation.id()))
+                                .findFirst().map(ModelExecutionService::formatOf).orElse(null)))
                 .toList();
         List<ModelOperationRef> operations = model.operations().stream()
                 .map(operation -> new ModelOperationRef(operation.id(), displayNameOf(operation), operation.kind()))
@@ -497,7 +503,7 @@ public class ModelExecutionService {
 
         try {
             operation = withSelectedPage(operation, dataset, byId, cyclicIds, resolved);
-            String inputValue = resolveInputValue(operation, dataset, byId, cyclicIds, resolved);
+            String inputValue = applyFormatters(operation, resolveInputValue(operation, dataset, byId, cyclicIds, resolved), byId);
             return switch (operation.kind()) {
                 case "lookup" -> computeLookup(operation, dataset, inputValue, byId, cyclicIds, resolved);
                 case "sum" -> computeSum(operation, dataset);
@@ -509,11 +515,56 @@ public class ModelExecutionService {
                 case "calc" -> computeCalc(operation, dataset, byId, cyclicIds, resolved);
                 case "selector" -> computeSelector(operation, dataset, byId, cyclicIds, resolved);
                 case ITERATOR_KIND -> computeIterator(operation);
+                // A formatter produces nothing itself: it only puts its rules on the inputs it applies to (see applyFormatters).
+                case FORMATTER_KIND -> new ModelOperationResult(id, true, null, null);
                 default -> new ModelOperationResult(id, false, null, "Unknown operation type: " + operation.kind());
             };
         } catch (IllegalArgumentException ex) {
             return new ModelOperationResult(id, false, null, ex.getMessage());
         }
+    }
+
+    /**
+     * A formatter operation applies its rules to the operations it lists in {@code appliesTo}: the value such an operation
+     * reads as its chainable "input" must satisfy them before the operation uses it, otherwise the operation fails with
+     * the rule it broke (and so does whatever chains off it). An operation with no "input" of its own is left alone.
+     */
+    private String applyFormatters(ModelOperationInput operation, String value, Map<String, ModelOperationInput> byId) {
+        if (!(fieldsOf(operation).get("input") instanceof Map<?, ?>)) {
+            return value;
+        }
+        String result = value;
+        for (ModelOperationInput candidate : byId.values()) {
+            if (isFormatterFor(candidate, operation.id())) {
+                result = OperationSupport.applyFormat(formatOf(candidate), result);
+            }
+        }
+        return result;
+    }
+
+    private static boolean isFormatterFor(ModelOperationInput candidate, String operationId) {
+        return FORMATTER_KIND.equals(candidate.kind())
+                && fieldsOf(candidate).get("appliesTo") instanceof List<?> targets
+                && targets.contains(operationId);
+    }
+
+    /** The rules a formatter operation carries in its fields. */
+    private static ValueFormat formatOf(ModelOperationInput formatter) {
+        Map<String, Object> fields = fieldsOf(formatter);
+        return new ValueFormat(
+                fields.get("type") instanceof String type ? type : null,
+                fields.get("required") instanceof Boolean required ? required : null,
+                fields.get("minLength") instanceof Number minLength ? minLength.intValue() : null,
+                fields.get("maxLength") instanceof Number maxLength ? maxLength.intValue() : null,
+                decimalOf(fields.get("min")),
+                decimalOf(fields.get("max")));
+    }
+
+    private static BigDecimal decimalOf(Object raw) {
+        if (raw instanceof Number number) {
+            return new BigDecimal(number.toString());
+        }
+        return null;
     }
 
     /**
@@ -1038,7 +1089,7 @@ public class ModelExecutionService {
         return (Map<String, Object>) map;
     }
 
-    private Map<String, Object> fieldsOf(ModelOperationInput operation) {
+    private static Map<String, Object> fieldsOf(ModelOperationInput operation) {
         return operation.fields() != null ? operation.fields() : Map.of();
     }
 

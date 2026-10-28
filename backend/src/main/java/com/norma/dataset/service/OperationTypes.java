@@ -21,7 +21,8 @@ public final class OperationTypes {
             new OperationType("selector", "Selector"),
             new OperationType("iterator", "Iterator"),
             new OperationType("calc", "Calc"),
-            new OperationType("page", "Page selector")
+            new OperationType("page", "Page selector"),
+            new OperationType("formatter", "Input formatter")
     );
 
     private OperationTypes() {

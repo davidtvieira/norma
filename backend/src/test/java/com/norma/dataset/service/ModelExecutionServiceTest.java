@@ -710,6 +710,75 @@ class ModelExecutionServiceTest {
         assertThat(result.value()).isEqualTo("Bruno");
     }
 
+    private ModelOperationInput formatter(String id, Map<String, Object> rules, String... appliesTo) {
+        Map<String, Object> fields = new java.util.HashMap<>(rules);
+        fields.put("appliesTo", List.of(appliesTo));
+        return new ModelOperationInput(id, "formatter", fields);
+    }
+
+    @Test
+    void aFormatterRefusesAnInputThatBreaksItsRulesAndTheOperationFailsWithTheReason() {
+        String datasetId = twoSheetDataset();
+        ModelOperationInput node = new ModelOperationInput("op-1", "node", Map.of("input", literalInput("")));
+        ModelOperationInput rules = formatter("fmt", Map.of("type", "text", "maxLength", 5), "op-1");
+
+        ModelOperationResult tooLong = registerAndRun(datasetId, List.of(node, rules), List.of("op-1"), "op-1", Map.of("op-1", "abcdef"));
+        ModelOperationResult fine = registerAndRun(datasetId, List.of(node, rules), List.of("op-1"), "op-1", Map.of("op-1", "abcde"));
+
+        assertThat(tooLong.success()).isFalse();
+        assertThat(tooLong.error()).isEqualTo("At most 5 characters are allowed (it has 6).");
+        assertThat(fine.success()).isTrue();
+        assertThat(fine.value()).isEqualTo("abcde");
+    }
+
+    @Test
+    void aFormatterWritesANumberCanonicallyAndTheFailureReachesWhatChainsOffIt() {
+        String datasetId = twoSheetDataset();
+        ModelOperationInput node = new ModelOperationInput("op-1", "node", Map.of("input", literalInput("")));
+        ModelOperationInput next = new ModelOperationInput("op-2", "node", Map.of("input", referenceInput("op-1")));
+        ModelOperationInput rules = formatter("fmt", Map.of("type", "integer", "min", 1, "max", 10), "op-1");
+        List<ModelOperationInput> model = List.of(node, next, rules);
+
+        ModelOperationResult ok = registerAndRun(datasetId, model, List.of("op-1"), "op-2", Map.of("op-1", " 007 "));
+        ModelOperationResult notANumber = registerAndRun(datasetId, model, List.of("op-1"), "op-2", Map.of("op-1", "x"));
+
+        assertThat(ok.success()).isTrue();
+        assertThat(ok.value()).isEqualTo("7");
+        assertThat(notANumber.success()).isFalse();
+    }
+
+    @Test
+    void aFormatterOnlyTouchesTheOperationsItAppliesTo() {
+        String datasetId = twoSheetDataset();
+        ModelOperationInput governed = new ModelOperationInput("op-1", "node", Map.of("input", literalInput("")));
+        ModelOperationInput free = new ModelOperationInput("op-2", "node", Map.of("input", literalInput("")));
+        ModelOperationInput rules = formatter("fmt", Map.of("type", "text", "required", true), "op-1");
+
+        List<ModelOperationResult> results = registerAndRunMulti(datasetId, List.of(governed, free, rules),
+                List.of("op-1", "op-2"), List.of("op-1", "op-2"), Map.of("op-1", "", "op-2", ""));
+
+        assertThat(results.get(0).success()).isFalse();
+        assertThat(results.get(0).error()).isEqualTo("A value is required.");
+        assertThat(results.get(1).success()).isTrue();
+    }
+
+    @Test
+    void aModelsInputsSayWhichRulesAFormatterPutsOnThem() {
+        String datasetId = twoSheetDataset();
+        ModelOperationInput governed = new ModelOperationInput("op-1", "node", Map.of("input", literalInput("")));
+        ModelOperationInput free = new ModelOperationInput("op-2", "node", Map.of("input", literalInput("")));
+        ModelOperationInput rules = formatter("fmt", Map.of("type", "decimal", "min", 0.5, "required", true), "op-1");
+        String modelId = modelExecutionService.registerModel(datasetId,
+                new ModelRegisterRequest("M", List.of(governed, free, rules), List.of("op-1", "op-2"), List.of("op-1")));
+
+        var inputs = modelExecutionService.getModelInputs(modelId).inputs();
+
+        assertThat(inputs.get(0).format().type()).isEqualTo("decimal");
+        assertThat(inputs.get(0).format().required()).isTrue();
+        assertThat(inputs.get(0).format().min()).isEqualByComparingTo("0.5");
+        assertThat(inputs.get(1).format()).isNull();
+    }
+
     @Test
     void aNodesValueCanBeChainedIntoAnotherOperationsInput() {
         String datasetId = twoSheetDataset();
