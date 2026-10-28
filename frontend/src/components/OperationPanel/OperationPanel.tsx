@@ -2188,12 +2188,20 @@ export function OperationPanel({
 
     const modalPlacement = { align: isSheetPanelOpen ? ('left' as const) : ('center' as const), escapeCloses: !isSheetPanelOpen };
 
+    // Always the same shape — the "Nova operação" list first, then (at most) the modal of the operation being set up. A
+    // return that was sometimes the bare list and sometimes a fragment holding it would make React throw the list away
+    // and build it again (replaying its entrance animation behind the new modal) the moment an operation is picked.
+    const withAddModal = (second: ReactNode) => (
+      <>
+        {addModal}
+        {second}
+      </>
+    );
+
     if (editingEntryId) {
       const editingEntry = entries.find((entry) => entry.id === editingEntryId);
-      if (!editingEntry) return addModal;
-      return (
-        <>
-          {addModal}
+      if (!editingEntry) return withAddModal(null);
+      return withAddModal(
           <Modal
             title="Editar operação"
             size="md"
@@ -2216,8 +2224,7 @@ export function OperationPanel({
             }
           >
             {renderDraftCard(editingEntry)}
-          </Modal>
-        </>
+          </Modal>,
       );
     }
 
@@ -2233,9 +2240,7 @@ export function OperationPanel({
       const canConfirmAllStaged = stagingEntries.every((entry) => KINDS_BY_ID[entry.kindId].canConfirm(entry.fields));
       const stagingKindId = stagingEntries[0]?.kindId;
 
-      return (
-        <>
-          {addModal}
+      return withAddModal(
           <Modal
             title={stagingKindId ? `Novas operações: ${labelForKind(stagingKindId)}` : 'Novas operações'}
             size="md"
@@ -2289,12 +2294,11 @@ export function OperationPanel({
                 </button>
               )}
             </div>
-          </Modal>
-        </>
+          </Modal>,
       );
     }
 
-    return addModal;
+    return withAddModal(null);
   }
 
   return (
