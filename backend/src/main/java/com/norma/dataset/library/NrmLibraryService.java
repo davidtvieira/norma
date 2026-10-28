@@ -63,8 +63,9 @@ public class NrmLibraryService {
      * What the library holds at one level: the categories and the saved .nrm files found. {@code categoryId} is the
      * category being looked into (null = the top level, where the .nrm files filed under no category are); only its
      * direct subcategories and the files filed right in it are listed, never what is deeper. {@code everywhere} ignores
-     * that and looks at every category and every file. {@code search} keeps the categories whose name contains it and the
-     * files whose name or dataset file name contains it (any case, nothing else is special); {@code sort} and
+     * that and looks at every category and every file — or, with a {@code categoryId}, at everything inside that category
+     * (the files filed in it or in any category within it, and its subcategories at any depth). {@code search} keeps the files whose name or dataset file name contains it
+     * (any case, nothing else is special) and lists no categories at all; {@code sort} and
      * {@code direction} (the spellings of {@link SavedNrmSort}, each optional) order the files — the categories are by name.
      */
     @Transactional(readOnly = true)
@@ -72,7 +73,13 @@ public class NrmLibraryService {
         SavedNrmSort field = SavedNrmSort.fromParameter(sort);
         Sort ordering = field.toSort(field.directionFrom(direction));
         Specification<SavedNrm> spec = matching(search);
-        if (!everywhere) {
+        if (everywhere) {
+            if (categoryId != null) {
+                // Everywhere inside that category: the files filed in it or in any category within it.
+                Set<UUID> inside = categories.subtreeIds(categoryId);
+                spec = spec.and((root, query, builder) -> root.get("categoryId").in(inside));
+            }
+        } else {
             if (categoryId == null) {
                 spec = spec.and((root, query, builder) -> builder.isNull(root.get("categoryId")));
             } else {
@@ -80,10 +87,17 @@ public class NrmLibraryService {
                 spec = spec.and((root, query, builder) -> builder.equal(root.get("categoryId"), categoryId));
             }
         }
+        long total = categoryId == null
+                ? repository.count()
+                : repository.count((root, query, builder) -> root.get("categoryId").in(categories.subtreeIds(categoryId)));
         Map<UUID, List<String>> paths = categories.namePaths();
         List<SavedNrmSummary> files = repository.findAll(spec, ordering).stream().map(saved -> toSummary(saved, paths)).toList();
         List<PathStep> path = !everywhere && categoryId != null ? categories.pathOf(categoryId) : List.of();
-        return new LibraryListing(path, categories.entries(categoryId, search, everywhere), files, repository.count());
+        return new LibraryListing(path, searching(search) ? List.<FolderEntry>of() : categories.entries(categoryId, everywhere), files, total);
+    }
+
+    private static boolean searching(String search) {
+        return search != null && !search.isBlank();
     }
 
     private static Specification<SavedNrm> matching(String search) {

@@ -447,7 +447,7 @@ class NrmLibraryIntegrationTest {
         LibraryListing inside = listing("categoryId=" + fiscal.id());
         assertThat(inside.categories()).extracting(FolderEntry::name).containsExactly("IVA");
         assertThat(inside.normas()).extracting(SavedNrmSummary::name).containsExactly("Em fiscal");
-        assertThat(inside.total()).isEqualTo(4);
+        assertThat(inside.total()).isEqualTo(3);
         // Where the listing is: the path to the category being looked into, itself last (with the id to go back to each step).
         assertThat(top.path()).isEmpty();
         List<PathStep> path = listing("categoryId=" + iva.id()).path();
@@ -464,7 +464,7 @@ class NrmLibraryIntegrationTest {
     }
 
     @Test
-    void searchingMatchesCategoryNamesAndNormasAtTheLevelOrEverywhere() throws IOException {
+    void searchingMatchesNormasAtTheLevelOrEverywhereAndListsNoCategories() throws IOException {
         CategoryNode fiscal = createCategory("Fiscal", null).getBody();
         CategoryNode iva = createCategory("IVA fiscal", fiscal.id()).getBody();
         createCategory("Pessoal", null);
@@ -476,22 +476,47 @@ class NrmLibraryIntegrationTest {
 
         // At the top level, without everywhere: the top level's categories and normas that match.
         LibraryListing top = listing("search=FISCAL");
-        assertThat(top.categories()).extracting(FolderEntry::name).containsExactly("Fiscal");
+        assertThat(top.categories()).isEmpty(); // a search lists no folders, only normas
         assertThat(top.normas()).extracting(SavedNrmSummary::name).containsExactly("Mapa fiscal");
         // Inside a category: its direct subcategories and normas that match.
         LibraryListing inside = listing("search=fiscal&categoryId=" + fiscal.id());
-        assertThat(inside.categories()).extracting(FolderEntry::name).containsExactly("IVA fiscal");
+        assertThat(inside.categories()).isEmpty();
         assertThat(inside.normas()).extracting(SavedNrmSummary::name).containsExactly("Mapa fiscal 2");
         // Everywhere: every category and norma that matches, at any depth, the category with its whole path.
         LibraryListing everywhere = listing("search=fiscal&everywhere=true");
-        assertThat(everywhere.categories()).extracting(FolderEntry::name).containsExactly("Fiscal", "IVA fiscal");
-        assertThat(everywhere.categories().get(1).path()).containsExactly("Fiscal", "IVA fiscal");
+        assertThat(everywhere.categories()).isEmpty();
         assertThat(everywhere.normas()).extracting(SavedNrmSummary::name).containsExactlyInAnyOrder("Mapa fiscal", "Mapa fiscal 2");
         // Everywhere with no search: all of it.
         LibraryListing all = listing("everywhere=true");
         assertThat(all.categories()).hasSize(3);
         assertThat(all.normas()).hasSize(3);
         assertThat(a.id()).isNotNull();
+    }
+
+    @Test
+    void searchingEverywhereWithACategoryStaysInsideIt() throws IOException {
+        CategoryNode fiscal = createCategory("Fiscal", null).getBody();
+        CategoryNode iva = createCategory("IVA fiscal", fiscal.id()).getBody();
+        CategoryNode pessoal = createCategory("Pessoal fiscal", null).getBody();
+        save("Mapa fiscal", "a.xlsx"); // under no category
+        SavedNrmSummary inFiscal = save("Fiscal 1", "b.xlsx");
+        SavedNrmSummary inIva = save("Fiscal 2", "c.xlsx");
+        SavedNrmSummary inPessoal = save("Fiscal 3", "d.xlsx");
+        assignCategory(inFiscal.id(), fiscal.id());
+        assignCategory(inIva.id(), iva.id());
+        assignCategory(inPessoal.id(), pessoal.id());
+
+        // Only what is in Fiscal or in a folder inside it: not the loose norma, not another top-level folder.
+        LibraryListing inside = listing("search=fiscal&everywhere=true&categoryId=" + fiscal.id());
+        assertThat(inside.categories()).isEmpty();
+        assertThat(inside.normas()).extracting(SavedNrmSummary::name).containsExactlyInAnyOrder("Fiscal 1", "Fiscal 2");
+        // The total is the place's own size (Fiscal and what is inside it), whatever the search or the level.
+        assertThat(inside.total()).isEqualTo(2);
+        assertThat(listing("categoryId=" + fiscal.id()).total()).isEqualTo(2);
+        assertThat(listing("search=zzz&categoryId=" + fiscal.id()).total()).isEqualTo(2);
+        assertThat(listing("search=zzz&everywhere=true").total()).isEqualTo(4);
+        assertThat(http.getForEntity("/api/v1/library?everywhere=true&categoryId=" + UUID.randomUUID(), String.class).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     @Test

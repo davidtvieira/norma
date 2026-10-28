@@ -41,11 +41,11 @@ public class NrmLibraryController {
             description = "One level of the library: without categoryId the top level (the categories with no parent and "
                     + "the .nrm files filed under none), with it that category's subcategories and the files filed right in "
                     + "it (a category that does not exist is a 404). Never what is deeper. everywhere=true ignores the level "
-                    + "and looks at every category and every file. search keeps the categories whose name contains the text "
-                    + "and the files whose name or dataset file name contains it (any case). sort is one of name, updatedAt, "
+                    + "and looks at every category and every file, or, together with categoryId, at everything inside that category (its files and subcategories, at any depth). search keeps the files whose name or dataset file name contains the text "
+                    + "(any case) and lists no categories. sort is one of name, updatedAt, "
                     + "createdAt, sizeBytes and operationCount and direction is asc or desc (by default A to Z for the name and "
                     + "newest or biggest first for the rest); they order the files, the categories are by name. An unknown sort "
-                    + "or direction is a 400. total is how many files the library holds in all."
+                    + "or direction is a 400. total is how many files the category being looked into holds (itself and the ones inside it; the whole library without categoryId), whatever the search says."
     )
     @GetMapping
     public LibraryListing list(

@@ -5,12 +5,16 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -66,11 +70,12 @@ public class CategoryService {
 
     /**
      * The categories GET /library lists. Without {@code everywhere}: the direct subcategories of {@code parentId} (the
-     * top-level ones when it is null) whose name contains {@code search} (any case; all of them when it is blank). With
-     * {@code everywhere}: every category, at any depth, whose name contains it. By name.
+     * top-level ones when it is null). With
+     * {@code everywhere}: every category, at any depth — or, when {@code parentId} is given, only
+     * those inside it (its subcategories, at any depth). By name.
      */
     @Transactional(readOnly = true)
-    public List<FolderEntry> entries(UUID parentId, String search, boolean everywhere) {
+    public List<FolderEntry> entries(UUID parentId, boolean everywhere) {
         List<Category> all = categories.findAll();
         Map<UUID, Category> byId = new HashMap<>();
         all.forEach(category -> byId.put(category.getId(), category));
@@ -79,10 +84,16 @@ public class CategoryService {
         for (SavedNrmRepository.CategoryCount count : normas.countByCategory()) {
             own.put(count.getCategoryId(), (int) count.getTotal());
         }
-        String needle = search == null ? "" : search.trim().toLowerCase(Locale.ROOT);
-        List<Category> candidates = everywhere ? all : childrenOf.getOrDefault(parentId, List.of());
+        List<Category> candidates;
+        if (!everywhere) {
+            candidates = childrenOf.getOrDefault(parentId, List.of());
+        } else if (parentId == null) {
+            candidates = all;
+        } else {
+            Set<UUID> inside = subtreeIds(parentId);
+            candidates = all.stream().filter(category -> !category.getId().equals(parentId) && inside.contains(category.getId())).toList();
+        }
         return candidates.stream()
-                .filter(category -> needle.isEmpty() || category.getName().toLowerCase(Locale.ROOT).contains(needle))
                 .sorted(BY_NAME)
                 .map(category -> {
                     List<String> path = new ArrayList<>();
@@ -94,6 +105,25 @@ public class CategoryService {
                             childrenOf.getOrDefault(category.getId(), List.of()).size());
                 })
                 .toList();
+    }
+
+    /** The id of the category and of every category inside it, at any depth; a 404 if there is no such category. */
+    @Transactional(readOnly = true)
+    public Set<UUID> subtreeIds(UUID id) {
+        List<Category> all = categories.findAll();
+        if (all.stream().noneMatch(category -> category.getId().equals(id))) {
+            throw new CategoryNotFoundException("Category not found.");
+        }
+        Map<UUID, List<Category>> childrenOf = childrenByParent(all);
+        Set<UUID> found = new HashSet<>();
+        Deque<UUID> pending = new ArrayDeque<>(List.of(id));
+        while (!pending.isEmpty()) {
+            UUID next = pending.pop();
+            if (found.add(next)) {
+                childrenOf.getOrDefault(next, List.of()).forEach(child -> pending.push(child.getId()));
+            }
+        }
+        return found;
     }
 
     /** The categories from the top-level one down to {@code id}, itself last; a 404 if there is no such category. */
