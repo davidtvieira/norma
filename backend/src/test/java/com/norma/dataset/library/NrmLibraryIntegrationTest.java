@@ -495,6 +495,46 @@ class NrmLibraryIntegrationTest {
     }
 
     @Test
+    void exportingGivesEveryFileInAZipLaidOutLikeTheFolders() throws IOException {
+        CategoryNode fiscal = createCategory("Fiscal", null).getBody();
+        CategoryNode iva = createCategory("IVA/2026", fiscal.id()).getBody(); // a "/" in a name must not become a folder
+        byte[] a = nrmBytes("Mapa", "a.xlsx");
+        byte[] b = nrmBytes("Solta", "b.xlsx", 3);
+        byte[] twin = nrmBytes("Solta", "c.xlsx", 5);
+        SavedNrmSummary inIva = upload(a).getBody();
+        SavedNrmSummary loose = upload(b).getBody();
+        SavedNrmSummary looseTwin = upload(twin).getBody();
+        assignCategory(inIva.id(), iva.id());
+
+        ResponseEntity<byte[]> response = http.getForEntity("/api/v1/library/export", byte[].class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getHeaders().getContentDisposition().getFilename()).isEqualTo("normas.zip");
+        Map<String, byte[]> entries = new LinkedHashMap<>();
+        try (java.util.zip.ZipInputStream zip = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(response.getBody()))) {
+            for (ZipEntry entry = zip.getNextEntry(); entry != null; entry = zip.getNextEntry()) {
+                entries.put(entry.getName(), zip.readAllBytes());
+            }
+        }
+        assertThat(entries.keySet()).containsExactlyInAnyOrder("Fiscal/IVA_2026/Mapa.nrm", "Solta.nrm", "Solta (2).nrm");
+        assertThat(entries.get("Fiscal/IVA_2026/Mapa.nrm")).isEqualTo(a);
+        // The two files sharing a name both made it, as the library keeps them.
+        assertThat(entries.values()).anySatisfy(bytes -> assertThat(bytes).isEqualTo(b));
+        assertThat(entries.values()).anySatisfy(bytes -> assertThat(bytes).isEqualTo(twin));
+        assertThat(loose.id()).isNotEqualTo(looseTwin.id());
+    }
+
+    @Test
+    void exportingAnEmptyLibraryGivesAnEmptyZip() throws IOException {
+        ResponseEntity<byte[]> response = http.getForEntity("/api/v1/library/export", byte[].class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        try (java.util.zip.ZipInputStream zip = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(response.getBody()))) {
+            assertThat(zip.getNextEntry()).isNull();
+        }
+    }
+
+    @Test
     void aSavedNormaCanBeReadByItsId() throws IOException {
         CategoryNode fiscal = createCategory("Fiscal", null).getBody();
         SavedNrmSummary saved = save("A", "a.xlsx");

@@ -12,6 +12,15 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
+import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
@@ -165,6 +174,62 @@ public class NrmLibraryService {
     public StoredFile file(UUID id) {
         SavedNrm saved = find(id);
         return new StoredFile(downloadName(saved.getName()), bytesOf(saved));
+    }
+
+    /** One file of an export: where it goes in the zip (its folders, then its name) and the saved .nrm it comes from. */
+    public record ExportEntry(String path, UUID id) {
+    }
+
+    /**
+     * What an export of the whole library holds: every saved .nrm whose file is still there, each at the path of its
+     * folders (the top level for one under no folder) under its own name — a name already taken at that path gets
+     * " (2)", " (3)"... Worked out here, inside the transaction, so {@link #writeExport} can stream the files afterwards.
+     */
+    @Transactional(readOnly = true)
+    public List<ExportEntry> exportPlan() {
+        Map<UUID, List<String>> folders = categories.namePaths();
+        Set<String> taken = new HashSet<>();
+        List<ExportEntry> plan = new ArrayList<>();
+        for (SavedNrm saved : repository.findAll(Sort.by(Sort.Direction.ASC, "name").and(Sort.by(Sort.Direction.ASC, "id")))) {
+            if (!storage.exists(saved.getId())) {
+                continue;
+            }
+            List<String> folderNames = saved.getCategoryId() == null ? List.of() : folders.getOrDefault(saved.getCategoryId(), List.of());
+            String directory = folderNames.isEmpty() ? "" : folderNames.stream().map(NrmLibraryService::safeSegment).collect(Collectors.joining("/")) + "/";
+            String base = directory + stripNrm(downloadName(saved.getName()));
+            String path = base + ".nrm";
+            for (int copy = 2; !taken.add(path.toLowerCase(Locale.ROOT)); copy++) {
+                path = base + " (" + copy + ").nrm";
+            }
+            plan.add(new ExportEntry(path, saved.getId()));
+        }
+        return plan;
+    }
+
+    /** Writes the export as a zip: each file of {@code plan}, as the library keeps it. A file that vanished meanwhile is skipped. */
+    public void writeExport(List<ExportEntry> plan, OutputStream out) throws IOException {
+        try (ZipOutputStream zip = new ZipOutputStream(out)) {
+            zip.setLevel(0); // a .nrm is a zip already: storing is as small and quicker
+            for (ExportEntry entry : plan) {
+                Optional<byte[]> bytes = storage.read(entry.id());
+                if (bytes.isEmpty()) {
+                    continue;
+                }
+                zip.putNextEntry(new ZipEntry(entry.path()));
+                zip.write(bytes.get());
+                zip.closeEntry();
+            }
+        }
+    }
+
+    /** A folder name as a path segment of the zip: no separators or characters a file system refuses. */
+    private static String safeSegment(String name) {
+        String cleaned = name.replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", "_").trim();
+        return cleaned.isEmpty() ? "sem nome" : cleaned;
+    }
+
+    private static String stripNrm(String fileName) {
+        return fileName.endsWith(".nrm") ? fileName.substring(0, fileName.length() - 4) : fileName;
     }
 
     @Transactional

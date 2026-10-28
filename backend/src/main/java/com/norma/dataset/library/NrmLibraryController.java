@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -97,6 +98,19 @@ public class NrmLibraryController {
     @PostMapping("/{id}/open")
     public NrmOpenResponse open(@PathVariable UUID id) {
         return library.open(id);
+    }
+
+    @Operation(summary = "Export every saved .nrm as one zip",
+            description = "A zip with all the saved .nrm files, as the library keeps them, laid out in folders that mirror the "
+                    + "library's folders (those under no folder at the top). Files with the same name in one folder get \" (2)\", "
+                    + "\" (3)\"... A saved .nrm whose file is gone is left out.")
+    @GetMapping("/export")
+    public ResponseEntity<StreamingResponseBody> export() {
+        List<NrmLibraryService.ExportEntry> plan = library.exportPlan();
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("application/zip"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename("normas.zip").build().toString())
+                .body(out -> library.writeExport(plan, out));
     }
 
     @Operation(summary = "Download a saved .nrm file")
