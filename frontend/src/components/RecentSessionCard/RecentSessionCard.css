@@ -58,14 +58,8 @@
   font-size: 0.8rem;
 }
 
-/* A model that is also kept on the platform: its label is in the accent color, with a disk. */
+/* A model that is also kept on the platform: the same label color as an unsaved one, only bold. */
 .recent-session-card--saved .recent-session-card__label {
-  color: var(--color-action);
-  font-weight: 500;
+  font-weight: 700;
 }
 
-.recent-session-card .recent-session-card__icon {
-  width: 0.85rem;
-  height: 0.85rem;
-  margin: 0;
-}

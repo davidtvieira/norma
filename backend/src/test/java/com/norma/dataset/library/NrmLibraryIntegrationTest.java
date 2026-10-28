@@ -100,7 +100,7 @@ class NrmLibraryIntegrationTest {
         assertThat(saved.available()).isTrue();
         assertThat(STORAGE.resolve(saved.id() + ".nrm")).isRegularFile();
 
-        SavedNrmSummary[] listed = http.getForObject("/api/v1/library", SavedNrmSummary[].class);
+        SavedNrmSummary[] listed = http.getForObject("/api/v1/library", LibraryListing.class).normas().toArray(new SavedNrmSummary[0]);
         assertThat(listed).extracting(SavedNrmSummary::id).containsExactly(saved.id());
     }
 
@@ -193,7 +193,7 @@ class NrmLibraryIntegrationTest {
         SavedNrmSummary saved = save("Vendas", "dados.xlsx");
         Files.delete(STORAGE.resolve(saved.id() + ".nrm"));
 
-        SavedNrmSummary[] listed = http.getForObject("/api/v1/library", SavedNrmSummary[].class);
+        SavedNrmSummary[] listed = http.getForObject("/api/v1/library", LibraryListing.class).normas().toArray(new SavedNrmSummary[0]);
         assertThat(listed).singleElement().satisfies(entry -> assertThat(entry.available()).isFalse());
         assertThat(http.getForEntity("/api/v1/library/" + saved.id() + "/file", String.class).getStatusCode())
                 .isEqualTo(HttpStatus.NOT_FOUND);
@@ -281,6 +281,18 @@ class NrmLibraryIntegrationTest {
     }
 
     @Test
+    void aCategoryNameIsAtMostFiftyCharacters() {
+        assertThat(createCategory("a".repeat(50), null).getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(createCategory("b".repeat(51), null).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        // Counted in characters, not bytes: 50 accented letters fit.
+        assertThat(createCategory("é".repeat(50), null).getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        CategoryNode ok = createCategory("curto", null).getBody();
+        assertThat(putCategory(ok.id(), "c".repeat(51), null).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        // Spaces around it are not part of the name.
+        assertThat(createCategory("  " + "d".repeat(50) + "  ", null).getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    }
+
+    @Test
     void aCategoryCanBeRenamedAndMovedWithItsSubtreeButNotTooDeepOrIntoItself() {
         CategoryNode fiscal = createCategory("Fiscal", null).getBody();
         CategoryNode pessoal = createCategory("Pessoal", null).getBody();
@@ -308,19 +320,47 @@ class NrmLibraryIntegrationTest {
     }
 
     @Test
-    void aCategoryWithSubcategoriesOrNormasCannotBeDeleted() throws IOException {
+    void deletingACategoryDeletesItsSubcategoriesAndLeavesItsNormasUncategorized() throws IOException {
         CategoryNode fiscal = createCategory("Fiscal", null).getBody();
         CategoryNode iva = createCategory("IVA", fiscal.id()).getBody();
-        SavedNrmSummary saved = save("A", "a.xlsx");
-        assignCategory(saved.id(), iva.id());
+        CategoryNode trimestral = createCategory("Trimestral", iva.id()).getBody();
+        CategoryNode pessoal = createCategory("Pessoal", null).getBody();
+        SavedNrmSummary a = save("A", "a.xlsx");
+        SavedNrmSummary b = save("B", "b.xlsx");
+        SavedNrmSummary c = save("C", "c.xlsx");
+        SavedNrmSummary kept = save("Kept", "k.xlsx");
+        assignCategory(a.id(), fiscal.id());
+        assignCategory(b.id(), iva.id());
+        assignCategory(c.id(), trimestral.id());
+        assignCategory(kept.id(), pessoal.id());
 
-        assertThat(deleteCategory(fiscal.id())).isEqualTo(HttpStatus.CONFLICT); // has a subcategory
-        assertThat(deleteCategory(iva.id())).isEqualTo(HttpStatus.CONFLICT); // has a norma
-
-        assignCategory(saved.id(), null);
-        assertThat(deleteCategory(iva.id())).isEqualTo(HttpStatus.NO_CONTENT);
         assertThat(deleteCategory(fiscal.id())).isEqualTo(HttpStatus.NO_CONTENT);
+
+        // Fiscal and everything inside it is gone; the normas that were in any of them are under no category.
+        CategoryNode[] tree = http.getForObject("/api/v1/categories", CategoryNode[].class);
+        assertThat(tree).extracting(CategoryNode::name).containsExactly("Pessoal");
+        assertThat(names("")).containsExactlyInAnyOrder("A", "B", "C");
+        assertThat(names("categoryId=" + pessoal.id())).containsExactly("Kept"); // another category is left alone
+        assertThat(repository.count()).isEqualTo(4); // no norma was deleted
+        assertThat(STORAGE.toFile().list()).hasSize(4);
+        // Their dates did not change.
+        assertThat(http.getForObject("/api/v1/library?sort=name", LibraryListing.class).normas())
+                .extracting(SavedNrmSummary::updatedAt).containsExactly(a.updatedAt(), b.updatedAt(), c.updatedAt());
+
         assertThat(deleteCategory(fiscal.id())).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void deletingASubcategoryKeepsItsParentAndSiblings() {
+        CategoryNode fiscal = createCategory("Fiscal", null).getBody();
+        CategoryNode iva = createCategory("IVA", fiscal.id()).getBody();
+        createCategory("IRS", fiscal.id());
+
+        assertThat(deleteCategory(iva.id())).isEqualTo(HttpStatus.NO_CONTENT);
+
+        CategoryNode[] tree = http.getForObject("/api/v1/categories", CategoryNode[].class);
+        assertThat(tree).extracting(CategoryNode::name).containsExactly("Fiscal");
+        assertThat(tree[0].children()).extracting(CategoryNode::name).containsExactly("IRS");
     }
 
     @Test
@@ -336,17 +376,21 @@ class NrmLibraryIntegrationTest {
 
         assertThat(filed.categoryId()).isEqualTo(fiscal.id());
         assertThat(filed.updatedAt()).isEqualTo(a.updatedAt());
-        assertThat(names("categoryId=" + fiscal.id())).containsExactlyInAnyOrder("A", "C"); // with its subcategories
         CategoryNode trimestral = createCategory("Trimestral", iva.id()).getBody();
         SavedNrmSummary d = save("D", "d.xlsx");
         assignCategory(d.id(), trimestral.id());
-        assertThat(names("categoryId=" + fiscal.id())).containsExactlyInAnyOrder("A", "C", "D"); // at any depth
-        assertThat(names("categoryId=" + iva.id())).containsExactlyInAnyOrder("C", "D");
+
+        // A folder lists only the normas filed right in it, never those in the folders inside it.
+        assertThat(names("categoryId=" + fiscal.id())).containsExactly("A");
+        assertThat(names("categoryId=" + iva.id())).containsExactly("C");
+        assertThat(names("categoryId=" + trimestral.id())).containsExactly("D");
         assertThat(names("categoryId=" + pessoal.id())).isEmpty();
-        assertThat(names("uncategorized=true")).containsExactly("B");
-        assertThat(names("categoryId=" + fiscal.id() + "&search=c")).containsExactly("C");
+        assertThat(names("")).containsExactly("B");
+        assertThat(names("categoryId=" + iva.id() + "&search=c")).containsExactly("C");
+        assertThat(names("categoryId=" + fiscal.id() + "&search=c")).isEmpty();
         assertThat(http.getForEntity("/api/v1/library?categoryId=" + UUID.randomUUID(), String.class).getStatusCode())
                 .isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(http.getForObject("/api/v1/library", LibraryListing.class).total()).isEqualTo(4);
         assertThat(assignCategory(a.id(), UUID.randomUUID()).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
@@ -374,6 +418,100 @@ class NrmLibraryIntegrationTest {
         assertThat(STORAGE.toFile().list()).hasSize(1);
     }
 
+    @Test
+    void theListingHoldsTheCategoriesAndTheNormasOfOneLevel() throws IOException {
+        CategoryNode fiscal = createCategory("Fiscal", null).getBody();
+        CategoryNode iva = createCategory("IVA", fiscal.id()).getBody();
+        CategoryNode trimestral = createCategory("Trimestral", iva.id()).getBody();
+        createCategory("Pessoal", null);
+        SavedNrmSummary loose = save("Solta", "s.xlsx");
+        SavedNrmSummary inFiscal = save("Em fiscal", "f.xlsx");
+        SavedNrmSummary inIva = save("Em iva", "i.xlsx");
+        SavedNrmSummary inTrimestral = save("Em trimestral", "t.xlsx");
+        assignCategory(inFiscal.id(), fiscal.id());
+        assignCategory(inIva.id(), iva.id());
+        assignCategory(inTrimestral.id(), trimestral.id());
+
+        // No category: the top level — its categories and the normas filed under none.
+        LibraryListing top = listing("");
+        assertThat(top.categories()).extracting(FolderEntry::name).containsExactly("Fiscal", "Pessoal");
+        assertThat(top.normas()).extracting(SavedNrmSummary::name).containsExactly("Solta");
+        assertThat(top.total()).isEqualTo(4);
+        FolderEntry fiscalEntry = top.categories().get(0);
+        assertThat(fiscalEntry.path()).containsExactly("Fiscal");
+        assertThat(fiscalEntry.normaCount()).isEqualTo(1);
+        assertThat(fiscalEntry.totalCount()).isEqualTo(3); // itself plus the folders inside it
+        assertThat(fiscalEntry.childCount()).isEqualTo(1);
+
+        // A category: its direct subcategories and the normas filed right in it, not what is deeper.
+        LibraryListing inside = listing("categoryId=" + fiscal.id());
+        assertThat(inside.categories()).extracting(FolderEntry::name).containsExactly("IVA");
+        assertThat(inside.normas()).extracting(SavedNrmSummary::name).containsExactly("Em fiscal");
+        assertThat(inside.total()).isEqualTo(4);
+        // Where the listing is: the path to the category being looked into, itself last (with the id to go back to each step).
+        assertThat(top.path()).isEmpty();
+        List<PathStep> path = listing("categoryId=" + iva.id()).path();
+        assertThat(path).extracting(PathStep::name).containsExactly("Fiscal", "IVA");
+        assertThat(path).extracting(PathStep::id).containsExactly(fiscal.id(), iva.id());
+        // A norma says where it is filed.
+        assertThat(listing("categoryId=" + trimestral.id()).normas().get(0).categoryPath()).containsExactly("Fiscal", "IVA", "Trimestral");
+        assertThat(top.normas().get(0).categoryPath()).isEmpty();
+        assertThat(listing("everywhere=true").path()).isEmpty();
+        assertThat(listing("categoryId=" + trimestral.id()).categories()).isEmpty();
+        assertThat(http.getForEntity("/api/v1/library?categoryId=" + UUID.randomUUID(), String.class).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(loose.id()).isNotNull();
+    }
+
+    @Test
+    void searchingMatchesCategoryNamesAndNormasAtTheLevelOrEverywhere() throws IOException {
+        CategoryNode fiscal = createCategory("Fiscal", null).getBody();
+        CategoryNode iva = createCategory("IVA fiscal", fiscal.id()).getBody();
+        createCategory("Pessoal", null);
+        SavedNrmSummary a = save("Mapa fiscal", "a.xlsx");
+        SavedNrmSummary b = save("Mapa fiscal 2", "b.xlsx");
+        SavedNrmSummary c = save("Outro", "c.xlsx");
+        assignCategory(b.id(), fiscal.id());
+        assignCategory(c.id(), iva.id());
+
+        // At the top level, without everywhere: the top level's categories and normas that match.
+        LibraryListing top = listing("search=FISCAL");
+        assertThat(top.categories()).extracting(FolderEntry::name).containsExactly("Fiscal");
+        assertThat(top.normas()).extracting(SavedNrmSummary::name).containsExactly("Mapa fiscal");
+        // Inside a category: its direct subcategories and normas that match.
+        LibraryListing inside = listing("search=fiscal&categoryId=" + fiscal.id());
+        assertThat(inside.categories()).extracting(FolderEntry::name).containsExactly("IVA fiscal");
+        assertThat(inside.normas()).extracting(SavedNrmSummary::name).containsExactly("Mapa fiscal 2");
+        // Everywhere: every category and norma that matches, at any depth, the category with its whole path.
+        LibraryListing everywhere = listing("search=fiscal&everywhere=true");
+        assertThat(everywhere.categories()).extracting(FolderEntry::name).containsExactly("Fiscal", "IVA fiscal");
+        assertThat(everywhere.categories().get(1).path()).containsExactly("Fiscal", "IVA fiscal");
+        assertThat(everywhere.normas()).extracting(SavedNrmSummary::name).containsExactlyInAnyOrder("Mapa fiscal", "Mapa fiscal 2");
+        // Everywhere with no search: all of it.
+        LibraryListing all = listing("everywhere=true");
+        assertThat(all.categories()).hasSize(3);
+        assertThat(all.normas()).hasSize(3);
+        assertThat(a.id()).isNotNull();
+    }
+
+    @Test
+    void aSavedNormaCanBeReadByItsId() throws IOException {
+        CategoryNode fiscal = createCategory("Fiscal", null).getBody();
+        SavedNrmSummary saved = save("A", "a.xlsx");
+        assignCategory(saved.id(), fiscal.id());
+
+        SavedNrmSummary read = http.getForObject("/api/v1/library/" + saved.id(), SavedNrmSummary.class);
+
+        assertThat(read.name()).isEqualTo("A");
+        assertThat(read.categoryId()).isEqualTo(fiscal.id());
+        assertThat(http.getForEntity("/api/v1/library/" + UUID.randomUUID(), String.class).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    private LibraryListing listing(String query) {
+        return http.getForObject(URI.create(http.getRootUri() + "/api/v1/library" + (query.isEmpty() ? "" : "?" + query)), LibraryListing.class);
+    }
+
     private ResponseEntity<CategoryNode> createCategory(String name, UUID parentId) {
         return http.postForEntity("/api/v1/categories", new CategoryRequest(name, parentId), CategoryNode.class);
     }
@@ -396,7 +534,7 @@ class NrmLibraryIntegrationTest {
     private List<String> names(String query) {
         // A URI, not a string: a string is run through URI templating, which would encode the "%" of "%25" a second time.
         URI uri = URI.create(http.getRootUri() + "/api/v1/library" + (query.isEmpty() ? "" : "?" + query));
-        SavedNrmSummary[] listed = http.getForObject(uri, SavedNrmSummary[].class);
+        SavedNrmSummary[] listed = http.getForObject(uri, LibraryListing.class).normas().toArray(new SavedNrmSummary[0]);
         return Arrays.stream(listed).map(SavedNrmSummary::name).toList();
     }
 

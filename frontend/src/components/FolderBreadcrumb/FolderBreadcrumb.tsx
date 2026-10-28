@@ -1,26 +1,20 @@
 import { ChevronRightIcon } from '../ButtonIcons/ButtonIcons';
 import { useNormaDropTarget } from '../../hooks/useNormaDropTarget';
-import type { CategoryNode } from '../../types/category';
 import './FolderBreadcrumb.css';
 
 interface FolderBreadcrumbProps {
-  /** The open folder's ancestors, top-most first, then the folder itself last; empty at the top. */
-  path: CategoryNode[];
-  onOpen: (id: string | null) => void;
-  /** A norma card was dropped on a step of the path (null = "Todas as pastas"): files it there. */
-  onDropNorma: (normaId: string, folderId: string | null) => void;
+  /** The open folder's ancestors, top-most first, then the folder itself last. Not shown at the top (no folder open). */
+  path: { id: string; name: string }[];
+  onOpen: (id: string) => void;
+  /** A norma card was dropped on a step of the path: files it in that folder. */
+  onDropNorma: (normaId: string, folderId: string) => void;
 }
 
-/** "As minhas normas › Fiscal › IVA" above the grid of folders. */
+/** "Fiscal › IVA": the open folder and the ones it is in, each a way back up. */
 export function FolderBreadcrumb({ path, onOpen, onDropNorma }: FolderBreadcrumbProps) {
   return (
     <div className="folder-breadcrumb">
       <nav className="folder-breadcrumb__path" aria-label="Pasta">
-        {path.length === 0 ? (
-          <span className="folder-breadcrumb__current">Todas as pastas</span>
-        ) : (
-          <Crumb label="Todas as pastas" onOpen={() => onOpen(null)} onDropNorma={(normaId) => onDropNorma(normaId, null)} />
-        )}
         {path.map((node, index) => (
           <span key={node.id} className="folder-breadcrumb__step">
             <ChevronRightIcon className="folder-breadcrumb__chevron" />

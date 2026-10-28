@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LoadingOverlay } from '../components/LoadingOverlay/LoadingOverlay';
 import { AppFooter } from '../components/AppFooter/AppFooter';
 import { BackButton } from '../components/BackButton/BackButton';
@@ -12,10 +12,11 @@ import { FolderBreadcrumb } from '../components/FolderBreadcrumb/FolderBreadcrum
 import { RemoveFromFolderCard } from '../components/RemoveFromFolderCard/RemoveFromFolderCard';
 import { NewFolderCard } from '../components/NewFolderCard/NewFolderCard';
 import { FolderCard } from '../components/FolderCard/FolderCard';
-import { MoveNormaModal } from '../components/MoveNormaModal/MoveNormaModal';
-import { MAX_FOLDER_DEPTH, categoryPath, idsWithin, pathTo, type CategoryNode } from '../types/category';
+import { MAX_FOLDER_DEPTH } from '../types/category';
+import { useNormaDropTarget } from '../hooks/useNormaDropTarget';
 import type { Theme } from '../hooks/useTheme';
-import type { SavedNrmPayload, SavedNrmQuery } from '../types/savedNrm';
+import type { FolderEntryPayload, LibraryListingPayload, PathStepPayload, SavedNrmPayload, SavedNrmQuery } from '../types/savedNrm';
+import './NormasHeading.css';
 
 export interface RecentSessionEntryProps {
   id: string;
@@ -40,10 +41,8 @@ interface NormasScreenProps {
    * recentSessions), newest first. Empty when there's none — "Sessões recentes" is always shown,
    * with an empty-state message. */
   recentSessions: RecentSessionEntryProps[];
-  /** The library of saved .nrm files, newest first — null until the backend has answered. */
-  normas: SavedNrmPayload[] | null;
-  /** How many models the library holds in all (null until known) — the list may be showing only the search's matches. */
-  normasTotal: number | null;
+  /** What the library holds at the level being looked at (the folders and the normas the backend found) — null until it has answered. */
+  listing: LibraryListingPayload | null;
   /** A request for the list (first load, a search, a new order) is still waiting for its answer. */
   normasLoading: boolean;
   /** True when the library could not be read (the toast already said why). */
@@ -55,14 +54,12 @@ interface NormasScreenProps {
   openingSavedId: string | null;
   onOpenSaved: (model: SavedNrmPayload) => void;
   onDeleteSaved: (model: SavedNrmPayload) => Promise<void>;
-  /** The categories as a tree — null until the backend has answered. */
-  categories: CategoryNode[] | null;
   /** The open folder's id, null at the top. */
   folder: string | null;
   onFolderChange: (folder: string | null) => void;
-  /** While searching inside a folder: only that folder's normas. */
-  searchInFolder: boolean;
-  onSearchInFolderChange: (value: boolean) => void;
+  /** Inside a folder a search only looks there; this makes it look in every folder. */
+  searchEverywhere: boolean;
+  onSearchEverywhereChange: (value: boolean) => void;
   onCreateCategory: (name: string, parentId: string | null) => Promise<void>;
   onUpdateCategory: (id: string, name: string, parentId: string | null) => Promise<void>;
   onDeleteCategory: (id: string) => Promise<void>;
@@ -80,8 +77,7 @@ export function NormasScreen({
   onBack,
   onGoHome,
   recentSessions,
-  normas,
-  normasTotal,
+  listing,
   normasLoading,
   normasFailed,
   savedQuery,
@@ -89,36 +85,31 @@ export function NormasScreen({
   openingSavedId,
   onOpenSaved,
   onDeleteSaved,
-  categories,
   folder,
   onFolderChange,
-  searchInFolder,
-  onSearchInFolderChange,
+  searchEverywhere,
+  onSearchEverywhereChange,
   onCreateCategory,
   onUpdateCategory,
   onDeleteCategory,
   onMoveNorma,
 }: NormasScreenProps) {
-  // The category dialog: creating (under `parent`, or at the top level) or editing `node`.
-  const [categoryDialog, setCategoryDialog] = useState<{ editing: CategoryNode | null; parent: CategoryNode | null } | null>(null);
-  const [pendingDeleteCategory, setPendingDeleteCategory] = useState<CategoryNode | null>(null);
-  const [movingNorma, setMovingNorma] = useState<SavedNrmPayload | null>(null);
-  const tree = categories ?? [];
+  // The folder dialog: creating (in the open folder, or at the top level) or renaming one.
+  const [categoryDialog, setCategoryDialog] = useState<{ editing: FolderEntryPayload | null; parentId: string | null } | null>(null);
+  const [pendingDeleteCategory, setPendingDeleteCategory] = useState<FolderEntryPayload | null>(null);
+  const normas = listing?.normas ?? null;
   const searching = savedQuery.search.trim() !== '';
-  // The open folder and its ancestors, top-most first.
-  const path = pathTo(tree, folder);
+  // Where the page is: the path the backend answered with, its last step the open folder. A search across all folders
+  // has no path in its answer, so the last one answered stays while its folder is still the open one.
+  const [lastPath, setLastPath] = useState<PathStepPayload[]>([]);
+  useEffect(() => {
+    if (listing && listing.path.length > 0) setLastPath(listing.path);
+    else if (folder === null) setLastPath([]);
+  }, [listing, folder]);
+  const path = listing && listing.path.length > 0 ? listing.path : lastPath[lastPath.length - 1]?.id === folder ? lastPath : [];
   const current = path[path.length - 1] ?? null;
-  // Not searching: this level's folders and, beside them, the normas filed right here (at the top, those with no
-  // category). Searching lists normas alone — all that match, or only those inside the open folder.
-  const folders = searching ? [] : current ? current.children : tree;
-  const shown =
-    normas === null
-      ? null
-      : searching
-        ? current && searchInFolder
-          ? normas.filter((model) => model.categoryId !== null && idsWithin(current).has(model.categoryId))
-          : normas
-        : normas.filter((model) => model.categoryId === (current?.id ?? null));
+  // What the backend found at this level: its folders (a search matches their names too) and, beside them, the normas.
+  const folders = listing?.categories ?? [];
   // A norma card dropped on a folder (or a step of the breadcrumb): files it there, unless it already is.
   function dropNorma(normaId: string, folderId: string | null) {
     const model = normas?.find((candidate) => candidate.id === normaId);
@@ -129,7 +120,14 @@ export function NormasScreen({
       .finally(() => setIsMoving(false));
   }
 
-  const waitingForFolders = categories === null;
+  // The counter by the title: inside a folder, the normas in it and in the folders inside it that are on screen; else all of them.
+  const count =
+    listing === null
+      ? null
+      : listing.path.length > 0
+        ? listing.normas.length + listing.categories.reduce((sum, entry) => sum + entry.totalCount, 0)
+        : listing.total;
+
   const [pendingDelete, setPendingDelete] = useState<SavedNrmPayload | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
@@ -137,7 +135,7 @@ export function NormasScreen({
   const [draggedNorma, setDraggedNorma] = useState<SavedNrmPayload | null>(null);
 
   return (
-    <div className="app app--landing">
+    <div className="app app--landing normas-screen">
       <header className="app__topbar app__topbar--with-title">
         <BackButton onClick={onBack} />
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
@@ -145,56 +143,52 @@ export function NormasScreen({
 
       <div className="app__normas-body">
         <div className="app__normas-header">
-          <h1 className="app__normas-title">
-            As minhas normas
-            {normasTotal !== null && (
-              <span className="app__normas-count" title="Normas guardadas na plataforma">
-                {normasTotal}
+          <div className="normas-heading">
+            <h1 className="app__normas-title">
+              {path.length > 0 ? <HomeTitle onOpen={() => onFolderChange(null)} onDropNorma={(normaId) => dropNorma(normaId, null)} /> : 'As minhas normas'}
+            </h1>
+            {path.length > 0 && <FolderBreadcrumb path={path} onOpen={onFolderChange} onDropNorma={dropNorma} />}
+            {count !== null && (
+              <span className="app__normas-count" title={current ? 'Normas nesta pasta' : 'Normas guardadas na plataforma'}>
+                {count}
               </span>
             )}
-          </h1>
+          </div>
           <NormasToolbar
             query={savedQuery}
             onChange={onSavedQueryChange}
             folderName={current?.name ?? null}
-            searchInFolder={searchInFolder}
-            onSearchInFolderChange={onSearchInFolderChange}
+            searchEverywhere={searchEverywhere}
+            onSearchEverywhereChange={onSearchEverywhereChange}
           />
         </div>
-        {!waitingForFolders && (
-          <FolderBreadcrumb
-            path={path}
-            onOpen={onFolderChange}
-            onDropNorma={dropNorma}
-          />
-        )}
-        {shown !== null && shown.length === 0 && folders.length === 0 && !waitingForFolders && (
+        {normas !== null && normas.length === 0 && folders.length === 0 && (
           <p className="app__normas-placeholder app__normas-no-match">
             {searching ? 'Nenhuma norma corresponde à pesquisa.' : (current ? 'Esta pasta ainda não tem normas.' : 'Ainda não há normas nem pastas.')}
           </p>
         )}
-        {shown !== null ? (
+        {normas !== null || !normasFailed ? (
           <div className="app__normas-scroll">
             <div className="app__normas-list">
               {folders.map((category) => (
                 <FolderCard
                   key={category.id}
                   category={category}
+                  showPath={searching}
                   onOpen={() => onFolderChange(category.id)}
                   onDropNorma={(normaId) => dropNorma(normaId, category.id)}
-                  onEdit={() => setCategoryDialog({ editing: category, parent: null })}
+                  onEdit={() => setCategoryDialog({ editing: category, parentId: null })}
                   onDelete={() => setPendingDeleteCategory(category)}
                 />
               ))}
-              {shown.map((model) => (
+              {(normas ?? []).map((model) => (
                 <NormaCard
                   key={model.id}
                   model={model}
-                  categoryLabel={categoryPath(tree, model.categoryId)}
+                  categoryLabel={model.categoryPath.join(' › ')}
                   isOpening={openingSavedId === model.id}
                   onOpen={() => onOpenSaved(model)}
                   onDelete={() => setPendingDelete(model)}
-                  onMove={() => setMovingNorma(model)}
                   onDragChange={(isDragging) => setDraggedNorma(isDragging ? model : null)}
                 />
               ))}
@@ -205,7 +199,7 @@ export function NormasScreen({
               ) : (
                 !searching &&
                 path.length < MAX_FOLDER_DEPTH && (
-                  <NewFolderCard label="Nova pasta" onClick={() => setCategoryDialog({ editing: null, parent: current })} />
+                  <NewFolderCard label="Nova pasta" onClick={() => setCategoryDialog({ editing: null, parentId: current?.id ?? null })} />
                 )
               )}
             </div>
@@ -243,15 +237,17 @@ export function NormasScreen({
         )}
       </div>
 
-      {(isDeleting || isMoving || normasLoading || waitingForFolders || (normas === null && !normasFailed)) && <LoadingOverlay delayMs={200} />}
+      {/* Nothing to show yet (opening the page, or going into another folder): the loading page at once. A refresh of what is
+          already on screen (typing a search, a move) waits a moment so a quick answer never flashes it. */}
+      {(isDeleting || isMoving || normasLoading || (normas === null && !normasFailed)) &&
+        (normas === null && !normasFailed ? <LoadingOverlay key="blank" /> : <LoadingOverlay key="refresh" delayMs={200} />)}
 
       <AppFooter onGoHome={onGoHome} />
 
       {categoryDialog && (
         <CategoryModal
           editing={categoryDialog.editing}
-          initialParentId={categoryDialog.parent?.id ?? null}
-          tree={tree}
+          initialParentId={categoryDialog.parentId}
           onSubmit={(name, parentId) =>
             categoryDialog.editing ? onUpdateCategory(categoryDialog.editing.id, name, parentId) : onCreateCategory(name, parentId)
           }
@@ -259,22 +255,16 @@ export function NormasScreen({
         />
       )}
 
-      {movingNorma && (
-        <MoveNormaModal
-          model={movingNorma}
-          tree={tree}
-          onMove={(categoryId) => onMoveNorma(movingNorma.id, categoryId)}
-          onClose={() => setMovingNorma(null)}
-        />
-      )}
-
       {pendingDeleteCategory && (
         <ConfirmModal
           title="Apagar a pasta?"
           message={
-            pendingDeleteCategory.totalCount > 0 || pendingDeleteCategory.children.length > 0
-              ? `"${pendingDeleteCategory.name}" ainda tem pastas ou normas. Mova-as primeiro para a poder apagar.`
-              : `"${pendingDeleteCategory.name}" vai ser removida.`
+            `A pasta "${pendingDeleteCategory.name}" vai ser apagada` +
+            (pendingDeleteCategory.childCount > 0 ? ', com todas as pastas que tem dentro' : '') +
+            '.' +
+            (pendingDeleteCategory.totalCount > 0
+              ? ` ${pendingDeleteCategory.totalCount === 1 ? 'A norma que lá está fica' : `As ${pendingDeleteCategory.totalCount} normas que lá estão ficam`} sem pasta.`
+              : '')
           }
           confirmLabel="Apagar"
           danger
@@ -308,5 +298,15 @@ export function NormasScreen({
         />
       )}
     </div>
+  );
+}
+
+/** The page's title once a folder is open: the way back to the top, and a place to drop a norma to take it out of its folder. */
+function HomeTitle({ onOpen, onDropNorma }: { onOpen: () => void; onDropNorma: (normaId: string) => void }) {
+  const drop = useNormaDropTarget(onDropNorma);
+  return (
+    <button type="button" className={`normas-heading__home${drop.isOver ? ' normas-heading__home--drop' : ''}`} onClick={onOpen} {...drop.props}>
+      As minhas normas
+    </button>
   );
 }

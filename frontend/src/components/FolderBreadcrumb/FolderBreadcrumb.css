@@ -1,27 +1,26 @@
 .folder-breadcrumb {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  align-items: baseline;
   gap: 0.75rem;
-  margin-bottom: 0.75rem;
 }
 
 .folder-breadcrumb__path {
   min-width: 0;
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: baseline;
   gap: 0.1rem;
   font-size: 0.95rem;
 }
 
 .folder-breadcrumb__step {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 0.1rem;
 }
 
 .folder-breadcrumb__chevron {
+  align-self: center;
   width: 1rem;
   height: 1rem;
   color: var(--color-text-muted);

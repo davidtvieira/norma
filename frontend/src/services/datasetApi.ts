@@ -13,7 +13,7 @@ import type {
 import type { SelectorRequestPayload, SelectorResponsePayload } from '../types/selector';
 import type { NrmImportStatusPayload, NrmInfoPayload, NrmOpenPayload } from '../types/nrm';
 import type { CategoryNode } from '../types/category';
-import type { SavedNrmPayload, SavedNrmQuery } from '../types/savedNrm';
+import type { LibraryListingPayload, SavedNrmPayload, SavedNrmQuery } from '../types/savedNrm';
 import type { NodeRequestPayload, NodeResponsePayload } from '../types/node';
 import type { OperationType } from '../types/operation';
 import type { SumRequestPayload, SumResponsePayload } from '../types/sum';
@@ -138,18 +138,26 @@ export function importNrm(file: File): Promise<NrmImportStatusPayload> {
   return postNrm('/api/v1/nrm/import', file);
 }
 
-/** The library of saved .nrm files, most recently saved first unless `query` says otherwise. */
-export async function listSavedNrms(query?: SavedNrmQuery): Promise<SavedNrmPayload[]> {
+/** What the library holds at the level `query` names: its folders and its normas (most recently saved first unless it says otherwise). */
+export async function listLibrary(query: SavedNrmQuery): Promise<LibraryListingPayload> {
   const params = new URLSearchParams();
-  if (query?.search.trim()) params.set('search', query.search.trim());
-  if (query) {
-    params.set('sort', query.sort);
-    params.set('direction', query.direction);
-  }
-  const queryString = params.size > 0 ? `?${params}` : '';
-  const response = await apiFetch(`${API_BASE_URL}/api/v1/library${queryString}`);
+  if (query.search.trim()) params.set('search', query.search.trim());
+  params.set('sort', query.sort);
+  params.set('direction', query.direction);
+  if (query.folder && !query.everywhere) params.set('categoryId', query.folder);
+  if (query.everywhere) params.set('everywhere', 'true');
+  const response = await apiFetch(`${API_BASE_URL}/api/v1/library?${params}`);
   if (!response.ok) {
     throw await apiError(response, 'Falha ao obter as normas guardadas');
+  }
+  return response.json();
+}
+
+/** One saved norma's entry (name, counts, dates and the folder it is filed under). */
+export async function getSavedNrm(id: string): Promise<SavedNrmPayload> {
+  const response = await apiFetch(`${API_BASE_URL}/api/v1/library/${encodeURIComponent(id)}`);
+  if (!response.ok) {
+    throw await apiError(response, 'Falha ao obter a norma guardada');
   }
   return response.json();
 }

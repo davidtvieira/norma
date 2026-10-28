@@ -15,8 +15,8 @@ import java.util.UUID;
 
 /**
  * The categories saved normas are filed under: a category and its subcategories, {@value #MAX_DEPTH} levels at most
- * (a category, its subcategory, and so on). A name is unique among its siblings (any case), and a category with
- * subcategories or normas in it cannot be deleted.
+ * (a category, its subcategory, and so on). A name is unique among its siblings (any case). Deleting a category deletes
+ * its subcategories too; the normas filed in any of them are kept, under no category.
  */
 @Service
 public class CategoryService {
@@ -24,7 +24,8 @@ public class CategoryService {
     /** How many levels deep categories go: a top-level category is level 1. */
     static final int MAX_DEPTH = 4;
 
-    static final int MAX_NAME_LENGTH = 255;
+    /** The longest a category name can be, in characters (the column is VARCHAR(50) too; the app's input stops at it). */
+    static final int MAX_NAME_LENGTH = 50;
 
     private final CategoryRepository categories;
     private final SavedNrmRepository normas;
@@ -63,6 +64,78 @@ public class CategoryService {
         return childrenOf;
     }
 
+    /**
+     * The categories GET /library lists. Without {@code everywhere}: the direct subcategories of {@code parentId} (the
+     * top-level ones when it is null) whose name contains {@code search} (any case; all of them when it is blank). With
+     * {@code everywhere}: every category, at any depth, whose name contains it. By name.
+     */
+    @Transactional(readOnly = true)
+    public List<FolderEntry> entries(UUID parentId, String search, boolean everywhere) {
+        List<Category> all = categories.findAll();
+        Map<UUID, Category> byId = new HashMap<>();
+        all.forEach(category -> byId.put(category.getId(), category));
+        Map<UUID, List<Category>> childrenOf = childrenByParent(all);
+        Map<UUID, Integer> own = new HashMap<>();
+        for (SavedNrmRepository.CategoryCount count : normas.countByCategory()) {
+            own.put(count.getCategoryId(), (int) count.getTotal());
+        }
+        String needle = search == null ? "" : search.trim().toLowerCase(Locale.ROOT);
+        List<Category> candidates = everywhere ? all : childrenOf.getOrDefault(parentId, List.of());
+        return candidates.stream()
+                .filter(category -> needle.isEmpty() || category.getName().toLowerCase(Locale.ROOT).contains(needle))
+                .sorted(BY_NAME)
+                .map(category -> {
+                    List<String> path = new ArrayList<>();
+                    for (Category up = category; up != null; up = up.getParentId() == null ? null : byId.get(up.getParentId())) {
+                        path.add(0, up.getName());
+                    }
+                    return new FolderEntry(category.getId(), category.getParentId(), category.getName(), path,
+                            own.getOrDefault(category.getId(), 0), totalOf(category.getId(), childrenOf, own),
+                            childrenOf.getOrDefault(category.getId(), List.of()).size());
+                })
+                .toList();
+    }
+
+    /** The categories from the top-level one down to {@code id}, itself last; a 404 if there is no such category. */
+    @Transactional(readOnly = true)
+    public List<PathStep> pathOf(UUID id) {
+        Map<UUID, Category> byId = new HashMap<>();
+        categories.findAll().forEach(category -> byId.put(category.getId(), category));
+        if (!byId.containsKey(id)) {
+            throw new CategoryNotFoundException("Category not found.");
+        }
+        List<PathStep> path = new ArrayList<>();
+        for (Category up = byId.get(id); up != null; up = up.getParentId() == null ? null : byId.get(up.getParentId())) {
+            path.add(0, new PathStep(up.getId(), up.getName()));
+        }
+        return path;
+    }
+
+    /** For every category, the names from the top-level one down to it (itself last). */
+    @Transactional(readOnly = true)
+    public Map<UUID, List<String>> namePaths() {
+        List<Category> all = categories.findAll();
+        Map<UUID, Category> byId = new HashMap<>();
+        all.forEach(category -> byId.put(category.getId(), category));
+        Map<UUID, List<String>> paths = new HashMap<>();
+        for (Category category : all) {
+            List<String> path = new ArrayList<>();
+            for (Category up = category; up != null; up = up.getParentId() == null ? null : byId.get(up.getParentId())) {
+                path.add(0, up.getName());
+            }
+            paths.put(category.getId(), path);
+        }
+        return paths;
+    }
+
+    private static int totalOf(UUID id, Map<UUID, List<Category>> childrenOf, Map<UUID, Integer> own) {
+        int total = own.getOrDefault(id, 0);
+        for (Category child : childrenOf.getOrDefault(id, List.of())) {
+            total += totalOf(child.getId(), childrenOf, own);
+        }
+        return total;
+    }
+
     @Transactional
     public CategoryNode create(CategoryRequest request) {
         String name = cleanName(request.name());
@@ -84,29 +157,25 @@ public class CategoryService {
         return nodeOf(categories.saveAndFlush(category));
     }
 
+    /**
+     * Deletes a category together with all its subcategories. The normas filed in any of them are not deleted: they end up
+     * under no category.
+     */
     @Transactional
     public void delete(UUID id) {
-        Category category = find(id);
-        if (categories.existsByParentId(id)) {
-            throw new CategoryConflictException("The category still has subcategories. Delete or move them first.");
-        }
-        if (normas.existsByCategoryId(id)) {
-            throw new CategoryConflictException("The category still has normas. Move them to another category first.");
-        }
-        categories.delete(category);
-    }
-
-    /** The ids a filter by {@code id} covers: the category itself and all its subcategories, at any depth. */
-    @Transactional(readOnly = true)
-    public List<UUID> idsWithin(UUID id) {
         find(id);
         Map<UUID, List<Category>> childrenOf = childrenByParent(categories.findAll());
-        List<UUID> ids = new ArrayList<>();
-        ids.add(id);
-        for (int next = 0; next < ids.size(); next++) {
-            childrenOf.getOrDefault(ids.get(next), List.of()).forEach(child -> ids.add(child.getId()));
+        List<Category> doomed = new ArrayList<>();
+        doomed.add(find(id));
+        for (int next = 0; next < doomed.size(); next++) {
+            doomed.addAll(childrenOf.getOrDefault(doomed.get(next).getId(), List.of()));
         }
-        return ids;
+        normas.uncategorize(doomed.stream().map(Category::getId).toList());
+        // Subcategories first: each one points at its parent.
+        List<Category> deepestFirst = new ArrayList<>(doomed);
+        java.util.Collections.reverse(deepestFirst);
+        categories.deleteAll(deepestFirst);
+        categories.flush();
     }
 
     /** Fails with a 404 unless a category with this id exists. */
@@ -179,7 +248,7 @@ public class CategoryService {
             throw new IllegalArgumentException("The category needs a name.");
         }
         String cleaned = name.trim();
-        if (cleaned.length() > MAX_NAME_LENGTH) {
+        if (cleaned.codePointCount(0, cleaned.length()) > MAX_NAME_LENGTH) {
             throw new IllegalArgumentException("The category name is too long (at most " + MAX_NAME_LENGTH + " characters).");
         }
         return cleaned;

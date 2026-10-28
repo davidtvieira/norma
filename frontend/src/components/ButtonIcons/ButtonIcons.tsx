@@ -16,6 +16,7 @@ import {
   Plus,
   Redo2,
   Save,
+  Search,
   Square,
   Store,
   Sun,
@@ -68,6 +69,8 @@ export const FolderIcon = make(FolderOpen, 'button-icon');
 export const TrashIcon = make(Trash2, 'button-icon');
 /** Plus — adding something. */
 export const PlusIcon = make(Plus, 'button-icon');
+
+export const SearchIcon = make(Search);
 
 /** Eye — seeing the full thing. */
 export const EyeIcon = make(Eye);

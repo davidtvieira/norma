@@ -1,4 +1,3 @@
-import { DiskIcon } from '../ButtonIcons/ButtonIcons';
 import './RecentSessionCard.css';
 
 interface RecentSessionCardProps {
@@ -30,7 +29,6 @@ export function RecentSessionCard({ datasetFileName, nrmName, hasModel, isSaved,
       <button type="button" className="recent-session-card__button" onClick={onResume} disabled={isResuming} aria-busy={isResuming} title={name}>
         <span className="recent-session-card__name">{name}</span>
         <span className="recent-session-card__label">
-          {isSaved && <DiskIcon className="recent-session-card__icon" />}
           {!hasModel ? 'Conjunto de dados' : isSaved ? 'Guardado na plataforma' : 'Não guardado na plataforma'}
         </span>
       </button>

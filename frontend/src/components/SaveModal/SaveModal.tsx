@@ -20,7 +20,7 @@ interface SaveModalProps {
   open: boolean;
   /** The model is already in the library: the main button updates that entry. */
   isUpdate: boolean;
-  /** The library's categories (null until known), and the one a new norma is filed under — only offered when saving a new one. */
+  /** The library's categories (null until known), and the one the norma is filed under (when updating, the one it is in now). */
   categories: CategoryNode[] | null;
   categoryId: string | null;
   onCategoryChange: (id: string | null) => void;
@@ -123,7 +123,7 @@ export function SaveModal({
         />
       </label>
 
-      {!isUpdate && categories !== null && categories.length > 0 && (
+      {categories !== null && categories.length > 0 && (
         <label className="save-modal__name">
           <span className="modal__label">Pasta</span>
           <CategorySelect tree={categories} noneLabel="Sem pasta" value={categoryId} onChange={onCategoryChange} />

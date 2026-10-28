@@ -1,5 +1,5 @@
-/* "Mover para…": an icon beside the bin in the card's corner. */
-.norma-card__name {
+/* A folder card has a second corner button (edit) beside the bin: its name leaves room for both. */
+.folder-card .norma-card__name {
   padding-right: 3.6rem;
 }
 

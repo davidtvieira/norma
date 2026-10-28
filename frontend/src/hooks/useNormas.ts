@@ -1,23 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { deleteSavedNrm, listSavedNrms } from '../services/datasetApi';
-import type { SavedNrmPayload, SavedNrmQuery } from '../types/savedNrm';
+import { deleteSavedNrm, listLibrary } from '../services/datasetApi';
+import type { LibraryListingPayload, SavedNrmQuery } from '../types/savedNrm';
 
 /** How long typing in the search box has to pause before the list is asked for again. */
 const SEARCH_DEBOUNCE_MS = 250;
 
 /**
- * The library of saved .nrm files, read from the backend whenever `active` turns on (the screen that shows
- * them is open) and again whenever `query` changes — a new search waits for the typing to pause, a new order
- * is immediate. `models` is null until the first answer arrives; `failed` says the list could not be read (the
- * toast already told why).
+ * What the library holds, read from the backend whenever `active` turns on (the screen that shows it is open) and
+ * again whenever `query` changes — a new search waits for the typing to pause, a new order or level (the folder being
+ * looked into) is immediate. The backend does all the narrowing: `listing` is its answer (the folders and the normas
+ * found) for the current level, and is null until that answer arrives — never another folder's contents meanwhile.
+ * `failed` says it could not be read (the toast already told why).
  */
 export function useNormas(active: boolean, query: SavedNrmQuery) {
-  const [models, setModels] = useState<SavedNrmPayload[] | null>(null);
+  // What was listed, and the level it was listed for.
+  const [loaded, setLoaded] = useState<{ level: string; listing: LibraryListingPayload } | null>(null);
   const [failed, setFailed] = useState(false);
-  // True while a request (the first one, a search or a new order) is waiting for its answer.
+  // True while a request (the first one, a search, a new order or folder) is waiting for its answer.
   const [loading, setLoading] = useState(false);
-  // How many models the library holds, whatever the search: read off any answer that was not searched.
-  const [total, setTotal] = useState<number | null>(null);
   // Only the newest request may fill the list: an older, slower answer must not overwrite it.
   const latestRequest = useRef(0);
   const queryRef = useRef(query);
@@ -25,14 +25,16 @@ export function useNormas(active: boolean, query: SavedNrmQuery) {
     queryRef.current = query;
   });
 
+  const levelOf = (asked: SavedNrmQuery) => JSON.stringify([asked.folder, asked.everywhere]);
+
   const refresh = useCallback(() => {
     const request = ++latestRequest.current;
+    const asked = queryRef.current;
     setLoading(true);
-    return listSavedNrms(queryRef.current)
-      .then((list) => {
+    return listLibrary(asked)
+      .then((listing) => {
         if (request !== latestRequest.current) return;
-        setModels(list);
-        if (!queryRef.current.search.trim()) setTotal(list.length);
+        setLoaded({ level: JSON.stringify([asked.folder, asked.everywhere]), listing });
         setFailed(false);
       })
       .catch(() => {
@@ -44,26 +46,38 @@ export function useNormas(active: boolean, query: SavedNrmQuery) {
   }, []);
 
   const askedSearch = useRef<string | null>(null);
+  const level = levelOf(query);
   useEffect(() => {
     if (!active) return;
-    // Typing waits for a pause; opening the screen or changing the order does not.
+    // Typing waits for a pause; opening the screen or changing the order or folder does not.
     const delay = askedSearch.current !== null && askedSearch.current !== query.search ? SEARCH_DEBOUNCE_MS : 0;
     const timeoutId = window.setTimeout(() => {
       askedSearch.current = query.search;
-      refresh();
+      void refresh();
     }, delay);
     return () => window.clearTimeout(timeoutId);
-    // The search is a dependency by value (not the whole query object, which is a new one on every render).
-  }, [active, refresh, query.search, query.sort, query.direction]);
+    // The search and the level are dependencies by value (not the whole query object, which is a new one on every render).
+  }, [active, refresh, query.search, query.sort, query.direction, level]);
 
   const remove = useCallback(
     (id: string) =>
       deleteSavedNrm(id).then(() => {
-        setModels((current) => current?.filter((model) => model.id !== id) ?? current);
-        setTotal((current) => (current === null ? current : Math.max(0, current - 1)));
+        setLoaded((current) =>
+          current
+            ? {
+                ...current,
+                listing: {
+                  ...current.listing,
+                  normas: current.listing.normas.filter((model) => model.id !== id),
+                  total: Math.max(0, current.listing.total - 1),
+                },
+              }
+            : current,
+        );
       }),
     [],
   );
 
-  return { models, total, failed, loading, refresh, remove };
+  const listing = loaded !== null && loaded.level === level ? loaded.listing : null;
+  return { listing, failed, loading, refresh, remove };
 }

@@ -36,21 +36,30 @@ public class NrmLibraryController {
     }
 
     @Operation(
-            summary = "List the saved .nrm files",
-            description = "Most recently saved first, unless told otherwise. search keeps the models whose name or "
-                    + "dataset file name contains the text (any case). sort is one of name, updatedAt, createdAt, "
-                    + "sizeBytes and operationCount; direction is asc or desc (by default A to Z for the name and "
-                    + "newest or biggest first for the rest). categoryId keeps those filed under that category or any of "
-                    + "its subcategories; uncategorized=true keeps those filed under none. An unknown sort or direction is a 400."
+            summary = "List what the library holds: categories and saved .nrm files",
+            description = "One level of the library: without categoryId the top level (the categories with no parent and "
+                    + "the .nrm files filed under none), with it that category's subcategories and the files filed right in "
+                    + "it (a category that does not exist is a 404). Never what is deeper. everywhere=true ignores the level "
+                    + "and looks at every category and every file. search keeps the categories whose name contains the text "
+                    + "and the files whose name or dataset file name contains it (any case). sort is one of name, updatedAt, "
+                    + "createdAt, sizeBytes and operationCount and direction is asc or desc (by default A to Z for the name and "
+                    + "newest or biggest first for the rest); they order the files, the categories are by name. An unknown sort "
+                    + "or direction is a 400. total is how many files the library holds in all."
     )
     @GetMapping
-    public List<SavedNrmSummary> list(
+    public LibraryListing list(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) String sort,
             @RequestParam(required = false) String direction,
             @RequestParam(required = false) UUID categoryId,
-            @RequestParam(defaultValue = "false") boolean uncategorized) {
-        return library.list(search, sort, direction, categoryId, uncategorized);
+            @RequestParam(defaultValue = "false") boolean everywhere) {
+        return library.list(search, sort, direction, categoryId, everywhere);
+    }
+
+    @Operation(summary = "Get one saved .nrm", description = "Its entry: name, dataset file, counts, dates and the category it is filed under.")
+    @GetMapping("/{id}")
+    public SavedNrmSummary get(@PathVariable UUID id) {
+        return library.get(id);
     }
 
     @Operation(

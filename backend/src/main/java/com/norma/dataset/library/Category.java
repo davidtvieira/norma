@@ -19,7 +19,7 @@ public class Category {
     @Column(name = "parent_id")
     private UUID parentId;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 50)
     private String name;
 
     @Column(name = "created_at", nullable = false)

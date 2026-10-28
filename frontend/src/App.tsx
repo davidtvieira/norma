@@ -4,8 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useCategories } from './hooks/useCategories';
-import { assignSavedNrmCategory, createCategory, deleteCategory, updateCategory } from './services/datasetApi';
-import { findCategory } from './types/category';
+import { assignSavedNrmCategory, createCategory, deleteCategory, getSavedNrm, updateCategory } from './services/datasetApi';
 import { KINDS_BY_ID, OPERATION_KIND_IDS } from './components/OperationPanel/kinds/registry';
 import { useTheme } from './hooks/useTheme';
 import {
@@ -194,26 +193,46 @@ function App() {
   // came from or was last saved as — "Guardar na plataforma" then replaces that entry instead of adding a
   // copy. A ref: it never needs a render of its own.
   const [savedQuery, setSavedQuery] = useState<SavedNrmQuery>(DEFAULT_SAVED_QUERY);
-  // The normas sit in folders (their categories; those with none sit beside the top-level folders); `folder` is the one that is
-  // open (null at the top), kept in the address (/normas?pasta=<id>) so a reload or the back button keeps
-  // the place. The normas are always read whole: the folders are worked out from each norma's category.
+  // The library is shown as folders (the categories) and the normas filed right in them — those filed under none sit
+  // beside the top-level folders. `folder` is the one that is open (null at the top), kept in the address
+  // (/normas?pasta=<id>) so a reload or the back button keeps the place. The backend answers for one level at a time.
   const [folder, setFolder] = useState<string | null>(() => new URLSearchParams(window.location.search).get('pasta'));
-  // While searching inside a folder: only that folder's normas, instead of all of them.
-  const [searchInFolder, setSearchInFolder] = useState(false);
-  const normas = useNormas(location.pathname === '/normas', savedQuery);
-  // The categories are needed on /normas and, to file a new norma, in the save dialog.
-  const categories = useCategories(location.pathname === '/normas' || isSaveModalOpen);
+  // A search inside a folder looks only in that folder; this (off by default) makes it look in every folder.
+  const [searchEverywhere, setSearchEverywhere] = useState(false);
+  // A search at the top level looks everywhere (there is no folder to stay in); inside a folder only if asked to.
+  const everywhere = savedQuery.search.trim() !== '' && (folder === null || searchEverywhere);
+  const library = useNormas(location.pathname === '/normas', { ...savedQuery, folder, everywhere });
+  // The whole folder tree is only needed by the save dialog's folder choice; /normas gets everything from the listing.
+  const categories = useCategories(isSaveModalOpen);
   // Where a first save from the editor files the norma.
   const [saveCategoryId, setSaveCategoryId] = useState<string | null>(null);
+  // Whether the folder was picked in the dialog since it opened: only then does an update move the norma.
+  const saveCategoryPicked = useRef(false);
+  // Updating a norma that is already in the library: the dialog starts with the folder it is in now.
+  useEffect(() => {
+    const savedId = savedNrmIdRef.current;
+    if (!isSaveModalOpen) return;
+    saveCategoryPicked.current = false;
+    if (!savedId) return;
+    let cancelled = false;
+    getSavedNrm(savedId)
+      .then((saved) => {
+        if (!cancelled && !saveCategoryPicked.current) setSaveCategoryId(saved.categoryId);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [isSaveModalOpen]);
   useEffect(() => {
     if (location.pathname !== '/normas') return;
     const wanted = folder ? `?pasta=${encodeURIComponent(folder)}` : '';
     if (location.search !== wanted) navigate({ pathname: '/normas', search: wanted }, { replace: true });
   }, [location.pathname, location.search, folder, navigate]);
-  // An open folder that no longer exists (deleted, or a stale link) falls back to the top.
+  // An open folder that no longer exists (deleted, or a stale link): the backend answers 404 and the page falls back to the top.
   useEffect(() => {
-    if (categories.tree && folder && !findCategory(categories.tree, folder)) setFolder(null);
-  }, [categories.tree, folder]);
+    if (library.failed && folder !== null) setFolder(null);
+  }, [library.failed, folder]);
   const savedNrmIdRef = useRef<string | null>(null);
   // Whether that entry exists — what the editor's save button reads ("Atualizar" instead of "Guardar").
   const [isSavedInLibrary, setIsSavedInLibrary] = useState(false);
@@ -861,7 +880,9 @@ function App() {
     if (format === 'library') {
       const file = new File([blob], `${fileName}.nrm`, { type: 'application/octet-stream' });
       const isReplacing = savedNrmIdRef.current !== null;
-      const saved = savedNrmIdRef.current ? await replaceSavedNrm(savedNrmIdRef.current, file) : await saveNrm(file, saveCategoryId);
+      let saved = savedNrmIdRef.current ? await replaceSavedNrm(savedNrmIdRef.current, file) : await saveNrm(file, saveCategoryId);
+      // Updating keeps the norma's folder; the dialog's folder choice may be another one.
+      if (isReplacing && saveCategoryPicked.current && saved.categoryId !== saveCategoryId) saved = await assignSavedNrmCategory(saved.id, saveCategoryId);
       setSavedNrmId(saved.id);
       reportSuccess(isReplacing ? 'Norma atualizada na plataforma' : 'Norma guardada na plataforma');
       return;
@@ -1013,7 +1034,11 @@ function App() {
   const pageTitle = (() => {
     const path = location.pathname;
     if (path === '/') return null;
-    if (path === '/normas') return 'As minhas normas';
+    if (path === '/normas') {
+      // Inside a folder, the tab is just that folder's name.
+      const open = library.listing?.path.at(-1);
+      return open ? open.name : 'As minhas normas';
+    }
     if (path.endsWith('/editor')) return `A editar ${nrmName.trim() || modelName.trim() || 'o modelo'}`;
     if (path.endsWith('/utilizar')) return utilizeModel?.modelName || 'Utilizar modelo';
     if (isFilePath(path)) return importedModel?.nrmName || importedModel?.modelName || dataset?.filename || 'Conjunto de dados';
@@ -1116,7 +1141,10 @@ function App() {
                         isSavedInLibrary={isSavedInLibrary}
                         categories={categories.tree}
                         saveCategoryId={saveCategoryId}
-                        onSaveCategoryChange={setSaveCategoryId}
+                        onSaveCategoryChange={(id) => {
+                          saveCategoryPicked.current = true;
+                          setSaveCategoryId(id);
+                        }}
                         onOpenSaveModal={() => setIsSaveModalOpen(true)}
                         onCloseSaveModal={() => setIsSaveModalOpen(false)}
                         onExportModel={exportModel}
@@ -1201,41 +1229,39 @@ function App() {
             onToggleTheme={toggleTheme}
             onBack={() => navigate('/')}
             onGoHome={goHome}
-            normas={normas.models}
-            normasTotal={normas.total}
-            normasLoading={normas.loading}
-            normasFailed={normas.failed}
+            listing={library.listing}
+            normasLoading={library.loading}
+            normasFailed={library.failed}
             savedQuery={savedQuery}
             onSavedQueryChange={setSavedQuery}
             openingSavedId={openingSavedId}
             onOpenSaved={openNorma}
             onDeleteSaved={(saved) =>
-              normas
+              library
                 .remove(saved.id)
-                .then(() => categories.refresh())
                 .then(() => forgetSavedNrm(saved.id))
                 .then(refreshRecentSessions)
             }
-            categories={categories.tree}
             folder={folder}
             onFolderChange={setFolder}
-            searchInFolder={searchInFolder}
-            onSearchInFolderChange={setSearchInFolder}
+            searchEverywhere={searchEverywhere}
+            onSearchEverywhereChange={setSearchEverywhere}
             onCreateCategory={async (name, parentId) => {
               await createCategory(name, parentId);
-              await categories.refresh();
+              await library.refresh();
             }}
             onUpdateCategory={async (id, name, parentId) => {
               await updateCategory(id, name, parentId);
-              await Promise.all([categories.refresh(), normas.refresh()]);
+              await library.refresh();
             }}
             onDeleteCategory={async (id) => {
               await deleteCategory(id);
-              await categories.refresh();
+              // The normas that were in it (or in the folders inside it) are under no folder now.
+              await library.refresh();
             }}
             onMoveNorma={async (id, categoryId) => {
               await assignSavedNrmCategory(id, categoryId);
-              await Promise.all([categories.refresh(), normas.refresh()]);
+              await library.refresh();
             }}
             recentSessions={recentSessions
               .filter((entry) => entry.modelJson !== null || entry.savedNrmId)

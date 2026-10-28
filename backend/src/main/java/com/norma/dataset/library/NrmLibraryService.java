@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -50,23 +51,30 @@ public class NrmLibraryService {
     }
 
     /**
-     * The saved .nrm files, most recently saved first. {@code search} keeps those whose name or dataset file name
-     * contains it (any case, nothing else is special); {@code sort} and {@code direction} are the spellings of
-     * {@link SavedNrmSort}, each optional. {@code categoryId} keeps those filed under that category or one of its
-     * subcategories; {@code uncategorized} keeps those filed under none (and wins over {@code categoryId}).
+     * What the library holds at one level: the categories and the saved .nrm files found. {@code categoryId} is the
+     * category being looked into (null = the top level, where the .nrm files filed under no category are); only its
+     * direct subcategories and the files filed right in it are listed, never what is deeper. {@code everywhere} ignores
+     * that and looks at every category and every file. {@code search} keeps the categories whose name contains it and the
+     * files whose name or dataset file name contains it (any case, nothing else is special); {@code sort} and
+     * {@code direction} (the spellings of {@link SavedNrmSort}, each optional) order the files — the categories are by name.
      */
     @Transactional(readOnly = true)
-    public List<SavedNrmSummary> list(String search, String sort, String direction, UUID categoryId, boolean uncategorized) {
+    public LibraryListing list(String search, String sort, String direction, UUID categoryId, boolean everywhere) {
         SavedNrmSort field = SavedNrmSort.fromParameter(sort);
         Sort ordering = field.toSort(field.directionFrom(direction));
         Specification<SavedNrm> spec = matching(search);
-        if (uncategorized) {
-            spec = spec.and((root, query, builder) -> builder.isNull(root.get("categoryId")));
-        } else if (categoryId != null) {
-            List<UUID> ids = categories.idsWithin(categoryId);
-            spec = spec.and((root, query, builder) -> root.get("categoryId").in(ids));
+        if (!everywhere) {
+            if (categoryId == null) {
+                spec = spec.and((root, query, builder) -> builder.isNull(root.get("categoryId")));
+            } else {
+                categories.requireExists(categoryId);
+                spec = spec.and((root, query, builder) -> builder.equal(root.get("categoryId"), categoryId));
+            }
         }
-        return repository.findAll(spec, ordering).stream().map(this::toSummary).toList();
+        Map<UUID, List<String>> paths = categories.namePaths();
+        List<SavedNrmSummary> files = repository.findAll(spec, ordering).stream().map(saved -> toSummary(saved, paths)).toList();
+        List<PathStep> path = !everywhere && categoryId != null ? categories.pathOf(categoryId) : List.of();
+        return new LibraryListing(path, categories.entries(categoryId, search, everywhere), files, repository.count());
     }
 
     private static Specification<SavedNrm> matching(String search) {
@@ -180,8 +188,13 @@ public class NrmLibraryService {
     }
 
     private SavedNrmSummary toSummary(SavedNrm saved) {
+        return toSummary(saved, saved.getCategoryId() == null ? Map.of() : categories.namePaths());
+    }
+
+    private SavedNrmSummary toSummary(SavedNrm saved, Map<UUID, List<String>> paths) {
         return new SavedNrmSummary(saved.getId(), saved.getName(), saved.getDatasetFilename(), saved.getSizeBytes(),
-                saved.getOperationCount(), saved.getInputCount(), saved.getOutputCount(), saved.getCategoryId(), saved.getCreatedAt(),
+                saved.getOperationCount(), saved.getInputCount(), saved.getOutputCount(), saved.getCategoryId(),
+                saved.getCategoryId() == null ? List.of() : paths.getOrDefault(saved.getCategoryId(), List.of()), saved.getCreatedAt(),
                 saved.getUpdatedAt(), storage.exists(saved.getId()));
     }
 

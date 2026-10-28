@@ -38,7 +38,8 @@ public class CategoryController {
     @Operation(summary = "Create a category",
             description = "With a parentId it is a subcategory of that category. Categories go 4 levels deep (a "
                     + "category, a subcategory, a subcategory of that, and one more): going deeper is a 400. A name is "
-                    + "unique among its siblings (any case): a repeated one is a 409.")
+                    + "unique among its siblings (any case): a repeated one is a 409. A name is at most 50 characters: "
+                    + "a longer one is a 400.")
     @PostMapping
     public ResponseEntity<CategoryNode> create(@RequestBody CategoryRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(categories.create(request));
@@ -54,7 +55,8 @@ public class CategoryController {
     }
 
     @Operation(summary = "Delete a category",
-            description = "Refused with a 409 while it still has subcategories or normas.")
+            description = "Deletes it together with all its subcategories. The normas filed in any of them are kept: "
+                    + "they end up under no category.")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         categories.delete(id);

@@ -1,3 +1,4 @@
+import { SearchIcon } from '../ButtonIcons/ButtonIcons';
 import type { SavedNrmQuery } from '../../types/savedNrm';
 import './NormasToolbar.css';
 
@@ -14,14 +15,14 @@ const ORDERS: { label: string; sort: SavedNrmQuery['sort']; direction: SavedNrmQ
 interface NormasToolbarProps {
   query: SavedNrmQuery;
   onChange: (query: SavedNrmQuery) => void;
-  /** The name of the open folder, when there is one — the search can then be limited to it. */
+  /** The name of the open folder, when there is one — a search then looks only at the normas filed right in it, unless told to look everywhere. */
   folderName: string | null;
-  searchInFolder: boolean;
-  onSearchInFolderChange: (value: boolean) => void;
+  searchEverywhere: boolean;
+  onSearchEverywhereChange: (value: boolean) => void;
 }
 
-/** A search box and an order select above the grid of normas. */
-export function NormasToolbar({ query, onChange, folderName, searchInFolder, onSearchInFolderChange }: NormasToolbarProps) {
+/** The search box (with, inside a folder, a toggle at its end to search only there) and the order select, beside the title. */
+export function NormasToolbar({ query, onChange, folderName, searchEverywhere, onSearchEverywhereChange }: NormasToolbarProps) {
   const orderIndex = Math.max(
     0,
     ORDERS.findIndex((order) => order.sort === query.sort && order.direction === query.direction),
@@ -29,20 +30,28 @@ export function NormasToolbar({ query, onChange, folderName, searchInFolder, onS
 
   return (
     <div className="normas-toolbar">
-      <input
-        type="search"
-        className="normas-toolbar__search"
-        placeholder="Pesquisar por nome ou ficheiro de dados…"
-        aria-label="Pesquisar normas"
-        value={query.search}
-        onChange={(event) => onChange({ ...query, search: event.target.value })}
-      />
-      {folderName !== null && (
-        <label className="normas-toolbar__scope" title={`Pesquisar só nas normas de "${folderName}"`}>
-          <input type="checkbox" checked={searchInFolder} onChange={(event) => onSearchInFolderChange(event.target.checked)} />
-          Só nesta pasta
-        </label>
-      )}
+      <div className="normas-toolbar__searchbox">
+        <SearchIcon className="normas-toolbar__search-icon" />
+        <input
+          type="search"
+          className={`normas-toolbar__search${folderName !== null ? ' normas-toolbar__search--scoped' : ''}`}
+          placeholder="Pesquisar por nome ou ficheiro de dados…"
+          aria-label="Pesquisar normas"
+          value={query.search}
+          onChange={(event) => onChange({ ...query, search: event.target.value })}
+        />
+        {folderName !== null && (
+          <button
+            type="button"
+            className={`normas-toolbar__scope${searchEverywhere ? ' normas-toolbar__scope--on' : ''}`}
+            aria-pressed={searchEverywhere}
+            title={`Pesquisar em todas as normas, não só nas de "${folderName}"`}
+            onClick={() => onSearchEverywhereChange(!searchEverywhere)}
+          >
+            Em todas as pastas
+          </button>
+        )}
+      </div>
       <select
         className="normas-toolbar__order"
         aria-label="Ordenar normas"
