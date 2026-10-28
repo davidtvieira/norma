@@ -144,7 +144,7 @@ export async function listLibrary(query: SavedNrmQuery): Promise<LibraryListingP
   if (query.search.trim()) params.set('search', query.search.trim());
   params.set('sort', query.sort);
   params.set('direction', query.direction);
-  if (query.folder && !query.everywhere) params.set('categoryId', query.folder);
+  if (query.folder) params.set('categoryId', query.folder);
   if (query.everywhere) params.set('everywhere', 'true');
   const response = await apiFetch(`${API_BASE_URL}/api/v1/library?${params}`);
   if (!response.ok) {

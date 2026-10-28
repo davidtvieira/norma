@@ -7,4 +7,7 @@
   font-size: 0.95rem;
   font-weight: 600;
   transition: color 0.2s ease;
+  /* "← Voltar" has no background, so its padding is invisible: pull it left by that padding (and its border) so the
+     arrow sits at the page's edge, in the same place on every screen. */
+  margin-left: calc(-1.1rem - 1px);
 }

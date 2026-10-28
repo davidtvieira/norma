@@ -946,14 +946,20 @@ button.naked-button:hover:not(:disabled) {
   padding: 1.5rem;
 }
 
-/* The title and, on its right, the search and order of the normas: one row, so they cost no extra height. */
+/* The title (and the breadcrumb), then on a line of its own the search, order and export, across the whole width. */
 .app__normas-header {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.app__normas-headline {
+  display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem 1.5rem;
-  margin-bottom: 1rem;
 }
 
 .app__normas-header .app__normas-title {
@@ -995,7 +1001,8 @@ button.naked-button:hover:not(:disabled) {
   height: 100%;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-auto-rows: max(10.5rem, calc((100cqh - 2rem) / 3));
+  /* A row never grows past 12rem, however tall the window is. */
+  grid-auto-rows: clamp(10.5rem, calc((100cqh - 2rem) / 3), 12rem);
   align-content: start;
   gap: 1rem;
   overflow-y: auto;

@@ -46,7 +46,7 @@ export interface LibraryListingPayload {
   path: PathStepPayload[];
   categories: FolderEntryPayload[];
   normas: SavedNrmPayload[];
-  /** How many normas the library holds in all, whatever was asked for. */
+  /** How many normas the place being looked into holds (the open folder and those inside it; all of them at the top), whatever the search says. */
   total: number;
 }
 

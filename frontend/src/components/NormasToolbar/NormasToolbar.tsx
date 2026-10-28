@@ -19,13 +19,10 @@ interface NormasToolbarProps {
   folderName: string | null;
   searchEverywhere: boolean;
   onSearchEverywhereChange: (value: boolean) => void;
-  /** "Exportar": every saved norma in one zip. Disabled while there is nothing to export. */
-  onExport: () => void;
-  canExport: boolean;
 }
 
-/** The search box (with, inside a folder, a toggle at its end to search only there) and the order select, beside the title. */
-export function NormasToolbar({ query, onChange, folderName, searchEverywhere, onSearchEverywhereChange, onExport, canExport }: NormasToolbarProps) {
+/** The search box (with, inside a folder, a toggle at its end to search only there), and the order select, on a line of their own under the title. */
+export function NormasToolbar({ query, onChange, folderName, searchEverywhere, onSearchEverywhereChange }: NormasToolbarProps) {
   const orderIndex = Math.max(
     0,
     ORDERS.findIndex((order) => order.sort === query.sort && order.direction === query.direction),
@@ -38,7 +35,7 @@ export function NormasToolbar({ query, onChange, folderName, searchEverywhere, o
         <input
           type="search"
           className={`normas-toolbar__search${folderName !== null ? ' normas-toolbar__search--scoped' : ''}`}
-          placeholder="Pesquisar por nome ou ficheiro de dados…"
+          placeholder="Pesquisar normas…"
           aria-label="Pesquisar normas"
           value={query.search}
           onChange={(event) => onChange({ ...query, search: event.target.value })}
@@ -70,16 +67,22 @@ export function NormasToolbar({ query, onChange, folderName, searchEverywhere, o
           </option>
         ))}
       </select>
-      <button
-        type="button"
-        className="normas-toolbar__export"
-        onClick={onExport}
-        disabled={!canExport}
-        title="Exporta todas as normas guardadas num ficheiro zip, com as pastas."
-      >
-        <LoadIcon />
-        Exportar
-      </button>
     </div>
+  );
+}
+
+/** "Exportar": every saved norma in one zip, at the right end of the title's line. Disabled while it is being made. */
+export function NormasExportButton({ onExport, disabled }: { onExport: () => void; disabled: boolean }) {
+  return (
+    <button
+      type="button"
+      className="normas-toolbar__export"
+      onClick={onExport}
+      disabled={disabled}
+      title="Exporta todas as normas guardadas num ficheiro zip, com as pastas."
+    >
+      <LoadIcon />
+      Exportar
+    </button>
   );
 }

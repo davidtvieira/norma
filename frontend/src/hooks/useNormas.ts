@@ -10,14 +10,16 @@ const SEARCH_DEBOUNCE_MS = 250;
  * again whenever `query` changes — a new search waits for the typing to pause, a new order or level (the folder being
  * looked into) is immediate. The backend does all the narrowing: `listing` is its answer (the folders and the normas
  * found) for the current level, and is null until that answer arrives — never another folder's contents meanwhile.
- * `failed` says it could not be read (the toast already told why).
+ * `loading` also covers the wait before a search is asked for. `failed` says it could not be read (the toast already told why).
  */
 export function useNormas(active: boolean, query: SavedNrmQuery) {
   // What was listed, and the level it was listed for.
-  const [loaded, setLoaded] = useState<{ level: string; listing: LibraryListingPayload } | null>(null);
+  const [loaded, setLoaded] = useState<{ level: string; folder: string | null; listing: LibraryListingPayload } | null>(null);
   const [failed, setFailed] = useState(false);
   // True while a request (the first one, a search, a new order or folder) is waiting for its answer.
   const [loading, setLoading] = useState(false);
+  // True while a search waits for the typing to pause: the answer is on its way, so it counts as loading too.
+  const [waiting, setWaiting] = useState(false);
   // Only the newest request may fill the list: an older, slower answer must not overwrite it.
   const latestRequest = useRef(0);
   const queryRef = useRef(query);
@@ -34,7 +36,7 @@ export function useNormas(active: boolean, query: SavedNrmQuery) {
     return listLibrary(asked)
       .then((listing) => {
         if (request !== latestRequest.current) return;
-        setLoaded({ level: JSON.stringify([asked.folder, asked.everywhere]), listing });
+        setLoaded({ level: JSON.stringify([asked.folder, asked.everywhere]), folder: asked.folder, listing });
         setFailed(false);
       })
       .catch(() => {
@@ -51,8 +53,10 @@ export function useNormas(active: boolean, query: SavedNrmQuery) {
     if (!active) return;
     // Typing waits for a pause; opening the screen or changing the order or folder does not.
     const delay = askedSearch.current !== null && askedSearch.current !== query.search ? SEARCH_DEBOUNCE_MS : 0;
+    setWaiting(delay > 0);
     const timeoutId = window.setTimeout(() => {
       askedSearch.current = query.search;
+      setWaiting(false);
       void refresh();
     }, delay);
     return () => window.clearTimeout(timeoutId);
@@ -78,6 +82,8 @@ export function useNormas(active: boolean, query: SavedNrmQuery) {
     [],
   );
 
-  const listing = loaded !== null && loaded.level === level ? loaded.listing : null;
-  return { listing, failed, loading, refresh, remove };
+  // Starting or changing a search keeps the folder and only widens the level to "everywhere": the previous list stays
+  // on screen (instead of a blank page) until the search's own answer replaces it.
+  const listing = loaded !== null && (loaded.level === level || loaded.folder === query.folder) ? loaded.listing : null;
+  return { listing, failed, loading: loading || waiting, refresh, remove };
 }

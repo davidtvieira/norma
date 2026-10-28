@@ -6,7 +6,7 @@ import { RecentSessionCard } from '../components/RecentSessionCard/RecentSession
 import { ThemeToggle } from '../components/ThemeToggle/ThemeToggle';
 import { ConfirmModal } from '../components/Modal/ConfirmModal';
 import { NormaCard } from '../components/NormaCard/NormaCard';
-import { NormasToolbar } from '../components/NormasToolbar/NormasToolbar';
+import { NormasExportButton, NormasToolbar } from '../components/NormasToolbar/NormasToolbar';
 import { CategoryModal } from '../components/CategoryModal/CategoryModal';
 import { FolderBreadcrumb } from '../components/FolderBreadcrumb/FolderBreadcrumb';
 import { RemoveFromFolderCard } from '../components/RemoveFromFolderCard/RemoveFromFolderCard';
@@ -111,7 +111,7 @@ export function NormasScreen({
   }, [listing, folder]);
   const path = listing && listing.path.length > 0 ? listing.path : lastPath[lastPath.length - 1]?.id === folder ? lastPath : [];
   const current = path[path.length - 1] ?? null;
-  // What the backend found at this level: its folders (a search matches their names too) and, beside them, the normas.
+  // What the backend found at this level: its folders (none while searching) and, beside them, the normas.
   const folders = listing?.categories ?? [];
   // A norma card dropped on a folder (or a step of the breadcrumb): files it there, unless it already is.
   function dropNorma(normaId: string, folderId: string | null) {
@@ -123,13 +123,9 @@ export function NormasScreen({
       .finally(() => setIsMoving(false));
   }
 
-  // The counter by the title: inside a folder, the normas in it and in the folders inside it that are on screen; else all of them.
-  const count =
-    listing === null
-      ? null
-      : listing.path.length > 0
-        ? listing.normas.length + listing.categories.reduce((sum, entry) => sum + entry.totalCount, 0)
-        : listing.total;
+  // The counter by the title: how many normas the open folder (and the ones inside it) holds, or all of them at the top —
+  // the backend counts it, whatever the search says.
+  const count = listing?.total ?? null;
 
   const [pendingDelete, setPendingDelete] = useState<SavedNrmPayload | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -147,16 +143,27 @@ export function NormasScreen({
 
       <div className="app__normas-body">
         <div className="app__normas-header">
-          <div className="normas-heading">
-            <h1 className="app__normas-title">
-              {path.length > 0 ? <HomeTitle onOpen={() => onFolderChange(null)} onDropNorma={(normaId) => dropNorma(normaId, null)} /> : 'As minhas normas'}
-            </h1>
-            {path.length > 0 && <FolderBreadcrumb path={path} onOpen={onFolderChange} onDropNorma={dropNorma} />}
-            {count !== null && (
-              <span className="app__normas-count" title={current ? 'Normas nesta pasta' : 'Normas guardadas na plataforma'}>
-                {count}
-              </span>
-            )}
+          <div className="app__normas-headline">
+            <div className="normas-heading">
+              <h1 className="app__normas-title">
+                {path.length > 0 ? <HomeTitle onOpen={() => onFolderChange(null)} onDropNorma={(normaId) => dropNorma(normaId, null)} /> : 'As minhas normas'}
+              </h1>
+              {path.length > 0 && <FolderBreadcrumb path={path} onOpen={onFolderChange} onDropNorma={dropNorma} />}
+              {count !== null && (
+                <span className="app__normas-count" title={current ? 'Normas nesta pasta' : 'Normas guardadas na plataforma'}>
+                  {count}
+                </span>
+              )}
+            </div>
+            <NormasExportButton
+              disabled={isExporting}
+              onExport={() => {
+                setIsExporting(true);
+                onExportAll()
+                  .catch(() => undefined)
+                  .finally(() => setIsExporting(false));
+              }}
+            />
           </div>
           <NormasToolbar
             query={savedQuery}
@@ -164,13 +171,6 @@ export function NormasScreen({
             folderName={current?.name ?? null}
             searchEverywhere={searchEverywhere}
             onSearchEverywhereChange={onSearchEverywhereChange}
-            canExport={(listing?.total ?? 0) > 0 && !isExporting}
-            onExport={() => {
-              setIsExporting(true);
-              onExportAll()
-                .catch(() => undefined)
-                .finally(() => setIsExporting(false));
-            }}
           />
         </div>
         {normas !== null && normas.length === 0 && folders.length === 0 && (
@@ -185,7 +185,6 @@ export function NormasScreen({
                 <FolderCard
                   key={category.id}
                   category={category}
-                  showPath={searching}
                   onOpen={() => onFolderChange(category.id)}
                   onDropNorma={(normaId) => dropNorma(normaId, category.id)}
                   onEdit={() => setCategoryDialog({ editing: category, parentId: null })}
@@ -249,9 +248,10 @@ export function NormasScreen({
       </div>
 
       {/* Nothing to show yet (opening the page, or going into another folder): the loading page at once. A refresh of what is
-          already on screen (typing a search, a move) waits a moment so a quick answer never flashes it. */}
+          already on screen (typing a search, a move) waits a moment so a quick answer never flashes it; every keystroke
+          starts that moment over, so the animation only shows once the typing has stopped. */}
       {(isDeleting || isMoving || isExporting || normasLoading || (normas === null && !normasFailed)) &&
-        (normas === null && !normasFailed ? <LoadingOverlay key="blank" /> : <LoadingOverlay key="refresh" delayMs={200} />)}
+        (normas === null && !normasFailed ? <LoadingOverlay key="blank" /> : <LoadingOverlay key={`refresh-${savedQuery.search}`} delayMs={200} />)}
 
       <AppFooter onGoHome={onGoHome} />
 

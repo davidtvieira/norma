@@ -19,7 +19,7 @@ export function FolderBreadcrumb({ path, onOpen, onDropNorma }: FolderBreadcrumb
           <span key={node.id} className="folder-breadcrumb__step">
             <ChevronRightIcon className="folder-breadcrumb__chevron" />
             {index === path.length - 1 ? (
-              <span className="folder-breadcrumb__current">{node.name}</span>
+              <span className="folder-breadcrumb__current" title={node.name}>{node.name}</span>
             ) : (
               <Crumb label={node.name} onOpen={() => onOpen(node.id)} onDropNorma={(normaId) => onDropNorma(normaId, node.id)} />
             )}
@@ -34,7 +34,7 @@ export function FolderBreadcrumb({ path, onOpen, onDropNorma }: FolderBreadcrumb
 function Crumb({ label, onOpen, onDropNorma }: { label: string; onOpen: () => void; onDropNorma: (normaId: string) => void }) {
   const drop = useNormaDropTarget(onDropNorma);
   return (
-    <button type="button" className={`folder-breadcrumb__link${drop.isOver ? ' folder-breadcrumb__link--drop' : ''}`} onClick={onOpen} {...drop.props}>
+    <button type="button" className={`folder-breadcrumb__link${drop.isOver ? ' folder-breadcrumb__link--drop' : ''}`} title={label} onClick={onOpen} {...drop.props}>
       {label}
     </button>
   );

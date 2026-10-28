@@ -12,9 +12,11 @@
   margin-left: 0;
 }
 
-/* Inside a folder the title is the way back to the top: it looks the same, and shows it can be clicked on hover. */
+/* Inside a folder the title is the way back to the top: it looks the same, and shows it can be clicked with the same hover background as the breadcrumb. */
 .normas-heading__home {
-  padding: 0;
+  /* The padding gives the hover background room; the negative margin keeps the text where it was. */
+  padding: 0.15rem 0.4rem;
+  margin: -0.15rem -0.4rem;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -25,20 +27,12 @@
 }
 
 .normas-heading__home:hover {
-  text-decoration: underline;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 0.2em;
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
 }
 
 .normas-heading__home--drop {
   background: var(--btn-primary-bg);
   color: var(--btn-primary-contrast);
-}
-
-/* "← Voltar" has no background, so its padding is invisible: pull it left by that padding (and its border) so the
-   arrow starts where the title and the cards start. */
-.normas-screen .back-button {
-  margin-left: calc(-1.1rem - 1px);
 }
 
 /* The folders and normas fade in when they arrive (opening the page, going into a folder, a new search), with the same
