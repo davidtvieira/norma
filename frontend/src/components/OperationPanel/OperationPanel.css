@@ -1310,3 +1310,48 @@
 .operation-canvas__minimap-node--group {
   background: var(--color-secondary);
 }
+
+/* The formatter (see kinds/formatterKind.tsx): its fields, the inputs it applies to and the choosing of them on the canvas. */
+.formatter-entry__required {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.operation-entry__chain-status--invalid {
+  color: var(--color-error);
+}
+
+.formatter-entry__targets {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.formatter-entry__target {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.formatter-entry__target--taken {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.formatter-entry__taken {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.formatter-entry__target--all {
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--color-border);
+  font-weight: 600;
+}

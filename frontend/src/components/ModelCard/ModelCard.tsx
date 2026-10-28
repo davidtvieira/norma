@@ -1,6 +1,6 @@
-import { LogoIcon, ChevronDownIcon, ClearIcon, EyeIcon, GridIcon, ListIcon, LoadIcon, SaveIcon } from '../ButtonIcons/ButtonIcons';
+import { LogoIcon, BroomIcon, ChevronDownIcon, EyeIcon, GridIcon, ListIcon, LoadIcon, SaveIcon } from '../ButtonIcons/ButtonIcons';
 import { LoadingOverlay } from '../LoadingOverlay/LoadingOverlay';
-import { inlineErrorMessage } from '../../services/apiErrors';
+import { inlineErrorMessage, reportApiError } from '../../services/apiErrors';
 import { useRef, useState } from 'react';
 import type { DatasetHandle } from '../../types/dataset';
 import type { OperationFields } from '../OperationPanel/operationKind';
@@ -8,6 +8,7 @@ import { KINDS_BY_ID } from '../OperationPanel/kinds/registry';
 import { KIND_LABELS } from '../OperationPanel/kindLabels';
 import { resolveOperationInputs } from '../../utils/resolveOperationInputs';
 import { getInputSource, literalSource } from '../../types/valueSource';
+import { describeFormatLines, formatErrors, type ValueFormat } from '../../types/valueFormat';
 import { runModel, runNrm } from '../../services/datasetApi';
 import type {
   DatasetTouchPayload,
@@ -17,6 +18,7 @@ import type {
 } from '../../types/modelCalculation';
 import { downloadTestCase, parseTestCaseFile } from '../../utils/testCaseSerialization';
 import { formatCellValue } from '../../utils/sheet';
+import { ConfirmModal } from '../Modal/ConfirmModal';
 import { Modal } from '../Modal/Modal';
 import { SplitButton } from '../SplitButton/SplitButton';
 import { OperationConfigModal } from './OperationConfigModal';
@@ -81,6 +83,8 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
   const [viewFullText, setViewFullText] = useState<{
     name: string;
     value: string;
+    /** Only for an input a formatter puts rules on (opened from its title): the modal then shows its rules instead of its value. */
+    format?: ValueFormat | null;
   } | null>(null);
 
   // One result per designated output, in whatever order the run returned them (matched back up
@@ -130,13 +134,36 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
   }));
   const resolvedInputs = resolveOperationInputs(liveEntries, {});
 
-  // Every designated input is always a literal (see App.tsx's modelInputOptions) — "filled" just
-  // means that literal isn't blank. Run stays disabled until every one of them has something
-  // typed in, not just until the model has finished registering.
-  const allInputsFilled = inputOperationIds.every((id) => {
-    const source = getInputSource(fields[id]);
-    return source.type === 'literal' && source.value.trim() !== '';
+  // An input may be left empty — unless a formatter requires a value for it (its "Obrigatório" rule): the run button just
+  // stays disabled until every such input has something typed in (no message on the cards or the button for it).
+  const allRequiredFilled = inputs.every((inputEntry) => {
+    if (!inputEntry.format?.required) return true;
+    const source = getInputSource(fields[inputEntry.id]);
+    return source.type !== 'literal' || source.value.trim() !== '';
   });
+
+  // Each input must also obey the rules a formatter puts on it, when one does. An input that doesn't gets a red badge at the top right
+  // of its card with how many rules it breaks; clicking the badge lists them.
+  // An input the user has left (even empty) is checked against the minimums too; one not yet touched and still empty is not
+  // nagged about.
+  const [leftInputs, setLeftInputs] = useState<Set<string>>(new Set());
+  const brokenRules = new Map<string, string[]>();
+  for (const inputEntry of inputs) {
+    if (!inputEntry.format) continue;
+    const source = getInputSource(fields[inputEntry.id]);
+    if (source.type !== 'literal') continue;
+    const isLeft = leftInputs.has(inputEntry.id);
+    if (source.value.trim() === '' && !isLeft) continue;
+    const errors = formatErrors(inputEntry.format, source.value, isLeft);
+    if (errors.length > 0) brokenRules.set(inputEntry.id, errors);
+  }
+  const allInputsValid = brokenRules.size === 0;
+  // "Limpar dados" asks first: it wipes every value typed in the inputs.
+  const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
+  // Clicking the badge shows one toast per broken rule: just the message, not the input's name.
+  function showErrors(messages: string[]) {
+    for (const message of messages) reportApiError({ title: message });
+  }
 
   // Shared by run() (whatever's currently in `fields`) and loadTestCase (values just loaded from
   // a file, sent straight through instead of round-tripping via `fields` state first — reading
@@ -207,6 +234,8 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
 
   function clearTestCase() {
     setTestLoadError(null);
+    // Back to untouched: no input has been left yet, so none is checked while empty.
+    setLeftInputs(new Set());
     setFields((current) => {
       const next = { ...current };
       for (const entry of inputEntries) {
@@ -266,6 +295,8 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
     const source = getInputSource(fields[entry.id]);
     return source.type === 'literal' && source.value.trim() !== '';
   });
+  // A test can be saved once there is something in it, every input that needs a value has one and none breaks its rules.
+  const canSaveTest = hasAnyTestInputValue && allRequiredFilled && allInputsValid;
   // Outputs are only known once a run has returned them (each result carries its own name).
   const outputEntries = (results ?? []).map((result) => ({
     id: result.id,
@@ -366,17 +397,37 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
                     const source = getInputSource(fields[inputEntry.id]);
                     const currentValue = source.type === 'literal' ? source.value : '';
                     return (
-                      <div key={inputEntry.id} className="model-card__field">
+                      <div
+                        key={inputEntry.id}
+                        className={`model-card__field${brokenRules.has(inputEntry.id) ? ' model-card__field--invalid' : ''}`}
+                        // Leaving the field (focus going anywhere outside this card) triggers the rules, even if it is empty.
+                        onBlur={(event) => {
+                          if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+                          setLeftInputs((current) => (current.has(inputEntry.id) ? current : new Set(current).add(inputEntry.id)));
+                        }}
+                      >
+                        {brokenRules.has(inputEntry.id) && (
+                          <button
+                            type="button"
+                            className="model-card__error-badge"
+                            title="Mostrar os erros"
+                            aria-label={`${brokenRules.get(inputEntry.id)!.length} ${brokenRules.get(inputEntry.id)!.length === 1 ? 'erro' : 'erros'} em ${name}`}
+                            onClick={() => showErrors(brokenRules.get(inputEntry.id)!)}
+                          >
+                            {brokenRules.get(inputEntry.id)!.length}
+                          </button>
+                        )}
                         <h3
                           className="model-card__field-name model-card__field-name--clickable"
                           title={`${name} — ver texto completo`}
                           role="button"
-                          tabIndex={0}
-                          onClick={() => setViewFullText({ name, value: currentValue })}
+                          // Out of the tab order (still clickable): Tab goes straight from one input to the next, not via each title.
+                          tabIndex={-1}
+                          onClick={() => setViewFullText({ name, value: currentValue, format: inputEntry.format })}
                           onKeyDown={(event) => {
                             if (event.key === 'Enter' || event.key === ' ') {
                               event.preventDefault();
-                              setViewFullText({ name, value: currentValue });
+                              setViewFullText({ name, value: currentValue, format: inputEntry.format });
                             }
                           }}
                         >
@@ -484,32 +535,46 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
                     if (file) loadTestCase(file);
                   }}
                 />
-                <button
-                  type="button"
-                  className="app__create-model-button app__create-model-button--secondary"
-                  onClick={hasAnyTestInputValue ? clearTestCase : () => testFileInputRef.current?.click()}
-                >
-                  {hasAnyTestInputValue ? <ClearIcon /> : <SaveIcon />}
-                  {hasAnyTestInputValue ? 'Limpar teste' : 'Carregar teste'}
-                </button>
-                {hasAnyTestInputValue && (
-                  <button type="button" className="app__create-model-button app__create-model-button--secondary" onClick={saveTestCase}>
+                {/* "Guardar teste" only appears once every input that needs a value has one and none breaks its rules. */}
+                {canSaveTest && (
+                  <button
+                    type="button"
+                    className="app__create-model-button app__create-model-button--secondary"
+                    onClick={saveTestCase}
+                  >
                     <LoadIcon />
                     Guardar teste
+                  </button>
+                )}
+                {/* "Limpar dados" goes right after "Guardar teste", once there is something to clear. */}
+                {hasAnyTestInputValue && (
+                  <button type="button" className="app__create-model-button app__create-model-button--secondary" onClick={() => setIsClearConfirmOpen(true)}>
+                    <BroomIcon />
+                    Limpar dados
                   </button>
                 )}
               </>
             )}
           </div>
           <div className="model-card__actions-group">
+            {/* "Carregar teste" sits right beside the run button, on its left, and is always there. */}
+            <button
+              type="button"
+              className="app__create-model-button app__create-model-button--secondary"
+              onClick={() => testFileInputRef.current?.click()}
+            >
+              <SaveIcon />
+              Carregar teste
+            </button>
             {/* Delayed so a run that returns right away doesn't flash the overlay. */}
             {isRunning && <LoadingOverlay delayMs={200} />}
             <SplitButton
               className="model-card__run-split"
               buttonClassName={`model-card__run-button${runAnalysisClass}`}
               onClick={run}
-              disabled={isRunning || !allInputsFilled}
-              arrowDisabled={isRunning}
+              disabled={isRunning || !allRequiredFilled || !allInputsValid}
+              // The arrow (add operations to analyze) follows the button: nothing to run, nothing to analyze.
+              arrowDisabled={isRunning || !allRequiredFilled || !allInputsValid}
               items={[
                 {
                   label: `Adicionar operações para análise${watchIds.length > 0 ? ` (${watchIds.length})` : ''}`,
@@ -586,6 +651,19 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
       )}
 
       <FullTextModal field={viewFullText} onClose={() => setViewFullText(null)} />
+      {isClearConfirmOpen && (
+        <ConfirmModal
+          title="Limpar dados?"
+          message="Os valores introduzidos nos inputs vão ser apagados. Esta ação não se pode desfazer."
+          confirmLabel="Limpar"
+          danger
+          onConfirm={() => {
+            setIsClearConfirmOpen(false);
+            clearTestCase();
+          }}
+          onCancel={() => setIsClearConfirmOpen(false)}
+        />
+      )}
       {configOperation && (
         <OperationConfigModal
           operation={configOperation}
@@ -710,7 +788,7 @@ function EyeButton({ onView, label = 'Ver texto completo' }: EyeButtonProps) {
 interface FullTextModalProps {
   /** Null closes the modal — same "the value itself is the open/closed state" pattern as most of
    * this app's other single-item modals (e.g. OperationPanel's modalEntryId). */
-  field: { name: string; value: string } | null;
+  field: { name: string; value: string; format?: ValueFormat | null } | null;
   onClose: () => void;
 }
 
@@ -721,7 +799,16 @@ function FullTextModal({ field, onClose }: FullTextModalProps) {
 
   return (
     <Modal title={field.name} onClose={onClose}>
-      <p className="modal__text">{field.value || '(vazio)'}</p>
+      {field.format ? (
+        // An input with rules: its name and its rules, not its value.
+        <ul className="model-card__rules-list">
+          {describeFormatLines(field.format).map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="modal__text">{field.value || '(vazio)'}</p>
+      )}
     </Modal>
   );
 }

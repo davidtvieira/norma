@@ -108,7 +108,7 @@ type NodeRequestState =
 function NodeResult({ resolvedInput, testSignal, resetSignal, onResultChange }: NodeResultProps) {
   const [state, setState] = useState<NodeRequestState>({ status: 'idle' });
 
-  // "Limpar teste": clears the shown result on demand, independent of any field changing.
+  // "Limpar dados": clears the shown result on demand, independent of any field changing.
   useEffect(() => {
     setState({ status: 'idle' });
     onResultChange(null);
@@ -130,6 +130,13 @@ function NodeResult({ resolvedInput, testSignal, resetSignal, onResultChange }: 
 
     if (resolvedInput.status === 'missing') {
       setState({ status: 'error', message: 'Essa operação já não existe.' });
+      onResultChange(null, true);
+      return;
+    }
+
+    // The value breaks the rules of a formatter that applies to this node.
+    if (resolvedInput.status === 'invalid') {
+      setState({ status: 'error', message: resolvedInput.message });
       onResultChange(null, true);
       return;
     }

@@ -1,3 +1,4 @@
+import type { ValueFormat } from './valueFormat';
 /**
  * Payload shapes for registering and running a model — see services/datasetApi.ts's
  * registerModel/runModel. Mirrors the backend's ModelOperationInput/ModelRegisterRequest/
@@ -73,6 +74,8 @@ export interface ModelInputFieldPayload {
   name: string;
   kind: string;
   value: string;
+  /** The rules a formatter operation puts on this input (null or absent when none does). */
+  format?: ValueFormat | null;
 }
 
 export interface ModelInputsPayload {

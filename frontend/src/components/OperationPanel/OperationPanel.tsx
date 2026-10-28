@@ -1,4 +1,4 @@
-import { LogoIcon, ClearIcon, CloseIcon, EyeIcon, LoadIcon, PencilIcon, PlayIcon, RedoIcon, SaveIcon, StopIcon, UndoIcon } from '../ButtonIcons/ButtonIcons';
+import { LogoIcon, BroomIcon, ClearIcon, CloseIcon, EyeIcon, LoadIcon, PencilIcon, PlayIcon, RedoIcon, SaveIcon, StopIcon, UndoIcon } from '../ButtonIcons/ButtonIcons';
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
@@ -11,8 +11,9 @@ import { buildReferenceGraph, getDependencyChain, getDependents, resolveOperatio
 import { getInputSource, getInputSources, hasSingleInputField, literalSource, outputResultKey, remapValueSourceReferences } from '../../types/valueSource';
 import type { SerializableEntry } from '../../utils/modelSerialization';
 import { parseTestCaseFile } from '../../utils/testCaseSerialization';
-import type { OperationFields, ReferenceOption } from './operationKind';
+import type { FormatTarget, OperationFields, ReferenceOption } from './operationKind';
 import { iteratorPreviewSheet } from './kinds/iteratorKind';
+import { FORMATTER_KIND_ID } from './kinds/formatterKind';
 import { PAGE_AWARE_KIND_IDS, PAGE_SELECTOR_KIND_ID, pageSheetFromResult } from '../../utils/pageSelector';
 import { KINDS, KINDS_BY_ID } from './kinds/registry';
 import { AddOperationModal } from '../AddOperationModal/AddOperationModal';
@@ -182,7 +183,7 @@ interface TestUpToHereButtonProps {
   isTested: boolean;
   /** Clears just this operation's own dependency chain back to not-tested — its testSignals,
    * results, and whichever of its own outgoing edges (see activeEdgeKeys) that chain lit up —
-   * without touching any other operation's own test state, unlike the toolbar's "Limpar teste"
+   * without touching any other operation's own test state, unlike the toolbar's "Limpar dados"
    * (see clearChainTest). */
   onClear: () => void;
   /** Whether this operation's own chainable field is currently a blank literal (see the
@@ -204,7 +205,7 @@ interface TestUpToHereButtonProps {
 function TestUpToHereButton({ onTest, isTested, onClear, hasEmptyInput }: TestUpToHereButtonProps) {
   if (isTested) {
     return (
-      <button type="button" className="operation-card__test operation-card__test--stop" onClick={onClear} aria-label="Limpar teste desta operação" title="Limpar teste desta operação">
+      <button type="button" className="operation-card__test operation-card__test--stop" onClick={onClear} aria-label="Limpar dados desta operação" title="Limpar dados desta operação">
         <StopIcon />
       </button>
     );
@@ -285,6 +286,8 @@ interface ConfirmedOperationCardProps {
   onToggleModelInput: () => void;
   isModelOutput: boolean;
   onToggleModelOutput: () => void;
+  /** A formatter has no value of its own, so no output, nothing to test and no model input to be. */
+  isFormatter: boolean;
   /** Whether this card's detail modal (its editable field(s) + live result — see `children`) is
    * currently open. Owned by OperationPanel (modalEntryId) rather than local state so it isn't
    * lost if this card unmounts and remounts (e.g. entries reordering), and so opening one card's
@@ -348,6 +351,7 @@ function ConfirmedOperationCard({
   onToggleModelInput,
   isModelOutput,
   onToggleModelOutput,
+  isFormatter,
   isModalOpen,
   onCloseModal,
   onCancelModal,
@@ -432,8 +436,8 @@ function ConfirmedOperationCard({
           {!isEditMode && (
             <>
               {isModelInputEligible && <IoToggle label="Input" active={isModelInput} onToggle={onToggleModelInput} />}
-              <IoToggle label="Output" active={isModelOutput} onToggle={onToggleModelOutput} />
-              <TestUpToHereButton onTest={onTestUpToHere} isTested={isTested} onClear={onClearTest} hasEmptyInput={hasEmptyInput} />
+              {!isFormatter && <IoToggle label="Output" active={isModelOutput} onToggle={onToggleModelOutput} />}
+              {!isFormatter && <TestUpToHereButton onTest={onTestUpToHere} isTested={isTested} onClear={onClearTest} hasEmptyInput={hasEmptyInput} />}
               {isRevealEligible && <RevealButton onReveal={onReveal} />}
             </>
           )}
@@ -586,10 +590,12 @@ interface OperationPanelProps {
    * model can have several of each, independently toggled. */
   modelInputIds: string[];
   modelOutputIds: string[];
-  /** Where "Importar teste"/"Limpar teste" is drawn: an element the parent owns (the bottom-left
+  /** Where "Importar teste"/"Limpar dados" is drawn: an element the parent owns (the bottom-left
    * action row, next to "Guardar teste"). It's portaled there so its state and handlers stay in
    * this component. Until the element exists the button is simply not rendered. */
   testActionsSlot: HTMLElement | null;
+  /** Where "Carregar teste" is drawn: the bottom-right, on the left of the main action (see EditorScreen). */
+  loadActionSlot: HTMLElement | null;
   onSaveTestCase: () => void;
   onModelInputIdsChange: (ids: string[]) => void;
   onModelOutputIdsChange: (ids: string[]) => void;
@@ -613,13 +619,14 @@ function edgePath({ from, to }: Edge): string {
   return `M ${startX} ${startY} C ${startX + controlOffset} ${startY}, ${endX - controlOffset} ${endY}, ${endX} ${endY}`;
 }
 
-/** Whether an entry's own chainable field (see getInputSource) is currently a blank literal — a
- * kind with no chainable field at all (renderInputEditor absent, e.g. sum) never counts, and
- * neither does a reference source: whether that resolves in time is what resolveOperationInputs'
- * own pending/ready/missing/cycle states already track, not a blank-value problem. Shared by
- * runModelTest's own emptyInputNames warning and the per-card/master run triggers below, which
- * both block on the same "nothing typed here yet" condition rather than reimplementing it. */
-function hasEmptyInput(entry: OperationEntryState): boolean {
+/** Whether an entry's own chainable field (see getInputSource) is currently a blank literal that a formatter requires a
+ * value for (`required` holds the ids of those) — an input may be left empty otherwise. A kind with no chainable field at
+ * all (renderInputEditor absent, e.g. sum) never counts, and neither does a reference source: whether that resolves in
+ * time is what resolveOperationInputs' own pending/ready/missing/cycle states already track, not a blank-value problem.
+ * Shared by runModelTest's own emptyInputNames warning and the per-card/master run triggers below, which all block on
+ * the same "a required value is missing" condition rather than reimplementing it. */
+function hasEmptyInput(entry: OperationEntryState, required: ReadonlySet<string>): boolean {
+  if (!required.has(entry.id)) return false;
   if (!KINDS_BY_ID[entry.kindId].renderInputEditor || !hasSingleInputField(entry.fields)) return false;
   const source = getInputSource(entry.fields);
   return source.type === 'literal' && source.value.trim() === '';
@@ -631,9 +638,9 @@ function hasEmptyInput(entry: OperationEntryState): boolean {
  * fill in (its field is a reference, not a literal), so hasEmptyInput alone would never catch it;
  * this is what actually decides whether "Testar até aqui" would succeed, same scope
  * runModelTest(upToEntryId) itself runs against. */
-function chainHasEmptyInput(entryId: string, entries: OperationEntryState[], graph: Map<string, string[]>): boolean {
+function chainHasEmptyInput(entryId: string, entries: OperationEntryState[], graph: Map<string, string[]>, required: ReadonlySet<string>): boolean {
   const chain = getDependencyChain(entryId, entries, graph);
-  return entries.some((entry) => chain.has(entry.id) && hasEmptyInput(entry));
+  return entries.some((entry) => chain.has(entry.id) && hasEmptyInput(entry, required));
 }
 
 /**
@@ -647,6 +654,7 @@ function chainHasEmptyInput(entryId: string, entries: OperationEntryState[], gra
  */
 export function OperationPanel({
   testActionsSlot,
+  loadActionSlot,
   onSaveTestCase,
   dataset,
   initialEntries,
@@ -687,6 +695,8 @@ export function OperationPanel({
   // live result — see ConfirmedOperationCard) — at most one at a time, so opening a different
   // card's modal replaces whichever was open rather than stacking.
   const [modalEntryId, setModalEntryId] = useState<string | null>(null);
+  // "Limpar dados" asks first: it wipes the results of the last test and every value typed in the inputs.
+  const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
   // The open node modal's fields as they were when it opened, so "Cancelar" can put them back
   // (and so closing knows whether anything changed). `revision` remounts the modal's body after a
   // revert, since the kinds' editors keep some state of their own that wouldn't follow the fields.
@@ -715,10 +725,10 @@ export function OperationPanel({
   // every one of their live-result requests against the API in the very same instant.
   const [testSignals, setTestSignals] = useState<Record<string, number>>({});
   // Whether "Testar modelo" has fired at least once — the counterpart of testSignal's own "=== 0"
-  // check before testSignal became per-entry (see "Limpar teste"'s disabled/title logic below),
+  // check before testSignal became per-entry (see "Limpar dados"'s disabled/title logic below),
   // which needed a single shared value to compare against 0 in the first place.
   const [hasTested, setHasTested] = useState(false);
-  // Bumped per-entry by "Limpar teste" (every confirmed entry at once) and clearChainTest (just
+  // Bumped per-entry by "Limpar dados" (every confirmed entry at once) and clearChainTest (just
   // the ids it's clearing) — the counterpart to testSignals: dropping an entry's own testSignal
   // back to 0 on its own only stops it from being staggered *again* (see each kind's own
   // renderBody), it doesn't itself clear what's already shown — every kind's own reset effect
@@ -800,7 +810,7 @@ export function OperationPanel({
       return false;
     }
 
-    const emptyInputNames = relevantEntries.filter(hasEmptyInput).map((entry) => entry.name || 'Operação sem nome');
+    const emptyInputNames = relevantEntries.filter((entry) => hasEmptyInput(entry, requiredInputIds)).map((entry) => entry.name || 'Operação sem nome');
 
     if (emptyInputNames.length > 0) {
       setGranularTestWarning(
@@ -852,7 +862,7 @@ export function OperationPanel({
   // Set when a test attempt (granular, via "Testar até aqui", or the full model, via "Testar
   // modelo"/"Correr teste") is blocked because a designated input it actually depends on is
   // currently empty — cleared on the next test that actually runs (see runModelTest) or on
-  // "Limpar teste".
+  // "Limpar dados".
   const [granularTestWarning, setGranularTestWarning] = useState<string | null>(null);
   // Set when "Importar teste" (inside TestValuesModal) fails to parse a file — cleared on the
   // next successful load.
@@ -904,7 +914,29 @@ export function OperationPanel({
   // The reference graph is rebuilt once per change to `entries` (not once per card per render, which
   // is what made big models freeze on every hover/drag), and shared by every per-card lookup below.
   const referenceGraph = useMemo(() => buildReferenceGraph(entries), [entries]);
+  // The operations a formatter requires a value for (its "Obrigatório" rule): the only inputs that may not be left empty.
+  const requiredInputIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const entry of entries) {
+      if (!entry.confirmed || entry.kindId !== FORMATTER_KIND_ID || !(entry.fields as { required?: boolean }).required) continue;
+      for (const id of (entry.fields as { appliesTo?: string[] }).appliesTo ?? []) ids.add(id);
+    }
+    return ids;
+  }, [entries]);
   const resolvedInputsByEntry = useMemo(() => resolveOperationInputs(entries, results), [entries, results]);
+  // An operation whose input breaks a formatter's rules has no result: one left from a value that was fine is dropped, so
+  // nothing chained off it keeps using it.
+  useEffect(() => {
+    const stale = entries.filter(
+      (entry) => (resolvedInputsByEntry[entry.id] ?? []).some((input) => input.status === 'invalid') && results[entry.id] != null,
+    );
+    if (stale.length === 0) return;
+    setResults((current) => {
+      const next = { ...current };
+      for (const entry of stale) next[entry.id] = null;
+      return next;
+    });
+  }, [entries, resolvedInputsByEntry, results]);
   // Which edges (see the `edges` computation below, keyed the same way — "fromId-toId") are lit
   // up as data has flowed through them — lit by flashEdgesFrom the moment the operation an edge
   // starts *from* reports a new result (see each renderBody's own onResultChange below), whether
@@ -913,7 +945,7 @@ export function OperationPanel({
   // particular button. Accumulates across runs rather than resetting at the start of each one —
   // running one operation, then a different one, keeps the first one's own edges lit alongside
   // the second's, rather than the second run wiping out a path that's still just as true as it
-  // was. Only "Limpar teste" (see clearTest) clears it, the same as everything else a test
+  // was. Only "Limpar dados" (see clearTest) clears it, the same as everything else a test
   // touched.
   const [activeEdgeKeys, setActiveEdgeKeys] = useState<Set<string>>(new Set());
 
@@ -1227,8 +1259,34 @@ export function OperationPanel({
     );
   }
 
+  // What a formatter can choose from: the model's defined inputs (the operations marked "Input") its rules can apply to,
+  // and which other formatter (if any) already has each — an operation obeys at most one.
+  function formatTargetsFor(formatterId: string): FormatTarget[] {
+    const formatters = entries.filter((entry) => entry.kindId === FORMATTER_KIND_ID && entry.id !== formatterId);
+    return entries.filter((entry) => modelInputIds.includes(entry.id) && canBeFormatted(entry)).map((entry) => ({
+      operationId: entry.id,
+      label: entryLabels.get(entry.id) ?? 'Operação sem nome',
+      takenBy:
+        formatters.find((formatter) => ((formatter.fields as { appliesTo?: string[] }).appliesTo ?? []).includes(entry.id))?.name || null,
+    }));
+  }
+
+  // Whether a formatter's rules can apply to this operation: it reads a single "input" of its own, which is what they check.
+  function canBeFormatted(entry: OperationEntryState): boolean {
+    return entry.confirmed && entry.kindId !== FORMATTER_KIND_ID && Boolean(KINDS_BY_ID[entry.kindId]?.renderInputEditor) && hasSingleInputField(entry.fields) && 'input' in entry.fields;
+  }
+
   function removeEntry(id: string) {
-    setEntries((current) => current.filter((entry) => entry.id !== id));
+    // The formatters that applied to it stop applying (the backend would ignore an id that is gone, but the list shouldn't keep it).
+    setEntries((current) =>
+      current
+        .filter((entry) => entry.id !== id)
+        .map((entry) =>
+          entry.kindId === FORMATTER_KIND_ID && ((entry.fields as { appliesTo?: string[] }).appliesTo ?? []).includes(id)
+            ? { ...entry, fields: { ...entry.fields, appliesTo: ((entry.fields as { appliesTo?: string[] }).appliesTo ?? []).filter((target) => target !== id) } }
+            : entry,
+        ),
+    );
     setEditSnapshots((current) => {
       if (!(id in current)) return current;
       const { [id]: _discarded, ...rest } = current;
@@ -1245,7 +1303,7 @@ export function OperationPanel({
     // hook's own note on why).
   }
 
-  // "Editar": clears any run (see clearTest — same as clicking "Limpar teste" by hand), since
+  // "Editar": clears any run (see clearTest — same as clicking "Limpar dados" by hand), since
   // editing (moving/copying/deleting operations) can easily invalidate a test's own results
   // without anything re-running to catch it. Snapshots every entry (see editModeSnapshot) so
   // "Cancelar" has something to restore — still the *pre*-clear values despite clearTest being
@@ -1466,19 +1524,26 @@ export function OperationPanel({
     .filter((entry): entry is OperationEntryState => entry !== undefined)
     .map((entry) => {
       const source = getInputSource(entry.fields);
-      return { id: entry.id, name: entry.name, value: source.type === 'literal' ? source.value : '' };
+      return { id: entry.id, name: entry.name, value: source.type === 'literal' ? source.value : '', required: requiredInputIds.has(entry.id) };
     });
 
-  // Whether there's actually anything for "Limpar teste" to blank out — keeps it enabled even
+  // Whether there's actually anything for "Limpar dados" to blank out — keeps it enabled even
   // before "Testar modelo" has ever run, as long as some input already has a typed/imported value
   // sitting in it (hasTested alone would otherwise leave that value stuck with no way to clear it).
   const hasAnyTestInputValue = testInputEntries.some((entry) => entry.value.trim() !== '');
+  // An input whose value breaks its formatter's rules, or that a formatter requires a value for and is empty: such a test
+  // can't be saved.
+  const hasInvalidTestInput = testInputEntries.some(
+    (entry) =>
+      (entry.required && entry.value.trim() === '') || (resolvedInputsByEntry[entry.id] ?? []).some((input) => input.status === 'invalid'),
+  );
+  const canSaveTest = hasAnyTestInputValue && !hasInvalidTestInput;
 
   function updateTestValue(id: string, value: string) {
     updateEntryFields(id, { input: literalSource(value) });
   }
 
-  // "Limpar teste": clears every card's own shown result/"tested" border (see
+  // "Limpar dados": clears every card's own shown result/"tested" border (see
   // isTested/operation-card--tested) and re-disables this same action — nothing's actually been
   // tested any more once its results are cleared. Also blanks every designated input's own typed
   // value, not just the shown results — otherwise a value typed by hand, or loaded via "Importar
@@ -1567,7 +1632,7 @@ export function OperationPanel({
   // count as "tested" once something it actually reads its own input from just had its test state
   // wiped, the same way a downstream operation was never able to resolve *past* an upstream one
   // that hadn't been tested yet in the first place. Leaves every operation outside that whole
-  // up-and-downstream neighborhood untouched, unlike "Limpar teste" (see clearTest above), which
+  // up-and-downstream neighborhood untouched, unlike "Limpar dados" (see clearTest above), which
   // resets the entire canvas at once.
   function clearChainTest(entryId: string) {
     const upstreamChain = getDependencyChain(entryId, entries);
@@ -1692,7 +1757,7 @@ export function OperationPanel({
   // Same condition runModelTest itself blocks a run on (see its own emptyInputNames) — precomputed
   // here so "Testar modelo" can stay disabled up front instead of only bouncing off that check
   // after the click.
-  const hasAnyEmptyInput = entries.some((entry) => entry.confirmed && hasEmptyInput(entry));
+  const hasAnyEmptyInput = entries.some((entry) => entry.confirmed && hasEmptyInput(entry, requiredInputIds));
   // Gate which of the "Editar"-only buttons are disabled once they're rendered at all — see their
   // own render below (next to the pencil toggle), gated on tool === 'select' ("Editar" mode)
   // first. Neither hasClipboard nor hasSelection gate whether their buttons *appear* — only
@@ -1828,10 +1893,10 @@ export function OperationPanel({
         onMouseEnter={() => setHoveredOperationId(entry.id)}
         onMouseLeave={() => setHoveredOperationId((current) => (current === entry.id ? null : current))}
         isTested={(testSignals[entry.id] ?? 0) > 0}
-        hasFailed={failedIds.has(entry.id)}
+        hasFailed={failedIds.has(entry.id) || (resolvedInputsByEntry[entry.id] ?? []).some((input) => input.status === 'invalid')}
         onTestUpToHere={() => runModelTest(entry.id)}
         onClearTest={() => clearChainTest(entry.id)}
-        hasEmptyInput={chainHasEmptyInput(entry.id, entries, referenceGraph)}
+        hasEmptyInput={chainHasEmptyInput(entry.id, entries, referenceGraph, requiredInputIds)}
         onReveal={() => revealEntry(entry)}
         isRevealEligible={sheetIndexForEntry(entry) !== null}
         isModelInput={modelInputIds.includes(entry.id)}
@@ -1841,6 +1906,16 @@ export function OperationPanel({
           onModelInputIdsChange(
             turningOn ? [...modelInputIds, entry.id] : modelInputIds.filter((id) => id !== entry.id),
           );
+          // A formatter only applies to the model's defined inputs: one that stops being an input leaves its list.
+          if (!turningOn) {
+            setEntries((current) =>
+              current.map((candidate) =>
+                candidate.kindId === FORMATTER_KIND_ID && ((candidate.fields as { appliesTo?: string[] }).appliesTo ?? []).includes(entry.id)
+                  ? { ...candidate, fields: { ...candidate.fields, appliesTo: ((candidate.fields as { appliesTo?: string[] }).appliesTo ?? []).filter((id) => id !== entry.id) } }
+                  : candidate,
+              ),
+            );
+          }
           // Clears whatever literal value was typed in while just testing this operation locally
           // (see ValueSourceField's disabled note) — otherwise that leftover value would still be
           // exported with the model and show up pre-filled the next time it's utilized, instead
@@ -1849,6 +1924,7 @@ export function OperationPanel({
             updateEntryFields(entry.id, { input: literalSource('') });
           }
         }}
+        isFormatter={entry.kindId === FORMATTER_KIND_ID}
         isModelOutput={modelOutputIds.includes(entry.id)}
         onToggleModelOutput={() =>
           onModelOutputIdsChange(
@@ -1885,6 +1961,7 @@ export function OperationPanel({
             onStartColumnPick(id, field, sheetIndex);
           },
           onFinishColumnPick,
+          formatTargets: formatTargetsFor(entry.id),
           onMatchChange: (rowIndex, columnIndex) => {
             setMatchedRows((current) => ({ ...current, [entry.id]: rowIndex }));
             setMatchedColumns((current) => ({ ...current, [entry.id]: columnIndex ?? null }));
@@ -1913,7 +1990,7 @@ export function OperationPanel({
             setResults((current) => ({ ...current, [entry.id]: value }));
             setEntryFailed(entry.id, failed);
             // Only an actual value passing through counts as "data flowed" — onResultChange also
-            // fires with null for every reset/no-op case (clearing an input, "Limpar teste",
+            // fires with null for every reset/no-op case (clearing an input, "Limpar dados",
             // opening "Editar", or just nothing resolved yet), which used to flash every edge
             // regardless, lighting up the whole canvas for reasons that had nothing to do with a
             // test actually running.
@@ -2240,23 +2317,8 @@ export function OperationPanel({
           {testActionsSlot &&
             createPortal(
             <>
-              <button
-                type="button"
-                className="app__create-model-button app__create-model-button--secondary"
-                onClick={hasTested || hasAnyTestInputValue ? clearTest : triggerImportTest}
-                disabled={!hasTested && !hasAnyTestInputValue && testInputEntries.length === 0}
-                title={
-                  hasTested || hasAnyTestInputValue
-                    ? 'Limpa os resultados do último teste e os valores introduzidos nos inputs.'
-                    : testInputEntries.length === 0
-                      ? 'O modelo não tem nenhum input definido.'
-                      : 'Preenche os inputs a partir de um ficheiro JSON.'
-                }
-              >
-                {hasTested || hasAnyTestInputValue ? <ClearIcon /> : <SaveIcon />}
-                {hasTested || hasAnyTestInputValue ? 'Limpar teste' : 'Carregar teste'}
-              </button>
-              {hasAnyTestInputValue && (
+              {/* "Guardar teste" only appears once every input that needs a value has one and none breaks its rules. */}
+              {canSaveTest && (
                 <button
                   type="button"
                   className="app__create-model-button app__create-model-button--secondary"
@@ -2267,11 +2329,38 @@ export function OperationPanel({
                   Guardar teste
                 </button>
               )}
+              {/* "Limpar dados" goes right after "Guardar teste", once there is something to clear. */}
+              {(hasTested || hasAnyTestInputValue) && (
+                <button
+                  type="button"
+                  className="app__create-model-button app__create-model-button--secondary"
+                  onClick={() => setIsClearConfirmOpen(true)}
+                  title="Limpa os resultados do último teste e os valores introduzidos nos inputs."
+                >
+                  <BroomIcon />
+                  Limpar dados
+                </button>
+              )}
             </>,
               testActionsSlot,
             )}
+          {/* "Carregar teste" sits at the bottom right, on the left of the main action, and is always there. */}
+          {loadActionSlot &&
+            createPortal(
+            <button
+              type="button"
+              className="app__create-model-button app__create-model-button--secondary"
+              onClick={triggerImportTest}
+              disabled={testInputEntries.length === 0}
+              title={testInputEntries.length === 0 ? 'O modelo não tem nenhum input definido.' : 'Preenche os inputs a partir de um ficheiro JSON.'}
+            >
+              <SaveIcon />
+              Carregar teste
+            </button>,
+              loadActionSlot,
+            )}
           {/* One button, not two: "Importar teste" for as long as there's nothing yet to clear,
-              switching to "Limpar teste" the moment there is (a value typed by hand, one loaded
+              switching to "Limpar dados" the moment there is (a value typed by hand, one loaded
               via import, or an actual test run — see hasTested/hasAnyTestInputValue). This is the
               only place either lives — TestValuesModal (opened by "Testar modelo" below) is
               review-only, with no import/clear of its own. Only disabled in the one combination
@@ -2721,6 +2810,20 @@ export function OperationPanel({
       )}
 
       {renderConfigPanel()}
+
+      {isClearConfirmOpen && (
+        <ConfirmModal
+          title="Limpar dados?"
+          message="Os resultados do último teste e os valores introduzidos nos inputs vão ser apagados. Esta ação não se pode desfazer."
+          confirmLabel="Limpar"
+          danger
+          onConfirm={() => {
+            setIsClearConfirmOpen(false);
+            clearTest();
+          }}
+          onCancel={() => setIsClearConfirmOpen(false)}
+        />
+      )}
 
       <TestValuesModal
         open={isTestModalOpen}

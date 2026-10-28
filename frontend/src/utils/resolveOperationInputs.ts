@@ -1,5 +1,6 @@
 import { getInputSources, outputResultKey, type ValueSource } from '../types/valueSource';
 import { PAGE_AWARE_KIND_IDS, PAGE_SELECTOR_KIND_ID } from './pageSelector';
+import { DEFAULT_VALUE_FORMAT, formatValue, type ValueFormat } from '../types/valueFormat';
 
 /**
  * Any operation entry, reduced to what dependency resolution needs — kept separate from
@@ -17,7 +18,17 @@ export type ResolvedInput =
   | { status: 'ready'; value: string }
   | { status: 'pending' }
   | { status: 'missing' }
-  | { status: 'cycle' };
+  | { status: 'cycle' }
+  // The value breaks the rules of a formatter that applies to this operation (see formatterRulesFor): `message` says which.
+  | { status: 'invalid'; message: string };
+
+/** The kind id of the formatter operation, which puts rules on the inputs of the operations it applies to. */
+const FORMATTER_KIND_ID = 'formatter';
+
+/** The rules of a formatter entry, with a default for any field it lacks. */
+function formatOf(fields: object): ValueFormat {
+  return { ...DEFAULT_VALUE_FORMAT, ...(fields as Partial<ValueFormat>) };
+}
 
 /**
  * entryId -> every operationId it references — usually at most one (a kind with a single
@@ -170,6 +181,18 @@ export function resolveOperationInputs(
   const edges = buildReferenceGraph(entries);
   const cyclicIds = findCyclicIds(edges);
 
+  // Every formatter's rules, by the id of each operation it applies to (a formatter lists them in `appliesTo`).
+  const rulesByTarget = new Map<string, ValueFormat[]>();
+  for (const entry of entries) {
+    if (entry.kindId !== FORMATTER_KIND_ID || !entry.confirmed) continue;
+    const targets = (entry.fields as { appliesTo?: unknown }).appliesTo;
+    if (!Array.isArray(targets)) continue;
+    for (const target of targets) {
+      if (typeof target !== 'string') continue;
+      rulesByTarget.set(target, [...(rulesByTarget.get(target) ?? []), formatOf(entry.fields)]);
+    }
+  }
+
   const resolved: Record<string, ResolvedInput[]> = {};
   for (const entry of entries) {
     // An entry itself sitting on a cycle (any of its inputs looping back to itself) makes every
@@ -179,7 +202,26 @@ export function resolveOperationInputs(
       resolved[entry.id] = getInputSources(entry.fields).map(() => ({ status: 'cycle' }));
       continue;
     }
-    resolved[entry.id] = getInputSources(entry.fields).map((source) => resolveSource(source, entriesById, results));
+    const inputs = getInputSources(entry.fields).map((source) => resolveSource(source, entriesById, results));
+    // A formatter's rules apply to an operation's single "input": a ready, non-empty value that breaks them is invalid
+    // (an empty one has nothing to check yet — the backend still refuses it at a run when the rules require a value),
+    // and one that obeys them goes on written as the model carries it (a number canonically).
+    const rules = inputs.length === 1 && 'input' in entry.fields ? rulesByTarget.get(entry.id) : undefined;
+    const first = inputs[0];
+    if (rules && first?.status === 'ready' && first.value.trim() !== '') {
+      let value = first.value;
+      let invalid: ResolvedInput | null = null;
+      for (const format of rules) {
+        const result = formatValue(format, value);
+        if (!result.ok) {
+          invalid = { status: 'invalid', message: result.message };
+          break;
+        }
+        value = result.value;
+      }
+      inputs[0] = invalid ?? { status: 'ready', value };
+    }
+    resolved[entry.id] = inputs;
   }
   return resolved;
 }

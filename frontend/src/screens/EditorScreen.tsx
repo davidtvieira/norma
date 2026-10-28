@@ -134,9 +134,11 @@ export function EditorScreen({
   onSaveTestCase,
   onGoHome,
 }: EditorScreenProps) {
-  // The bottom-left slot OperationPanel draws "Carregar/Limpar teste" into (a state, not a ref, so the
+  // The bottom-left slot OperationPanel draws "Carregar/Limpar dados" into (a state, not a ref, so the
   // panel re-renders once the element exists).
   const [testActionsSlot, setTestActionsSlot] = useState<HTMLElement | null>(null);
+  // ...and the bottom-right one it draws "Carregar teste" into, on the left of the main action.
+  const [loadActionSlot, setLoadActionSlot] = useState<HTMLElement | null>(null);
 
   return (
     <div className="app">
@@ -155,6 +157,7 @@ export function EditorScreen({
         <div className="app__main-content">
           <OperationPanel
             testActionsSlot={testActionsSlot}
+            loadActionSlot={loadActionSlot}
             onSaveTestCase={onSaveTestCase}
             dataset={dataset}
             initialEntries={pendingImportEntries}
@@ -177,16 +180,19 @@ export function EditorScreen({
             onModelOutputIdsChange={onModelOutputIdsChange}
           />
           {/* Same layout as the Utilizar screen: the test-file buttons bottom-left, the main action
-              bottom-right. "Carregar/Limpar teste" is rendered by OperationPanel (it owns that state)
-              into the empty slot below. */}
+              bottom-right. "Guardar teste" and "Limpar dados" (bottom-left) and "Carregar teste" (on the left of the
+              main action) are rendered by OperationPanel (it owns that state) into the empty slots below. */}
           <div className="app__save-row">
             <div className="app__save-row-group">
               <div ref={setTestActionsSlot} className="app__save-row-slot" />
             </div>
-            <button type="button" className="app__save-button action-button" onClick={onOpenSaveModal}>
-              <DiskIcon />
-              {isSavedInLibrary ? 'Atualizar norma' : 'Guardar norma'}
-            </button>
+            <div className="app__save-row-group">
+              <div ref={setLoadActionSlot} className="app__save-row-slot" />
+              <button type="button" className="app__save-button action-button" onClick={onOpenSaveModal}>
+                <DiskIcon />
+                {isSavedInLibrary ? 'Atualizar norma' : 'Guardar norma'}
+              </button>
+            </div>
           </div>
         </div>
       </main>

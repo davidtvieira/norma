@@ -11,6 +11,7 @@ export const KIND_LABELS: Record<string, string> = {
   iterator: 'Iterador',
   calc: 'Calcular',
   page: 'Seletor de página',
+  formatter: 'Formatador de entrada',
 };
 
 /** A one-line description of what each operation kind does, shown when picking one to add. */
@@ -25,4 +26,5 @@ export const KIND_DESCRIPTIONS: Record<string, string> = {
   iterator: 'Repete o modelo inteiro por cada página de um intervalo.',
   calc: 'Soma, subtrai, multiplica ou divide dois valores.',
   page: 'Escolhe a página dos dados que as outras operações vão ler.',
+  formatter: 'Define o tipo e os limites (tamanho máximo, número, obrigatório…) das entradas que escolher.',
 };

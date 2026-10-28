@@ -669,6 +669,8 @@ export function ValueSourceField({
         </>
       )}
 
+      {resolvedInput.status === 'invalid' && <p className="operation-entry__chain-status operation-entry__chain-status--invalid">{resolvedInput.message}</p>}
+
       {isPickerOpen && (
         <ValueSourcePickerModal
           label={label}

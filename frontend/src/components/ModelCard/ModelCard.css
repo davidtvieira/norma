@@ -843,3 +843,44 @@ button.model-card__run-button.model-card__run-button--analysing:hover:not(:disab
 .split-button button.split-button__arrow.model-card__run-button--analysing {
   border-left-color: rgba(255, 255, 255, 0.45);
 }
+
+/* An input that breaks a formatter's rules: a red badge at the top right of its card with how many rules (click it to list them),
+   and the card outlined in red. */
+.model-card__field--invalid {
+  position: relative;
+  outline: 1.5px solid var(--color-error);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.model-card__error-badge {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 1;
+  min-width: 1.5rem;
+  padding: 0 0.5rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-error);
+  color: var(--color-error-contrast);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.5rem;
+  text-align: center;
+  cursor: pointer;
+}
+
+.model-card__rules-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.9rem;
+}
+
+/* A disabled text button (Guardar teste, Carregar teste...) looks disabled, like "Correr modelo": faded, with a
+   not-allowed cursor. Global, so the editor's own buttons of this kind get it too. */
+button.app__create-model-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}

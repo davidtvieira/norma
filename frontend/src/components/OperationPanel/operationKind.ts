@@ -37,6 +37,14 @@ export interface OperationDraftContext {
   hasPageSelector: boolean;
 }
 
+/** An operation a formatter can apply its rules to, as its detail lists them. */
+export interface FormatTarget {
+  operationId: string;
+  label: string;
+  /** The name of the other formatter that already applies to it, if one does (an operation obeys at most one). */
+  takenBy: string | null;
+}
+
 export interface OperationBodyContext {
   entryId: string;
   fields: OperationFields;
@@ -52,6 +60,8 @@ export interface OperationBodyContext {
   columnPick: ColumnPickState | null;
   onStartColumnPick: (entryId: string, field: ColumnPickField, sheetIndex: number) => void;
   onFinishColumnPick: () => void;
+  /** For the formatter: the operations it can apply its rules to (see FormatTarget). Other kinds ignore it. */
+  formatTargets: FormatTarget[];
   /** columnIndex is only meaningful for a kind whose match isn't at any single fixed column (e.g.
    * find, scanning a whole range) — lookup's own fixed result column makes it redundant there, so
    * it's optional and lookup's own call site omits it. */
@@ -89,7 +99,7 @@ export interface OperationBodyContext {
    * another test does, so the API isn't hit continuously while the model is still being built.
    */
   testSignal: number;
-  /** Incremented by "Limpar teste" (see OperationPanel) — clears whatever this kind's result
+  /** Incremented by "Limpar dados" (see OperationPanel) — clears whatever this kind's result
    * component last showed (back to not-tested) without waiting for a field to change. */
   resetSignal: number;
 }

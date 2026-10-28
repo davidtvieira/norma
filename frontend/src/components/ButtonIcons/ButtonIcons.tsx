@@ -5,6 +5,7 @@ import {
   ChevronsDown as LucideChevronsDown,
   ChevronsLeft as LucideChevronsLeft,
   ChevronsUp as LucideChevronsUp,
+  BrushCleaning,
   Download,
   Eye,
   FolderOpen,
@@ -53,6 +54,8 @@ export const LoadIcon = make(Download, 'button-icon');
 export const SaveIcon = make(Upload, 'button-icon');
 /** Cross — "Limpar", removing a row. */
 export const ClearIcon = make(X, 'button-icon');
+/** A brush sweeping — "Limpar dados". */
+export const BroomIcon = make(BrushCleaning, 'button-icon');
 /** Floppy disk — saving the model itself ("Guardar modelo"). */
 export const DiskIcon = make(Save, 'button-icon');
 /** Table grid — looking at the dataset ("Ver dados"). */

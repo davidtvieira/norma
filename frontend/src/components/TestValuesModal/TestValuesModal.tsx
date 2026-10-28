@@ -6,6 +6,8 @@ export interface TestValueEntry {
   id: string;
   name: string;
   value: string;
+  /** A formatter requires a value for this input: the test can't run while it is empty. Any other input may be left empty. */
+  required: boolean;
 }
 
 interface TestValuesModalProps {
@@ -36,19 +38,19 @@ interface TestValuesModalProps {
  * to that same node's own field (see OperationPanel's onChangeValue), same as typing on the
  * canvas itself would — nothing here duplicates where a value actually lives. "Guardar teste"
  * still lives next to "Guardar modelo" rather than in here — nothing to export mid-review that
- * isn't already just as reachable from there. "Importar teste"/"Limpar teste" likewise aren't in
+ * isn't already just as reachable from there. "Importar teste"/"Limpar dados" likewise aren't in
  * here — that's the canvas toolbar's own toggle (see OperationPanel), reachable without needing
  * this modal open at all.
  */
 export function TestValuesModal({ open, onClose, inputs, onChangeValue, onRun, isRunning, warning, importError }: TestValuesModalProps) {
   if (!open) return null;
 
-  // "Correr teste" stays disabled until every field actually has something in it — this is a
-  // proactive check on top of runModelTest's own (which still runs on click regardless, and
-  // covers the broader case of an *unrelated* operation elsewhere in the chain being blank; see
-  // its own note) — catching the common case, a field in this very form left empty, before the
-  // click even happens instead of only after.
-  const allFilled = inputs.every((input) => input.value.trim() !== '');
+  // "Correr teste" stays disabled until every field a formatter requires a value for has something in it — this is a
+  // proactive check on top of runModelTest's own (which still runs on click regardless, and covers the broader case of an
+  // *unrelated* required operation elsewhere in the chain being blank; see its own note) — catching the common case, a
+  // required field in this very form left empty, before the click even happens instead of only after. Any other field may
+  // be left empty.
+  const allFilled = inputs.every((input) => !input.required || input.value.trim() !== '');
 
   return (
     <>
