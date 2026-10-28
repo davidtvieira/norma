@@ -89,6 +89,37 @@
 
 /* When the window is narrower the toolbar drops under the title (the header wraps): then it takes the whole row, the
    search stretching across it. */
+.normas-toolbar__export {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  height: 2.5rem;
+  padding: 0 1.1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.normas-toolbar__export:hover:not(:disabled) {
+  border-color: var(--color-primary);
+}
+
+.normas-toolbar__export:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.normas-toolbar__export svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
 @media (max-width: 1200px) {
   .normas-toolbar {
     flex: 1 1 100%;

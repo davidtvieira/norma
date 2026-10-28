@@ -201,6 +201,15 @@ export async function downloadSavedNrm(id: string, name = 'modelo'): Promise<Fil
   return new File([await response.blob()], `${name}.nrm`, { type: 'application/octet-stream' });
 }
 
+/** Every saved .nrm in one zip, laid out in folders that mirror the library's (see the backend's GET /library/export). */
+export async function exportAllSavedNrms(): Promise<Blob> {
+  const response = await apiFetch(`${API_BASE_URL}/api/v1/library/export`);
+  if (!response.ok) {
+    throw await apiError(response, 'Falha ao exportar as normas');
+  }
+  return response.blob();
+}
+
 export async function deleteSavedNrm(id: string): Promise<void> {
   const response = await apiFetch(`${API_BASE_URL}/api/v1/library/${encodeURIComponent(id)}`, { method: 'DELETE' });
   if (!response.ok) {

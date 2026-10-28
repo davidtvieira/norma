@@ -17,6 +17,7 @@ import {
   registerModel,
   downloadSavedNrm,
   openSavedNrm,
+  exportAllSavedNrms,
   replaceSavedNrm,
   saveNrm,
   validateModelForDataset,
@@ -1236,6 +1237,11 @@ function App() {
             onSavedQueryChange={setSavedQuery}
             openingSavedId={openingSavedId}
             onOpenSaved={openNorma}
+            onExportAll={async () => {
+              const zip = await exportAllSavedNrms();
+              downloadBlob(zip, `normas-${new Date().toISOString().slice(0, 10)}.zip`);
+              reportSuccess('Normas exportadas');
+            }}
             onDeleteSaved={(saved) =>
               library
                 .remove(saved.id)

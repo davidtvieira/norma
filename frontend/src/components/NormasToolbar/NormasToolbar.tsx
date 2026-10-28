@@ -1,4 +1,4 @@
-import { SearchIcon } from '../ButtonIcons/ButtonIcons';
+import { LoadIcon, SearchIcon } from '../ButtonIcons/ButtonIcons';
 import type { SavedNrmQuery } from '../../types/savedNrm';
 import './NormasToolbar.css';
 
@@ -19,10 +19,13 @@ interface NormasToolbarProps {
   folderName: string | null;
   searchEverywhere: boolean;
   onSearchEverywhereChange: (value: boolean) => void;
+  /** "Exportar": every saved norma in one zip. Disabled while there is nothing to export. */
+  onExport: () => void;
+  canExport: boolean;
 }
 
 /** The search box (with, inside a folder, a toggle at its end to search only there) and the order select, beside the title. */
-export function NormasToolbar({ query, onChange, folderName, searchEverywhere, onSearchEverywhereChange }: NormasToolbarProps) {
+export function NormasToolbar({ query, onChange, folderName, searchEverywhere, onSearchEverywhereChange, onExport, canExport }: NormasToolbarProps) {
   const orderIndex = Math.max(
     0,
     ORDERS.findIndex((order) => order.sort === query.sort && order.direction === query.direction),
@@ -67,6 +70,16 @@ export function NormasToolbar({ query, onChange, folderName, searchEverywhere, o
           </option>
         ))}
       </select>
+      <button
+        type="button"
+        className="normas-toolbar__export"
+        onClick={onExport}
+        disabled={!canExport}
+        title="Exporta todas as normas guardadas num ficheiro zip, com as pastas."
+      >
+        <LoadIcon />
+        Exportar
+      </button>
     </div>
   );
 }

@@ -54,6 +54,8 @@ interface NormasScreenProps {
   openingSavedId: string | null;
   onOpenSaved: (model: SavedNrmPayload) => void;
   onDeleteSaved: (model: SavedNrmPayload) => Promise<void>;
+  /** Downloads every saved norma as one zip. */
+  onExportAll: () => Promise<void>;
   /** The open folder's id, null at the top. */
   folder: string | null;
   onFolderChange: (folder: string | null) => void;
@@ -85,6 +87,7 @@ export function NormasScreen({
   openingSavedId,
   onOpenSaved,
   onDeleteSaved,
+  onExportAll,
   folder,
   onFolderChange,
   searchEverywhere,
@@ -131,6 +134,7 @@ export function NormasScreen({
   const [pendingDelete, setPendingDelete] = useState<SavedNrmPayload | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   // The norma being dragged right now, if any: one that is in a folder gets a card to drop it on to take it out.
   const [draggedNorma, setDraggedNorma] = useState<SavedNrmPayload | null>(null);
 
@@ -160,6 +164,13 @@ export function NormasScreen({
             folderName={current?.name ?? null}
             searchEverywhere={searchEverywhere}
             onSearchEverywhereChange={onSearchEverywhereChange}
+            canExport={(listing?.total ?? 0) > 0 && !isExporting}
+            onExport={() => {
+              setIsExporting(true);
+              onExportAll()
+                .catch(() => undefined)
+                .finally(() => setIsExporting(false));
+            }}
           />
         </div>
         {normas !== null && normas.length === 0 && folders.length === 0 && (
@@ -239,7 +250,7 @@ export function NormasScreen({
 
       {/* Nothing to show yet (opening the page, or going into another folder): the loading page at once. A refresh of what is
           already on screen (typing a search, a move) waits a moment so a quick answer never flashes it. */}
-      {(isDeleting || isMoving || normasLoading || (normas === null && !normasFailed)) &&
+      {(isDeleting || isMoving || isExporting || normasLoading || (normas === null && !normasFailed)) &&
         (normas === null && !normasFailed ? <LoadingOverlay key="blank" /> : <LoadingOverlay key="refresh" delayMs={200} />)}
 
       <AppFooter onGoHome={onGoHome} />
