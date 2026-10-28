@@ -405,7 +405,7 @@ interface LookupResultProps {
   /** Incremented by "Testar modelo" (see OperationPanel) — the only thing that triggers a
    * request; editing the query/table/columns afterward doesn't, until tested again. */
   testSignal: number;
-  /** Incremented by "Limpar teste" — clears the shown result back to not-tested on demand. */
+  /** Incremented by "Limpar dados" — clears the shown result back to not-tested on demand. */
   resetSignal: number;
   onMatchChange: (rowIndex: number | null) => void;
   onResultChange: (value: string | null, failed?: boolean) => void;
@@ -470,8 +470,8 @@ function LookupResult({
   // out no matter how many times the effect is (re)invoked for the same testSignal.
   const inFlightRef = useRef<{ signal: number; promise: ReturnType<typeof lookupValue> } | null>(null);
 
-  // "Limpar teste": clears the shown result on demand, independent of any field changing. Also
-  // resets handledForSignalRef/inFlightRef — "Limpar teste" resets every entry's own testSignal
+  // "Limpar dados": clears the shown result on demand, independent of any field changing. Also
+  // resets handledForSignalRef/inFlightRef — "Limpar dados" resets every entry's own testSignal
   // counter back to 0 (see OperationPanel's cancelPendingTestStagger), so the *next* test's
   // testSignal can numerically collide with a value already recorded here from before the clear;
   // without this reset, that collision made the dedup check above mistake a genuinely new test for

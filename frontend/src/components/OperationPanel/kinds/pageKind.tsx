@@ -108,7 +108,7 @@ function PageResult({ resolvedInput, sheetNames, testSignal, resetSignal, onResu
   const hasValue = resolvedInput.status === 'ready' && resolvedInput.value.trim() !== '';
   const invalid = tested && hasValue && index === null;
 
-  // "Limpar teste": back to not-tested.
+  // "Limpar dados": back to not-tested.
   useEffect(() => {
     onResultChange(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps

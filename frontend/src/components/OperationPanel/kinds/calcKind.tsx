@@ -174,7 +174,7 @@ function CalcResult({ inputs, operation, format, testSignal, resetSignal, onResu
 
   const resolvedKey = inputs.map((input) => (input.status === 'ready' ? `ready:${input.value}` : input.status)).join('|');
 
-  // "Limpar teste": clears the shown result on demand, independent of any field changing.
+  // "Limpar dados": clears the shown result on demand, independent of any field changing.
   useEffect(() => {
     setState({ status: 'idle' });
     onResultChange(null);

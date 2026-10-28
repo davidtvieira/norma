@@ -211,7 +211,7 @@ interface FindResultProps {
   /** Incremented by "Testar modelo" (see OperationPanel) — the only thing that triggers a
    * request; editing the query/table/range afterward doesn't, until tested again. */
   testSignal: number;
-  /** Incremented by "Limpar teste" — clears the shown result back to not-tested on demand. */
+  /** Incremented by "Limpar dados" — clears the shown result back to not-tested on demand. */
   resetSignal: number;
   onMatchChange: (rowIndex: number | null, columnIndex?: number | null) => void;
   onResultChange: (value: string | null, failed?: boolean) => void;
@@ -239,7 +239,7 @@ function FindResult({ datasetId, query, sheetIndex, range, returnValue, testSign
   const handledForSignalRef = useRef(0);
   const inFlightRef = useRef<{ signal: number; promise: ReturnType<typeof findMatch> } | null>(null);
 
-  // "Limpar teste": clears the shown result on demand, independent of any field changing. Also
+  // "Limpar dados": clears the shown result on demand, independent of any field changing. Also
   // resets handledForSignalRef/inFlightRef — see LookupResult's equivalent note on why: "Limpar
   // teste" resets every entry's own testSignal counter back to 0, so without this the *next*
   // test's testSignal could numerically collide with a value already recorded here, making the

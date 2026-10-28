@@ -244,7 +244,7 @@ function TranslatorInputs({
   const resolvedKey = resolvedInputs.map((input) => (input.status === 'ready' ? `ready:${input.value}` : input.status)).join('|');
   const rulesKey = JSON.stringify(rules);
 
-  // "Limpar teste": clears the shown outputs on demand, independent of any field changing.
+  // "Limpar dados": clears the shown outputs on demand, independent of any field changing.
   useEffect(() => {
     setState({ status: 'idle' });
     onResultChange(null);

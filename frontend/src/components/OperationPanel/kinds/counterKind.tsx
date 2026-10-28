@@ -249,7 +249,7 @@ type CounterRequestState =
 function CounterResult({ resolvedInputs, hasUnsetInput, testSignal, resetSignal, onResultChange }: CounterResultProps) {
   const [state, setState] = useState<CounterRequestState>({ status: 'idle' });
 
-  // "Limpar teste": clears the shown result on demand, independent of any field changing.
+  // "Limpar dados": clears the shown result on demand, independent of any field changing.
   useEffect(() => {
     setState({ status: 'idle' });
     onResultChange(null);

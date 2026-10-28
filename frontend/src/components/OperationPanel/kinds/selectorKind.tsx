@@ -247,7 +247,7 @@ type SelectorRequestState =
 function SelectorResult({ resolvedInputs, hasUnsetInput, testSignal, resetSignal, onResultChange }: SelectorResultProps) {
   const [state, setState] = useState<SelectorRequestState>({ status: 'idle' });
 
-  // "Limpar teste": clears the shown result on demand, independent of any field changing.
+  // "Limpar dados": clears the shown result on demand, independent of any field changing.
   useEffect(() => {
     setState({ status: 'idle' });
     onResultChange(null);

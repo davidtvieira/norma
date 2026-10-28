@@ -133,7 +133,7 @@ interface SumResultProps {
   /** Incremented by "Testar modelo" (see OperationPanel) — the only thing that triggers a
    * request; picking a new range afterward doesn't, until tested again. */
   testSignal: number;
-  /** Incremented by "Limpar teste" — clears the shown result back to not-tested on demand. */
+  /** Incremented by "Limpar dados" — clears the shown result back to not-tested on demand. */
   resetSignal: number;
   onResultChange: (value: string | null, failed?: boolean) => void;
 }
@@ -155,7 +155,7 @@ type SumRequestState =
 function SumResult({ datasetId, sheetIndex, range, testSignal, resetSignal, onResultChange }: SumResultProps) {
   const [state, setState] = useState<SumRequestState>({ status: 'idle' });
 
-  // "Limpar teste": clears the shown result on demand, independent of any field changing.
+  // "Limpar dados": clears the shown result on demand, independent of any field changing.
   useEffect(() => {
     setState({ status: 'idle' });
     onResultChange(null);
