@@ -100,6 +100,15 @@
 /* The whole card is the way in. */
 .norma-card--openable {
   cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Pointing at it (or focusing it) makes the card grow a little, above its neighbours. */
+.norma-card--openable:hover,
+.norma-card--openable:focus-visible {
+  transform: scale(1.04);
+  z-index: 1;
+  box-shadow: var(--shadow-md);
 }
 
 /* Pointing at it (or focusing it) only touches the logo: it fades from grey to its original orange and plays the
@@ -193,6 +202,15 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .norma-card--openable {
+    transition: none;
+  }
+
+  .norma-card--openable:hover,
+  .norma-card--openable:focus-visible {
+    transform: none;
+  }
+
   .norma-card--openable .norma-mark__edge,
   .norma-card--openable .norma-mark__node,
   .norma-card--openable .norma-mark__target {

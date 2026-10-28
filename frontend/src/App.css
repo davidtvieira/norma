@@ -1001,6 +1001,11 @@ button.naked-button:hover:not(:disabled) {
   overflow-y: auto;
   /* The list scrolls (wheel, touch, keys) without drawing a scrollbar. */
   scrollbar-width: none;
+  /* Room around the cards so a card that grows on hover is not cut off at the edge of the scroll area; the negative
+     margin gives it back, so the cards stay exactly where they were. */
+  padding: 0.5rem;
+  margin: -0.5rem;
+  height: calc(100% + 1rem);
 }
 
 .app__normas-list::-webkit-scrollbar {
