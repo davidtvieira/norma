@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { BackButton } from '../components/BackButton/BackButton';
 import { AppFooter } from '../components/AppFooter/AppFooter';
 import { OperationPanel } from '../components/OperationPanel/OperationPanel';
+import { Modal } from '../components/Modal/Modal';
 import { SaveModal, type IoItem, type ModelExportFormat } from '../components/SaveModal/SaveModal';
 import { SheetPanel } from '../components/SheetPanel/SheetPanel';
 import { SheetViewer } from '../components/SheetViewer/SheetViewer';
@@ -37,6 +38,8 @@ interface EditorScreenProps {
   onCellHighlightChange: (highlight: OperationHighlight | null) => void;
   onRevealInSheet: (sheetIndex: number) => void;
   onEntriesChange: (entries: SerializableEntry[]) => void;
+  /** The model as it would be exported, pretty-printed — only asked for while the JSON dialog is open. */
+  getModelJson: () => string;
 
   modelInputIds: string[];
   modelOutputIds: string[];
@@ -102,6 +105,7 @@ export function EditorScreen({
   onCellHighlightChange,
   onRevealInSheet,
   onEntriesChange,
+  getModelJson,
   modelInputIds,
   modelOutputIds,
   onModelInputIdsChange,
@@ -139,12 +143,16 @@ export function EditorScreen({
   const [testActionsSlot, setTestActionsSlot] = useState<HTMLElement | null>(null);
   // ...and the bottom-right one it draws "Carregar teste" into, on the left of the main action.
   const [loadActionSlot, setLoadActionSlot] = useState<HTMLElement | null>(null);
+  const [isJsonOpen, setIsJsonOpen] = useState(false);
 
   return (
     <div className="app">
       <header className="app__topbar app__topbar--with-title">
         <BackButton onClick={onBackToChoose} />
         <div className="app__topbar-actions">
+          <button type="button" className="app__view-data-button" onClick={() => setIsJsonOpen(true)}>
+            {'{ }'} Ver JSON
+          </button>
           <button type="button" className="app__view-data-button" onClick={onOpenSheetPanel}>
             <SpreadsheetIcon />
             Ver dados
@@ -215,6 +223,21 @@ export function EditorScreen({
           active={isSheetPanelOpen}
         />
       </SheetPanel>
+
+      {isJsonOpen && (
+        <Modal
+          title="JSON do modelo"
+          size="lg"
+          onClose={() => setIsJsonOpen(false)}
+          actions={
+            <button type="button" className="modal__button modal__button--ghost" onClick={() => setIsJsonOpen(false)}>
+              Fechar
+            </button>
+          }
+        >
+          <pre className="editor-json">{getModelJson()}</pre>
+        </Modal>
+      )}
 
       <SaveModal
         open={isSaveModalOpen}

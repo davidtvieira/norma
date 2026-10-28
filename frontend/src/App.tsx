@@ -1126,6 +1126,9 @@ function App() {
                         onCellHighlightChange={setCellHighlight}
                         onRevealInSheet={revealInSheet}
                         onEntriesChange={setModelEntries}
+                        getModelJson={() =>
+                          JSON.stringify(buildModelExport(modelEntries, modelName, dataset?.datasetId ?? '', modelInputIds, modelOutputIds, nrmName), null, 2)
+                        }
                         modelInputIds={modelInputIds}
                         modelOutputIds={modelOutputIds}
                         onModelInputIdsChange={setModelInputIds}
