@@ -3,6 +3,9 @@ import { inlineErrorMessage, reportSuccess } from './services/apiErrors';
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useCategories } from './hooks/useCategories';
+import { assignSavedNrmCategory, createCategory, deleteCategory, updateCategory } from './services/datasetApi';
+import { findCategory } from './types/category';
 import { KINDS_BY_ID, OPERATION_KIND_IDS } from './components/OperationPanel/kinds/registry';
 import { useTheme } from './hooks/useTheme';
 import {
@@ -191,7 +194,26 @@ function App() {
   // came from or was last saved as — "Guardar na plataforma" then replaces that entry instead of adding a
   // copy. A ref: it never needs a render of its own.
   const [savedQuery, setSavedQuery] = useState<SavedNrmQuery>(DEFAULT_SAVED_QUERY);
+  // The normas sit in folders (their categories; those with none sit beside the top-level folders); `folder` is the one that is
+  // open (null at the top), kept in the address (/normas?pasta=<id>) so a reload or the back button keeps
+  // the place. The normas are always read whole: the folders are worked out from each norma's category.
+  const [folder, setFolder] = useState<string | null>(() => new URLSearchParams(window.location.search).get('pasta'));
+  // While searching inside a folder: only that folder's normas, instead of all of them.
+  const [searchInFolder, setSearchInFolder] = useState(false);
   const normas = useNormas(location.pathname === '/normas', savedQuery);
+  // The categories are needed on /normas and, to file a new norma, in the save dialog.
+  const categories = useCategories(location.pathname === '/normas' || isSaveModalOpen);
+  // Where a first save from the editor files the norma.
+  const [saveCategoryId, setSaveCategoryId] = useState<string | null>(null);
+  useEffect(() => {
+    if (location.pathname !== '/normas') return;
+    const wanted = folder ? `?pasta=${encodeURIComponent(folder)}` : '';
+    if (location.search !== wanted) navigate({ pathname: '/normas', search: wanted }, { replace: true });
+  }, [location.pathname, location.search, folder, navigate]);
+  // An open folder that no longer exists (deleted, or a stale link) falls back to the top.
+  useEffect(() => {
+    if (categories.tree && folder && !findCategory(categories.tree, folder)) setFolder(null);
+  }, [categories.tree, folder]);
   const savedNrmIdRef = useRef<string | null>(null);
   // Whether that entry exists — what the editor's save button reads ("Atualizar" instead of "Guardar").
   const [isSavedInLibrary, setIsSavedInLibrary] = useState(false);
@@ -839,7 +861,7 @@ function App() {
     if (format === 'library') {
       const file = new File([blob], `${fileName}.nrm`, { type: 'application/octet-stream' });
       const isReplacing = savedNrmIdRef.current !== null;
-      const saved = savedNrmIdRef.current ? await replaceSavedNrm(savedNrmIdRef.current, file) : await saveNrm(file);
+      const saved = savedNrmIdRef.current ? await replaceSavedNrm(savedNrmIdRef.current, file) : await saveNrm(file, saveCategoryId);
       setSavedNrmId(saved.id);
       reportSuccess(isReplacing ? 'Norma atualizada na plataforma' : 'Norma guardada na plataforma');
       return;
@@ -875,22 +897,6 @@ function App() {
     const saved = await saveNrm(uploadedNrmFile);
     setSavedNrmId(saved.id);
     reportSuccess('Norma guardada na plataforma');
-  }
-
-  // The "+" card on /normas: adds each picked .nrm to the library, one after the other (a refused file only costs
-  // its own toast), then refreshes the list and says how many went in.
-  async function uploadNormas(files: File[]) {
-    let added = 0;
-    for (const file of files) {
-      try {
-        await saveNrm(file);
-        added += 1;
-      } catch {
-        // The API toast already says what went wrong with this file.
-      }
-    }
-    await normas.refresh();
-    if (added > 0) reportSuccess(added === 1 ? 'Norma guardada na plataforma' : `${added} normas guardadas na plataforma`);
   }
 
   // "Abrir" on a saved norma: the backend loads the file it keeps (nothing is downloaded or uploaded) and the model
@@ -1108,6 +1114,9 @@ function App() {
                         cellHighlight={cellHighlight}
                         isSaveModalOpen={isSaveModalOpen}
                         isSavedInLibrary={isSavedInLibrary}
+                        categories={categories.tree}
+                        saveCategoryId={saveCategoryId}
+                        onSaveCategoryChange={setSaveCategoryId}
                         onOpenSaveModal={() => setIsSaveModalOpen(true)}
                         onCloseSaveModal={() => setIsSaveModalOpen(false)}
                         onExportModel={exportModel}
@@ -1203,10 +1212,31 @@ function App() {
             onDeleteSaved={(saved) =>
               normas
                 .remove(saved.id)
+                .then(() => categories.refresh())
                 .then(() => forgetSavedNrm(saved.id))
                 .then(refreshRecentSessions)
             }
-            onUploadNormas={uploadNormas}
+            categories={categories.tree}
+            folder={folder}
+            onFolderChange={setFolder}
+            searchInFolder={searchInFolder}
+            onSearchInFolderChange={setSearchInFolder}
+            onCreateCategory={async (name, parentId) => {
+              await createCategory(name, parentId);
+              await categories.refresh();
+            }}
+            onUpdateCategory={async (id, name, parentId) => {
+              await updateCategory(id, name, parentId);
+              await Promise.all([categories.refresh(), normas.refresh()]);
+            }}
+            onDeleteCategory={async (id) => {
+              await deleteCategory(id);
+              await categories.refresh();
+            }}
+            onMoveNorma={async (id, categoryId) => {
+              await assignSavedNrmCategory(id, categoryId);
+              await Promise.all([categories.refresh(), normas.refresh()]);
+            }}
             recentSessions={recentSessions
               .filter((entry) => entry.modelJson !== null || entry.savedNrmId)
               .map((entry) => ({

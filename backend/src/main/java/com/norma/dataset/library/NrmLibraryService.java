@@ -35,11 +35,14 @@ public class NrmLibraryService {
     private final SavedNrmRepository repository;
     private final NrmFileStorage storage;
     private final NrmService nrmService;
+    private final CategoryService categories;
 
-    public NrmLibraryService(SavedNrmRepository repository, NrmFileStorage storage, NrmService nrmService) {
+    public NrmLibraryService(SavedNrmRepository repository, NrmFileStorage storage, NrmService nrmService,
+                             CategoryService categories) {
         this.repository = repository;
         this.storage = storage;
         this.nrmService = nrmService;
+        this.categories = categories;
     }
 
     /** A file for download: the name it should be saved as, and its bytes. */
@@ -49,13 +52,21 @@ public class NrmLibraryService {
     /**
      * The saved .nrm files, most recently saved first. {@code search} keeps those whose name or dataset file name
      * contains it (any case, nothing else is special); {@code sort} and {@code direction} are the spellings of
-     * {@link SavedNrmSort}, each optional.
+     * {@link SavedNrmSort}, each optional. {@code categoryId} keeps those filed under that category or one of its
+     * subcategories; {@code uncategorized} keeps those filed under none (and wins over {@code categoryId}).
      */
     @Transactional(readOnly = true)
-    public List<SavedNrmSummary> list(String search, String sort, String direction) {
+    public List<SavedNrmSummary> list(String search, String sort, String direction, UUID categoryId, boolean uncategorized) {
         SavedNrmSort field = SavedNrmSort.fromParameter(sort);
         Sort ordering = field.toSort(field.directionFrom(direction));
-        return repository.findAll(matching(search), ordering).stream().map(this::toSummary).toList();
+        Specification<SavedNrm> spec = matching(search);
+        if (uncategorized) {
+            spec = spec.and((root, query, builder) -> builder.isNull(root.get("categoryId")));
+        } else if (categoryId != null) {
+            List<UUID> ids = categories.idsWithin(categoryId);
+            spec = spec.and((root, query, builder) -> root.get("categoryId").in(ids));
+        }
+        return repository.findAll(spec, ordering).stream().map(this::toSummary).toList();
     }
 
     private static Specification<SavedNrm> matching(String search) {
@@ -74,14 +85,18 @@ public class NrmLibraryService {
         return toSummary(find(id));
     }
 
-    /** Validates the .nrm and adds it to the library. */
+    /** Validates the .nrm and adds it to the library, filed under {@code categoryId} when given. */
     @Transactional
-    public SavedNrmSummary save(byte[] bytes) {
+    public SavedNrmSummary save(byte[] bytes, UUID categoryId) {
+        if (categoryId != null) {
+            categories.requireExists(categoryId);
+        }
         NrmSummary summary = nrmService.inspect(bytes);
         UUID id = UUID.randomUUID();
         storage.write(id, bytes);
         try {
             SavedNrm saved = new SavedNrm(id, now());
+            saved.setCategoryId(categoryId);
             describe(saved, summary, bytes);
             return toSummary(repository.saveAndFlush(saved));
         } catch (RuntimeException e) {
@@ -97,6 +112,17 @@ public class NrmLibraryService {
         NrmSummary summary = nrmService.inspect(bytes);
         storage.write(id, bytes);
         describe(saved, summary, bytes);
+        return toSummary(repository.saveAndFlush(saved));
+    }
+
+    /** Files a saved .nrm under a category (null = none) without touching the file or its dates. */
+    @Transactional
+    public SavedNrmSummary assignCategory(UUID id, UUID categoryId) {
+        SavedNrm saved = find(id);
+        if (categoryId != null) {
+            categories.requireExists(categoryId);
+        }
+        saved.setCategoryId(categoryId);
         return toSummary(repository.saveAndFlush(saved));
     }
 
@@ -155,7 +181,7 @@ public class NrmLibraryService {
 
     private SavedNrmSummary toSummary(SavedNrm saved) {
         return new SavedNrmSummary(saved.getId(), saved.getName(), saved.getDatasetFilename(), saved.getSizeBytes(),
-                saved.getOperationCount(), saved.getInputCount(), saved.getOutputCount(), saved.getCreatedAt(),
+                saved.getOperationCount(), saved.getInputCount(), saved.getOutputCount(), saved.getCategoryId(), saved.getCreatedAt(),
                 saved.getUpdatedAt(), storage.exists(saved.getId()));
     }
 

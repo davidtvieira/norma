@@ -44,3 +44,14 @@
     max-width: none;
   }
 }
+
+.normas-toolbar__scope {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+}

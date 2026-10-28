@@ -12,6 +12,7 @@ import type {
 } from '../types/modelCalculation';
 import type { SelectorRequestPayload, SelectorResponsePayload } from '../types/selector';
 import type { NrmImportStatusPayload, NrmInfoPayload, NrmOpenPayload } from '../types/nrm';
+import type { CategoryNode } from '../types/category';
 import type { SavedNrmPayload, SavedNrmQuery } from '../types/savedNrm';
 import type { NodeRequestPayload, NodeResponsePayload } from '../types/node';
 import type { OperationType } from '../types/operation';
@@ -153,9 +154,10 @@ export async function listSavedNrms(query?: SavedNrmQuery): Promise<SavedNrmPayl
   return response.json();
 }
 
-async function sendSavedNrm(url: string, method: 'POST' | 'PUT', file: File): Promise<SavedNrmPayload> {
+async function sendSavedNrm(url: string, method: 'POST' | 'PUT', file: File, categoryId: string | null = null): Promise<SavedNrmPayload> {
   const body = new FormData();
   body.append('file', file);
+  if (categoryId) body.append('categoryId', categoryId);
   const response = await apiFetch(url, { method, body });
   if (!response.ok) {
     throw await apiError(response, 'Falha ao guardar a norma');
@@ -164,8 +166,8 @@ async function sendSavedNrm(url: string, method: 'POST' | 'PUT', file: File): Pr
 }
 
 /** Keeps a .nrm in the library (the backend validates it like an import does). */
-export function saveNrm(file: File): Promise<SavedNrmPayload> {
-  return sendSavedNrm(`${API_BASE_URL}/api/v1/library`, 'POST', file);
+export function saveNrm(file: File, categoryId: string | null = null): Promise<SavedNrmPayload> {
+  return sendSavedNrm(`${API_BASE_URL}/api/v1/library`, 'POST', file, categoryId);
 }
 
 /** Puts a .nrm in place of a saved one, keeping its id. */
@@ -558,5 +560,57 @@ export async function selectValue(payload: SelectorRequestPayload): Promise<Sele
     throw await apiError(response, 'Falha ao selecionar o valor');
   }
 
+  return response.json();
+}
+
+/** The categories of the library as a tree (a category and its subcategories), with how many normas are in each. */
+export async function listCategories(): Promise<CategoryNode[]> {
+  const response = await apiFetch(`${API_BASE_URL}/api/v1/categories`);
+  if (!response.ok) {
+    throw await apiError(response, 'Falha ao obter as pastas');
+  }
+  return response.json();
+}
+
+async function sendCategory(url: string, method: 'POST' | 'PUT', name: string, parentId: string | null): Promise<CategoryNode> {
+  const response = await apiFetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, parentId }),
+  });
+  if (!response.ok) {
+    throw await apiError(response, 'Falha ao guardar a pasta');
+  }
+  return response.json();
+}
+
+/** A new category; with a `parentId` it is a subcategory of that top-level category. */
+export function createCategory(name: string, parentId: string | null): Promise<CategoryNode> {
+  return sendCategory(`${API_BASE_URL}/api/v1/categories`, 'POST', name, parentId);
+}
+
+/** Renames a category and/or moves it under another top-level one (null = to the top level). */
+export function updateCategory(id: string, name: string, parentId: string | null): Promise<CategoryNode> {
+  return sendCategory(`${API_BASE_URL}/api/v1/categories/${encodeURIComponent(id)}`, 'PUT', name, parentId);
+}
+
+/** Refused by the backend while the category still has subcategories or normas. */
+export async function deleteCategory(id: string): Promise<void> {
+  const response = await apiFetch(`${API_BASE_URL}/api/v1/categories/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (!response.ok) {
+    throw await apiError(response, 'Falha ao apagar a pasta');
+  }
+}
+
+/** Files a saved norma under a category (null = under none). Its file and dates are untouched. */
+export async function assignSavedNrmCategory(id: string, categoryId: string | null): Promise<SavedNrmPayload> {
+  const response = await apiFetch(`${API_BASE_URL}/api/v1/library/${encodeURIComponent(id)}/category`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ categoryId }),
+  });
+  if (!response.ok) {
+    throw await apiError(response, 'Falha ao mudar a pasta da norma');
+  }
   return response.json();
 }

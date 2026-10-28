@@ -1,13 +1,22 @@
-import { TrashIcon } from '../ButtonIcons/ButtonIcons';
+import { useState } from 'react';
+import { FolderIcon, TrashIcon } from '../ButtonIcons/ButtonIcons';
 import { NormaMark } from '../NormaMark/NormaMark';
 import type { SavedNrmPayload } from '../../types/savedNrm';
+import { NORMA_DRAG_TYPE } from '../../utils/normaDrag';
 import './NormaCard.css';
+import './NormaCardCategory.css';
 
 interface NormaCardProps {
   model: SavedNrmPayload;
   isOpening: boolean;
   onOpen: () => void;
   onDelete: () => void;
+  /** "Mover para…": opens the category picker for this norma. */
+  onMove: () => void;
+  /** Where it is filed ("Fiscal › IVA"), or '' when it is under no category. */
+  categoryLabel: string;
+  /** The card started (true) or stopped (false) being dragged. */
+  onDragChange: (isDragging: boolean) => void;
 }
 
 function formatSize(bytes: number): string {
@@ -28,12 +37,24 @@ function formatDate(iso: string): string {
  * The whole card opens it (click, Enter or Space); the bin in its corner deletes it. A norma whose file is gone from
  * the backend's storage cannot be opened, only deleted.
  */
-export function NormaCard({ model, isOpening, onOpen, onDelete }: NormaCardProps) {
+export function NormaCard({ model, isOpening, onOpen, onDelete, onMove, categoryLabel, onDragChange }: NormaCardProps) {
   const canOpen = model.available && !isOpening;
+  const [isDragging, setIsDragging] = useState(false);
 
   return (
     <div
-      className={`norma-card${model.available ? ' norma-card--openable' : ''}${isOpening ? ' norma-card--opening' : ''}`}
+      className={`norma-card${model.available ? ' norma-card--openable' : ''}${isOpening ? ' norma-card--opening' : ''}${isDragging ? ' norma-card--dragging' : ''}`}
+      draggable
+      onDragStart={(event) => {
+        event.dataTransfer.setData(NORMA_DRAG_TYPE, model.id);
+        event.dataTransfer.effectAllowed = 'move';
+        setIsDragging(true);
+        onDragChange(true);
+      }}
+      onDragEnd={() => {
+        setIsDragging(false);
+        onDragChange(false);
+      }}
       role={model.available ? 'button' : undefined}
       tabIndex={model.available ? 0 : undefined}
       aria-busy={isOpening || undefined}
@@ -51,6 +72,18 @@ export function NormaCard({ model, isOpening, onOpen, onDelete }: NormaCardProps
           : undefined
       }
     >
+      <button
+        type="button"
+        className="norma-card__move"
+        onClick={(event) => {
+          event.stopPropagation();
+          onMove();
+        }}
+        aria-label={`Mover ${model.name} para uma pasta`}
+        title="Mover para…"
+      >
+        <FolderIcon className="norma-card__move-icon" />
+      </button>
       <button
         type="button"
         className="norma-card__delete"
@@ -75,7 +108,10 @@ export function NormaCard({ model, isOpening, onOpen, onDelete }: NormaCardProps
               {plural(model.outputCount, 'output', 'outputs')}
             </li>
             <li>Atualizado em {formatDate(model.updatedAt)}</li>
-            <li>{formatSize(model.sizeBytes)}</li>
+            <li title={categoryLabel || undefined}>
+              {formatSize(model.sizeBytes)}
+              {categoryLabel && <span className="norma-card__category"> · {categoryLabel}</span>}
+            </li>
           </ul>
         ) : (
           <p className="norma-card__meta">O ficheiro desta norma já não existe na plataforma.</p>

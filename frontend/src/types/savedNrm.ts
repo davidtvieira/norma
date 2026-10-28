@@ -7,6 +7,8 @@ export interface SavedNrmPayload {
   operationCount: number;
   inputCount: number;
   outputCount: number;
+  /** The category it is filed under, or null for none. */
+  categoryId: string | null;
   /** ISO timestamps. */
   createdAt: string;
   updatedAt: string;

@@ -5,9 +5,15 @@ import { BackButton } from '../components/BackButton/BackButton';
 import { RecentSessionCard } from '../components/RecentSessionCard/RecentSessionCard';
 import { ThemeToggle } from '../components/ThemeToggle/ThemeToggle';
 import { ConfirmModal } from '../components/Modal/ConfirmModal';
-import { NormaAddCard } from '../components/NormaAddCard/NormaAddCard';
 import { NormaCard } from '../components/NormaCard/NormaCard';
 import { NormasToolbar } from '../components/NormasToolbar/NormasToolbar';
+import { CategoryModal } from '../components/CategoryModal/CategoryModal';
+import { FolderBreadcrumb } from '../components/FolderBreadcrumb/FolderBreadcrumb';
+import { RemoveFromFolderCard } from '../components/RemoveFromFolderCard/RemoveFromFolderCard';
+import { NewFolderCard } from '../components/NewFolderCard/NewFolderCard';
+import { FolderCard } from '../components/FolderCard/FolderCard';
+import { MoveNormaModal } from '../components/MoveNormaModal/MoveNormaModal';
+import { MAX_FOLDER_DEPTH, categoryPath, idsWithin, pathTo, type CategoryNode } from '../types/category';
 import type { Theme } from '../hooks/useTheme';
 import type { SavedNrmPayload, SavedNrmQuery } from '../types/savedNrm';
 
@@ -49,8 +55,19 @@ interface NormasScreenProps {
   openingSavedId: string | null;
   onOpenSaved: (model: SavedNrmPayload) => void;
   onDeleteSaved: (model: SavedNrmPayload) => Promise<void>;
-  /** Adds the picked or dropped .nrm files to the library (the "+" card at the end of the grid). */
-  onUploadNormas: (files: File[]) => Promise<void>;
+  /** The categories as a tree — null until the backend has answered. */
+  categories: CategoryNode[] | null;
+  /** The open folder's id, null at the top. */
+  folder: string | null;
+  onFolderChange: (folder: string | null) => void;
+  /** While searching inside a folder: only that folder's normas. */
+  searchInFolder: boolean;
+  onSearchInFolderChange: (value: boolean) => void;
+  onCreateCategory: (name: string, parentId: string | null) => Promise<void>;
+  onUpdateCategory: (id: string, name: string, parentId: string | null) => Promise<void>;
+  onDeleteCategory: (id: string) => Promise<void>;
+  /** Files a norma under a category (null = under none). */
+  onMoveNorma: (id: string, categoryId: string | null) => Promise<void>;
 }
 
 /**
@@ -72,16 +89,52 @@ export function NormasScreen({
   openingSavedId,
   onOpenSaved,
   onDeleteSaved,
-  onUploadNormas,
+  categories,
+  folder,
+  onFolderChange,
+  searchInFolder,
+  onSearchInFolderChange,
+  onCreateCategory,
+  onUpdateCategory,
+  onDeleteCategory,
+  onMoveNorma,
 }: NormasScreenProps) {
-  const [pendingDelete, setPendingDelete] = useState<SavedNrmPayload | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  function uploadNormas(files: File[]) {
-    setIsUploading(true);
-    onUploadNormas(files).finally(() => setIsUploading(false));
+  // The category dialog: creating (under `parent`, or at the top level) or editing `node`.
+  const [categoryDialog, setCategoryDialog] = useState<{ editing: CategoryNode | null; parent: CategoryNode | null } | null>(null);
+  const [pendingDeleteCategory, setPendingDeleteCategory] = useState<CategoryNode | null>(null);
+  const [movingNorma, setMovingNorma] = useState<SavedNrmPayload | null>(null);
+  const tree = categories ?? [];
+  const searching = savedQuery.search.trim() !== '';
+  // The open folder and its ancestors, top-most first.
+  const path = pathTo(tree, folder);
+  const current = path[path.length - 1] ?? null;
+  // Not searching: this level's folders and, beside them, the normas filed right here (at the top, those with no
+  // category). Searching lists normas alone — all that match, or only those inside the open folder.
+  const folders = searching ? [] : current ? current.children : tree;
+  const shown =
+    normas === null
+      ? null
+      : searching
+        ? current && searchInFolder
+          ? normas.filter((model) => model.categoryId !== null && idsWithin(current).has(model.categoryId))
+          : normas
+        : normas.filter((model) => model.categoryId === (current?.id ?? null));
+  // A norma card dropped on a folder (or a step of the breadcrumb): files it there, unless it already is.
+  function dropNorma(normaId: string, folderId: string | null) {
+    const model = normas?.find((candidate) => candidate.id === normaId);
+    if (!model || model.categoryId === folderId) return;
+    setIsMoving(true);
+    onMoveNorma(normaId, folderId)
+      .catch(() => undefined)
+      .finally(() => setIsMoving(false));
   }
+
+  const waitingForFolders = categories === null;
+  const [pendingDelete, setPendingDelete] = useState<SavedNrmPayload | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isMoving, setIsMoving] = useState(false);
+  // The norma being dragged right now, if any: one that is in a folder gets a card to drop it on to take it out.
+  const [draggedNorma, setDraggedNorma] = useState<SavedNrmPayload | null>(null);
 
   return (
     <div className="app app--landing">
@@ -100,24 +153,61 @@ export function NormasScreen({
               </span>
             )}
           </h1>
-          <NormasToolbar query={savedQuery} onChange={onSavedQueryChange} />
+          <NormasToolbar
+            query={savedQuery}
+            onChange={onSavedQueryChange}
+            folderName={current?.name ?? null}
+            searchInFolder={searchInFolder}
+            onSearchInFolderChange={onSearchInFolderChange}
+          />
         </div>
-        {normas !== null && normas.length === 0 && savedQuery.search.trim() !== '' && (
-          <p className="app__normas-placeholder app__normas-no-match">Nenhuma norma corresponde à pesquisa.</p>
+        {!waitingForFolders && (
+          <FolderBreadcrumb
+            path={path}
+            onOpen={onFolderChange}
+            onDropNorma={dropNorma}
+          />
         )}
-        {normas !== null ? (
+        {shown !== null && shown.length === 0 && folders.length === 0 && !waitingForFolders && (
+          <p className="app__normas-placeholder app__normas-no-match">
+            {searching ? 'Nenhuma norma corresponde à pesquisa.' : (current ? 'Esta pasta ainda não tem normas.' : 'Ainda não há normas nem pastas.')}
+          </p>
+        )}
+        {shown !== null ? (
           <div className="app__normas-scroll">
             <div className="app__normas-list">
-              {normas.map((model) => (
+              {folders.map((category) => (
+                <FolderCard
+                  key={category.id}
+                  category={category}
+                  onOpen={() => onFolderChange(category.id)}
+                  onDropNorma={(normaId) => dropNorma(normaId, category.id)}
+                  onEdit={() => setCategoryDialog({ editing: category, parent: null })}
+                  onDelete={() => setPendingDeleteCategory(category)}
+                />
+              ))}
+              {shown.map((model) => (
                 <NormaCard
                   key={model.id}
                   model={model}
+                  categoryLabel={categoryPath(tree, model.categoryId)}
                   isOpening={openingSavedId === model.id}
                   onOpen={() => onOpenSaved(model)}
                   onDelete={() => setPendingDelete(model)}
+                  onMove={() => setMovingNorma(model)}
+                  onDragChange={(isDragging) => setDraggedNorma(isDragging ? model : null)}
                 />
               ))}
-              <NormaAddCard isUploading={isUploading} onFiles={uploadNormas} />
+              {/* The last card: "Nova pasta" — which, while a norma that is in a folder is dragged, becomes the card to
+                  drop it on to take it out of its folder. */}
+              {draggedNorma?.categoryId ? (
+                <RemoveFromFolderCard onDropNorma={(normaId) => dropNorma(normaId, null)} />
+              ) : (
+                !searching &&
+                path.length < MAX_FOLDER_DEPTH && (
+                  <NewFolderCard label="Nova pasta" onClick={() => setCategoryDialog({ editing: null, parent: current })} />
+                )
+              )}
             </div>
           </div>
         ) : (
@@ -153,9 +243,52 @@ export function NormasScreen({
         )}
       </div>
 
-      {(isUploading || isDeleting || normasLoading || (normas === null && !normasFailed)) && <LoadingOverlay delayMs={200} />}
+      {(isDeleting || isMoving || normasLoading || waitingForFolders || (normas === null && !normasFailed)) && <LoadingOverlay delayMs={200} />}
 
       <AppFooter onGoHome={onGoHome} />
+
+      {categoryDialog && (
+        <CategoryModal
+          editing={categoryDialog.editing}
+          initialParentId={categoryDialog.parent?.id ?? null}
+          tree={tree}
+          onSubmit={(name, parentId) =>
+            categoryDialog.editing ? onUpdateCategory(categoryDialog.editing.id, name, parentId) : onCreateCategory(name, parentId)
+          }
+          onClose={() => setCategoryDialog(null)}
+        />
+      )}
+
+      {movingNorma && (
+        <MoveNormaModal
+          model={movingNorma}
+          tree={tree}
+          onMove={(categoryId) => onMoveNorma(movingNorma.id, categoryId)}
+          onClose={() => setMovingNorma(null)}
+        />
+      )}
+
+      {pendingDeleteCategory && (
+        <ConfirmModal
+          title="Apagar a pasta?"
+          message={
+            pendingDeleteCategory.totalCount > 0 || pendingDeleteCategory.children.length > 0
+              ? `"${pendingDeleteCategory.name}" ainda tem pastas ou normas. Mova-as primeiro para a poder apagar.`
+              : `"${pendingDeleteCategory.name}" vai ser removida.`
+          }
+          confirmLabel="Apagar"
+          danger
+          onConfirm={() => {
+            const target = pendingDeleteCategory;
+            setPendingDeleteCategory(null);
+            setIsDeleting(true);
+            onDeleteCategory(target.id)
+              .catch(() => undefined)
+              .finally(() => setIsDeleting(false));
+          }}
+          onCancel={() => setPendingDeleteCategory(null)}
+        />
+      )}
 
       {pendingDelete && (
         <ConfirmModal

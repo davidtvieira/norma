@@ -68,10 +68,19 @@ class NrmLibraryIntegrationTest {
     private SavedNrmRepository repository;
     @Autowired
     private NrmLibraryService library;
+    @Autowired
+    private CategoryRepository categoryRepository;
 
     @BeforeEach
     void emptyTheLibrary() throws IOException {
         repository.deleteAll();
+        // Leaves first: a subcategory points at its parent.
+        while (categoryRepository.count() > 0) {
+            List<Category> all = categoryRepository.findAll();
+            java.util.Set<UUID> parents = new java.util.HashSet<>();
+            all.forEach(category -> parents.add(category.getParentId()));
+            categoryRepository.deleteAll(all.stream().filter(category -> !parents.contains(category.getId())).toList());
+        }
         try (Stream<Path> files = Files.list(STORAGE)) {
             for (Path file : (Iterable<Path>) files::iterator) {
                 Files.delete(file);
@@ -226,6 +235,162 @@ class NrmLibraryIntegrationTest {
         assertThat(http.getForEntity("/api/v1/library?sort=colour", String.class).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(http.getForEntity("/api/v1/library?direction=sideways", String.class).getStatusCode())
                 .isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void categoriesFormATwoLevelTreeWithCounts() throws IOException {
+        CategoryNode fiscal = createCategory("Fiscal", null).getBody();
+        CategoryNode iva = createCategory("IVA", fiscal.id()).getBody();
+        createCategory("Pessoal", null);
+        SavedNrmSummary a = save("A", "a.xlsx");
+        SavedNrmSummary b = save("B", "b.xlsx");
+        assignCategory(a.id(), fiscal.id());
+        assignCategory(b.id(), iva.id());
+
+        CategoryNode[] tree = http.getForObject("/api/v1/categories", CategoryNode[].class);
+
+        assertThat(tree).extracting(CategoryNode::name).containsExactly("Fiscal", "Pessoal");
+        assertThat(tree[0].normaCount()).isEqualTo(1);
+        assertThat(tree[0].totalCount()).isEqualTo(2);
+        assertThat(tree[0].children()).singleElement().satisfies(child -> {
+            assertThat(child.name()).isEqualTo("IVA");
+            assertThat(child.parentId()).isEqualTo(fiscal.id());
+            assertThat(child.normaCount()).isEqualTo(1);
+        });
+        assertThat(tree[1].totalCount()).isZero();
+    }
+
+    @Test
+    void categoriesGoFourLevelsDeepAndNamesAreUniqueAmongSiblings() {
+        CategoryNode fiscal = createCategory("Fiscal", null).getBody();
+        CategoryNode iva = createCategory("IVA", fiscal.id()).getBody();
+        CategoryNode trimestral = createCategory("Trimestral", iva.id()).getBody();
+        CategoryNode q1 = createCategory("Q1", trimestral.id()).getBody();
+
+        assertThat(createCategory("fiscal", null).getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(createCategory("Iva", fiscal.id()).getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(createCategory("IVA", null).getStatusCode()).isEqualTo(HttpStatus.CREATED); // another level
+        assertThat(createCategory("Mensal", q1.id()).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST); // a fifth level
+        assertThat(createCategory("  ", null).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(createCategory("X", UUID.randomUUID()).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+
+        CategoryNode[] tree = http.getForObject("/api/v1/categories", CategoryNode[].class);
+        CategoryNode deepest = tree[0].children().get(0).children().get(0).children().get(0);
+        assertThat(tree[0].name()).isEqualTo("Fiscal");
+        assertThat(deepest.name()).isEqualTo("Q1");
+    }
+
+    @Test
+    void aCategoryCanBeRenamedAndMovedWithItsSubtreeButNotTooDeepOrIntoItself() {
+        CategoryNode fiscal = createCategory("Fiscal", null).getBody();
+        CategoryNode pessoal = createCategory("Pessoal", null).getBody();
+        CategoryNode iva = createCategory("IVA", fiscal.id()).getBody();
+        CategoryNode trimestral = createCategory("Trimestral", iva.id()).getBody();
+
+        ResponseEntity<CategoryNode> moved = putCategory(iva.id(), "IRS", pessoal.id());
+        assertThat(moved.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(moved.getBody().name()).isEqualTo("IRS");
+        assertThat(moved.getBody().parentId()).isEqualTo(pessoal.id());
+        // Its subcategory went with it.
+        CategoryNode[] tree = http.getForObject("/api/v1/categories", CategoryNode[].class);
+        assertThat(tree[1].children().get(0).children()).extracting(CategoryNode::id).containsExactly(trimestral.id());
+
+        // Under itself or its own subcategory: refused.
+        assertThat(putCategory(pessoal.id(), "Pessoal", pessoal.id()).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(putCategory(pessoal.id(), "Pessoal", trimestral.id()).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+
+        // Pessoal (3 levels with its subtree) cannot go under a level-2 category: it would be 5 deep.
+        CategoryNode ambiente = createCategory("Ambiente", fiscal.id()).getBody();
+        assertThat(putCategory(pessoal.id(), "Pessoal", ambiente.id()).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        // Under a top-level category it fits exactly (1 + 3 = 4).
+        CategoryNode outro = createCategory("Outro", null).getBody();
+        assertThat(putCategory(pessoal.id(), "Pessoal", outro.id()).getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    void aCategoryWithSubcategoriesOrNormasCannotBeDeleted() throws IOException {
+        CategoryNode fiscal = createCategory("Fiscal", null).getBody();
+        CategoryNode iva = createCategory("IVA", fiscal.id()).getBody();
+        SavedNrmSummary saved = save("A", "a.xlsx");
+        assignCategory(saved.id(), iva.id());
+
+        assertThat(deleteCategory(fiscal.id())).isEqualTo(HttpStatus.CONFLICT); // has a subcategory
+        assertThat(deleteCategory(iva.id())).isEqualTo(HttpStatus.CONFLICT); // has a norma
+
+        assignCategory(saved.id(), null);
+        assertThat(deleteCategory(iva.id())).isEqualTo(HttpStatus.NO_CONTENT);
+        assertThat(deleteCategory(fiscal.id())).isEqualTo(HttpStatus.NO_CONTENT);
+        assertThat(deleteCategory(fiscal.id())).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void filingANormaKeepsItsFileAndDatesAndTheListCanBeFilteredByCategory() throws IOException {
+        CategoryNode fiscal = createCategory("Fiscal", null).getBody();
+        CategoryNode iva = createCategory("IVA", fiscal.id()).getBody();
+        CategoryNode pessoal = createCategory("Pessoal", null).getBody();
+        SavedNrmSummary a = save("A", "a.xlsx");
+        save("B", "b.xlsx");
+        SavedNrmSummary c = save("C", "c.xlsx");
+        SavedNrmSummary filed = assignCategory(a.id(), fiscal.id()).getBody();
+        assignCategory(c.id(), iva.id());
+
+        assertThat(filed.categoryId()).isEqualTo(fiscal.id());
+        assertThat(filed.updatedAt()).isEqualTo(a.updatedAt());
+        assertThat(names("categoryId=" + fiscal.id())).containsExactlyInAnyOrder("A", "C"); // with its subcategories
+        CategoryNode trimestral = createCategory("Trimestral", iva.id()).getBody();
+        SavedNrmSummary d = save("D", "d.xlsx");
+        assignCategory(d.id(), trimestral.id());
+        assertThat(names("categoryId=" + fiscal.id())).containsExactlyInAnyOrder("A", "C", "D"); // at any depth
+        assertThat(names("categoryId=" + iva.id())).containsExactlyInAnyOrder("C", "D");
+        assertThat(names("categoryId=" + pessoal.id())).isEmpty();
+        assertThat(names("uncategorized=true")).containsExactly("B");
+        assertThat(names("categoryId=" + fiscal.id() + "&search=c")).containsExactly("C");
+        assertThat(http.getForEntity("/api/v1/library?categoryId=" + UUID.randomUUID(), String.class).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(assignCategory(a.id(), UUID.randomUUID()).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void aNormaCanBeSavedStraightIntoACategory() throws IOException {
+        CategoryNode fiscal = createCategory("Fiscal", null).getBody();
+        MultiValueMap<String, Object> body = filePart(nrmBytes("A", "a.xlsx"));
+        body.add("categoryId", fiscal.id().toString());
+
+        ResponseEntity<SavedNrmSummary> saved = http.postForEntity("/api/v1/library", multipart(body), SavedNrmSummary.class);
+
+        assertThat(saved.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(saved.getBody().categoryId()).isEqualTo(fiscal.id());
+
+        // Replacing the file keeps the category.
+        ResponseEntity<SavedNrmSummary> replaced = http.exchange("/api/v1/library/" + saved.getBody().id(), HttpMethod.PUT,
+                multipart(filePart(nrmBytes("A2", "a.xlsx"))), SavedNrmSummary.class);
+        assertThat(replaced.getBody().categoryId()).isEqualTo(fiscal.id());
+
+        MultiValueMap<String, Object> unknown = filePart(nrmBytes("B", "b.xlsx"));
+        unknown.add("categoryId", UUID.randomUUID().toString());
+        assertThat(http.postForEntity("/api/v1/library", multipart(unknown), String.class).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(repository.count()).isEqualTo(1);
+        assertThat(STORAGE.toFile().list()).hasSize(1);
+    }
+
+    private ResponseEntity<CategoryNode> createCategory(String name, UUID parentId) {
+        return http.postForEntity("/api/v1/categories", new CategoryRequest(name, parentId), CategoryNode.class);
+    }
+
+    private ResponseEntity<CategoryNode> putCategory(UUID id, String name, UUID parentId) {
+        return http.exchange("/api/v1/categories/" + id, HttpMethod.PUT,
+                new HttpEntity<>(new CategoryRequest(name, parentId)), CategoryNode.class);
+    }
+
+    private HttpStatus deleteCategory(UUID id) {
+        return HttpStatus.valueOf(http.exchange("/api/v1/categories/" + id, HttpMethod.DELETE, null, Void.class)
+                .getStatusCode().value());
+    }
+
+    private ResponseEntity<SavedNrmSummary> assignCategory(UUID id, UUID categoryId) {
+        return http.exchange("/api/v1/library/" + id + "/category", HttpMethod.PUT,
+                new HttpEntity<>(new NrmLibraryController.AssignCategoryRequest(categoryId)), SavedNrmSummary.class);
     }
 
     private List<String> names(String query) {

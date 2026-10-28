@@ -13,6 +13,7 @@ import type { ColumnHighlight, OperationHighlight, RangeHighlight } from '../typ
 import type { CellRange } from '../types/cellRange';
 import type { SerializableEntry } from '../utils/modelSerialization';
 import type { Theme } from '../hooks/useTheme';
+import type { CategoryNode } from '../types/category';
 
 interface EditorScreenProps {
   dataset: DatasetImportResponse;
@@ -54,6 +55,10 @@ interface EditorScreenProps {
   isSaveModalOpen: boolean;
   /** The model already has an entry in the library: saving updates it. */
   isSavedInLibrary: boolean;
+  /** The library's categories (null until known) and the one a first save files the norma under. */
+  categories: CategoryNode[] | null;
+  saveCategoryId: string | null;
+  onSaveCategoryChange: (id: string | null) => void;
   onOpenSaveModal: () => void;
   onCloseSaveModal: () => void;
   onExportModel: (format: ModelExportFormat) => void;
@@ -111,6 +116,9 @@ export function EditorScreen({
   cellHighlight,
   isSaveModalOpen,
   isSavedInLibrary,
+  categories,
+  saveCategoryId,
+  onSaveCategoryChange,
   onOpenSaveModal,
   onCloseSaveModal,
   onExportModel,
@@ -205,6 +213,9 @@ export function EditorScreen({
       <SaveModal
         open={isSaveModalOpen}
         isUpdate={isSavedInLibrary}
+        categories={categories}
+        categoryId={saveCategoryId}
+        onCategoryChange={onSaveCategoryChange}
         onClose={onCloseSaveModal}
         onExport={onExportModel}
         nrmName={nrmName}

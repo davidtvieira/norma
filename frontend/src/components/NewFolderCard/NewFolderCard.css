@@ -1,4 +1,4 @@
-.norma-add {
+.new-folder-card {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -14,32 +14,20 @@
   transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
 }
 
-.norma-add:hover:not(:disabled),
-.norma-add--drag {
+.new-folder-card:hover,
+.new-folder-card:focus-visible {
   border-color: var(--color-primary);
   color: var(--color-primary);
   background: var(--color-surface);
+  outline: none;
 }
 
-.norma-add:disabled {
-  cursor: progress;
-  opacity: 0.7;
-}
-
-.norma-add__icon .button-icon {
+.new-folder-card__icon .button-icon {
   width: clamp(2rem, 1rem + 2.4cqh, 3rem);
   height: clamp(2rem, 1rem + 2.4cqh, 3rem);
 }
 
-.norma-add__label {
+.new-folder-card__label {
   font-size: clamp(0.95rem, 0.4rem + 1.6cqh, 1.25rem);
   font-weight: 600;
-}
-
-.norma-add__hint {
-  font-size: clamp(0.75rem, 0.2rem + 1.2cqh, 0.95rem);
-}
-
-.norma-add__input {
-  display: none;
 }

@@ -1,0 +1,54 @@
+.folder-breadcrumb {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.folder-breadcrumb__path {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.1rem;
+  font-size: 0.95rem;
+}
+
+.folder-breadcrumb__step {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.folder-breadcrumb__chevron {
+  width: 1rem;
+  height: 1rem;
+  color: var(--color-text-muted);
+}
+
+.folder-breadcrumb__link {
+  padding: 0.15rem 0.4rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.folder-breadcrumb__link:hover {
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
+  color: var(--color-text);
+}
+
+.folder-breadcrumb__current {
+  padding: 0.15rem 0.4rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.folder-breadcrumb__link--drop {
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-contrast);
+}

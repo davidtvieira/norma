@@ -40,6 +40,9 @@ public class SavedNrm {
     @Column(name = "output_count", nullable = false)
     private int outputCount;
 
+    @Column(name = "category_id")
+    private UUID categoryId;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -86,6 +89,15 @@ public class SavedNrm {
 
     public int getOutputCount() {
         return outputCount;
+    }
+
+    /** The category the norma is filed under, or null for none. */
+    public UUID getCategoryId() {
+        return categoryId;
+    }
+
+    public void setCategoryId(UUID categoryId) {
+        this.categoryId = categoryId;
     }
 
     public Instant getCreatedAt() {

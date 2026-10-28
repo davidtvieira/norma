@@ -14,10 +14,14 @@ const ORDERS: { label: string; sort: SavedNrmQuery['sort']; direction: SavedNrmQ
 interface NormasToolbarProps {
   query: SavedNrmQuery;
   onChange: (query: SavedNrmQuery) => void;
+  /** The name of the open folder, when there is one — the search can then be limited to it. */
+  folderName: string | null;
+  searchInFolder: boolean;
+  onSearchInFolderChange: (value: boolean) => void;
 }
 
 /** A search box and an order select above the grid of normas. */
-export function NormasToolbar({ query, onChange }: NormasToolbarProps) {
+export function NormasToolbar({ query, onChange, folderName, searchInFolder, onSearchInFolderChange }: NormasToolbarProps) {
   const orderIndex = Math.max(
     0,
     ORDERS.findIndex((order) => order.sort === query.sort && order.direction === query.direction),
@@ -33,6 +37,12 @@ export function NormasToolbar({ query, onChange }: NormasToolbarProps) {
         value={query.search}
         onChange={(event) => onChange({ ...query, search: event.target.value })}
       />
+      {folderName !== null && (
+        <label className="normas-toolbar__scope" title={`Pesquisar só nas normas de "${folderName}"`}>
+          <input type="checkbox" checked={searchInFolder} onChange={(event) => onSearchInFolderChange(event.target.checked)} />
+          Só nesta pasta
+        </label>
+      )}
       <select
         className="normas-toolbar__order"
         aria-label="Ordenar normas"

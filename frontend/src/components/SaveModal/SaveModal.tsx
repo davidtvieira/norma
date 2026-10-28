@@ -3,6 +3,8 @@ import { useState } from 'react';
 import { LoadingOverlay } from '../LoadingOverlay/LoadingOverlay';
 import { Modal } from '../Modal/Modal';
 import { SplitButton } from '../SplitButton/SplitButton';
+import { CategorySelect } from '../CategorySelect/CategorySelect';
+import type { CategoryNode } from '../../types/category';
 import './SaveModal.css';
 
 /** What "Guardar modelo" can export: a copy kept in the platform's library, the full .nrm bundle (model + dataset), just the model .json, or just the dataset's original spreadsheet. */
@@ -18,6 +20,10 @@ interface SaveModalProps {
   open: boolean;
   /** The model is already in the library: the main button updates that entry. */
   isUpdate: boolean;
+  /** The library's categories (null until known), and the one a new norma is filed under — only offered when saving a new one. */
+  categories: CategoryNode[] | null;
+  categoryId: string | null;
+  onCategoryChange: (id: string | null) => void;
   onClose: () => void;
   /** Resolves once the export is done — only the platform copy takes any time. */
   onExport: (format: ModelExportFormat) => void | Promise<void>;
@@ -53,6 +59,9 @@ interface SaveModalProps {
 export function SaveModal({
   open,
   isUpdate,
+  categories,
+  categoryId,
+  onCategoryChange,
   onClose,
   onExport,
   nrmName,
@@ -113,6 +122,13 @@ export function SaveModal({
           onChange={(event) => onNrmNameChange(event.target.value)}
         />
       </label>
+
+      {!isUpdate && categories !== null && categories.length > 0 && (
+        <label className="save-modal__name">
+          <span className="modal__label">Pasta</span>
+          <CategorySelect tree={categories} noneLabel="Sem pasta" value={categoryId} onChange={onCategoryChange} />
+        </label>
+      )}
 
       <div className="save-modal__io">
         <IoGroup label="Inputs" items={inputItems} emptyText={inputEmptyText} onReorder={onReorderInputs} />

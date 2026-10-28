@@ -1,0 +1,24 @@
+/* A folder is the norma card, only darker: the surface pulled toward the page's own background, so it stays in
+   each theme's palette (warm cream in light, a step darker in dark) instead of going muddy. */
+.norma-card.folder-card {
+  background: color-mix(in srgb, var(--color-bg) 65%, var(--color-surface));
+}
+
+/* Dark theme: the surface darkened with a little of the (light) text colour, as before. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .norma-card.folder-card {
+    background: color-mix(in srgb, var(--color-text) 9%, var(--color-surface));
+  }
+}
+
+:root[data-theme='dark'] .norma-card.folder-card {
+  background: color-mix(in srgb, var(--color-text) 9%, var(--color-surface));
+}
+
+/* A norma card is being dragged over it: it grows a little and gets the buttons' orange outline. */
+.norma-card.folder-card.folder-card--drop {
+  transform: scale(1.04);
+  z-index: 1;
+  border-color: var(--btn-primary-bg);
+  box-shadow: 0 0 0 2px var(--btn-primary-bg), var(--shadow-md);
+}

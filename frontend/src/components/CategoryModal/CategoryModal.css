@@ -1,0 +1,11 @@
+.category-modal__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.category-modal__form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}

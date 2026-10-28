@@ -1,5 +1,7 @@
 package com.norma.dataset.exception;
 
+import com.norma.dataset.library.CategoryConflictException;
+import com.norma.dataset.library.CategoryNotFoundException;
 import com.norma.dataset.library.SavedNrmNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -28,6 +30,16 @@ public class DatasetExceptionHandler {
     @ExceptionHandler(SavedNrmNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleSavedNrmNotFound(SavedNrmNotFoundException ex) {
         return buildResponse(HttpStatus.NOT_FOUND, ex.getMessage());
+    }
+
+    @ExceptionHandler(CategoryNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleCategoryNotFound(CategoryNotFoundException ex) {
+        return buildResponse(HttpStatus.NOT_FOUND, ex.getMessage());
+    }
+
+    @ExceptionHandler(CategoryConflictException.class)
+    public ResponseEntity<ApiErrorResponse> handleCategoryConflict(CategoryConflictException ex) {
+        return buildResponse(HttpStatus.CONFLICT, ex.getMessage());
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
