@@ -82,19 +82,19 @@ export function ChooseModelScreen({
           <div className="app__create-model-actions">
             {importedModel ? (
               <>
-                <button type="button" className="app__create-model-button app__create-model-button--secondary" onClick={onEditImportedModel}>
+                <button type="button" className="btn btn--secondary" onClick={onEditImportedModel}>
                   Editar Modelo
                 </button>
-                <button type="button" className="app__create-model-button action-button" onClick={onUtilizeImportedModel}>
+                <button type="button" className="btn btn--primary" onClick={onUtilizeImportedModel}>
                   Utilizar Modelo
                 </button>
               </>
             ) : (
               <>
-                <button type="button" className="app__create-model-button action-button" onClick={onCreateFresh}>
+                <button type="button" className="btn btn--primary" onClick={onCreateFresh}>
                   Criar Modelo
                 </button>
-                <button type="button" className="app__create-model-button app__create-model-button--secondary" onClick={onTriggerImportModel}>
+                <button type="button" className="btn btn--secondary" onClick={onTriggerImportModel}>
                   Importar Modelo
                 </button>
                 <input

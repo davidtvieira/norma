@@ -1,5 +1,5 @@
 /* A folder card has a second corner button (edit) beside the bin: its name leaves room for both. */
-.folder-card .norma-card__name {
+.norma-card--folder .norma-card__name {
   padding-right: 3.6rem;
 }
 
@@ -34,4 +34,48 @@
 /* While it is being dragged onto a folder. */
 .norma-card--dragging {
   opacity: 0.45;
+}
+
+/* A norma card is being dragged over a folder: it gets the buttons' orange outline. */
+.norma-card.norma-card--folder.norma-card--drop {
+  z-index: 1;
+  border-color: var(--btn-primary-bg);
+  box-shadow: 0 0 0 2px var(--btn-primary-bg);
+}
+
+/* The folder icon, where a norma has its logo: quiet grey and shut, it becomes the open folder, in the accent colour,
+   the moment the card is pointed at (or focused) — no transition between the two. */
+.norma-card__folder {
+  position: relative;
+  flex: none;
+  width: clamp(2rem, 0.4rem + 4.4cqh, 2.8rem);
+  height: clamp(2rem, 0.4rem + 4.4cqh, 2.8rem);
+  color: var(--color-text-muted);
+}
+
+.norma-card__folder-icon {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  stroke-width: 1.5;
+}
+
+.norma-card__folder-icon--open {
+  display: none;
+}
+
+.norma-card--folder:hover .norma-card__folder,
+.norma-card--folder:focus-visible .norma-card__folder {
+  color: var(--btn-primary-bg);
+}
+
+.norma-card--folder:hover .norma-card__folder-icon--closed,
+.norma-card--folder:focus-visible .norma-card__folder-icon--closed {
+  display: none;
+}
+
+.norma-card--folder:hover .norma-card__folder-icon--open,
+.norma-card--folder:focus-visible .norma-card__folder-icon--open {
+  display: block;
 }

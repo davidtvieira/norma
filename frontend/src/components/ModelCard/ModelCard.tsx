@@ -1,6 +1,6 @@
 import { LogoIcon, BroomIcon, ChevronDownIcon, EyeIcon, GridIcon, ListIcon, LoadIcon, SaveIcon } from '../ButtonIcons/ButtonIcons';
 import { LoadingOverlay } from '../LoadingOverlay/LoadingOverlay';
-import { inlineErrorMessage, reportApiError } from '../../services/apiErrors';
+import { inlineErrorMessage } from '../../services/apiErrors';
 import { useRef, useState } from 'react';
 import type { DatasetHandle } from '../../types/dataset';
 import type { OperationFields } from '../OperationPanel/operationKind';
@@ -8,7 +8,7 @@ import { KINDS_BY_ID } from '../OperationPanel/kinds/registry';
 import { KIND_LABELS } from '../OperationPanel/kindLabels';
 import { resolveOperationInputs } from '../../utils/resolveOperationInputs';
 import { getInputSource, literalSource } from '../../types/valueSource';
-import { describeFormatLines, formatErrors, type ValueFormat } from '../../types/valueFormat';
+import { brokenRuleKeys, describeFormatRules, formatErrors, type RuleKey, type ValueFormat } from '../../types/valueFormat';
 import { runModel, runNrm } from '../../services/datasetApi';
 import type {
   DatasetTouchPayload,
@@ -85,6 +85,8 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
     value: string;
     /** Only for an input a formatter puts rules on (opened from its title): the modal then shows its rules instead of its value. */
     format?: ValueFormat | null;
+    /** The rules of `format` the value breaks: highlighted in the list. */
+    broken?: RuleKey[];
   } | null>(null);
 
   // One result per designated output, in whatever order the run returned them (matched back up
@@ -95,7 +97,7 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
   const [watchIds, setWatchIds] = useState<string[]>([]);
   const [isAnalyzeOpen, setIsAnalyzeOpen] = useState(false);
   // Its own class (and so its own color) while any operation is picked for the analysis.
-  const runAnalysisClass = watchIds.length > 0 ? ' model-card__run-button--analysing' : '';
+  const runAnalysisClass = watchIds.length > 0 ? ' btn--analysis' : '';
   // The arrow beside the "Análise" title shows/hides its list.
   const [isAnalysisExpanded, setIsAnalysisExpanded] = useState(false);
   // The watched operation whose (read-only) configuration is open.
@@ -142,8 +144,8 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
     return source.type !== 'literal' || source.value.trim() !== '';
   });
 
-  // Each input must also obey the rules a formatter puts on it, when one does. An input that doesn't gets a red badge at the top right
-  // of its card with how many rules it breaks; clicking the badge lists them.
+  // Each input must also obey the rules a formatter puts on it, when one does. An input that doesn't turns its card red; clicking
+  // its name lists its rules, with the ones it breaks highlighted.
   // An input the user has left (even empty) is checked against the minimums too; one not yet touched and still empty is not
   // nagged about.
   const [leftInputs, setLeftInputs] = useState<Set<string>>(new Set());
@@ -160,10 +162,6 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
   const allInputsValid = brokenRules.size === 0;
   // "Limpar dados" asks first: it wipes every value typed in the inputs.
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
-  // Clicking the badge shows one toast per broken rule: just the message, not the input's name.
-  function showErrors(messages: string[]) {
-    for (const message of messages) reportApiError({ title: message });
-  }
 
   // Shared by run() (whatever's currently in `fields`) and loadTestCase (values just loaded from
   // a file, sent straight through instead of round-tripping via `fields` state first — reading
@@ -406,28 +404,17 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
                           setLeftInputs((current) => (current.has(inputEntry.id) ? current : new Set(current).add(inputEntry.id)));
                         }}
                       >
-                        {brokenRules.has(inputEntry.id) && (
-                          <button
-                            type="button"
-                            className="model-card__error-badge"
-                            title="Mostrar os erros"
-                            aria-label={`${brokenRules.get(inputEntry.id)!.length} ${brokenRules.get(inputEntry.id)!.length === 1 ? 'erro' : 'erros'} em ${name}`}
-                            onClick={() => showErrors(brokenRules.get(inputEntry.id)!)}
-                          >
-                            {brokenRules.get(inputEntry.id)!.length}
-                          </button>
-                        )}
                         <h3
                           className="model-card__field-name model-card__field-name--clickable"
                           title={`${name} — ver texto completo`}
                           role="button"
                           // Out of the tab order (still clickable): Tab goes straight from one input to the next, not via each title.
                           tabIndex={-1}
-                          onClick={() => setViewFullText({ name, value: currentValue, format: inputEntry.format })}
+                          onClick={() => setViewFullText({ name, value: currentValue, format: inputEntry.format, broken: inputEntry.format ? brokenRuleKeys(inputEntry.format, currentValue, leftInputs.has(inputEntry.id)) : [] })}
                           onKeyDown={(event) => {
                             if (event.key === 'Enter' || event.key === ' ') {
                               event.preventDefault();
-                              setViewFullText({ name, value: currentValue, format: inputEntry.format });
+                              setViewFullText({ name, value: currentValue, format: inputEntry.format, broken: inputEntry.format ? brokenRuleKeys(inputEntry.format, currentValue, leftInputs.has(inputEntry.id)) : [] });
                             }
                           }}
                         >
@@ -539,7 +526,7 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
                 {canSaveTest && (
                   <button
                     type="button"
-                    className="app__create-model-button app__create-model-button--secondary"
+                    className="btn btn--secondary"
                     onClick={saveTestCase}
                   >
                     <LoadIcon />
@@ -548,7 +535,7 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
                 )}
                 {/* "Limpar dados" goes right after "Guardar teste", once there is something to clear. */}
                 {hasAnyTestInputValue && (
-                  <button type="button" className="app__create-model-button app__create-model-button--secondary" onClick={() => setIsClearConfirmOpen(true)}>
+                  <button type="button" className="btn btn--secondary" onClick={() => setIsClearConfirmOpen(true)}>
                     <BroomIcon />
                     Limpar dados
                   </button>
@@ -560,7 +547,7 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
             {/* "Carregar teste" sits right beside the run button, on its left, and is always there. */}
             <button
               type="button"
-              className="app__create-model-button app__create-model-button--secondary"
+              className="btn btn--secondary"
               onClick={() => testFileInputRef.current?.click()}
             >
               <SaveIcon />
@@ -570,7 +557,7 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
             {isRunning && <LoadingOverlay delayMs={200} />}
             <SplitButton
               className="model-card__run-split"
-              buttonClassName={`model-card__run-button${runAnalysisClass}`}
+              buttonClassName={`btn--lg${runAnalysisClass}`}
               onClick={run}
               disabled={isRunning || !allRequiredFilled || !allInputsValid}
               // The arrow (add operations to analyze) follows the button: nothing to run, nothing to analyze.
@@ -723,10 +710,10 @@ function AnalyzeModal({ operations, selectedIds, onConfirm, onClose }: AnalyzeMo
       onClose={onClose}
       actions={
         <>
-          <button type="button" className="modal__button modal__button--ghost" onClick={onClose}>
+          <button type="button" className="btn btn--secondary" onClick={onClose}>
             Cancelar
           </button>
-          <button type="button" className="modal__button action-button" onClick={() => onConfirm(draftIds)}>
+          <button type="button" className="btn btn--primary" onClick={() => onConfirm(draftIds)}>
             Confirmar
           </button>
         </>
@@ -743,12 +730,12 @@ function AnalyzeModal({ operations, selectedIds, onConfirm, onClose }: AnalyzeMo
       <div className="model-card__analyze-bulk">
         <button
           type="button"
-          className="modal__chip"
+          className="btn btn--secondary btn--sm"
           onClick={() => setDraftIds([...new Set([...draftIds, ...visible.map((operation) => operation.id)])])}
         >
           Selecionar {needle ? 'visíveis' : 'todas'}
         </button>
-        <button type="button" className="modal__chip" onClick={() => setDraftIds([])} disabled={draftIds.length === 0}>
+        <button type="button" className="btn btn--secondary btn--sm" onClick={() => setDraftIds([])} disabled={draftIds.length === 0}>
           Limpar
         </button>
       </div>
@@ -788,7 +775,7 @@ function EyeButton({ onView, label = 'Ver texto completo' }: EyeButtonProps) {
 interface FullTextModalProps {
   /** Null closes the modal — same "the value itself is the open/closed state" pattern as most of
    * this app's other single-item modals (e.g. OperationPanel's modalEntryId). */
-  field: { name: string; value: string; format?: ValueFormat | null } | null;
+  field: { name: string; value: string; format?: ValueFormat | null; broken?: RuleKey[] } | null;
   onClose: () => void;
 }
 
@@ -802,8 +789,10 @@ function FullTextModal({ field, onClose }: FullTextModalProps) {
       {field.format ? (
         // An input with rules: its name and its rules, not its value.
         <ul className="model-card__rules-list">
-          {describeFormatLines(field.format).map((line) => (
-            <li key={line}>{line}</li>
+          {describeFormatRules(field.format).map((rule) => (
+            <li key={rule.key} className={field.broken?.includes(rule.key) ? 'model-card__rules-item--broken' : undefined}>
+              {rule.line}
+            </li>
           ))}
         </ul>
       ) : (

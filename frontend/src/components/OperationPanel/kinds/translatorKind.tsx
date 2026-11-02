@@ -114,7 +114,7 @@ export const translatorKind: OperationKind = {
 
         <button
           type="button"
-          className="operation-entry__pick-button"
+          className="btn btn--secondary btn--sm btn--block"
           onClick={() => updateFields({ rules: [...f.rules, { from: '', to: '' }] })}
         >
           + Adicionar regra
@@ -359,7 +359,7 @@ function TranslatorInputs({
 
       <button
         type="button"
-        className="operation-entry__pick-button"
+        className="btn btn--secondary btn--sm btn--block"
         onClick={() => commit([...rows, { id: nextRowId(), source: literalSource('') }])}
       >
         + Adicionar entrada

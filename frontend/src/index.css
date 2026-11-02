@@ -71,6 +71,12 @@
   --btn-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 1px 2px rgba(0, 0, 0, 0.25);
   --btn-highlight-secondary: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 1px 2px rgba(0, 0, 0, 0.08);
 
+  /* The outline a box shows while it is pointed at: a darker neutral than its resting line, in both themes. */
+  --color-border-hover: color-mix(in srgb, var(--color-text) 30%, var(--color-border));
+
+  /* The thickness of every box outline (cards, dialogs, panels, inputs). Buttons keep a thin line of their own. */
+  --border-width: 1.5px;
+
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 14px;

@@ -19,7 +19,7 @@ interface SplitButtonProps {
   /** What the arrow opens: one entry per extra option. */
   items: SplitButtonItem[];
   arrowLabel?: string;
-  /** Extra classes for both halves (size, color). The main part is always an `action-button`. */
+  /** Extra button classes for both halves (a size such as `btn--lg`, or `btn--analysis`). Both are `btn btn--primary`. */
   buttonClassName?: string;
   /** Extra classes for the wrapper (layout). */
   className?: string;
@@ -69,7 +69,7 @@ export function SplitButton({
     <div className={`split-button ${className}`} ref={ref}>
       <button
         type="button"
-        className={`split-button__main action-button ${buttonClassName}`}
+        className={`split-button__main btn btn--primary ${buttonClassName}`}
         onClick={onClick}
         disabled={disabled}
         {...mainProps}
@@ -78,7 +78,7 @@ export function SplitButton({
       </button>
       <button
         type="button"
-        className={`split-button__arrow action-button ${buttonClassName}`}
+        className={`split-button__arrow btn btn--primary ${buttonClassName}`}
         onClick={() => setIsOpen((current) => !current)}
         disabled={arrowDisabled}
         aria-label={arrowLabel}

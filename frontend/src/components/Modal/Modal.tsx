@@ -21,8 +21,8 @@ interface ModalProps {
   escapeCloses?: boolean;
   /** `left` pushes the dialog to the left edge, leaving room for the dataset panel on the right. */
   align?: 'center' | 'left';
-  /** The buttons at the bottom, right-aligned: a `modal__button--ghost` dismiss button, then the
-   * main action (`modal__button action-button`). Left out when the × is enough. */
+  /** The buttons at the bottom, right-aligned: a `btn btn--secondary` dismiss button, then the
+   * main action (`btn btn--primary`). Left out when the × is enough. */
   actions?: ReactNode;
   children?: ReactNode;
 }

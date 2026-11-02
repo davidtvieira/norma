@@ -6,6 +6,9 @@ interface LoadingOverlayProps {
   /** Waits this long before showing, so an operation that finishes right away never flashes the
    * overlay. Defaults to showing immediately. */
   delayMs?: number;
+  /** Covers only the area it is rendered in (the nearest `position: relative` ancestor) instead of the whole
+   * screen, so the rest of the page stays usable while just that zone loads. */
+  zone?: boolean;
 }
 
 /**
@@ -13,7 +16,7 @@ interface LoadingOverlayProps {
  * also blocks clicks on whatever is behind it. Render it while something is loading, instead of
  * showing a spinner on the button that started it.
  */
-export function LoadingOverlay({ delayMs = 0 }: LoadingOverlayProps) {
+export function LoadingOverlay({ delayMs = 0, zone = false }: LoadingOverlayProps) {
   const [isVisible, setIsVisible] = useState(delayMs <= 0);
 
   useEffect(() => {
@@ -24,8 +27,8 @@ export function LoadingOverlay({ delayMs = 0 }: LoadingOverlayProps) {
 
   if (!isVisible) return null;
 
-  return createPortal(
-    <div className="loading-overlay" role="status" aria-live="polite" aria-label="A carregar">
+  const overlay = (
+    <div className={`loading-overlay${zone ? ' loading-overlay--zone' : ''}`} role="status" aria-live="polite" aria-label="A carregar">
       {/* The app's icon, drawn on a loop: a node, the two connections leaving it, and the nodes they reach. */}
       <svg className="loading-overlay__mark" viewBox="0 0 120 120" aria-hidden="true">
         <g fill="none" strokeWidth="8">
@@ -36,7 +39,8 @@ export function LoadingOverlay({ delayMs = 0 }: LoadingOverlayProps) {
           <circle className="loading-overlay__target loading-overlay__target--b" cx="96" cy="90" r="11" />
         </g>
       </svg>
-    </div>,
-    document.body,
+    </div>
   );
+
+  return zone ? overlay : createPortal(overlay, document.body);
 }

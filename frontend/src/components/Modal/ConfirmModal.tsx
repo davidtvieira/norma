@@ -20,12 +20,12 @@ export function ConfirmModal({ title, message, confirmLabel, cancelLabel = 'Canc
       onClose={onCancel}
       actions={
         <>
-          <button type="button" className="modal__button modal__button--ghost" onClick={onCancel}>
+          <button type="button" className="btn btn--secondary" onClick={onCancel}>
             {cancelLabel}
           </button>
           <button
             type="button"
-            className={`modal__button ${danger ? 'app__create-model-button--danger' : 'action-button'}`}
+            className={`btn ${danger ? 'btn--danger' : 'btn--primary'}`}
             onClick={onConfirm}
           >
             {confirmLabel}

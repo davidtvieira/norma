@@ -32,7 +32,7 @@ export function SheetPanel({ title, open, onClose, children }: SheetPanelProps) 
       >
         <button
           type="button"
-          className="sheet-panel__expand naked-button"
+          className="sheet-panel__expand btn btn--naked"
           onClick={() => setIsExpanded((current) => !current)}
           aria-label={isExpanded ? 'Voltar ao tamanho normal' : 'Abrir os dados em ecrã inteiro'}
           title={isExpanded ? 'Voltar ao tamanho normal' : 'Abrir os dados em ecrã inteiro'}

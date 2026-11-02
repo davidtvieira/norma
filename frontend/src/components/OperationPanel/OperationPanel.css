@@ -47,40 +47,10 @@
   vertical-align: middle;
 }
 
+/* "Testar modelo": a primary button (see buttons.css) that also holds the sweeping progress fill below. */
 .operation-canvas__test-button {
   position: relative;
   overflow: hidden;
-  padding: 0.55rem 1.1rem;
-  border: 1px solid var(--color-primary);
-  border-radius: var(--radius-btn);
-  background: var(--color-primary);
-  color: var(--color-surface);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.875rem;
-  font-weight: 500;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
-}
-
-.operation-canvas__test-button:hover:not(:disabled) {
-  background: var(--color-primary-hover);
-  border-color: var(--color-primary-hover);
-}
-
-/* While a "Testar modelo" stagger is in progress, this same button interrupts it instead —
-   --color-error rather than --color-primary so it visibly reads as a stop/cancel action, not
-   just "run again". */
-.operation-canvas__test-button--cancel {
-  background: var(--color-error);
-  border-color: var(--color-error);
-  color: #fff;
-}
-
-.operation-canvas__test-button--cancel:hover:not(:disabled) {
-  background: var(--color-error);
-  border-color: var(--color-error);
-  color: #fff;
-  opacity: 0.85;
 }
 
 /* The stagger's own progress, as a fill sweeping across the button itself (see
@@ -103,11 +73,6 @@
   gap: 0.4rem;
 }
 
-.operation-canvas__test-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
 .operation-canvas__test-file-input {
   display: none;
 }
@@ -121,33 +86,10 @@
   color: var(--color-error);
 }
 
-.operation-canvas__reset-button {
-  padding: 0.55rem 1.1rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-btn);
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.875rem;
-  font-weight: 500;
-  transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
-}
-
-.operation-canvas__reset-button:hover:not(:disabled) {
-  border-color: var(--color-error);
-  color: var(--color-error);
-}
-
-.operation-canvas__reset-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
 .operation-canvas__zoom-controls {
   display: flex;
   align-items: center;
-  border: 1px solid var(--color-border);
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-btn);
   overflow: hidden;
   /* A bit of elevation now that this floats directly over the canvas (see
@@ -199,96 +141,12 @@
   cursor: not-allowed;
 }
 
-/* "Editar" and, while it's on, the clipboard actions next to it (Copiar/Colar/Eliminar/
-   Cancelar seleção — see OperationPanel.tsx's own render) all share this: a pencil
-   or plain text label, same height as .operation-canvas__zoom-button, which the group sits
-   directly next to in spirit (all are canvas-chrome toggles), just each in its own bordered pill
-   since none are part of that button group. No wrapping panel around the actions — they're plain
-   siblings of "Editar" in the same flex row (see .operation-canvas__floating-toolbar--right),
-   rendered before it in DOM order so they appear to its left, sized identically instead of a
-   smaller/differently-styled set living inside a separate flyout box. */
-.operation-canvas__tool-button {
-  height: 2.1rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  padding: 0 0.85rem;
-  white-space: nowrap;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-btn);
-  background: var(--color-surface);
-  color: var(--color-text);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.875rem;
-  font-weight: 500;
-  transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
-  /* Same elevation as .operation-canvas__zoom-controls — see its own note. */
-  box-shadow: var(--shadow-sm);
-}
-
-.operation-canvas__tool-button svg {
-  width: 1rem;
-  height: 1rem;
-  flex-shrink: 0;
-}
-
-.operation-canvas__tool-button:hover:not(:disabled) {
-  border-color: var(--color-primary);
-  background: var(--color-surface-hover);
-}
-
-.operation-canvas__tool-button--active {
-  border-color: var(--color-secondary);
-  background: var(--color-secondary);
-  color: var(--color-surface);
-}
-
-/* :not(:disabled) here isn't just belt-and-suspenders — .operation-canvas__tool-button's own
-   :hover:not(:disabled) above outranks a plain :hover on one class (:not() counts toward
-   specificity by what it excludes), so without it that rule's background: var(--color-surface-
-   hover) would win over this one's, leaving --color-surface text (meant to sit on the much
-   stronger --color-secondary fill) on a background close enough to it to read as blank — which is
-   exactly the bug this guards against, on "A editar" most visibly. */
-.operation-canvas__tool-button--active:hover:not(:disabled) {
-  border-color: var(--color-secondary);
-  background: var(--color-secondary);
-  color: var(--color-surface);
-}
-
-/* "+ Adicionar operação": filled instead of the plain bordered pill every other button in this
-   row gets — it's the one that starts something (a whole new operation), not just acts on or
-   toggles what's already there, so it gets the same primary-filled treatment "Testar modelo"
-   already uses for the toolbar's own main action. */
-.operation-canvas__tool-button--primary {
-  border-color: var(--color-primary);
-  background: var(--color-primary);
-  color: var(--color-surface);
-}
-
-.operation-canvas__tool-button--primary:hover:not(:disabled) {
-  border-color: var(--color-primary-hover);
-  background: var(--color-primary-hover);
-  color: var(--color-surface);
-}
-
-.operation-canvas__tool-button--danger:hover:not(:disabled) {
-  border-color: var(--color-error);
-  color: var(--color-error);
-}
-
-.operation-canvas__tool-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
 .operation-entry {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
   padding: 1.1rem;
-  border: 1px solid var(--color-border);
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface);
   box-shadow: var(--shadow-sm);
@@ -316,34 +174,6 @@
   background: var(--color-surface-hover);
 }
 
-.operation-entry__pick-button {
-  width: 100%;
-  padding: 0.5rem 0.85rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-text);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.85rem;
-  transition: border-color 0.2s ease, background-color 0.2s ease;
-}
-
-.operation-entry__pick-button:hover {
-  border-color: var(--color-primary);
-  background: var(--color-surface-hover);
-}
-
-.operation-entry__pick-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-.operation-entry__pick-button:disabled:hover {
-  border-color: var(--color-border);
-  background: transparent;
-}
-
 /* Base pill chrome, shared by every picked-value pill: a picked column/range, and
    ValueSourceField's confirmed-reference pill — always the --pickable modifier below (a real
    <button>, clicking it re-picks/removes the value), never shown any other way. */
@@ -353,7 +183,7 @@
   gap: 0.5rem;
   width: 100%;
   padding: 0.4rem 0.6rem;
-  border: 1px solid var(--color-border);
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-surface-hover);
 }
@@ -368,7 +198,7 @@
 }
 
 .operation-column-pill--pickable:hover {
-  border-color: var(--color-primary);
+  background: var(--btn-secondary-bg-hover);
 }
 
 .operation-column-pill__value {
@@ -402,29 +232,13 @@
   flex-direction: column;
   gap: 0.5rem;
   padding: 0.6rem 0.75rem;
-  border: 1px dashed var(--color-primary);
+  border: var(--border-width) dashed var(--color-primary);
   border-radius: var(--radius-sm);
   background: var(--color-surface-hover);
 }
 
 .operation-column-picking__hint {
   font-size: 0.8rem;
-  color: var(--color-text);
-}
-
-.operation-column-picking__cancel {
-  width: 100%;
-  padding: 0.4rem 0.75rem;
-  border-radius: var(--radius-sm);
-  font: inherit;
-  font-size: 0.8rem;
-  cursor: pointer;
-  border: 1px solid var(--color-border);
-  background: transparent;
-  color: var(--color-text-muted);
-}
-
-.operation-column-picking__cancel:hover {
   color: var(--color-text);
 }
 
@@ -454,7 +268,7 @@
 .operation-entry__select {
   width: 100%;
   padding: 0.55rem 0.7rem;
-  border: 1px solid var(--color-border);
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-text);
@@ -500,7 +314,7 @@
 .operation-entry__input {
   width: 100%;
   padding: 0.6rem 0.75rem;
-  border: 1px solid var(--color-border);
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-text);
@@ -579,7 +393,7 @@
 .operation-entry__source-toggle-button {
   flex: 1 1 auto;
   padding: 0.4rem 0.75rem;
-  border: 1px solid var(--color-border);
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-text-muted);
@@ -590,8 +404,8 @@
 }
 
 .operation-entry__source-toggle-button:hover {
-  border-color: var(--color-primary);
   color: var(--color-primary);
+  background: var(--btn-secondary-bg-hover);
 }
 
 .operation-entry__source-toggle-button--active {
@@ -651,7 +465,7 @@
   padding: 0.6rem;
   max-height: 14rem;
   overflow-y: auto;
-  border: 1px solid var(--color-border);
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-sm);
   background: transparent;
 }
@@ -659,7 +473,7 @@
 .operation-entry__dynamic-input-option {
   width: 100%;
   padding: 0.4rem 0.75rem;
-  border: 1px solid var(--color-primary);
+  border: var(--border-width) solid var(--color-primary);
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-primary);
@@ -736,7 +550,6 @@
   color: var(--color-text-muted);
 }
 
-
 .operation-canvas {
   flex: 1;
   min-height: 0;
@@ -749,7 +562,7 @@
   min-height: 0;
   position: relative;
   overflow: hidden;
-  border: 1px solid var(--color-border);
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
   /* A dark-grey wash (not a theme color) over the surface, so the canvas reads as a distinct
      "working area" the same way in both light and dark mode, plus a dotted grid — dots sit a
@@ -845,7 +658,7 @@
 .operation-canvas__marquee {
   position: fixed;
   z-index: 20;
-  border: 1px solid var(--color-secondary);
+  border: var(--border-width) solid var(--color-secondary);
   background: color-mix(in srgb, var(--color-secondary) 15%, transparent);
   pointer-events: none;
 }
@@ -864,7 +677,7 @@
   right: 0.75rem;
   bottom: 0.75rem;
   z-index: 19;
-  border: 1px solid var(--color-border);
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
   background: color-mix(in srgb, #000 4%, var(--color-surface));
   box-shadow: var(--shadow-sm);
@@ -907,7 +720,7 @@
    are here" cue the rest of the minimap exists to give a frame of reference for. */
 .operation-canvas__minimap-viewport {
   position: absolute;
-  border: 1.5px solid var(--color-secondary);
+  border: var(--border-width) solid var(--color-secondary);
   background: color-mix(in srgb, var(--color-secondary) 12%, transparent);
   pointer-events: none;
 }
@@ -980,7 +793,7 @@
   flex-direction: column;
   gap: 0.6rem;
   padding: 1rem;
-  border: 1px solid var(--color-border);
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface);
   box-shadow: var(--shadow-sm);
@@ -992,7 +805,7 @@
 }
 
 .operation-card:hover {
-  border-color: var(--color-primary);
+  border-color: var(--color-border-hover);
 }
 
 /* A selected node already shows its own border-color/box-shadow (see
@@ -1173,31 +986,6 @@
   opacity: 0.85;
 }
 
-.operation-card__io-toggle {
-  padding: 0.15rem 0.5rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-btn);
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.7rem;
-  font-weight: 600;
-  line-height: 1.4;
-  transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
-}
-
-.operation-card__io-toggle:hover {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-}
-
-.operation-card__io-toggle--active {
-  border-color: var(--color-secondary);
-  background: var(--color-secondary);
-  color: var(--color-surface);
-}
-
 /* Wraps a confirmed card's editable field(s) + live result (see ConfirmedOperationCard's
    inlineSlot/modalSlot) — collapsed by default via the modifier below when hosting the compact,
    inline view. Stays in the layout flow either way rather than being unmounted (its
@@ -1281,7 +1069,6 @@
 .operation-card-modal__body .operation-entry__result {
   display: none;
 }
-
 
 /* The single node standing in for every designated input while they're collapsed (see
    inputsHidden in OperationPanel.tsx) — the same fixed orange --color-secondary the input toggles

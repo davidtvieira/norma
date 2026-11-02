@@ -179,7 +179,7 @@ function CounterInputs({ inputs, onChange, referenceOptions, resolvedInputs, tes
 
       <button
         type="button"
-        className="operation-entry__pick-button"
+        className="btn btn--secondary btn--sm btn--block"
         onClick={() => setIsAddOpen(true)}
         disabled={!canAddInput}
         title={canAddInput ? undefined : 'Não há nenhuma outra operação para referenciar ainda.'}

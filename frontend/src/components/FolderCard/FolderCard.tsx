@@ -1,9 +1,8 @@
-import { PencilIcon, TrashIcon } from '../ButtonIcons/ButtonIcons';
+import { FolderClosedIcon, FolderOpenIcon, PencilIcon, TrashIcon } from '../ButtonIcons/ButtonIcons';
 import type { FolderEntryPayload } from '../../types/savedNrm';
 import { useNormaDropTarget } from '../../hooks/useNormaDropTarget';
 import '../NormaCard/NormaCard.css';
 import '../NormaCard/NormaCardCategory.css';
-import './FolderCard.css';
 
 interface FolderCardProps {
   category: FolderEntryPayload;
@@ -23,7 +22,7 @@ export function FolderCard({ category, onOpen, onDropNorma, onEdit, onDelete }: 
   const drop = useNormaDropTarget(onDropNorma);
   return (
     <div
-      className={`norma-card norma-card--openable folder-card${drop.isOver ? ' folder-card--drop' : ''}`}
+      className={`norma-card norma-card--folder norma-card--openable${drop.isOver ? ' norma-card--drop' : ''}`}
       {...drop.props}
       role="button"
       tabIndex={0}
@@ -61,6 +60,11 @@ export function FolderCard({ category, onOpen, onDropNorma, onEdit, onDelete }: 
       >
         <TrashIcon className="norma-card__delete-icon" />
       </button>
+      {/* The folder shuts at rest and opens when the card is pointed at. */}
+      <span className="norma-card__folder" aria-hidden="true">
+        <FolderClosedIcon className="norma-card__folder-icon norma-card__folder-icon--closed" />
+        <FolderOpenIcon className="norma-card__folder-icon norma-card__folder-icon--open" />
+      </span>
       <div className="norma-card__text">
         <h3 className="norma-card__name" title={category.name}>
           {category.name}

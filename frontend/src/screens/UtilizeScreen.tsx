@@ -132,7 +132,7 @@ export function UtilizeScreen({ dataset, utilizeModel, theme, onToggleTheme, onB
         <div className="app__topbar-actions">
           <button
             type="button"
-            className="app__view-data-button"
+            className="btn btn--secondary"
             onClick={() => {
               setHighlights(NO_HIGHLIGHTS);
               openSheetPanel();

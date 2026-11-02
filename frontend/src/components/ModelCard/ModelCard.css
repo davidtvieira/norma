@@ -32,7 +32,7 @@
   display: inline-grid;
   grid-template-columns: 1fr 1fr;
   padding: 0.3rem;
-  border: 1px solid var(--color-border);
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-btn);
   background: var(--color-surface);
 }
@@ -170,7 +170,7 @@
   justify-content: center;
   overflow-y: auto;
   background: var(--color-surface-hover);
-  border: 1px solid var(--color-border);
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
   transition: background-color 0.2s ease;
 }
@@ -212,36 +212,6 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--color-text-muted);
-}
-
-/* The collapsed side's only content: a plain pill button (same shape language as
-   .model-card__run-button) sized to its own label, not stretched to fill the collapsed panel —
-   clicking it re-expands that side (see ModelCard.tsx's setExpandedSide) without touching any
-   field value or triggering a run. */
-.model-card__io-panel-collapsed {
-  padding: 0.6rem 1.25rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-btn);
-  background: var(--color-surface);
-  color: var(--color-text-muted);
-  font: inherit;
-  font-size: 0.85rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
-}
-
-.model-card__io-panel-collapsed:hover:not(:disabled) {
-  background: var(--color-surface-hover);
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-}
-
-.model-card__io-panel-collapsed:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
 }
 
 /* Always 3 equal columns per row, on both the input and output grids, filling however wide the
@@ -295,7 +265,7 @@
   gap: 0.6rem;
   min-width: 0;
   padding: 1rem;
-  border: 1px solid var(--color-border);
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-surface);
 }
@@ -419,28 +389,6 @@
   display: none;
 }
 
-/* Overrides .app__create-model-button--back's own margin-top (meant for stacking below content
-   on the create-model screen) so it lines up inline with "Correr modelo" here instead. */
-.model-card__actions-row .app__create-model-button--back {
-  margin-top: 0;
-}
-
-.model-card__run-button {
-  padding: 0.6rem 1.5rem;
-  border: 1px solid transparent;
-  border-radius: var(--radius-btn);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.9rem;
-  font-weight: 600;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
-}
-
-.model-card__run-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
 /* Switching between inputs and outputs mounts the other column, which slides in from the side its
    toggle option is on (inputs from the left, outputs from the right). */
 .model-card__io-column--from-left {
@@ -487,7 +435,7 @@
   margin-left: auto;
   display: inline-flex;
   padding: 0.2rem;
-  border: 1px solid var(--color-border);
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-btn);
   background: var(--color-surface);
 }
@@ -640,7 +588,7 @@
   align-items: baseline;
   gap: 0.75rem;
   padding: 0.6rem 0.9rem;
-  border: 1px solid var(--color-border);
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-surface);
 }
@@ -709,7 +657,7 @@
   flex-direction: column;
   gap: 0.25rem;
   padding: 0.6rem 0.8rem;
-  border: 1px solid var(--color-border);
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-surface-hover);
 }
@@ -822,54 +770,32 @@
   }
 }
 
-/* The run button's size (the split itself is SplitButton). */
-.model-card__run-split .model-card__run-button {
-  box-sizing: border-box;
-  min-height: 3rem;
-  font-size: 0.9rem;
-}
-
-/* "Correr modelo" while operations are picked in "Analisar modelo": slightly redder than the usual orange. */
-button.model-card__run-button.model-card__run-button--analysing {
-  border-color: var(--btn-analysis-bg);
-  background: var(--btn-analysis-bg);
-}
-
-button.model-card__run-button.model-card__run-button--analysing:hover:not(:disabled) {
-  border-color: var(--btn-analysis-bg-hover);
-  background: var(--btn-analysis-bg-hover);
-}
-
-.split-button button.split-button__arrow.model-card__run-button--analysing {
-  border-left-color: rgba(255, 255, 255, 0.45);
-}
-
-/* An input that breaks a formatter's rules: a red badge at the top right of its card with how many rules (click it to list them),
-   and the card outlined in red. */
+/* An input that breaks a formatter's rules: the card's background turns red (no outline, no badge). Its name opens the
+   list of its rules, where the ones it breaks are highlighted. */
 .model-card__field--invalid {
   position: relative;
-  outline: 1.5px solid var(--color-error);
-  outline-offset: 2px;
-  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-error) 18%, var(--color-surface));
 }
 
-.model-card__error-badge {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  z-index: 1;
-  min-width: 1.5rem;
-  padding: 0 0.5rem;
-  border: 0;
-  border-radius: var(--radius-btn);
-  background: var(--color-error);
-  color: var(--color-error-contrast);
-  font: inherit;
-  font-size: 0.8rem;
-  font-weight: 700;
-  line-height: 1.5rem;
-  text-align: center;
-  cursor: pointer;
+/* The input box inside it is the same red in a paler tone than the card, with a red outline, so it still reads as a field. */
+.model-card__field--invalid :is(input, textarea, select, .operation-entry__input) {
+  border-color: var(--color-error);
+  background-color: color-mix(in srgb, var(--color-error) 7%, var(--color-surface));
+}
+
+/* It stays red while it has the focus too (the usual orange focus line would hide the error). */
+.model-card__field--invalid :is(input, textarea, select, .operation-entry__input):focus {
+  border-color: var(--color-error);
+}
+
+
+.model-card__rules-item--broken {
+  margin-left: -0.5rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-error) 18%, transparent);
+  color: var(--color-error);
+  font-weight: 600;
 }
 
 .model-card__rules-list {
@@ -878,9 +804,3 @@ button.model-card__run-button.model-card__run-button--analysing:hover:not(:disab
   font-size: 0.9rem;
 }
 
-/* A disabled text button (Guardar teste, Carregar teste...) looks disabled, like "Correr modelo": faded, with a
-   not-allowed cursor. Global, so the editor's own buttons of this kind get it too. */
-button.app__create-model-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-}

@@ -25,7 +25,7 @@
   display: flex;
   flex-direction: column;
   padding: 1.5rem;
-  border: 1px solid var(--color-border);
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface);
   box-shadow: var(--shadow-md);
@@ -134,7 +134,7 @@
   width: 100%;
   box-sizing: border-box;
   padding: 0.55rem 0.8rem;
-  border: 1px solid var(--color-border);
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-surface);
   color: var(--color-text);
@@ -145,61 +145,6 @@
 .modal__input:focus {
   outline: none;
   border-color: var(--color-primary);
-}
-
-/* The buttons of a modal: one size, pill-shaped. The main one also carries `action-button` (the
-   orange of the button system); the dismiss one is `modal__button--ghost`, an outline. */
-button.modal__button {
-  min-height: 2.6rem;
-  padding: 0.5rem 1.4rem;
-  border-width: 1px;
-  border-style: solid;
-  border-radius: var(--radius-btn);
-  font: inherit;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
-}
-
-button.modal__button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-button.modal__button--ghost {
-  border-color: var(--color-border);
-  background: transparent;
-  color: var(--color-text);
-}
-
-button.modal__button--ghost:hover:not(:disabled) {
-  border-color: var(--color-text-muted);
-  background: var(--color-surface-hover);
-}
-
-/* A small outlined pill for a modal's secondary actions ("Selecionar todas", "Ordenar por nome"). */
-button.modal__chip {
-  padding: 0.25rem 0.8rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-btn);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font: inherit;
-  font-size: 0.8rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
-}
-
-button.modal__chip:hover:not(:disabled) {
-  border-color: var(--color-primary);
-  background: var(--color-surface-hover);
-}
-
-button.modal__chip:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
 }
 
 /* Every modal comes up from below while the backdrop fades in, instead of both appearing at once. */

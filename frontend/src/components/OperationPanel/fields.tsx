@@ -152,7 +152,7 @@ export function ColumnPickerField({ label, value, isPicking, pendingColumn, onSt
       <label className="operation-entry__label">{label}</label>
 
       {!isPicking && value === '' && (
-        <button type="button" className="operation-entry__pick-button" onClick={onStart}>
+        <button type="button" className="btn btn--secondary btn--sm btn--block" onClick={onStart}>
           Selecionar coluna
         </button>
       )}
@@ -166,7 +166,7 @@ export function ColumnPickerField({ label, value, isPicking, pendingColumn, onSt
       {isPicking && (
         <div className="operation-column-picking">
           <span className="operation-column-picking__hint">Escolha uma coluna na tabela à direita</span>
-          <button type="button" className="operation-column-picking__cancel" onClick={onCancel}>
+          <button type="button" className="btn btn--secondary btn--sm btn--block" onClick={onCancel}>
             Cancelar
           </button>
         </div>
@@ -211,7 +211,7 @@ export function RangePickerField({ label, value, isPicking, pendingRange, onStar
       <label className="operation-entry__label">{label}</label>
 
       {!isPicking && value === null && (
-        <button type="button" className="operation-entry__pick-button" onClick={onStart}>
+        <button type="button" className="btn btn--secondary btn--sm btn--block" onClick={onStart}>
           Selecionar intervalo
         </button>
       )}
@@ -225,7 +225,7 @@ export function RangePickerField({ label, value, isPicking, pendingRange, onStar
       {isPicking && (
         <div className="operation-column-picking">
           <span className="operation-column-picking__hint">Arraste sobre as células da tabela à direita para selecionar um intervalo</span>
-          <button type="button" className="operation-column-picking__cancel" onClick={onCancel}>
+          <button type="button" className="btn btn--secondary btn--sm btn--block" onClick={onCancel}>
             Cancelar
           </button>
         </div>
@@ -395,14 +395,14 @@ export function ValueSourcePickerModal({
       onClose={onClose}
       actions={
         <>
-          <button type="button" className="modal__button modal__button--ghost" onClick={onClose}>
+          <button type="button" className="btn btn--secondary" onClick={onClose}>
             Cancelar
           </button>
           {/* The column tab has its own dedicated "Selecionar coluna" button instead — a disabled
               Confirmar next to it would just be dead weight, since that tab has nothing of its own
               left for it to confirm. */}
           {!isColumnMode && (
-            <button type="button" className="modal__button action-button" onClick={confirm} disabled={!canConfirm}>
+            <button type="button" className="btn btn--primary" onClick={confirm} disabled={!canConfirm}>
               Confirmar
             </button>
           )}
@@ -442,7 +442,7 @@ export function ValueSourcePickerModal({
           <p className="operation-entry__chain-status">Escolha diretamente uma coluna na tabela à direita.</p>
           <button
             type="button"
-            className="operation-entry__pick-button"
+            className="btn btn--secondary btn--sm btn--block"
             onClick={() => {
               onStartColumnPick();
               onClose();
@@ -609,7 +609,7 @@ export function ValueSourceField({
       {picking && (
         <div className="operation-column-picking">
           <span className="operation-column-picking__hint">Escolha uma coluna na tabela à direita</span>
-          <button type="button" className="operation-column-picking__cancel" onClick={columnPicker?.onCancel}>
+          <button type="button" className="btn btn--secondary btn--sm btn--block" onClick={columnPicker?.onCancel}>
             Cancelar
           </button>
         </div>
@@ -631,7 +631,7 @@ export function ValueSourceField({
       )}
 
       {!picking && needsPicker && !committed && (
-        <button type="button" className="operation-entry__pick-button" onClick={() => setIsPickerOpen(true)}>
+        <button type="button" className="btn btn--secondary btn--sm btn--block" onClick={() => setIsPickerOpen(true)}>
           {referenceOnly ? 'Selecionar operação' : 'Selecionar valor'}
         </button>
       )}

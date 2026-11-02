@@ -68,20 +68,6 @@
   gap: 0.75rem;
 }
 
-.app__view-data-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1.1rem;
-  border: 1px solid transparent;
-  border-radius: var(--radius-btn);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.85rem;
-  font-weight: 600;
-  transition: border-color 0.2s ease, background-color 0.2s ease;
-}
-
 .app__landing-body {
   /* The side margin shared by the intro text (left) and the upload column (right), so the two
      always sit the same distance from their own edge of the screen. */
@@ -127,7 +113,7 @@
    surface with a hairline border. */
 .app__landing-uploaders,
 .app__browse-button {
-  border: 1.5px solid var(--color-border);
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
 }
@@ -171,8 +157,9 @@
   transition: border-color 0.25s ease, background-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
 }
 
-.app__browse-button:hover {
+.app__browse-button:focus-visible {
   border-color: var(--color-primary);
+  outline: none;
 }
 
 .app__browse-button:hover .app__browse-icon {
@@ -544,10 +531,6 @@
   gap: 0.75rem;
 }
 
-.app__create-model-button--wide {
-  flex: 1;
-}
-
 .app__create-model-actions {
   display: flex;
   flex-wrap: wrap;
@@ -562,40 +545,12 @@
 .app__create-model-error {
   margin: 0.75rem 0 0;
   padding: 0.6rem 0.9rem;
-  border: 1px solid var(--color-error);
+  border: var(--border-width) solid var(--color-error);
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--color-error) 12%, var(--color-surface));
   color: var(--color-error);
   font-size: 0.85rem;
   text-align: center;
-}
-
-.app__create-model-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.75rem;
-  border: 1px solid transparent;
-  border-radius: var(--radius-btn);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.95rem;
-  font-weight: 600;
-  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
-}
-
-.app__create-model-button--back {
-  background: transparent;
-  border-color: transparent;
-  color: var(--color-text-muted);
-  margin-top: 1rem;
-}
-
-.app__create-model-button--back:hover {
-  background: var(--color-surface-hover);
-  border-color: var(--color-border);
-  color: var(--color-text);
 }
 
 .app__brand {
@@ -624,24 +579,7 @@
 }
 
 .app__save-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
   align-self: flex-end;
-  padding: 0.65rem 1.4rem;
-  border: 1px solid transparent;
-  border-radius: var(--radius-btn);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.9rem;
-  font-weight: 600;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
-}
-
-.app__save-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
 }
 
 /* Groups "Guardar teste" alongside "Guardar modelo" as one right-aligned pair — takes over the
@@ -843,165 +781,6 @@
   height: 1.35em;
 }
 
-/* ---------------------------------------------------------------------------------------------
-   The button system: every text button in the app is one of two variants, in both themes.
-     primary   — orange (--btn-primary-*)                              the decisive step: run, save, confirm, create
-     secondary — dark grey in light mode, lighter grey in dark mode    everything else
-   (--btn-secondary-*; both are tokens in index.css). Use the classes `action-button` (primary) or
-   `app__create-model-button--secondary` (secondary) on new buttons, or add a button's own class to
-   the matching list below. Sizes, paddings and radii stay with each component; `button.` in front
-   of every selector makes these win over the per-component rules regardless of stylesheet order.
-   A third, `naked-button`, is the no-background, no-outline text button for quiet navigation
-   ("← Voltar"). Icon-only buttons (close ×, eye, zoom, reveal, theme toggle) and segmented controls
-   (tabs, toggles) are deliberately outside it.
-   --------------------------------------------------------------------------------------------- */
-button.action-button,
-button.model-card__run-button,
-button.app__save-button:not(.app__save-button--secondary),
-button.operation-canvas__test-button:not(.operation-canvas__test-button--cancel),
-button.operation-canvas__tool-button--primary,
-button.operation-canvas__tool-button--active,
-button.operation-card__io-toggle--active {
-  border-color: var(--btn-primary-bg);
-  background: var(--btn-primary-bg);
-  color: var(--btn-primary-contrast);
-  box-shadow: var(--btn-highlight);
-}
-
-button.action-button:hover:not(:disabled),
-button.model-card__run-button:hover:not(:disabled),
-button.app__save-button:not(.app__save-button--secondary):hover:not(:disabled),
-button.operation-canvas__test-button:not(.operation-canvas__test-button--cancel):hover:not(:disabled),
-button.operation-canvas__tool-button--primary:hover:not(:disabled),
-button.operation-canvas__tool-button--active:hover:not(:disabled),
-button.operation-card__io-toggle--active:hover:not(:disabled) {
-  border-color: var(--btn-primary-bg-hover);
-  background: var(--btn-primary-bg-hover);
-  color: var(--btn-primary-contrast);
-}
-
-button.app__create-model-button--secondary,
-button.app__view-data-button,
-button.app__save-button--secondary,
-button.operation-canvas__tool-button:not(.operation-canvas__tool-button--primary):not(.operation-canvas__tool-button--active),
-button.operation-canvas__reset-button,
-button.operation-canvas__zoom-button,
-button.operation-canvas__zoom-level,
-button.operation-entry__pick-button,
-button.operation-column-picking__cancel,
-button.operation-card__io-toggle:not(.operation-card__io-toggle--active) {
-  border-color: var(--btn-secondary-border);
-  background: var(--btn-secondary-bg);
-  color: var(--btn-secondary-contrast);
-  box-shadow: var(--btn-highlight-secondary);
-}
-
-button.app__create-model-button--secondary:hover:not(:disabled),
-button.app__view-data-button:hover:not(:disabled),
-button.app__save-button--secondary:hover:not(:disabled),
-button.operation-canvas__tool-button:not(.operation-canvas__tool-button--primary):not(.operation-canvas__tool-button--active):hover:not(:disabled),
-button.operation-canvas__reset-button:hover:not(:disabled),
-button.operation-canvas__zoom-button:hover:not(:disabled),
-button.operation-canvas__zoom-level:hover:not(:disabled),
-button.operation-entry__pick-button:hover:not(:disabled),
-button.operation-column-picking__cancel:hover:not(:disabled),
-button.operation-card__io-toggle:not(.operation-card__io-toggle--active):hover:not(:disabled) {
-  border-color: var(--btn-secondary-border);
-  background: var(--btn-secondary-bg-hover);
-  color: var(--btn-secondary-contrast);
-}
-
-/* The look both variants share (Traktor's): flat, 9px corners, 13px medium text, pressed 1px down, a
-   blue-ish focus ring instead of the browser outline. The 36px height is only set on the main
-   buttons below; small ones (zoom, toggles) keep their own size. */
-button.action-button,
-button.model-card__run-button,
-button.app__save-button,
-button.app__create-model-button,
-button.app__view-data-button,
-button.operation-canvas__test-button,
-button.operation-canvas__tool-button,
-button.operation-canvas__reset-button,
-button.operation-canvas__zoom-button,
-button.operation-canvas__zoom-level,
-button.operation-entry__pick-button,
-button.operation-column-picking__cancel,
-button.operation-card__io-toggle {
-  border-radius: var(--radius-btn);
-  font-size: 0.8125rem;
-  font-weight: 500;
-  transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s, transform 0.15s;
-}
-
-button.action-button:active:not(:disabled),
-button.model-card__run-button:active:not(:disabled),
-button.app__save-button:active:not(:disabled),
-button.app__create-model-button:active:not(:disabled),
-button.app__view-data-button:active:not(:disabled),
-button.operation-canvas__test-button:active:not(:disabled),
-button.operation-canvas__tool-button:active:not(:disabled) {
-  transform: translateY(1px);
-}
-
-button.action-button:focus-visible,
-button.model-card__run-button:focus-visible,
-button.app__save-button:focus-visible,
-button.app__create-model-button:focus-visible,
-button.app__view-data-button:focus-visible,
-button.operation-canvas__test-button:focus-visible,
-button.operation-canvas__tool-button:focus-visible {
-  outline: 0;
-  border-color: #93b0ff;
-  box-shadow: 0 10px 20px -14px rgba(147, 176, 255, 0.5);
-}
-
-button.action-button,
-button.model-card__run-button,
-button.app__save-button,
-button.app__create-model-button,
-button.app__view-data-button {
-  min-height: var(--btn-height);
-  padding-block: 0;
-  padding-inline: 14px;
-}
-
-/* The danger variant, for the button that destroys something ("Apagar"): the same red the "stop" of the
-   model test uses, so it reads as irreversible; the text is white in both themes. Add it next to the button's own sizing class. */
-button.app__create-model-button--danger {
-  border-color: var(--color-error);
-  background: var(--color-error);
-  color: #fff;
-  box-shadow: var(--btn-highlight);
-}
-
-button.app__create-model-button--danger:hover:not(:disabled) {
-  border-color: var(--color-error);
-  background: var(--color-error);
-  color: #fff;
-  opacity: 0.85;
-}
-
-/* The naked variant, for quiet navigation buttons ("← Voltar"): no background and no outline, just
-   muted text that turns to the full text color on hover. Add it next to the button's own sizing
-   class. */
-button.naked-button,
-button.naked-button:hover:not(:disabled),
-button.naked-button:focus,
-button.naked-button:focus-visible {
-  border-color: transparent;
-  background: none;
-  box-shadow: none;
-  outline: none;
-}
-
-button.naked-button {
-  color: var(--color-text-muted);
-}
-
-button.naked-button:hover:not(:disabled) {
-  color: var(--color-text);
-}
-
 /* /normas: the saved normas as a grid of cards, four across (or, while there is none, a dashed placeholder). */
 .app__normas-body {
   flex: 1;
@@ -1048,7 +827,7 @@ button.naked-button:hover:not(:disabled) {
   justify-content: center;
   flex: 1;
   min-height: 20rem;
-  border: 1.5px dashed var(--color-border);
+  border: var(--border-width) dashed var(--color-border);
   border-radius: var(--radius-lg);
   /* A faint lift off the page: whitish in light mode, a touch lighter than the page in dark. */
   background: color-mix(in srgb, var(--color-surface) 55%, transparent);
@@ -1058,6 +837,14 @@ button.naked-button:hover:not(:disabled) {
    each row is a third of that space (less the gaps), so the cards grow with the window. The list is a container so
    its own height is what a row is measured against; in a window too short for that, rows keep a minimum height and
    the list scrolls instead. More than three rows scroll too, never the page. */
+.app__normas-zone {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .app__normas-scroll {
   flex: 1 1 0;
   min-height: 0;

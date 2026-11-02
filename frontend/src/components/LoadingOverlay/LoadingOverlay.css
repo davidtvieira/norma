@@ -13,6 +13,20 @@
 /* The app icon on a loop of 2.4s: a node appears, two connections draw themselves out of it, and the
    nodes they reach pop in and light up as the lines arrive; they hold a
    moment, then it all plays backwards (see below) and starts again. */
+/* Only over one zone of the page (the parent must be `position: relative`): the page around it stays usable, and
+   the backdrop is the page's own colour, faded, instead of a dark curtain. */
+.loading-overlay--zone {
+  position: absolute;
+  z-index: 5;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-bg) 70%, transparent);
+}
+
+.loading-overlay--zone .loading-overlay__mark {
+  width: 5rem;
+  height: 5rem;
+}
+
 .loading-overlay__mark {
   width: 7rem;
   height: 7rem;

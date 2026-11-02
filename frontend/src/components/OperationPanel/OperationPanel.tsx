@@ -231,7 +231,7 @@ function IoToggle({ label, active, onToggle }: IoToggleProps) {
   return (
     <button
       type="button"
-      className={active ? 'operation-card__io-toggle operation-card__io-toggle--active' : 'operation-card__io-toggle'}
+      className={active ? 'btn btn--primary btn--xs' : 'btn btn--secondary btn--xs'}
       onClick={onToggle}
       aria-pressed={active}
       title={active ? `Remover como ${label.toLowerCase()} do modelo` : `Definir como ${label.toLowerCase()} do modelo`}
@@ -464,10 +464,10 @@ function ConfirmedOperationCard({
           onClose={requestCancel}
           actions={
             <>
-              <button type="button" className="modal__button modal__button--ghost" onClick={requestCancel}>
+              <button type="button" className="btn btn--secondary" onClick={requestCancel}>
                 Cancelar
               </button>
-              <button type="button" className="modal__button action-button" onClick={onCloseModal}>
+              <button type="button" className="btn btn--primary" onClick={onCloseModal}>
                 Confirmar
               </button>
             </>
@@ -2213,12 +2213,12 @@ export function OperationPanel({
             onClose={() => cancelEntry(editingEntry.id)}
             actions={
               <>
-                <button type="button" className="modal__button modal__button--ghost" onClick={() => cancelEntry(editingEntry.id)}>
+                <button type="button" className="btn btn--secondary" onClick={() => cancelEntry(editingEntry.id)}>
                   Cancelar
                 </button>
                 <button
                   type="button"
-                  className="modal__button action-button"
+                  className="btn btn--primary"
                   onClick={() => confirmEdit(editingEntry)}
                   disabled={!KINDS_BY_ID[editingEntry.kindId].canConfirm(editingEntry.fields)}
                 >
@@ -2252,12 +2252,12 @@ export function OperationPanel({
             onClose={cancelStaging}
             actions={
               <>
-                <button type="button" className="modal__button modal__button--ghost" onClick={cancelStaging}>
+                <button type="button" className="btn btn--secondary" onClick={cancelStaging}>
                   Cancelar
                 </button>
                 <button
                   type="button"
-                  className="modal__button action-button"
+                  className="btn btn--primary"
                   onClick={confirmAllStaged}
                   disabled={!canConfirmAllStaged}
                   title={canConfirmAllStaged ? undefined : 'Complete todas as operações antes de as adicionar.'}
@@ -2289,7 +2289,7 @@ export function OperationPanel({
               {stagingKindId && stagingKindId !== 'iterator' && (
                 <button
                   type="button"
-                  className="operation-staged__add"
+                  className="btn btn--secondary btn--icon operation-staged__add"
                   onClick={() => addToStaging(stagingKindId)}
                   aria-label={`Adicionar outra operação ${labelForKind(stagingKindId)}`}
                   title={`Adicionar outra operação ${labelForKind(stagingKindId)}`}
@@ -2329,7 +2329,7 @@ export function OperationPanel({
               {canSaveTest && (
                 <button
                   type="button"
-                  className="app__create-model-button app__create-model-button--secondary"
+                  className="btn btn--secondary"
                   onClick={onSaveTestCase}
                   title="Guarda os valores atuais dos inputs num ficheiro JSON."
                 >
@@ -2341,7 +2341,7 @@ export function OperationPanel({
               {(hasTested || hasAnyTestInputValue) && (
                 <button
                   type="button"
-                  className="app__create-model-button app__create-model-button--secondary"
+                  className="btn btn--secondary"
                   onClick={() => setIsClearConfirmOpen(true)}
                   title="Limpa os resultados do último teste e os valores introduzidos nos inputs."
                 >
@@ -2357,7 +2357,7 @@ export function OperationPanel({
             createPortal(
             <button
               type="button"
-              className="app__create-model-button app__create-model-button--secondary"
+              className="btn btn--secondary"
               onClick={triggerImportTest}
               disabled={testInputEntries.length === 0}
               title={testInputEntries.length === 0 ? 'O modelo não tem nenhum input definido.' : 'Preenche os inputs a partir de um ficheiro JSON.'}
@@ -2378,8 +2378,8 @@ export function OperationPanel({
             type="button"
             className={
               testProgress
-                ? 'operation-canvas__test-button operation-canvas__test-button--cancel'
-                : 'operation-canvas__test-button'
+                ? 'btn btn--danger operation-canvas__test-button'
+                : 'btn btn--primary operation-canvas__test-button'
             }
             // Opens TestValuesModal to review/adjust each designated input's value (already
             // filled in from whatever's currently set — typed on canvas, or loaded via the
@@ -2537,7 +2537,7 @@ export function OperationPanel({
             <>
               <button
                 type="button"
-                className="operation-canvas__tool-button"
+                className="btn btn--secondary btn--sm"
                 onClick={undoEditMode}
                 disabled={editHistory.index <= 0 || hasDraftInProgress}
                 aria-label="Desfazer"
@@ -2547,7 +2547,7 @@ export function OperationPanel({
               </button>
               <button
                 type="button"
-                className="operation-canvas__tool-button"
+                className="btn btn--secondary btn--sm"
                 onClick={redoEditMode}
                 disabled={editHistory.index >= editHistory.steps.length - 1 || hasDraftInProgress}
                 aria-label="Refazer"
@@ -2576,7 +2576,7 @@ export function OperationPanel({
             <>
               <button
                 type="button"
-                className="operation-canvas__tool-button operation-canvas__tool-button--primary"
+                className="btn btn--primary btn--sm"
                 onClick={() => setIsAddModalOpen(true)}
                 disabled={hasDraftInProgress}
                 title={hasDraftInProgress ? 'Termine a operação em curso antes de criar outra.' : undefined}
@@ -2606,7 +2606,7 @@ export function OperationPanel({
             <>
               <button
                 type="button"
-                className="operation-canvas__tool-button"
+                className="btn btn--secondary btn--sm"
                 onClick={copySelection}
                 disabled={!hasSelection}
                 title={hasSelection ? undefined : 'Selecione uma ou mais operações primeiro.'}
@@ -2617,8 +2617,8 @@ export function OperationPanel({
                 type="button"
                 className={
                   pendingPaste
-                    ? 'operation-canvas__tool-button operation-canvas__tool-button--active'
-                    : 'operation-canvas__tool-button'
+                    ? 'btn btn--primary btn--sm'
+                    : 'btn btn--secondary btn--sm'
                 }
                 onClick={() => setPendingPaste((current) => !current)}
                 disabled={!hasClipboard}
@@ -2634,7 +2634,7 @@ export function OperationPanel({
               </button>
               <button
                 type="button"
-                className="operation-canvas__tool-button operation-canvas__tool-button--danger"
+                className="btn btn--secondary btn--sm btn--danger-hover"
                 onClick={deleteSelection}
                 disabled={!hasSelection}
                 title={hasSelection ? undefined : 'Selecione uma ou mais operações primeiro.'}
@@ -2643,7 +2643,7 @@ export function OperationPanel({
               </button>
               <button
                 type="button"
-                className="operation-canvas__tool-button"
+                className="btn btn--secondary btn--sm"
                 onClick={() => {
                   setSelectedIds([]);
                   setClipboard(null);
@@ -2663,8 +2663,8 @@ export function OperationPanel({
             type="button"
             className={
               inputsHidden
-                ? 'operation-canvas__tool-button operation-canvas__tool-button--active'
-                : 'operation-canvas__tool-button'
+                ? 'btn btn--primary btn--sm'
+                : 'btn btn--secondary btn--sm'
             }
             onClick={() => setInputsHidden((hidden) => !hidden)}
             disabled={modelInputIds.length === 0}
@@ -2698,8 +2698,8 @@ export function OperationPanel({
               type="button"
               className={
                 tool === 'select'
-                  ? 'operation-canvas__tool-button operation-canvas__tool-button--active'
-                  : 'operation-canvas__tool-button'
+                  ? 'btn btn--primary btn--sm'
+                  : 'btn btn--secondary btn--sm'
               }
               onClick={tool === 'select' ? exitEditMode : enterEditMode}
               title={
@@ -2721,12 +2721,12 @@ export function OperationPanel({
               just scoped to the whole editing session instead of one operation's config. */}
           {hasEditModeChanges && (
             <>
-              <button type="button" className="operation-canvas__tool-button" onClick={cancelEditMode} title="Descarta tudo o que mudou neste modo de edição.">
+              <button type="button" className="btn btn--secondary btn--sm" onClick={cancelEditMode} title="Descarta tudo o que mudou neste modo de edição.">
                 Cancelar
               </button>
               <button
                 type="button"
-                className="operation-canvas__tool-button operation-canvas__tool-button--active"
+                className="btn btn--primary btn--sm"
                 onClick={exitEditMode}
                 title="Guarda as alterações e sai do modo de edição."
               >

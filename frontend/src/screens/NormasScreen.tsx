@@ -105,11 +105,25 @@ export function NormasScreen({
   // Where the page is: the path the backend answered with, its last step the open folder. A search across all folders
   // has no path in its answer, so the last one answered stays while its folder is still the open one.
   const [lastPath, setLastPath] = useState<PathStepPayload[]>([]);
+  // The folders the last answer listed: the ones one click away, whose names are already known.
+  const [lastFolders, setLastFolders] = useState<FolderEntryPayload[]>([]);
   useEffect(() => {
     if (listing && listing.path.length > 0) setLastPath(listing.path);
     else if (folder === null) setLastPath([]);
+    if (listing) setLastFolders(listing.categories);
   }, [listing, folder]);
-  const path = listing && listing.path.length > 0 ? listing.path : lastPath[lastPath.length - 1]?.id === folder ? lastPath : [];
+  // Until the answer for a newly opened folder arrives, the path is worked out from the one on screen — going back up
+  // is a step of it, going down is one of the folders just listed — so the breadcrumb keeps its steps and only the
+  // missing one is added or dropped, instead of disappearing and being drawn again.
+  const expectedPath = (): PathStepPayload[] => {
+    if (folder === null) return [];
+    const known = lastPath.findIndex((step) => step.id === folder);
+    if (known >= 0) return lastPath.slice(0, known + 1);
+    const opened = lastFolders.find((entry) => entry.id === folder);
+    const here = lastPath[lastPath.length - 1]?.id ?? null;
+    return opened && opened.parentId === here ? [...lastPath, { id: opened.id, name: opened.name }] : [];
+  };
+  const path = listing && listing.path.length > 0 ? listing.path : expectedPath();
   const current = path[path.length - 1] ?? null;
   // What the backend found at this level: its folders (none while searching) and, beside them, the normas.
   const folders = listing?.categories ?? [];
@@ -178,48 +192,54 @@ export function NormasScreen({
             {searching ? 'Nenhuma norma corresponde à pesquisa.' : (current ? 'Esta pasta ainda não tem normas.' : 'Ainda não há normas nem pastas.')}
           </p>
         )}
-        {normas !== null || !normasFailed ? (
-          <div className="app__normas-scroll">
-            <div className="app__normas-list">
-              {folders.map((category) => (
-                <FolderCard
-                  key={category.id}
-                  category={category}
-                  onOpen={() => onFolderChange(category.id)}
-                  onDropNorma={(normaId) => dropNorma(normaId, category.id)}
-                  onEdit={() => setCategoryDialog({ editing: category, parentId: null })}
-                  onDelete={() => setPendingDeleteCategory(category)}
-                />
-              ))}
-              {(normas ?? []).map((model) => (
-                <NormaCard
-                  key={model.id}
-                  model={model}
-                  isOpening={openingSavedId === model.id}
-                  onOpen={() => onOpenSaved(model)}
-                  onDelete={() => setPendingDelete(model)}
-                  onDragChange={(isDragging) => setDraggedNorma(isDragging ? model : null)}
-                />
-              ))}
-              {/* The last card: "Nova pasta" — which, while a norma that is in a folder is dragged, becomes the card to
-                  drop it on to take it out of its folder. */}
-              {draggedNorma?.categoryId ? (
-                <RemoveFromFolderCard onDropNorma={(normaId) => dropNorma(normaId, null)} />
-              ) : (
-                !searching &&
-                path.length < MAX_FOLDER_DEPTH && (
-                  <NewFolderCard label="Nova pasta" onClick={() => setCategoryDialog({ editing: null, parentId: current?.id ?? null })} />
-                )
-              )}
+        {/* The zone that loads: the folders and normas. Its loading state covers just this area, so the title, the search and
+            "Sessões recentes" stay usable meanwhile. */}
+        <div className="app__normas-zone">
+          {normas !== null || !normasFailed ? (
+            <div className="app__normas-scroll">
+              <div className="app__normas-list">
+                {folders.map((category) => (
+                  <FolderCard
+                    key={category.id}
+                    category={category}
+                    onOpen={() => onFolderChange(category.id)}
+                    onDropNorma={(normaId) => dropNorma(normaId, category.id)}
+                    onEdit={() => setCategoryDialog({ editing: category, parentId: null })}
+                    onDelete={() => setPendingDeleteCategory(category)}
+                  />
+                ))}
+                {(normas ?? []).map((model) => (
+                  <NormaCard
+                    key={model.id}
+                    model={model}
+                    isOpening={openingSavedId === model.id}
+                    onOpen={() => onOpenSaved(model)}
+                    onDelete={() => setPendingDelete(model)}
+                    onDragChange={(isDragging) => setDraggedNorma(isDragging ? model : null)}
+                  />
+                ))}
+                {/* The last card: "Nova pasta" — which, while a norma that is in a folder is dragged, becomes the card to
+                    drop it on to take it out of its folder. */}
+                {draggedNorma?.categoryId ? (
+                  <RemoveFromFolderCard onDropNorma={(normaId) => dropNorma(normaId, null)} />
+                ) : (
+                  !searching &&
+                  path.length < MAX_FOLDER_DEPTH && (
+                    <NewFolderCard label="Nova pasta" onClick={() => setCategoryDialog({ editing: null, parentId: current?.id ?? null })} />
+                  )
+                )}
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="app__normas-container">
-            <p className="app__normas-placeholder">
-              {normasFailed ? 'Não foi possível obter as normas guardadas.' : ''}
-            </p>
-          </div>
-        )}
+          ) : (
+            <div className="app__normas-container">
+              <p className="app__normas-placeholder">
+                {normasFailed ? 'Não foi possível obter as normas guardadas.' : ''}
+              </p>
+            </div>
+          )}
+          {(isDeleting || isMoving || isExporting || normasLoading || (normas === null && !normasFailed)) &&
+            (normas === null && !normasFailed ? <LoadingOverlay zone key="blank" /> : <LoadingOverlay zone key={`refresh-${savedQuery.search}`} delayMs={200} />)}
+        </div>
       </div>
 
       <div className="recent-sessions recent-sessions--fixed">
@@ -245,12 +265,6 @@ export function NormasScreen({
           </div>
         )}
       </div>
-
-      {/* Nothing to show yet (opening the page, or going into another folder): the loading page at once. A refresh of what is
-          already on screen (typing a search, a move) waits a moment so a quick answer never flashes it; every keystroke
-          starts that moment over, so the animation only shows once the typing has stopped. */}
-      {(isDeleting || isMoving || isExporting || normasLoading || (normas === null && !normasFailed)) &&
-        (normas === null && !normasFailed ? <LoadingOverlay key="blank" /> : <LoadingOverlay key={`refresh-${savedQuery.search}`} delayMs={200} />)}
 
       <AppFooter onGoHome={onGoHome} />
 

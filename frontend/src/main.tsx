@@ -6,6 +6,7 @@ import '@fontsource/roboto/400.css'
 import '@fontsource/roboto/500.css'
 import '@fontsource/roboto/700.css'
 import './index.css'
+import './components/Button/buttons.css'
 import App from './App.tsx'
 import { ToastHost } from './components/ToastHost/ToastHost.tsx'
 

@@ -8,6 +8,7 @@ import {
   BrushCleaning,
   Download,
   Eye,
+  Folder,
   FolderOpen,
   LayoutGrid,
   List,
@@ -98,3 +99,5 @@ export const StoreIcon = make(Store);
 /** Arrow into a tray, for the dropzones. */
 export const UploadIcon = make(Upload);
 export const FolderOpenIcon = make(FolderOpen);
+/** Closed folder — a folder card at rest (it opens on hover). */
+export const FolderClosedIcon = make(Folder);

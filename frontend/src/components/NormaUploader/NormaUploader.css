@@ -13,15 +13,11 @@
   justify-content: center;
   gap: 0.375rem;
   padding: 3.25rem 2rem;
-  border: 1.5px solid var(--color-border);
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
   cursor: pointer;
   transition: border-color 0.25s ease, background-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
-}
-
-.norma-uploader__dropzone:hover {
-  border-color: var(--color-primary);
 }
 
 .norma-uploader__dropzone--active {

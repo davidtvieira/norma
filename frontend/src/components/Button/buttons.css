@@ -1,0 +1,183 @@
+/* ---------------------------------------------------------------------------------------------
+   THE button system. Every text button in the app is `btn` plus one variant, optionally one size:
+
+     <button class="btn btn--primary">        the decisive step: run, save, confirm, create
+     <button class="btn btn--secondary">      everything else
+     <button class="btn btn--danger">         destroys something ("Apagar"), or stops a running test
+     <button class="btn btn--naked">          quiet navigation ("← Voltar"): no background, no outline
+
+     sizes   (default 36px)  btn--xs 22px · btn--sm 30px · btn--lg 48px
+     shape   btn--icon  a square holding only an icon (add btn--sm for the small one)
+     layout  btn--block (full width) · btn--wide (shares a row equally)
+     extras  btn--danger-hover (a secondary that turns red when pointed at) · btn--analysis (the run button while
+             operations are being analysed)
+
+   Colours, the 9px corners and the soft inner highlight come from the tokens in index.css (--btn-*, --radius-btn).
+   A component's own class on a button may only position it (margins, align-self, flex): never its colour, size,
+   border, radius, font or shadow — that is how two buttons stop looking alike.
+   Not in this system, on purpose: icon-only controls drawn inside another control (the × of a dialog, the bin and
+   pencil of a card, the clear × of the search), segmented controls and tabs, and menu items.
+   --------------------------------------------------------------------------------------------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  flex: none;
+  height: var(--btn-height);
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-btn);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1;
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s, color 0.15s, transform 0.15s;
+}
+
+.btn svg {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn:focus-visible {
+  outline: 0;
+  border-color: #93b0ff;
+  box-shadow: 0 10px 20px -14px rgba(147, 176, 255, 0.5);
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Variants. */
+.btn--primary {
+  border-color: var(--btn-primary-bg);
+  background-color: var(--btn-primary-bg);
+  color: var(--btn-primary-contrast);
+  box-shadow: var(--btn-highlight);
+}
+
+.btn--primary:hover:not(:disabled) {
+  border-color: var(--btn-primary-bg-hover);
+  background-color: var(--btn-primary-bg-hover);
+}
+
+.btn--secondary {
+  border-color: var(--btn-secondary-border);
+  background-color: var(--btn-secondary-bg);
+  color: var(--btn-secondary-contrast);
+  box-shadow: var(--btn-highlight-secondary);
+}
+
+.btn--secondary:hover:not(:disabled) {
+  background-color: var(--btn-secondary-bg-hover);
+}
+
+.btn--danger {
+  border-color: var(--color-error);
+  background-color: var(--color-error);
+  color: #fff;
+  box-shadow: var(--btn-highlight);
+}
+
+.btn--danger:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.btn--naked {
+  background: none;
+  color: var(--color-text-muted);
+  box-shadow: none;
+}
+
+.btn--naked:hover:not(:disabled) {
+  color: var(--color-text);
+}
+
+.btn--naked:focus-visible {
+  box-shadow: none;
+}
+
+/* Sizes. */
+.btn--xs {
+  height: 22px;
+  padding: 0 8px;
+  gap: 0.35rem;
+  font-size: 0.6875rem;
+}
+
+.btn--xs svg {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+.btn--sm {
+  height: 30px;
+  padding: 0 11px;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+}
+
+.btn--lg {
+  height: 3rem;
+  padding: 0 20px;
+  font-size: 0.875rem;
+}
+
+/* An icon alone, in a square. */
+.btn--icon {
+  width: var(--btn-height);
+  padding: 0;
+}
+
+.btn--icon.btn--sm {
+  width: 30px;
+}
+
+/* Layout. */
+.btn--block {
+  width: 100%;
+}
+
+.btn--wide {
+  flex: 1;
+}
+
+/* Extras. */
+.btn--danger-hover:hover:not(:disabled) {
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
+/* "Correr modelo" while operations are picked in "Analisar modelo": the primary orange nudged towards red. */
+.btn--analysis,
+.btn--analysis:hover:not(:disabled) {
+  border-color: var(--btn-analysis-bg);
+  background: var(--btn-analysis-bg);
+}
+
+.btn--analysis:hover:not(:disabled) {
+  border-color: var(--btn-analysis-bg-hover);
+  background: var(--btn-analysis-bg-hover);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .btn:active:not(:disabled) {
+    transition: none;
+    transform: none;
+  }
+}

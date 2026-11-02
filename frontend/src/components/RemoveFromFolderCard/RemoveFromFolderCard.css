@@ -5,7 +5,7 @@
   justify-content: center;
   gap: 0.35rem;
   padding: 1.1rem;
-  border: 1.5px dashed var(--color-error);
+  border: var(--border-width) dashed var(--color-error);
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--color-error) 6%, transparent);
   color: var(--color-error);

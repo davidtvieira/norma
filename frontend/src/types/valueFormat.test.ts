@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_VALUE_FORMAT, constrainTyping, describeFormatLines, formatErrors, formatValue, isFormatConsistent, type ValueFormat } from './valueFormat';
+import { DEFAULT_VALUE_FORMAT, constrainTyping, brokenRuleKeys, describeFormatLines, formatErrors, formatValue, isFormatConsistent, type ValueFormat } from './valueFormat';
 
 const text = (patch: Partial<ValueFormat> = {}): ValueFormat => ({ ...DEFAULT_VALUE_FORMAT, ...patch });
 const integer = (patch: Partial<ValueFormat> = {}): ValueFormat => ({ ...DEFAULT_VALUE_FORMAT, type: 'integer', ...patch });
@@ -132,5 +132,26 @@ describe('formatErrors', () => {
   it('checks a typed value the same either way', () => {
     expect(formatErrors(integer({ min: 1 }), '0', true)).toEqual(['Tem de ser pelo menos 1.']);
     expect(formatErrors(integer({ min: 1 }), '5', true)).toEqual([]);
+  });
+});
+
+describe('brokenRuleKeys', () => {
+  it('names the rule a text breaks', () => {
+    expect(brokenRuleKeys(text({ minLength: 3, maxLength: 5 }), 'ab')).toEqual(['minLength']);
+    expect(brokenRuleKeys(text({ minLength: 3, maxLength: 5 }), 'abcdef')).toEqual(['maxLength']);
+    expect(brokenRuleKeys(text({ minLength: 3, maxLength: 5 }), 'abcd')).toEqual([]);
+  });
+
+  it('names the rule a number breaks', () => {
+    expect(brokenRuleKeys(integer({ min: 1, max: 9 }), 'x')).toEqual(['type']);
+    expect(brokenRuleKeys(integer({ min: 1, max: 9 }), '0')).toEqual(['min']);
+    expect(brokenRuleKeys(integer({ min: 1, max: 9 }), '10')).toEqual(['max']);
+    expect(brokenRuleKeys(decimal({ max: 5 }), '4,5')).toEqual([]);
+  });
+
+  it('holds an empty value to the minimums only once the field was left', () => {
+    expect(brokenRuleKeys(text({ minLength: 3 }), '')).toEqual([]);
+    expect(brokenRuleKeys(text({ minLength: 3 }), '', true)).toEqual(['minLength']);
+    expect(brokenRuleKeys(integer({ min: 1 }), '', true)).toEqual(['min']);
   });
 });

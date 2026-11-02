@@ -1,13 +1,6 @@
 .back-button {
-  padding: 0.5rem 1.1rem;
-  border: 1px solid transparent;
-  border-radius: var(--radius-btn);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.95rem;
-  font-weight: 600;
-  transition: color 0.2s ease;
   /* "← Voltar" has no background, so its padding is invisible: pull it left by that padding (and its border) so the
      arrow sits at the page's edge, in the same place on every screen. */
-  margin-left: calc(-1.1rem - 1px);
+  margin-left: calc(-14px - 1px);
+  font-size: 0.95rem;
 }

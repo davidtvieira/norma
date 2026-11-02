@@ -8,7 +8,7 @@
   padding: 0.9rem 1rem;
   /* A fixed height comes from the grid's rows: the content has to fit. */
   min-height: 0;
-  border: 1px solid var(--color-border);
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface);
 }
@@ -100,11 +100,16 @@
 /* The whole card is the way in. */
 .norma-card--openable {
   cursor: pointer;
-  transition: border-color 0.2s ease;
+  transition: transform 0.2s ease;
 }
 
-/* Pointing at it (or focusing it) outlines the card in the accent colour. */
-.norma-card--openable:hover,
+/* Pointing at it grows the card a little, over its neighbours (no outline or background change; its icon reacts too,
+   below). The keyboard focus gets an accent outline as well, so it is still visible where there is no pointer. */
+.norma-card--openable:hover {
+  transform: scale(1.025);
+  z-index: 1;
+}
+
 .norma-card--openable:focus-visible {
   border-color: var(--color-primary);
   z-index: 1;

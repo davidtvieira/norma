@@ -183,7 +183,7 @@ function SelectorFieldsEditor({
 
       <button
         type="button"
-        className="operation-entry__pick-button"
+        className="btn btn--secondary btn--sm btn--block"
         onClick={() => (referenceOptions.length > 0 ? setIsAddOpen(true) : addSources([literalSource('')]))}
       >
         + Adicionar entrada

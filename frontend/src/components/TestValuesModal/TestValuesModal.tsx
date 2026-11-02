@@ -61,12 +61,12 @@ export function TestValuesModal({ open, onClose, inputs, onChangeValue, onRun, i
         closeDisabled={isRunning}
         actions={
           <>
-            <button type="button" className="modal__button modal__button--ghost" onClick={onClose} disabled={isRunning}>
+            <button type="button" className="btn btn--secondary" onClick={onClose} disabled={isRunning}>
               Cancelar
             </button>
             <button
               type="button"
-              className="modal__button action-button"
+              className="btn btn--primary"
               onClick={onRun}
               disabled={!allFilled || isRunning}
               aria-busy={isRunning}

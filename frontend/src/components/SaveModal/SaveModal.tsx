@@ -99,7 +99,7 @@ export function SaveModal({
       onClose={onClose}
       actions={
         <>
-          <button type="button" className="modal__button modal__button--ghost" onClick={onClose}>
+          <button type="button" className="btn btn--secondary" onClick={onClose}>
             Fechar
           </button>
           <ExportButton label={isUpdate ? 'Atualizar' : 'Guardar'} disabled={!canExport || isSaving} onExport={exportAs} />
@@ -156,7 +156,6 @@ interface ExportButtonProps {
 function ExportButton({ label, disabled, onExport }: ExportButtonProps) {
   return (
     <SplitButton
-      buttonClassName="modal__button"
       onClick={() => onExport('library')}
       disabled={disabled}
       arrowDisabled={disabled}
@@ -207,7 +206,7 @@ function IoGroup({ label, items, emptyText, onReorder }: IoGroupProps) {
           {items.length > 0 && ` (${items.length})`}
         </span>
         {items.length > 1 && (
-          <button type="button" className="modal__chip" onClick={sortByName}>
+          <button type="button" className="btn btn--secondary btn--sm" onClick={sortByName}>
             Ordenar por nome
           </button>
         )}

@@ -97,18 +97,53 @@ export function describeFormat(f: ValueFormat): string {
   return parts.join(' · ');
 }
 
-/** The rules one per line ("Tipo: Texto", "Máximo: 10 caracteres", "Obrigatório"), for a dialog that lists them. */
-export function describeFormatLines(f: ValueFormat): string[] {
-  const lines = [`Tipo: ${TYPE_LABELS[f.type]}`];
+/** Which rule a line of the rules list is: the type, a limit, or "required". */
+export type RuleKey = 'type' | 'minLength' | 'maxLength' | 'min' | 'max' | 'required';
+
+/** The rules one per line ("Tipo: Texto", "Máximo: 10 caracteres", "Obrigatório"), each with the rule it states. */
+export function describeFormatRules(f: ValueFormat): { key: RuleKey; line: string }[] {
+  const rules: { key: RuleKey; line: string }[] = [{ key: 'type', line: `Tipo: ${TYPE_LABELS[f.type]}` }];
   if (f.type === 'text') {
-    if (f.minLength !== null) lines.push(`Mínimo: ${f.minLength} caracteres`);
-    if (f.maxLength !== null) lines.push(`Máximo: ${f.maxLength} caracteres`);
+    if (f.minLength !== null) rules.push({ key: 'minLength', line: `Mínimo: ${f.minLength} caracteres` });
+    if (f.maxLength !== null) rules.push({ key: 'maxLength', line: `Máximo: ${f.maxLength} caracteres` });
   } else {
-    if (f.min !== null) lines.push(`Valor mínimo: ${f.min}`);
-    if (f.max !== null) lines.push(`Valor máximo: ${f.max}`);
+    if (f.min !== null) rules.push({ key: 'min', line: `Valor mínimo: ${f.min}` });
+    if (f.max !== null) rules.push({ key: 'max', line: `Valor máximo: ${f.max}` });
   }
-  if (f.required) lines.push('Obrigatório (não pode ficar vazio)');
-  return lines;
+  if (f.required) rules.push({ key: 'required', line: 'Obrigatório (não pode ficar vazio)' });
+  return rules;
+}
+
+/** The rules one per line, as plain text, for a dialog that lists them. */
+export function describeFormatLines(f: ValueFormat): string[] {
+  return describeFormatRules(f).map((rule) => rule.line);
+}
+
+/**
+ * The rules `value` breaks (none when it obeys them all), the same checks as formatErrors / formatValue, but naming the
+ * rule instead of writing the message — so a dialog listing the rules can highlight the ones being violated. `leftEmpty`
+ * as in formatErrors.
+ */
+export function brokenRuleKeys(format: ValueFormat, value: string, leftEmpty = false): RuleKey[] {
+  if (value.trim() === '') {
+    if (!leftEmpty || format.required) return [];
+    if (format.type === 'text' && format.minLength !== null && format.minLength > 0) return ['minLength'];
+    if (format.type !== 'text' && format.min !== null) return ['min'];
+    return [];
+  }
+  if (format.type === 'text') {
+    const length = [...value].length;
+    if (format.minLength !== null && length < format.minLength) return ['minLength'];
+    if (format.maxLength !== null && length > format.maxLength) return ['maxLength'];
+    return [];
+  }
+  const trimmed = value.trim();
+  const canonical = format.type === 'integer' ? canonicalInteger(trimmed) : canonicalDecimal(trimmed.replace(',', '.'));
+  if (canonical === null) return ['type'];
+  const number = Number(canonical);
+  if (format.min !== null && number < format.min) return ['min'];
+  if (format.max !== null && number > format.max) return ['max'];
+  return [];
 }
 
 /**
@@ -141,7 +176,7 @@ export function constrainTyping(format: ValueFormat, previous: string, next: str
 }
 
 /**
- * Every rule the value breaks, as messages (none when it obeys them all): what an error badge counts and shows. An empty
+ * Every rule the value breaks, as messages (none when it obeys them all): what turns an input's card red. An empty
  * value passes — a missing required value is not a card's error, it only keeps the model from running (see ModelCard) —
  * except with `leftEmpty`, for a field the user has left: then an empty value is held to the minimums too (a text's
  * minimum length, a number's minimum).

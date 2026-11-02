@@ -92,19 +92,19 @@ export function NrmFileScreen({
           {onSaveToLibrary ? (
             <div className="app__create-model-stack">
               <div className="app__create-model-actions">
-                <button type="button" className="app__create-model-button action-button app__create-model-button--wide" onClick={onUtilize}>
+                <button type="button" className="btn btn--primary btn--wide" onClick={onUtilize}>
                   <LogoIcon />
                 Utilizar
                 </button>
               </div>
               <div className="app__create-model-actions">
-                <button type="button" className="app__create-model-button app__create-model-button--secondary" onClick={onEdit}>
+                <button type="button" className="btn btn--secondary" onClick={onEdit}>
                   <PencilIcon />
                 Editar
                 </button>
                 <button
                   type="button"
-                  className="app__create-model-button app__create-model-button--secondary"
+                  className="btn btn--secondary"
                   onClick={saveStatus === 'saved' ? onViewNormas : saveToLibrary}
                   disabled={saveStatus === 'saving'}
                 >
@@ -115,11 +115,11 @@ export function NrmFileScreen({
             </div>
           ) : (
             <div className="app__create-model-column">
-              <button type="button" className="app__create-model-button action-button" onClick={onUtilize}>
+              <button type="button" className="btn btn--primary" onClick={onUtilize}>
                 <LogoIcon />
                 Utilizar
               </button>
-              <button type="button" className="app__create-model-button app__create-model-button--secondary" onClick={onEdit}>
+              <button type="button" className="btn btn--secondary" onClick={onEdit}>
                 <PencilIcon />
                 Editar
               </button>

@@ -150,10 +150,10 @@ export function EditorScreen({
       <header className="app__topbar app__topbar--with-title">
         <BackButton onClick={onBackToChoose} />
         <div className="app__topbar-actions">
-          <button type="button" className="app__view-data-button" onClick={() => setIsJsonOpen(true)}>
+          <button type="button" className="btn btn--secondary" onClick={() => setIsJsonOpen(true)}>
             {'{ }'} Ver JSON
           </button>
-          <button type="button" className="app__view-data-button" onClick={onOpenSheetPanel}>
+          <button type="button" className="btn btn--secondary" onClick={onOpenSheetPanel}>
             <SpreadsheetIcon />
             Ver dados
           </button>
@@ -196,7 +196,7 @@ export function EditorScreen({
             </div>
             <div className="app__save-row-group">
               <div ref={setLoadActionSlot} className="app__save-row-slot" />
-              <button type="button" className="app__save-button action-button" onClick={onOpenSaveModal}>
+              <button type="button" className="btn btn--primary app__save-button" onClick={onOpenSaveModal}>
                 <DiskIcon />
                 {isSavedInLibrary ? 'Atualizar norma' : 'Guardar norma'}
               </button>
@@ -230,7 +230,7 @@ export function EditorScreen({
           size="lg"
           onClose={() => setIsJsonOpen(false)}
           actions={
-            <button type="button" className="modal__button modal__button--ghost" onClick={() => setIsJsonOpen(false)}>
+            <button type="button" className="btn btn--secondary" onClick={() => setIsJsonOpen(false)}>
               Fechar
             </button>
           }

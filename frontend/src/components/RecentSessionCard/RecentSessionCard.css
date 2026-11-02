@@ -51,7 +51,7 @@
 .recent-session-card__error {
   margin: 0;
   padding: 0.5rem 0.75rem;
-  border: 1px solid var(--color-error);
+  border: var(--border-width) solid var(--color-error);
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--color-error) 12%, var(--color-surface));
   color: var(--color-error);

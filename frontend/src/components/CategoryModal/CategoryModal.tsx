@@ -42,10 +42,10 @@ export function CategoryModal({ editing, initialParentId, onSubmit, onClose }: C
       onClose={onClose}
       actions={
         <>
-          <button type="button" className="modal__button modal__button--ghost" onClick={onClose} disabled={isSaving}>
+          <button type="button" className="btn btn--secondary" onClick={onClose} disabled={isSaving}>
             Cancelar
           </button>
-          <button type="button" className="modal__button action-button" onClick={submit} disabled={!canSubmit}>
+          <button type="button" className="btn btn--primary" onClick={submit} disabled={!canSubmit}>
             {editing ? 'Guardar' : 'Criar'}
           </button>
         </>

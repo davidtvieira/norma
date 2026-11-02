@@ -66,7 +66,7 @@ export function NormasToolbar({ query, onChange, folderName, searchEverywhere, o
         </div>
       </div>
       <select
-        className="normas-toolbar__order"
+        className="btn btn--secondary normas-toolbar__order"
         aria-label="Ordenar normas"
         value={orderIndex}
         onChange={(event) => {
@@ -89,7 +89,7 @@ export function NormasExportButton({ onExport, disabled }: { onExport: () => voi
   return (
     <button
       type="button"
-      className="normas-toolbar__export"
+      className="btn btn--secondary"
       onClick={onExport}
       disabled={disabled}
       title="Exporta todas as normas guardadas num ficheiro zip, com as pastas."

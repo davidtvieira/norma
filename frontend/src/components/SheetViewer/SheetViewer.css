@@ -33,7 +33,7 @@
 .sheet-viewer__picker-banner {
   margin: 0;
   padding: 0.6rem 0.9rem;
-  border: 1px solid var(--color-primary);
+  border: var(--border-width) solid var(--color-primary);
   border-radius: var(--radius-sm);
   background: var(--color-surface-hover);
   color: var(--color-text);
@@ -152,13 +152,15 @@
   flex: 1;
   min-height: 0;
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
 }
 
+/* A full grid, like the original spreadsheet: every cell has a right and a bottom line. "separate" (with no
+   spacing) rather than "collapse", so the lines of the sticky header and row numbers stay with them while scrolling. */
 .sheet-viewer__table {
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   width: 100%;
   font-size: 0.9rem;
   color: var(--color-text);
@@ -169,7 +171,12 @@
   padding: 0.6rem 0.9rem;
   text-align: left;
   white-space: nowrap;
+  border-right: 1px solid var(--color-border);
   border-bottom: 1px solid var(--color-border);
+}
+
+.sheet-viewer__table tr > :last-child {
+  border-right: none;
 }
 
 .sheet-viewer__table tbody tr:last-child td,
@@ -184,7 +191,7 @@
 .sheet-viewer__table thead th {
   position: sticky;
   top: 0;
-  background: var(--color-surface);
+  background: var(--color-surface-hover);
   color: var(--color-text-muted);
   font-weight: 500;
   font-size: 0.75rem;
@@ -198,13 +205,13 @@
   position: sticky;
   left: 0;
   z-index: 2;
-  background: var(--color-surface);
+  background: var(--color-surface-hover);
 }
 
 .sheet-viewer__row-index {
   position: sticky;
   left: 0;
-  background: var(--color-surface);
+  background: var(--color-surface-hover);
   color: var(--color-text-muted);
   font-weight: 500;
   font-size: 0.8rem;

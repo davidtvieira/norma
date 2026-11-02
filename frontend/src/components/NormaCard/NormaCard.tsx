@@ -39,7 +39,7 @@ export function NormaCard({ model, isOpening, onOpen, onDelete, onDragChange }: 
 
   return (
     <div
-      className={`norma-card${model.available ? ' norma-card--openable' : ''}${isOpening ? ' norma-card--opening' : ''}${isDragging ? ' norma-card--dragging' : ''}`}
+      className={`norma-card norma-card--norma${model.available ? ' norma-card--openable' : ''}${isOpening ? ' norma-card--opening' : ''}${isDragging ? ' norma-card--dragging' : ''}`}
       draggable
       onDragStart={(event) => {
         event.dataTransfer.setData(NORMA_DRAG_TYPE, model.id);

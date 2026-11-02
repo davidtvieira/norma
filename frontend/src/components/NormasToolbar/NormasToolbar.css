@@ -5,12 +5,11 @@
   gap: 0.75rem;
 }
 
-.normas-toolbar__search,
-.normas-toolbar__order {
-  height: 2.5rem;
+.normas-toolbar__search {
+  height: var(--btn-height);
   box-sizing: border-box;
   padding: 0 0.9rem;
-  border: 1px solid var(--color-border);
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-btn);
   background: var(--color-surface);
   color: var(--color-text);
@@ -121,53 +120,19 @@
   color: var(--btn-primary-contrast);
 }
 
-.normas-toolbar__search:focus,
-.normas-toolbar__order:focus {
+.normas-toolbar__search:focus {
   outline: none;
   border-color: var(--color-primary);
 }
 
+/* The sort dropdown is a secondary button (see buttons.css); only the browser's arrow is replaced: it sticks to the
+   edge and cannot be moved, so draw our own, with room to its right. */
 .normas-toolbar__order {
-  /* The browser's arrow sticks to the edge and cannot be moved: draw our own, with room to its right. */
   appearance: none;
   padding-right: 2.2rem;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.75rem center;
-  cursor: pointer;
-}
-
-/* When the window is narrower the toolbar drops under the title (the header wraps): then it takes the whole row, the
-   search stretching across it. */
-.normas-toolbar__export {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  height: 2.5rem;
-  padding: 0 1.1rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-btn);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font: inherit;
-  font-size: 0.9rem;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.normas-toolbar__export:hover:not(:disabled) {
-  border-color: var(--color-primary);
-}
-
-.normas-toolbar__export:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-.normas-toolbar__export svg {
-  width: 1.05rem;
-  height: 1.05rem;
 }
 
 @media (max-width: 640px) {

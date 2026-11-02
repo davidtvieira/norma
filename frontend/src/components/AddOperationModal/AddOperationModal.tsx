@@ -35,7 +35,7 @@ export function AddOperationModal({ open, onClose, kinds, disabledKindIds = [], 
       onClose={onClose}
       closeOnBackdrop={activeKindId === null}
       actions={
-        <button type="button" className="modal__button modal__button--ghost" onClick={onClose}>
+        <button type="button" className="btn btn--secondary" onClick={onClose}>
           Cancelar
         </button>
       }
