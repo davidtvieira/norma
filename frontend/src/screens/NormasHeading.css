@@ -12,6 +12,19 @@
   margin-left: 0;
 }
 
+/* "As minhas normas" is always the first step of the trail, so it is the same size and weight as the others — at the top
+   too, where there are no other steps yet. */
+.normas-heading .app__normas-title--crumb {
+  font-size: 0.95rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--color-text-muted);
+}
+
+.normas-heading .app__normas-title--crumb .normas-heading__home:hover {
+  color: var(--color-text);
+}
+
 /* Inside a folder the title is the way back to the top: it looks the same, and shows it can be clicked with the same hover background as the breadcrumb. */
 .normas-heading__home {
   /* The padding gives the hover background room; the negative margin keeps the text where it was. */

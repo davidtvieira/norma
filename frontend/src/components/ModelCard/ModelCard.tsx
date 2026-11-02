@@ -1,3 +1,5 @@
+import { ModelTitle } from '../ModelTitle/ModelTitle';
+import type { FolderStep } from '../../hooks/useNormaFolderPath';
 import { LogoIcon, BroomIcon, ChevronDownIcon, EyeIcon, GridIcon, ListIcon, LoadIcon, SaveIcon } from '../ButtonIcons/ButtonIcons';
 import { LoadingOverlay } from '../LoadingOverlay/LoadingOverlay';
 import { inlineErrorMessage } from '../../services/apiErrors';
@@ -41,6 +43,8 @@ interface ModelCardProps {
   /** The eye on an output: opens the dataset, highlighting what that output's chain read — or, with
    * null (not run yet, or it read nothing), the dataset as it is. */
   onViewOutputData?: (touches: DatasetTouchPayload[] | null) => void;
+  /** The folders the norma is kept under (null: no trail) — the title is shown as the end of that trail. */
+  folderPath?: FolderStep[] | null;
 }
 
 /** The least time a run shows its loading state ("A calcular…") for, even when the response comes
@@ -71,7 +75,7 @@ async function withMinimumDelay<T>(promise: Promise<T>, ms: number): Promise<T> 
  * one result per designated output. Only runs when "Correr modelo" is clicked, not on page load
  * and not on every keystroke in an input field.
  */
-export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operations, onViewOutputData }: ModelCardProps) {
+export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operations, onViewOutputData, folderPath = null }: ModelCardProps) {
   const inputOperationIds = inputs.map((input) => input.id);
   const [fields, setFields] = useState<Record<string, OperationFields>>(() =>
     Object.fromEntries(inputs.map((input) => [input.id, { input: literalSource(input.value ?? '') }])),
@@ -312,7 +316,7 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
   // The title, with the inputs / outputs toggle at its right.
   const heading = (
     <div className="model-card__heading">
-      <h1 className="app__page-title">{modelName || 'Modelo sem nome'}</h1>
+      <ModelTitle name={modelName} folderPath={folderPath} />
       <div className="model-card__layout-toggle" role="group" aria-label="Ver em grelha ou em lista">
         <button
           type="button"

@@ -19,10 +19,6 @@
   margin-bottom: 1rem;
 }
 
-.model-card__heading .app__page-title {
-  margin: 0;
-}
-
 /* Top-right switch between the inputs and the outputs view: two equal options with a highlight
    (the thumb) that slides from one to the other, changing color as it goes (neutral grey for inputs,
    orange for outputs). */
@@ -712,7 +708,7 @@
     row-gap: 0.75rem;
   }
 
-  .model-card__heading .app__page-title {
+  .model-card__heading .model-title {
     flex: 1;
     min-width: 0;
   }

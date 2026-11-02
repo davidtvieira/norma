@@ -1,3 +1,4 @@
+import { ModelTitle } from '../ModelTitle/ModelTitle';
 import { LogoIcon, BroomIcon, ClearIcon, CloseIcon, EyeIcon, LoadIcon, PencilIcon, PlayIcon, RedoIcon, SaveIcon, StopIcon, UndoIcon } from '../ButtonIcons/ButtonIcons';
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -2315,15 +2316,15 @@ export function OperationPanel({
         {/* The operation count, at the start of this same row — .operation-canvas__toolbar-actions'
             own margin-left: auto is what pushes "Importar teste"/"Testar modelo" to the opposite end. */}
         <div className="operation-canvas__model-name-row">
-          <span className="operation-canvas__editing-label">
-            A editar o modelo
-            <span
-              className="operation-panel__count"
-              title={confirmedCount === 1 ? '1 operação' : `${confirmedCount} operações`}
-            >
-              {confirmedCount}
-            </span>
-          </span>
+          <ModelTitle
+            name="A editar o modelo"
+            folderPath={null}
+            suffix={
+              <span className="operation-panel__count" title={confirmedCount === 1 ? '1 operação' : `${confirmedCount} operações`}>
+                {confirmedCount}
+              </span>
+            }
+          />
         </div>
         <div className="operation-canvas__toolbar-actions">
           {testActionsSlot &&

@@ -1,3 +1,4 @@
+import { useNormaFolderPath } from '../hooks/useNormaFolderPath';
 import { LoadingOverlay } from '../components/LoadingOverlay/LoadingOverlay';
 import { useState } from 'react';
 import { SpreadsheetIcon } from '../components/ButtonIcons/ButtonIcons';
@@ -102,6 +103,8 @@ function DataViewer({
 
 /** A model being run (not edited): breadcrumb back to the dataset, "Ver dados", and ModelCard itself. */
 export function UtilizeScreen({ dataset, utilizeModel, theme, onToggleTheme, onBack, onGoHome }: UtilizeScreenProps) {
+  // Only a norma kept in the platform has folders to show.
+  const folderPath = useNormaFolderPath(dataset.savedId);
   const [isSheetPanelOpen, setIsSheetPanelOpen] = useState(false);
   const [hasOpenedSheetPanel, setHasOpenedSheetPanel] = useState(false);
 
@@ -155,7 +158,8 @@ export function UtilizeScreen({ dataset, utilizeModel, theme, onToggleTheme, onB
           nrmId={utilizeModel.nrmId}
           inputs={utilizeModel.inputs}
           operations={utilizeModel.operations}
-          onViewOutputData={viewOutputData}
+          onViewOutputData={dataset.withoutDataset ? undefined : viewOutputData}
+          folderPath={folderPath}
         />
       </div>
 

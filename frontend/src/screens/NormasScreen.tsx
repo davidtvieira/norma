@@ -159,7 +159,7 @@ export function NormasScreen({
         <div className="app__normas-header">
           <div className="app__normas-headline">
             <div className="normas-heading">
-              <h1 className="app__normas-title">
+              <h1 className="app__normas-title app__normas-title--crumb">
                 {path.length > 0 ? <HomeTitle onOpen={() => onFolderChange(null)} onDropNorma={(normaId) => dropNorma(normaId, null)} /> : 'As minhas normas'}
               </h1>
               {path.length > 0 && <FolderBreadcrumb path={path} onOpen={onFolderChange} onDropNorma={dropNorma} />}

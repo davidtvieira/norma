@@ -69,7 +69,6 @@ export function NrmFileScreen({
 
       <div className="app__create-model-body">
         <div className="app__create-model-content">
-          <p className="app__create-model-eyebrow">Norma</p>
           <div className="app__nrm-title-row">
             <h1 className="app__create-model-title app__create-model-title--name">{currentName}</h1>
           </div>
