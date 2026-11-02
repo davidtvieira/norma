@@ -1164,7 +1164,8 @@ function App() {
       const open = library.listing?.path.at(-1);
       return open ? open.name : 'As minhas normas';
     }
-    if (path.endsWith('/editor')) return `A editar ${nrmName.trim() || modelName.trim() || 'o modelo'}`;
+    // The name the model was opened with, not what is being typed into the save dialog.
+    if (path.endsWith('/editor')) return `A editar ${importedModel?.nrmName?.trim() || importedModel?.modelName?.trim() || 'o modelo'}`;
     if (path.endsWith('/utilizar')) return utilizeModel?.modelName || 'Utilizar modelo';
     if (isFilePath(path)) return importedModel?.nrmName || importedModel?.modelName || dataset?.filename || 'Conjunto de dados';
     return null;
