@@ -37,6 +37,16 @@ class DatasetOperationServiceTest {
     private final DatasetStore datasetStore = new DatasetStore();
     private final DatasetOperationService datasetOperationService = new DatasetOperationService(datasetStore);
 
+    @Test
+    void theLiveTranslatorEndpointTranslatesWithRanges() {
+        List<TranslatorRule> rules = List.of(new TranslatorRule(null, "baixo", null, "4"), new TranslatorRule(null, "alto", "5", null));
+
+        assertThat(datasetOperationService.translator(new TranslatorRequest("3", "range", rules)).value()).isEqualTo("baixo");
+        assertThat(datasetOperationService.translator(new TranslatorRequest("5", "range", rules)).value()).isEqualTo("alto");
+        assertThatThrownBy(() -> datasetOperationService.translator(new TranslatorRequest("4,5", "range", rules)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
     private String twoSheetDataset() {
         SheetData clients = new SheetData("Clientes", 3, List.of(
                 new RowData(0, List.of(new CellData(0, "1"), new CellData(1, "Ana"))),

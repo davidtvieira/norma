@@ -21,7 +21,7 @@ export const KIND_DESCRIPTIONS: Record<string, string> = {
   counter: 'Soma os resultados de outras operações.',
   node: 'Guarda um valor para outras operações o usarem.',
   find: 'Encontra a posição da primeira correspondência num intervalo.',
-  translator: 'Troca valores por outros, segundo regras definidas por si.',
+  translator: 'Troca valores por outros, segundo regras definidas por si: valores exatos ou intervalos de números.',
   selector: 'Escolhe um dos seus valores pelo número da posição.',
   iterator: 'Repete o modelo inteiro por cada página de um intervalo.',
   calc: 'Soma, subtrai, multiplica ou divide dois valores.',

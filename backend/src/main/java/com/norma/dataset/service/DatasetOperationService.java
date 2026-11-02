@@ -158,9 +158,9 @@ public class DatasetOperationService {
      * lookup/find, which treat "nothing matched" as a legitimate, non-error result.
      */
     public TranslatorResponse translator(TranslatorRequest request) {
-        List<TranslatorRule> rules = OperationSupport.validateTranslatorRules(request.rules());
+        List<TranslatorRule> rules = OperationSupport.validateTranslatorRules(request.type(), request.rules());
         String normalizedInput = request.input() == null ? "" : request.input().trim();
-        return new TranslatorResponse(OperationSupport.translate(rules, normalizedInput));
+        return new TranslatorResponse(OperationSupport.translate(request.type(), rules, normalizedInput));
     }
 
     /**

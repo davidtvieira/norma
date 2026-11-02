@@ -1,11 +1,21 @@
-/** One entry of a translator operation's mapping table — see TranslatorRequestPayload. */
+/** How a translator reads its rules: each maps one exact source value ("fixed"), or a numeric interval ("range"). */
+export type TranslatorType = 'fixed' | 'range';
+
+/**
+ * One entry of a translator operation's mapping table — see TranslatorRequestPayload. A fixed rule uses `from`; a range
+ * rule uses `min` and `max` (both inclusive, as the user typed them; an empty one means "no limit").
+ */
 export interface TranslatorRule {
   from: string;
   to: string;
+  min?: string;
+  max?: string;
 }
 
 export interface TranslatorRequestPayload {
   input: string;
+  /** Absent means fixed (what a translator made before the type existed is). */
+  type?: TranslatorType;
   rules: TranslatorRule[];
 }
 

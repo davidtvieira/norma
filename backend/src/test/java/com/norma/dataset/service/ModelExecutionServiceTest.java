@@ -1384,6 +1384,65 @@ class ModelExecutionServiceTest {
         return rules;
     }
 
+    private Map<String, Object> rangeRule(String min, String max, String to) {
+        Map<String, Object> rule = new java.util.HashMap<>();
+        rule.put("min", min);
+        rule.put("max", max);
+        rule.put("to", to);
+        return rule;
+    }
+
+    /** The ASEBA "Ansiedade / depressão" bands: up to 8 normative, 9 to 13 borderline, above 13 clinical. */
+    private ModelOperationInput rangeTranslator(String input) {
+        return new ModelOperationInput("t", "translator", Map.of(
+                "type", "range",
+                "input", literalInput(input),
+                "rules", List.of(rangeRule("", "8", "Normativo"), rangeRule("9", "13", "Borderline"), rangeRule("13.5", null, "Clínico"))));
+    }
+
+    @Test
+    void aRangeTranslatorPicksTheIntervalThatContainsTheValue() {
+        assertThat(registerAndRun(null, List.of(rangeTranslator("5")), null, "t", null).value()).isEqualTo("Normativo");
+        assertThat(registerAndRun(null, List.of(rangeTranslator("8")), null, "t", null).value()).isEqualTo("Normativo");
+        assertThat(registerAndRun(null, List.of(rangeTranslator("9")), null, "t", null).value()).isEqualTo("Borderline");
+        assertThat(registerAndRun(null, List.of(rangeTranslator("13")), null, "t", null).value()).isEqualTo("Borderline");
+        assertThat(registerAndRun(null, List.of(rangeTranslator("23,5")), null, "t", null).value()).isEqualTo("Clínico");
+    }
+
+    @Test
+    void aRangeTranslatorReportsAValueNoIntervalContainsOrThatIsNotANumber() {
+        ModelOperationResult gap = registerAndRun(null, List.of(rangeTranslator("13.2")), null, "t", null);
+        assertThat(gap.success()).isFalse();
+        assertThat(gap.error()).contains("No range contains");
+
+        ModelOperationResult text = registerAndRun(null, List.of(rangeTranslator("abc")), null, "t", null);
+        assertThat(text.success()).isFalse();
+        assertThat(text.error()).contains("not a number");
+    }
+
+    @Test
+    void aRangeTranslatorRefusesOverlappingOrBoundlessIntervals() {
+        ModelOperationInput overlapping = new ModelOperationInput("t", "translator", Map.of(
+                "type", "range", "input", literalInput("5"),
+                "rules", List.of(rangeRule("1", "5", "a"), rangeRule("5", "9", "b"))));
+        assertThat(registerAndRun(null, List.of(overlapping), null, "t", null).error()).contains("overlap");
+
+        ModelOperationInput boundless = new ModelOperationInput("t", "translator", Map.of(
+                "type", "range", "input", literalInput("5"), "rules", List.of(rangeRule("", "", "a"))));
+        assertThat(registerAndRun(null, List.of(boundless), null, "t", null).error()).contains("no bounds");
+
+        ModelOperationInput inverted = new ModelOperationInput("t", "translator", Map.of(
+                "type", "range", "input", literalInput("5"), "rules", List.of(rangeRule("9", "1", "a"))));
+        assertThat(registerAndRun(null, List.of(inverted), null, "t", null).error()).contains("above where it ends");
+    }
+
+    @Test
+    void aTranslatorWithoutATypeIsStillAFixedOne() {
+        ModelOperationInput translator = new ModelOperationInput("t", "translator", Map.of(
+                "input", literalInput("6"), "rules", translatorRules("6", "2")));
+        assertThat(registerAndRun(null, List.of(translator), null, "t", null).value()).isEqualTo("2");
+    }
+
     @Test
     void aTranslatorOperationTranslatesALiteralInputThroughItsRules() {
         String datasetId = twoSheetDataset();

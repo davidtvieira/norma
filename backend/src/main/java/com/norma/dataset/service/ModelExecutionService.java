@@ -909,7 +909,9 @@ public class ModelExecutionService {
             Map<String, ModelOperationInput> byId,
             Set<String> cyclicIds,
             Map<String, ModelOperationResult> resolved) {
-        List<TranslatorRule> rules = OperationSupport.validateTranslatorRules(extractRules(fieldsOf(operation)));
+        // "fixed" (an exact source value per rule — also what a translator made before the type existed is) or "range".
+        String type = fieldsOf(operation).get("type") instanceof String text ? text : null;
+        List<TranslatorRule> rules = OperationSupport.validateTranslatorRules(type, extractRules(fieldsOf(operation)));
         // A translator made with several inputs translates each with the same rules, one output
         // per input (a list, or just the value when there is only one); an older one has a single "input".
         if (fieldsOf(operation).get("inputs") instanceof List<?> inputs) {
@@ -922,12 +924,12 @@ public class ModelExecutionService {
                     throw new IllegalArgumentException("One of the translator inputs is malformed.");
                 }
                 String value = resolveValueSource(asStringKeyedMap(source), dataset, byId, cyclicIds, resolved);
-                translated.add(OperationSupport.translate(rules, value.trim()));
+                translated.add(OperationSupport.translate(type, rules, value.trim()));
             }
             return new ModelOperationResult(operation.id(), true, translated.size() == 1 ? translated.get(0) : translated, null);
         }
         String normalizedInput = input == null ? "" : input.trim();
-        return new ModelOperationResult(operation.id(), true, OperationSupport.translate(rules, normalizedInput), null);
+        return new ModelOperationResult(operation.id(), true, OperationSupport.translate(type, rules, normalizedInput), null);
     }
 
     /**
@@ -947,7 +949,11 @@ public class ModelExecutionService {
             Map<String, Object> asMap = asStringKeyedMap(ruleMap);
             Object from = asMap.get("from");
             Object to = asMap.get("to");
-            rules.add(new TranslatorRule(from == null ? null : String.valueOf(from), to == null ? null : String.valueOf(to)));
+            Object min = asMap.get("min");
+            Object max = asMap.get("max");
+            rules.add(new TranslatorRule(
+                    from == null ? null : String.valueOf(from), to == null ? null : String.valueOf(to),
+                    min == null ? null : String.valueOf(min), max == null ? null : String.valueOf(max)));
         }
         return rules;
     }

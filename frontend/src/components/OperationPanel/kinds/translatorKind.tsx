@@ -3,12 +3,16 @@ import { inlineErrorMessage } from '../../../services/apiErrors';
 import { useEffect, useState } from 'react';
 import { translateValue } from '../../../services/datasetApi';
 import { literalSource, referenceFromKey, type ValueSource } from '../../../types/valueSource';
-import type { TranslatorRule } from '../../../types/translator';
+import type { TranslatorRule, TranslatorType } from '../../../types/translator';
+import { rangeProblems } from '../../../utils/translatorRanges';
 import type { ResolvedInput } from '../../../utils/resolveOperationInputs';
 import { ValueSourceField } from '../fields';
 import type { OperationFields, OperationKind, ReferenceOption } from '../operationKind';
 
 interface TranslatorFields {
+  // How the rules read: "fixed" (each maps one exact source value) or "range" (each maps a numeric interval, min..max
+  // inclusive, either left empty for no limit). A translator made before the type existed has none, and is fixed.
+  type?: TranslatorType;
   // The values to translate, each translated on its own with the same rules, giving one output per
   // input — typed directly, or chained from other operations' results. A translator made before
   // there could be several instead has a single `input` (see translatorInputs).
@@ -23,6 +27,10 @@ interface TranslatorFields {
 
 function asTranslatorFields(fields: OperationFields): TranslatorFields {
   return fields as unknown as TranslatorFields;
+}
+
+function translatorType(f: TranslatorFields): TranslatorType {
+  return f.type === 'range' ? 'range' : 'fixed';
 }
 
 /** The translator's inputs: its `inputs` list, or — for one made with a single `input` — just that. */
@@ -56,6 +64,7 @@ export const translatorKind: OperationKind = {
   requiresDataset: false,
 
   createFields: (): OperationFields => ({
+    type: 'fixed',
     inputs: [literalSource('')],
     rules: [],
   } satisfies TranslatorFields),
@@ -63,6 +72,9 @@ export const translatorKind: OperationKind = {
   canConfirm: (fields) => {
     const f = asTranslatorFields(fields);
     if (f.rules.length === 0) return false;
+    if (translatorType(f) === 'range') {
+      return f.rules.every((rule) => rule.to.trim() !== '') && rangeProblems(f.rules).length === 0;
+    }
     if (f.rules.some((rule) => rule.from.trim() === '' || rule.to.trim() === '')) return false;
     return findDuplicateSources(f.rules).size === 0;
   },
@@ -73,13 +85,86 @@ export const translatorKind: OperationKind = {
   // renderBody — collapsed by default like every other kind's).
   renderDraftConfig: ({ fields, updateFields }) => {
     const f = asTranslatorFields(fields);
+    const type = translatorType(f);
     const duplicates = findDuplicateSources(f.rules);
+    const problems = type === 'range' ? rangeProblems(f.rules) : [];
+
+    // Switching type starts the rules over: a fixed rule and an interval don't mean the same thing.
+    const chooseType = (next: TranslatorType) => {
+      if (next !== type) updateFields({ type: next, rules: [] });
+    };
 
     return (
+      <>
       <div className="operation-entry__field">
-        <label className="operation-entry__label">Regras</label>
+        <label className="operation-entry__label">Tipo de tradutor</label>
+        <div className="operation-entry__source-toggle">
+          <button
+            type="button"
+            className={`operation-entry__source-toggle-button${type === 'fixed' ? ' operation-entry__source-toggle-button--active' : ''}`}
+            aria-pressed={type === 'fixed'}
+            onClick={() => chooseType('fixed')}
+          >
+            Fixo
+          </button>
+          <button
+            type="button"
+            className={`operation-entry__source-toggle-button${type === 'range' ? ' operation-entry__source-toggle-button--active' : ''}`}
+            aria-pressed={type === 'range'}
+            onClick={() => chooseType('range')}
+          >
+            Intervalo
+          </button>
+        </div>
+        <p className="operation-entry__chain-status">
+          {type === 'fixed'
+            ? 'Cada regra troca um valor exato por outro.'
+            : 'Cada regra troca os números de um intervalo por um valor. Os limites contam; deixe um vazio para "sem limite".'}
+        </p>
+      </div>
 
-        {f.rules.map((rule, index) => (
+      <div className="operation-entry__field">
+        <label className="operation-entry__label">{type === 'fixed' ? 'Regras' : 'Intervalos'}</label>
+
+        {f.rules.map((rule, index) => type === 'range' ? (
+          <div key={index} className="translator-entry__rule-row">
+            <input
+              type="text"
+              inputMode="decimal"
+              className="operation-entry__input translator-entry__rule-input"
+              placeholder="De (opcional)"
+              aria-label="Limite inferior"
+              value={rule.min ?? ''}
+              onChange={(event) => updateFields({ rules: replaceRuleAt(f.rules, index, { ...rule, min: event.target.value }) })}
+            />
+            <span className="translator-entry__rule-arrow">a</span>
+            <input
+              type="text"
+              inputMode="decimal"
+              className="operation-entry__input translator-entry__rule-input"
+              placeholder="Até (opcional)"
+              aria-label="Limite superior"
+              value={rule.max ?? ''}
+              onChange={(event) => updateFields({ rules: replaceRuleAt(f.rules, index, { ...rule, max: event.target.value }) })}
+            />
+            <span className="translator-entry__rule-arrow">→</span>
+            <input
+              type="text"
+              className="operation-entry__input translator-entry__rule-input"
+              placeholder="Valor de destino"
+              value={rule.to}
+              onChange={(event) => updateFields({ rules: replaceRuleAt(f.rules, index, { ...rule, to: event.target.value }) })}
+            />
+            <button
+              type="button"
+              className="operation-entry__reset-button"
+              onClick={() => updateFields({ rules: f.rules.filter((_, currentIndex) => currentIndex !== index) })}
+              aria-label="Remover intervalo"
+            >
+              <CloseIcon />
+            </button>
+          </div>
+        ) : (
           <div key={index} className="translator-entry__rule-row">
             <input
               type="text"
@@ -113,14 +198,21 @@ export const translatorKind: OperationKind = {
           </p>
         )}
 
+        {problems.map((problem) => (
+          <p key={problem} className="operation-entry__chain-status">
+            {problem}
+          </p>
+        ))}
+
         <button
           type="button"
           className="btn btn--secondary btn--sm btn--block"
-          onClick={() => updateFields({ rules: [...f.rules, { from: '', to: '' }] })}
+          onClick={() => updateFields({ rules: [...f.rules, type === 'range' ? { from: '', to: '', min: '', max: '' } : { from: '', to: '' }] })}
         >
-          + Adicionar regra
+          {type === 'range' ? '+ Adicionar intervalo' : '+ Adicionar regra'}
         </button>
       </div>
+      </>
     );
   },
 
@@ -128,9 +220,11 @@ export const translatorKind: OperationKind = {
     const f = asTranslatorFields(fields);
     const rules = f.rules.length;
     const inputs = translatorInputs(f).length;
+    const isRange = translatorType(f) === 'range';
+    const ruleWord = isRange ? (rules === 1 ? 'intervalo' : 'intervalos') : rules === 1 ? 'regra' : 'regras';
     return (
       <span>
-        {rules} {rules === 1 ? 'regra' : 'regras'} · {inputs} {inputs === 1 ? 'entrada' : 'entradas'}
+        {rules} {ruleWord} · {inputs} {inputs === 1 ? 'entrada' : 'entradas'}
       </span>
     );
   },
@@ -170,6 +264,7 @@ export const translatorKind: OperationKind = {
         referenceOptions={referenceOptions}
         resolvedInputs={resolvedInputs}
         rules={f.rules}
+        type={translatorType(f)}
         testSignal={testSignal}
         resetSignal={resetSignal}
         onResultChange={onResultChange}
@@ -203,6 +298,7 @@ interface TranslatorInputsProps {
   referenceOptions: ReferenceOption[];
   resolvedInputs: ResolvedInput[];
   rules: TranslatorRule[];
+  type: TranslatorType;
   testSignal: number;
   resetSignal: number;
   onResultChange: (value: string | null, failed?: boolean) => void;
@@ -229,6 +325,7 @@ function TranslatorInputs({
   referenceOptions,
   resolvedInputs,
   rules,
+  type,
   testSignal,
   resetSignal,
   onResultChange,
@@ -243,7 +340,7 @@ function TranslatorInputs({
   }
 
   const resolvedKey = resolvedInputs.map((input) => (input.status === 'ready' ? `ready:${input.value}` : input.status)).join('|');
-  const rulesKey = JSON.stringify(rules);
+  const rulesKey = JSON.stringify([type, rules]);
 
   // "Limpar dados": clears the shown outputs on demand, independent of any field changing.
   useEffect(() => {
@@ -301,7 +398,7 @@ function TranslatorInputs({
     let cancelled = false;
     setState({ status: 'loading' });
 
-    Promise.allSettled(values.map((input) => translateValue({ input, rules }))).then((settled) => {
+    Promise.allSettled(values.map((input) => translateValue({ input, type, rules }))).then((settled) => {
       if (cancelled) return;
       const outputs: OutputState[] = settled.map((outcome) =>
         outcome.status === 'fulfilled'

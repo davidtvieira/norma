@@ -7,6 +7,8 @@ import com.norma.dataset.dto.DatasetImportResponse;
 import com.norma.dataset.dto.TranslatorRule;
 import com.norma.dataset.dto.ValueFormat;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -164,6 +166,64 @@ final class OperationSupport {
      * duplicate sources are rejected. Shared by both the live translator endpoint and a
      * translator operation's own model-run computation.
      */
+    /** The translator type whose rules are numeric intervals; anything else (or none) is the fixed one. */
+    static boolean isRangeTranslator(String type) {
+        return "range".equalsIgnoreCase(type == null ? "" : type.trim());
+    }
+
+    /** {@link #validateTranslatorRules(List)} for either kind of translator. */
+    static List<TranslatorRule> validateTranslatorRules(String type, List<TranslatorRule> rules) {
+        return isRangeTranslator(type) ? validateRangeRules(rules) : validateTranslatorRules(rules);
+    }
+
+    /**
+     * A range translator needs at least one rule; each rule has at least one bound, every bound is a number, a lower
+     * bound is not above its upper one, and no two intervals share a value (bounds are inclusive, so 1–5 and 5–9
+     * overlap). Returns the rules unchanged.
+     */
+    private static List<TranslatorRule> validateRangeRules(List<TranslatorRule> rules) {
+        List<TranslatorRule> nonNullRules = rules == null ? List.of() : rules;
+        if (nonNullRules.isEmpty()) {
+            throw new IllegalArgumentException("The translator has no rules.");
+        }
+        List<double[]> intervals = new ArrayList<>();
+        for (TranslatorRule rule : nonNullRules) {
+            Double min = parseBound(rule.min());
+            Double max = parseBound(rule.max());
+            if (min == null && max == null) {
+                throw new IllegalArgumentException("One of the translator ranges has no bounds.");
+            }
+            if (min != null && max != null && min > max) {
+                throw new IllegalArgumentException("A translator range starts above where it ends: " + rule.min().trim() + " to " + rule.max().trim());
+            }
+            intervals.add(new double[] {min == null ? Double.NEGATIVE_INFINITY : min, max == null ? Double.POSITIVE_INFINITY : max});
+        }
+        intervals.sort(Comparator.comparingDouble(interval -> interval[0]));
+        for (int i = 1; i < intervals.size(); i++) {
+            if (intervals.get(i - 1)[1] >= intervals.get(i)[0]) {
+                throw new IllegalArgumentException("Two translator ranges overlap.");
+            }
+        }
+        return nonNullRules;
+    }
+
+    /** A range bound: empty is "no limit" (null), anything else must be a number (a decimal comma is accepted). */
+    private static Double parseBound(String bound) {
+        String trimmed = bound == null ? "" : bound.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        try {
+            double parsed = Double.parseDouble(trimmed.replace(',', '.'));
+            if (Double.isNaN(parsed) || Double.isInfinite(parsed)) {
+                throw new NumberFormatException();
+            }
+            return parsed;
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("A translator range has a bound that is not a number: " + trimmed);
+        }
+    }
+
     static List<TranslatorRule> validateTranslatorRules(List<TranslatorRule> rules) {
         List<TranslatorRule> nonNullRules = rules == null ? List.of() : rules;
         if (nonNullRules.isEmpty()) {
@@ -188,6 +248,30 @@ final class OperationSupport {
      * matching source, same match semantics as {@link #matches} (lookup/find's own). No matching
      * rule is a request error, not a null result.
      */
+    /** {@link #translate(List, String)} for either kind of translator: a range one reads the input as a number. */
+    static String translate(String type, List<TranslatorRule> rules, String normalizedInput) {
+        if (!isRangeTranslator(type)) {
+            return translate(rules, normalizedInput);
+        }
+        double value;
+        try {
+            value = Double.parseDouble(normalizedInput.replace(',', '.'));
+            if (Double.isNaN(value) || Double.isInfinite(value)) {
+                throw new NumberFormatException();
+            }
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("The value is not a number, so no range can contain it: " + normalizedInput);
+        }
+        for (TranslatorRule rule : rules) {
+            Double min = parseBound(rule.min());
+            Double max = parseBound(rule.max());
+            if ((min == null || value >= min) && (max == null || value <= max)) {
+                return rule.to();
+            }
+        }
+        throw new IllegalArgumentException("No range contains the value: " + normalizedInput);
+    }
+
     static String translate(List<TranslatorRule> rules, String normalizedInput) {
         return rules.stream()
                 .filter(rule -> rule.from() != null && rule.from().trim().equalsIgnoreCase(normalizedInput))
