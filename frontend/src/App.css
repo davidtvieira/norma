@@ -74,7 +74,7 @@
   gap: 0.5rem;
   padding: 0.5rem 1.1rem;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--radius-btn);
   cursor: pointer;
   font: inherit;
   font-size: 0.85rem;
@@ -130,7 +130,6 @@
   border: 1.5px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
-  box-shadow: var(--shadow-sm);
 }
 
 .app__landing-uploaders {
@@ -174,24 +173,26 @@
 
 .app__browse-button:hover {
   border-color: var(--color-primary);
-  box-shadow: var(--shadow-md);
-  transform: translateY(-4px);
 }
 
 .app__browse-button:hover .app__browse-icon {
-  animation: app-browse-icon-bounce 0.7s ease infinite;
+  animation: app-browse-icon-jump 0.8s ease;
 }
 
 .app__browse-button:active {
-  transform: translateY(-1px) scale(0.99);
+  transform: translateY(1px);
 }
 
-@keyframes app-browse-icon-bounce {
-  0%, 100% {
-    transform: translateY(0) scale(1);
+/* Two hops of the icon when the button is pointed at, the second smaller than the first, then it rests. */
+@keyframes app-browse-icon-jump {
+  0%, 50%, 100% {
+    transform: translateY(0);
   }
-  50% {
-    transform: translateY(-4px) scale(1.15);
+  22% {
+    transform: translateY(-7px);
+  }
+  75% {
+    transform: translateY(-3px);
   }
 }
 
@@ -216,7 +217,7 @@
 .app__browse-icon {
   width: 2.5rem;
   height: 2.5rem;
-  color: var(--color-primary-hover);
+  color: var(--btn-primary-bg);
 }
 
 /* Both uploaders on the landing screen sit in the shared container above: their own dropzones are
@@ -248,8 +249,8 @@
 .app__landing-uploaders .norma-uploader__dropzone--active .norma-uploader__icon,
 .app__landing-uploaders .dataset-uploader__dropzone:hover .dataset-uploader__icon,
 .app__landing-uploaders .dataset-uploader__dropzone--active .dataset-uploader__icon {
-  background: var(--color-primary);
-  color: var(--color-primary-contrast);
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-contrast);
 }
 
 /* The "ou" between the two: a vertical rule with the word in the middle. */
@@ -576,7 +577,7 @@
   gap: 0.5rem;
   padding: 0.75rem 1.75rem;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--radius-btn);
   cursor: pointer;
   font: inherit;
   font-size: 0.95rem;
@@ -630,7 +631,7 @@
   align-self: flex-end;
   padding: 0.65rem 1.4rem;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--radius-btn);
   cursor: pointer;
   font: inherit;
   font-size: 0.9rem;
@@ -764,7 +765,7 @@
   align-items: center;
   justify-content: center;
   border: none;
-  border-radius: 999px;
+  border-radius: var(--radius-btn);
   background: transparent;
   color: var(--color-text-muted);
   font-size: 1.3rem;
@@ -864,6 +865,7 @@ button.operation-card__io-toggle--active {
   border-color: var(--btn-primary-bg);
   background: var(--btn-primary-bg);
   color: var(--btn-primary-contrast);
+  box-shadow: var(--btn-highlight);
 }
 
 button.action-button:hover:not(:disabled),
@@ -888,9 +890,10 @@ button.operation-canvas__zoom-level,
 button.operation-entry__pick-button,
 button.operation-column-picking__cancel,
 button.operation-card__io-toggle:not(.operation-card__io-toggle--active) {
-  border-color: var(--btn-secondary-bg);
+  border-color: var(--btn-secondary-border);
   background: var(--btn-secondary-bg);
   color: var(--btn-secondary-contrast);
+  box-shadow: var(--btn-highlight-secondary);
 }
 
 button.app__create-model-button--secondary:hover:not(:disabled),
@@ -903,9 +906,63 @@ button.operation-canvas__zoom-level:hover:not(:disabled),
 button.operation-entry__pick-button:hover:not(:disabled),
 button.operation-column-picking__cancel:hover:not(:disabled),
 button.operation-card__io-toggle:not(.operation-card__io-toggle--active):hover:not(:disabled) {
-  border-color: var(--btn-secondary-bg-hover);
+  border-color: var(--btn-secondary-border);
   background: var(--btn-secondary-bg-hover);
   color: var(--btn-secondary-contrast);
+}
+
+/* The look both variants share (Traktor's): flat, 9px corners, 13px medium text, pressed 1px down, a
+   blue-ish focus ring instead of the browser outline. The 36px height is only set on the main
+   buttons below; small ones (zoom, toggles) keep their own size. */
+button.action-button,
+button.model-card__run-button,
+button.app__save-button,
+button.app__create-model-button,
+button.app__view-data-button,
+button.operation-canvas__test-button,
+button.operation-canvas__tool-button,
+button.operation-canvas__reset-button,
+button.operation-canvas__zoom-button,
+button.operation-canvas__zoom-level,
+button.operation-entry__pick-button,
+button.operation-column-picking__cancel,
+button.operation-card__io-toggle {
+  border-radius: var(--radius-btn);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s, transform 0.15s;
+}
+
+button.action-button:active:not(:disabled),
+button.model-card__run-button:active:not(:disabled),
+button.app__save-button:active:not(:disabled),
+button.app__create-model-button:active:not(:disabled),
+button.app__view-data-button:active:not(:disabled),
+button.operation-canvas__test-button:active:not(:disabled),
+button.operation-canvas__tool-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+button.action-button:focus-visible,
+button.model-card__run-button:focus-visible,
+button.app__save-button:focus-visible,
+button.app__create-model-button:focus-visible,
+button.app__view-data-button:focus-visible,
+button.operation-canvas__test-button:focus-visible,
+button.operation-canvas__tool-button:focus-visible {
+  outline: 0;
+  border-color: #93b0ff;
+  box-shadow: 0 10px 20px -14px rgba(147, 176, 255, 0.5);
+}
+
+button.action-button,
+button.model-card__run-button,
+button.app__save-button,
+button.app__create-model-button,
+button.app__view-data-button {
+  min-height: var(--btn-height);
+  padding-block: 0;
+  padding-inline: 14px;
 }
 
 /* The danger variant, for the button that destroys something ("Apagar"): the same red the "stop" of the
@@ -914,6 +971,7 @@ button.app__create-model-button--danger {
   border-color: var(--color-error);
   background: var(--color-error);
   color: #fff;
+  box-shadow: var(--btn-highlight);
 }
 
 button.app__create-model-button--danger:hover:not(:disabled) {
@@ -1089,7 +1147,7 @@ button.naked-button:hover:not(:disabled) {
   display: inline-block;
   margin-left: 0.6rem;
   padding: 0.1rem 0.55rem;
-  border-radius: 999px;
+  border-radius: var(--radius-btn);
   background: color-mix(in srgb, var(--color-text) 9%, transparent);
   color: var(--color-text-muted);
   font-size: 0.85rem;

@@ -33,7 +33,7 @@
   grid-template-columns: 1fr 1fr;
   padding: 0.3rem;
   border: 1px solid var(--color-border);
-  border-radius: 999px;
+  border-radius: var(--radius-btn);
   background: var(--color-surface);
 }
 
@@ -43,7 +43,7 @@
   bottom: 0.3rem;
   left: 0.3rem;
   width: calc((100% - 0.6rem) / 2);
-  border-radius: 999px;
+  border-radius: var(--radius-btn);
   background: var(--btn-secondary-bg);
   transition: transform 0.3s ease, background-color 0.3s ease;
 }
@@ -57,7 +57,7 @@
   position: relative;
   padding: 0.55rem 1.5rem;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-btn);
   background: transparent;
   color: var(--color-text-muted);
   font: inherit;
@@ -221,7 +221,7 @@
 .model-card__io-panel-collapsed {
   padding: 0.6rem 1.25rem;
   border: 1px solid var(--color-border);
-  border-radius: 999px;
+  border-radius: var(--radius-btn);
   background: var(--color-surface);
   color: var(--color-text-muted);
   font: inherit;
@@ -428,7 +428,7 @@
 .model-card__run-button {
   padding: 0.6rem 1.5rem;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--radius-btn);
   cursor: pointer;
   font: inherit;
   font-size: 0.9rem;
@@ -488,7 +488,7 @@
   display: inline-flex;
   padding: 0.2rem;
   border: 1px solid var(--color-border);
-  border-radius: 999px;
+  border-radius: var(--radius-btn);
   background: var(--color-surface);
 }
 
@@ -499,7 +499,7 @@
   width: 2rem;
   height: 1.7rem;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-btn);
   background: transparent;
   color: var(--color-text-muted);
   cursor: pointer;
@@ -861,7 +861,7 @@ button.model-card__run-button.model-card__run-button--analysing:hover:not(:disab
   min-width: 1.5rem;
   padding: 0 0.5rem;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-btn);
   background: var(--color-error);
   color: var(--color-error-contrast);
   font: inherit;

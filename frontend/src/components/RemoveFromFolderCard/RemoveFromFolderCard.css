@@ -14,7 +14,8 @@
 
 .remove-from-folder-card--over {
   background: color-mix(in srgb, var(--color-error) 18%, transparent);
-  transform: scale(1.04);
+  transform: none;
+  border-color: var(--color-primary);
 }
 
 .remove-from-folder-card__icon svg {

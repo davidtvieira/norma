@@ -28,8 +28,7 @@
 .dataset-uploader__dropzone--active {
   border-color: var(--color-primary);
   background: var(--color-surface-hover);
-  box-shadow: var(--shadow-md);
-  transform: scale(1.01);
+  transform: none;
 }
 
 .dataset-uploader__dropzone--busy {
@@ -44,9 +43,9 @@
   width: 2.25rem;
   height: 2.25rem;
   margin-bottom: 0.25rem;
-  border-radius: 50%;
-  background: var(--color-surface-hover);
-  color: var(--color-primary-hover);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--btn-primary-bg) 14%, transparent);
+  color: var(--btn-primary-bg);
 }
 
 .dataset-uploader__icon svg {

@@ -1,7 +1,7 @@
 .back-button {
   padding: 0.5rem 1.1rem;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--radius-btn);
   cursor: pointer;
   font: inherit;
   font-size: 0.95rem;
