@@ -15,20 +15,28 @@
   align-items: flex-start;
   gap: 0.75rem;
   padding: 0.75rem 0.875rem;
-  border: var(--border-width) solid var(--color-error);
+  /* The error red, a bit darker than the one used elsewhere (text, the danger button): a toast fills a whole box with it. */
+  border: var(--border-width) solid color-mix(in srgb, var(--color-error) 80%, black);
   border-radius: var(--radius-md);
-  background: var(--color-error);
+  background: color-mix(in srgb, var(--color-error) 80%, black);
   color: var(--color-error-contrast);
   box-shadow: var(--shadow-md);
   text-align: left;
   pointer-events: auto;
-  animation: toast-in 0.25s ease both;
+  animation: toast-in 0.3s ease both;
 }
 
+/* Going away: back out to the right, the way it came. */
+.toast--leaving {
+  animation: toast-out 0.25s ease both;
+  pointer-events: none;
+}
+
+/* A success is the app's orange (the primary button's), not green. */
 .toast--success {
-  border-color: var(--color-success);
-  background: var(--color-success);
-  color: var(--color-success-contrast);
+  border-color: var(--btn-primary-bg);
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-contrast);
 }
 
 .toast__text {
@@ -69,13 +77,27 @@
   opacity: 1;
 }
 
+/* Every toast comes in from the right and leaves to the right — always, even with "reduce motion" on (it is how a notification
+   announces itself and goes away; without it the toast would just blink in place). */
 @keyframes toast-in {
   from {
     opacity: 0;
-    transform: translateY(-6px);
+    transform: translateX(120%);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateX(0);
   }
 }
+
+@keyframes toast-out {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(120%);
+  }
+}
+
