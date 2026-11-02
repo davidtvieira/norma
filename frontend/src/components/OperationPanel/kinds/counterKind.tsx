@@ -29,6 +29,7 @@ function asCounterFields(fields: OperationFields): CounterFields {
  */
 export const counterKind: OperationKind = {
   id: 'counter',
+  requiresDataset: false,
 
   createFields: (): OperationFields => ({
     inputs: [],

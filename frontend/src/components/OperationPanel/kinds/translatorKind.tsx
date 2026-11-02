@@ -53,6 +53,7 @@ function replaceRuleAt(rules: TranslatorRule[], index: number, rule: TranslatorR
 
 export const translatorKind: OperationKind = {
   id: 'translator',
+  requiresDataset: false,
 
   createFields: (): OperationFields => ({
     inputs: [literalSource('')],

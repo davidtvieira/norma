@@ -31,6 +31,7 @@ function pageIndexOf(resolved: ResolvedInput, pageCount: number): number | null 
  */
 export const pageKind: OperationKind = {
   id: 'page',
+  requiresDataset: true,
 
   createFields: (): OperationFields => ({
     input: literalSource(''),

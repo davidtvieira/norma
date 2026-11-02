@@ -51,6 +51,18 @@ public class ModelController {
     }
 
     @Operation(
+            summary = "Register a model that has no dataset",
+            description = "The same registration as with a dataset, for a model made only of the operation kinds that "
+                    + "don't read one (400 when it holds any other). The returned id runs it through "
+                    + "POST /api/v1/model/{modelId}/run."
+    )
+    @PostMapping("/api/v1/model")
+    public ResponseEntity<ModelRegisterResponse> registerModelWithoutDataset(@RequestBody ModelRegisterRequest request) {
+        String modelId = modelExecutionService.registerModel(null, request);
+        return ResponseEntity.ok(registerResponse(modelId));
+    }
+
+    @Operation(
             summary = "Validate a model against a dataset",
             description = "Checks that a model (the exported model JSON) can use an already-imported dataset — every "
                     + "sheet its operations point at has to exist in it — without registering anything. 409 when it "
@@ -100,6 +112,26 @@ public class ModelController {
     public ResponseEntity<ModelRunResponse> runModel(
             @PathVariable String datasetId, @PathVariable String modelId, @RequestBody ModelRunRequest request) {
         return ResponseEntity.ok(modelExecutionService.runModelWatching(datasetId, modelId, request.inputValues(), request.watchIds()));
+    }
+
+    @Operation(
+            summary = "Run a registered model by its id alone",
+            description = "The same run as with a dataset in the path, for a model that has none (it runs against the "
+                    + "dataset it was registered with, if any)."
+    )
+    @PostMapping("/api/v1/model/{modelId}/run")
+    public ResponseEntity<ModelRunResponse> runModelById(@PathVariable String modelId, @RequestBody ModelRunRequest request) {
+        return ResponseEntity.ok(modelExecutionService.runModelWatching(null, modelId, request.inputValues(), request.watchIds()));
+    }
+
+    @Operation(
+            summary = "Delete a registered model by its id alone",
+            description = "Forgets a previously registered model, whatever dataset (if any) it belongs to."
+    )
+    @DeleteMapping("/api/v1/model/{modelId}")
+    public ResponseEntity<Void> deleteModelById(@PathVariable String modelId) {
+        modelExecutionService.deleteModel(null, modelId);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(

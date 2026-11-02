@@ -148,7 +148,7 @@ class NrmServiceTest {
 
     @Test
     void rejectsABadInfoJson() throws IOException {
-        assertRejected(entries(MODEL, INFO.replace("\"version\":1", "\"version\":2")));
+        assertRejected(entries(MODEL, INFO.replace("\"version\":1", "\"version\":3")));
         assertRejected(entries(MODEL, INFO.replace("Vendas", "  ")));
         assertRejected(entries(MODEL, INFO.replace("2026-10-19T13:04:00.000Z", "ontem")));
     }
@@ -193,6 +193,69 @@ class NrmServiceTest {
         assertThatThrownBy(() -> executionService.assertModelFitsDataset(dataset.datasetId(),
                 mapper.readTree(MODEL.replace("\"fields\":{},\"position\"", "\"fields\":{\"sheetIndex\":5},\"position\""))))
                 .isInstanceOf(ModelDatasetMismatchException.class);
+    }
+
+    // --- the description a norma may carry ---
+
+    private static String withDescription(String text) {
+        return INFO.substring(0, INFO.length() - 1) + ",\"description\":\"" + text + "\"}";
+    }
+
+    @Test
+    void aNrmCarriesAnOptionalDescriptionThatIsInspectedAndServedWithTheModel() throws IOException {
+        byte[] described = nrm("a.nrm", entries(MODEL_WITH_INPUT, withDescription("  Questionário ASEBA  "))).getBytes();
+        byte[] plain = nrm("b.nrm", entries(MODEL_WITH_INPUT, INFO)).getBytes();
+
+        assertThat(nrmService.inspect(described).description()).isEqualTo("Questionário ASEBA");
+        assertThat(nrmService.inspect(plain).description()).isNull();
+
+        NrmImportStatus imported = nrmService.importNrm(nrm("a.nrm", entries(MODEL_WITH_INPUT, withDescription("Questionário ASEBA"))));
+        assertThat(nrmService.getModel(imported.nrmId()).path("nrmDescription").asText()).isEqualTo("Questionário ASEBA");
+        NrmImportStatus without = nrmService.importNrm(nrm("b.nrm", entries(MODEL_WITH_INPUT, INFO)));
+        assertThat(nrmService.getModel(without.nrmId()).has("nrmDescription")).isFalse();
+    }
+
+    @Test
+    void aDescriptionThatIsTooLongIsRejected() throws IOException {
+        assertRejected(entries(MODEL, withDescription("x".repeat(NrmService.MAX_DESCRIPTION_LENGTH + 1))));
+        assertThat(nrmService.inspect(nrm("a.nrm", entries(MODEL, withDescription("x".repeat(NrmService.MAX_DESCRIPTION_LENGTH)))).getBytes()).description())
+                .hasSize(NrmService.MAX_DESCRIPTION_LENGTH);
+    }
+
+    // --- a .nrm without a dataset (version 2) ---
+
+    private static final String INFO_V2 = "{\"version\":2,\"name\":\"Sem dados\",\"createdAt\":\"2026-10-19T13:04:00.000Z\"}";
+
+    private static Map<String, byte[]> entriesWithoutDataset(String model, String info) {
+        Map<String, byte[]> entries = new LinkedHashMap<>();
+        entries.put("modelo.json", model.getBytes(StandardCharsets.UTF_8));
+        entries.put("info.json", info.getBytes(StandardCharsets.UTF_8));
+        return entries;
+    }
+
+    @Test
+    void aNrmWithoutADatasetImportsRunsAndHasNoDataset() throws IOException {
+        NrmImportStatus imported = nrmService.importNrm(nrm("a.nrm", entriesWithoutDataset(MODEL_WITH_INPUT, INFO_V2)));
+
+        assertThat(nrmService.getInputs(imported.nrmId()).inputs()).singleElement();
+        assertThat(nrmService.run(imported.nrmId(), Map.of("b", "x"))).singleElement().satisfies(result -> {
+            assertThat(result.success()).isTrue();
+            assertThat(result.value()).isEqualTo("x");
+        });
+        assertThatThrownBy(() -> nrmService.getDataset(imported.nrmId())).isInstanceOf(IllegalArgumentException.class);
+        assertThat(nrmService.inspect(nrm("a.nrm", entriesWithoutDataset(MODEL_WITH_INPUT, INFO_V2)).getBytes()).datasetFilename()).isNull();
+    }
+
+    @Test
+    void aVersionOneNrmStillNeedsItsDataset() throws IOException {
+        assertRejected(entriesWithoutDataset(MODEL_WITH_INPUT, INFO));
+    }
+
+    @Test
+    void aNrmWithoutADatasetCannotHoldAnOperationThatReadsOne() {
+        assertThatThrownBy(() -> nrmService.validate(nrm("a.nrm", entriesWithoutDataset(MODEL, INFO_V2))))
+                .isInstanceOf(ModelDatasetMismatchException.class)
+                .hasMessageContaining("needs a dataset");
     }
 
     private void assertRejected(Map<String, byte[]> entries) throws IOException {

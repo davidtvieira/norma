@@ -44,6 +44,10 @@ export interface DatasetHandle {
   /** Set when the model was opened from the platform: the library entry's own id, which is what its address uses
    * (`/normas/:savedId`) because — unlike the ids above — it survives a reload and a backend restart. */
   savedId?: string;
+  /** Set for a norma made without a dataset: `datasetId` is then only the session's own key (never sent to the
+   * backend's dataset endpoints), `filename` is empty, and only the operation kinds that don't read a dataset may be
+   * used. Attaching a dataset later replaces the handle with a normal one. */
+  withoutDataset?: boolean;
 }
 
 export interface DatasetImportResponse {
@@ -52,3 +56,6 @@ export interface DatasetImportResponse {
   uploadedAt: string;
   sheets: SheetData[];
 }
+
+/** What the editor shows for a norma without a dataset: no sheets at all (the kinds that read them aren't offered). */
+export const NO_DATASET: DatasetImportResponse = { datasetId: '', filename: '', uploadedAt: '', sheets: [] };

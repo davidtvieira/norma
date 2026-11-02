@@ -10,5 +10,5 @@ import com.norma.dataset.dto.NrmInfo;
  * served on request, for editing) and the .nrm's own {@link NrmInfo}. Everything a caller does with
  * the .nrm afterwards (read its inputs, run it, read its dataset or model) goes through its id alone.
  */
-record StoredNrm(String datasetId, String modelId, NrmInfo info, JsonNode model) {
+record StoredNrm(/** Null when the .nrm holds no dataset. */ String datasetId, String modelId, NrmInfo info, JsonNode model) {
 }

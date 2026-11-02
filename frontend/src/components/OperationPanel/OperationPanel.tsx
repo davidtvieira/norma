@@ -552,6 +552,8 @@ function createEntry(
 
 interface OperationPanelProps {
   dataset: DatasetImportResponse;
+  /** The norma has no dataset (yet): the operation kinds that read one are listed but can't be picked. */
+  withoutDataset?: boolean;
   /** The model's own name and its own operation count — rendered at the start of the canvas
    * toolbar (see below), on the same line as "Importar teste"/"Testar modelo", rather than in
    * EditorScreen above the canvas — owned by App.tsx same as everything else this component
@@ -657,6 +659,7 @@ export function OperationPanel({
   loadActionSlot,
   onSaveTestCase,
   dataset,
+  withoutDataset = false,
   initialEntries,
   columnPick,
   onStartColumnPick,
@@ -2185,6 +2188,7 @@ export function OperationPanel({
         kinds={KINDS.map((kind) => ({ id: kind.id, label: labelForKind(kind.id) }))}
         // A model has one iterator — it's the always-first loop around everything else.
         disabledKindIds={[...(iteratorEntry ? ['iterator'] : []), ...(entries.some((entry) => entry.kindId === PAGE_SELECTOR_KIND_ID) ? [PAGE_SELECTOR_KIND_ID] : [])]}
+        needsDatasetKindIds={withoutDataset ? KINDS.filter((kind) => kind.requiresDataset).map((kind) => kind.id) : []}
         activeKindId={stagingKindOfBatch}
         onPick={addToStaging}
       />

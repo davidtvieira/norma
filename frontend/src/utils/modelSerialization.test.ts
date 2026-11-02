@@ -29,6 +29,18 @@ describe('buildModelExport / parseModelImport round trip', () => {
     expect(imported.outputOperationIds).toEqual(['op-1']);
   });
 
+  it('carries the norma description when there is one, and none when there is not', () => {
+    const entries = [entry({ id: 'op-1', kindId: 'node' })];
+
+    const described = buildModelExport(entries, 'Model', 'dataset-1', [], ['op-1'], 'Nome', '  Para que serve  ');
+    expect(described.nrmDescription).toBe('Para que serve');
+    expect(parseModelImport(JSON.stringify(described), KNOWN_KIND_IDS).nrmDescription).toBe('Para que serve');
+
+    const plain = buildModelExport(entries, 'Model', 'dataset-1', [], ['op-1'], 'Nome');
+    expect(plain).not.toHaveProperty('nrmDescription');
+    expect(parseModelImport(JSON.stringify(plain), KNOWN_KIND_IDS).nrmDescription).toBe('');
+  });
+
   it('drops unconfirmed (draft) entries from the export entirely', () => {
     const entries = [
       entry({ id: 'op-1', kindId: 'sum', confirmed: true }),

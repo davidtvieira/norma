@@ -29,6 +29,7 @@ function asNodeFields(fields: OperationFields): NodeFields {
  */
 export const nodeKind: OperationKind = {
   id: 'node',
+  requiresDataset: false,
 
   createFields: (): OperationFields => ({
     input: literalSource(''),

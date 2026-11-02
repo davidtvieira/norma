@@ -14,18 +14,22 @@ const INFO_ENTRY_NAME = 'info.json';
  * before a field existed still reads back fine (see readNrmInfo).
  */
 export interface NrmInfo {
-  version: 1;
+  /** 1 for a .nrm that carries a dataset; 2 for one made without a dataset (the spreadsheet is simply left out). */
+  version: 1 | 2;
   /** The name the file was saved under (without the .nrm extension). */
   name: string;
   /** ISO 8601 timestamp of when the file was created (exported). */
   createdAt: string;
+  /** What the author wrote about the norma (optional) — shown on its card in "As minhas normas". */
+  description?: string;
 }
 
 const NRM_INFO_VERSION = 1;
+const NRM_INFO_VERSION_WITHOUT_DATASET = 2;
 
 export interface NrmContents {
-  /** The dataset spreadsheet found inside the .nrm, ready to hand to importDataset as-is. */
-  datasetFile: File;
+  /** The dataset spreadsheet found inside the .nrm, ready to hand to importDataset as-is — null for a .nrm made without one. */
+  datasetFile: File | null;
   /** The model JSON text found inside the .nrm, ready to hand to parseModelImport as-is. */
   modelText: string;
   /** The .nrm's own info.json — null for a .nrm built before it existed (or by hand), or one whose
@@ -44,9 +48,10 @@ function readNrmInfo(bytes: Uint8Array | undefined): NrmInfo | null {
   try {
     const parsed = JSON.parse(new TextDecoder('utf-8').decode(bytes)) as Record<string, unknown>;
     return {
-      version: NRM_INFO_VERSION,
+      version: parsed.version === NRM_INFO_VERSION_WITHOUT_DATASET ? NRM_INFO_VERSION_WITHOUT_DATASET : NRM_INFO_VERSION,
       name: typeof parsed.name === 'string' ? parsed.name.trim() : '',
       createdAt: typeof parsed.createdAt === 'string' ? parsed.createdAt : '',
+      ...(typeof parsed.description === 'string' && parsed.description.trim() ? { description: parsed.description.trim() } : {}),
     };
   } catch {
     return null;
@@ -88,7 +93,9 @@ export function extractNrmFile(file: File): Promise<NrmContents> {
             const modelPaths = paths.filter(isModelEntry);
             const infoPath = paths.find(isInfoEntry);
 
-            if (spreadsheetPaths.length === 0) {
+            const info = readNrmInfo(infoPath ? entries[infoPath] : undefined);
+            // Only the second version of the format may leave the dataset out.
+            if (spreadsheetPaths.length === 0 && info?.version !== NRM_INFO_VERSION_WITHOUT_DATASET) {
               reject(new NrmImportError('Ficheiro .nrm inválido: não contém um conjunto de dados (.xlsx/.xls).'));
               return;
             }
@@ -105,16 +112,18 @@ export function extractNrmFile(file: File): Promise<NrmContents> {
               return;
             }
 
-            const spreadsheetPath = spreadsheetPaths[0];
-            const datasetBytes = entries[spreadsheetPath];
-            const datasetFilename = spreadsheetPath.slice(spreadsheetPath.lastIndexOf('/') + 1);
-            const datasetFile = new File([datasetBytes], datasetFilename, {
-              type: 'application/octet-stream',
-            });
+            let datasetFile: File | null = null;
+            if (spreadsheetPaths.length === 1) {
+              const spreadsheetPath = spreadsheetPaths[0];
+              const datasetFilename = spreadsheetPath.slice(spreadsheetPath.lastIndexOf('/') + 1);
+              datasetFile = new File([entries[spreadsheetPath]], datasetFilename, {
+                type: 'application/octet-stream',
+              });
+            }
 
             const modelText = new TextDecoder('utf-8').decode(entries[modelPaths[0]]);
 
-            resolve({ datasetFile, modelText, info: readNrmInfo(infoPath ? entries[infoPath] : undefined) });
+            resolve({ datasetFile, modelText, info });
           });
         }),
     );
@@ -126,19 +135,36 @@ export function extractNrmFile(file: File): Promise<NrmContents> {
  * Used by "Guardar modelo", which now saves .nrm instead of a bare model JSON file so the one
  * saved file is also enough to reopen the model later without the dataset having to be imported
  * separately first (see NormaUploader's landing-page counterpart). Also writes an
- * `info.json` (see NrmInfo) recording `fileName` and when this file was created.
+ * `info.json` (see NrmInfo) recording `fileName` and when this file was created. A null `datasetFile` builds a .nrm
+ * without a dataset: version 2 of the format, with the spreadsheet left out.
  */
-export async function buildNrmFile(datasetFile: File, model: ExportedModel, fileName: string, createdAt?: string): Promise<Blob> {
-  const datasetBytes = new Uint8Array(await datasetFile.arrayBuffer());
-  const info: NrmInfo = { version: NRM_INFO_VERSION, name: fileName, createdAt: createdAt || new Date().toISOString() };
+export async function buildNrmFile(
+  datasetFile: File | null,
+  model: ExportedModel,
+  fileName: string,
+  createdAt?: string,
+  description = '',
+): Promise<Blob> {
+  const info: NrmInfo = {
+    version: datasetFile ? NRM_INFO_VERSION : NRM_INFO_VERSION_WITHOUT_DATASET,
+    name: fileName,
+    createdAt: createdAt || new Date().toISOString(),
+    // Left out when empty, so a norma with none looks like one made before descriptions existed.
+    ...(description.trim() ? { description: description.trim() } : {}),
+  };
   // The dataset's and the model's own names inside the .nrm are overwritten by the export name.
-  const extension = datasetFile.name.slice(datasetFile.name.lastIndexOf('.'));
   const renamedModel: ExportedModel = { ...model, modelName: fileName, nrmName: fileName };
-  const zipped = zipSync({
-    [`${fileName}${extension}`]: datasetBytes,
+  // (The description lives in info.json, not in the model.)
+  delete renamedModel.nrmDescription;
+  const files: Record<string, Uint8Array> = {
     'modelo.json': strToU8(JSON.stringify(renamedModel, null, 2)),
     [INFO_ENTRY_NAME]: strToU8(JSON.stringify(info, null, 2)),
-  });
+  };
+  if (datasetFile) {
+    const extension = datasetFile.name.slice(datasetFile.name.lastIndexOf('.'));
+    files[`${fileName}${extension}`] = new Uint8Array(await datasetFile.arrayBuffer());
+  }
+  const zipped = zipSync(files);
   return new Blob([zipped], { type: 'application/octet-stream' });
 }
 
@@ -160,7 +186,8 @@ export async function readModelFile(file: File): Promise<string> {
 
 export interface NrmImportResult {
   dataset: NrmImportStatusPayload;
-  datasetFile: File;
+  /** Null for a .nrm made without a dataset. */
+  datasetFile: File | null;
   /** The model JSON text exactly as the .nrm held it, unparsed — only kept for the session cache.
    * The model itself stays on the backend (see ImportedModel.nrmId) until it is opened for editing. */
   modelText: string;
@@ -169,6 +196,8 @@ export interface NrmImportResult {
      * stay unparsed) — falls back to the .nrm's name when the model has none. */
     modelName: string;
     nrmName: string;
+    /** What the author wrote about the norma, from its info.json (absent when there is none). */
+    nrmDescription?: string;
     nrmId: string;
     /** When the .nrm was made, from its info.json — absent for one without it. */
     nrmCreatedAt?: string;
@@ -202,5 +231,5 @@ function describeImport(dataset: NrmImportStatusPayload, file: File, contents: N
   // info.json is the source of truth; a .nrm without one falls back to its own filename, so it
   // always has something to identify it by in "Sessões recentes".
   const nrmName = info?.name || file.name.replace(/\.nrm$/i, '');
-  return { dataset, datasetFile, modelText, model: { modelName: modelNameOf(modelText) || nrmName, nrmName, nrmId: dataset.nrmId, nrmCreatedAt: info?.createdAt } };
+  return { dataset, datasetFile, modelText, model: { modelName: modelNameOf(modelText) || nrmName, nrmName, nrmDescription: info?.description, nrmId: dataset.nrmId, nrmCreatedAt: info?.createdAt } };
 }

@@ -21,8 +21,8 @@ describe('extractNrmFile', () => {
 
     const { datasetFile, modelText } = await extractNrmFile(file);
 
-    expect(datasetFile.name).toBe('dados.xlsx');
-    expect(await datasetFile.text()).toBe('fake-xlsx-bytes');
+    expect(datasetFile?.name).toBe('dados.xlsx');
+    expect(await datasetFile?.text()).toBe('fake-xlsx-bytes');
     expect(modelText).toBe('{"operations":[]}');
   });
 
@@ -34,7 +34,7 @@ describe('extractNrmFile', () => {
 
     const { datasetFile, modelText } = await extractNrmFile(file);
 
-    expect(datasetFile.name).toBe('conjunto.xls');
+    expect(datasetFile?.name).toBe('conjunto.xls');
     expect(modelText).toBe('{"operations":[]}');
   });
 
@@ -83,6 +83,48 @@ const SAMPLE_MODEL: ExportedModel = {
   ],
 };
 
+describe('a norma description', () => {
+  it('is written to info.json, read back, and kept out of the model inside the .nrm', async () => {
+    const model = { ...SAMPLE_MODEL, nrmDescription: 'ignored here' };
+    const blob = await buildNrmFile(new File([strToU8('bytes')], 'd.xlsx'), model, 'Com nota', undefined, '  Rastreio de sintomas  ');
+    const { info, modelText } = await extractNrmFile(new File([await blob.arrayBuffer()], 'x.nrm'));
+
+    expect(info?.description).toBe('Rastreio de sintomas');
+    expect(JSON.parse(modelText)).not.toHaveProperty('nrmDescription');
+  });
+
+  it('is simply absent when there is none', async () => {
+    const blob = await buildNrmFile(new File([strToU8('bytes')], 'd.xlsx'), SAMPLE_MODEL, 'Sem nota', undefined, '   ');
+    const { info } = await extractNrmFile(new File([await blob.arrayBuffer()], 'x.nrm'));
+    expect(info?.description).toBeUndefined();
+  });
+});
+
+describe('a .nrm without a dataset', () => {
+  it('is built as version 2, with no spreadsheet, and reads back with no dataset file', async () => {
+    const blob = await buildNrmFile(null, SAMPLE_MODEL, 'Sem dados');
+    const { datasetFile, modelText, info } = await extractNrmFile(new File([await blob.arrayBuffer()], 'x.nrm'));
+
+    expect(datasetFile).toBeNull();
+    expect(JSON.parse(modelText)).toEqual({ ...SAMPLE_MODEL, modelName: 'Sem dados', nrmName: 'Sem dados' });
+    expect(info?.version).toBe(2);
+  });
+
+  it('is only accepted when its info.json says version 2', async () => {
+    const info = (version: number) => strToU8(JSON.stringify({ version, name: 'x', createdAt: '2026-01-01T00:00:00Z' }));
+    const without = (version: number) => nrmFile({ 'modelo.json': strToU8('{"operations":[]}'), 'info.json': info(version) });
+
+    await expect(extractNrmFile(without(2))).resolves.toMatchObject({ datasetFile: null });
+    await expect(extractNrmFile(without(1))).rejects.toBeInstanceOf(NrmImportError);
+  });
+
+  it('keeps writing version 1 for a .nrm that has a dataset, so older builds still open it', async () => {
+    const blob = await buildNrmFile(new File([strToU8('bytes')], 'd.xlsx'), SAMPLE_MODEL, 'Com dados');
+    const { info } = await extractNrmFile(new File([await blob.arrayBuffer()], 'x.nrm'));
+    expect(info?.version).toBe(1);
+  });
+});
+
 describe('buildNrmFile', () => {
   it('round-trips with extractNrmFile: same dataset bytes, dataset and model renamed to the export name', async () => {
     const datasetFile = new File([strToU8('fake-xlsx-bytes')], 'vendas.xlsx');
@@ -91,8 +133,8 @@ describe('buildNrmFile', () => {
     const nrmFile = new File([await nrmBlob.arrayBuffer()], 'modelo.nrm');
     const { datasetFile: extractedDatasetFile, modelText, info } = await extractNrmFile(nrmFile);
 
-    expect(extractedDatasetFile.name).toBe('Relatório de vendas.xlsx');
-    expect(await extractedDatasetFile.text()).toBe('fake-xlsx-bytes');
+    expect(extractedDatasetFile?.name).toBe('Relatório de vendas.xlsx');
+    expect(await extractedDatasetFile?.text()).toBe('fake-xlsx-bytes');
     expect(JSON.parse(modelText)).toEqual({ ...SAMPLE_MODEL, modelName: 'Relatório de vendas', nrmName: 'Relatório de vendas' });
     expect(info?.name).toBe('Relatório de vendas');
     expect(Number.isNaN(Date.parse(info?.createdAt ?? ''))).toBe(false);

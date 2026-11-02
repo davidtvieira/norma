@@ -11,6 +11,7 @@ import java.util.List;
  * result per entry in {@code outputOperationIds} (always at least one).
  */
 record StoredModel(
+        /** Null for a model registered without a dataset. */
         String datasetId,
         String name,
         List<ModelOperationInput> operations,

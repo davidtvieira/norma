@@ -405,13 +405,15 @@ export async function translateValue(payload: TranslatorRequestPayload): Promise
  * it's being built, where a live per-field result is what's wanted.
  */
 export async function registerModel(
-  datasetId: string,
+  /** Null registers a model that has no dataset (it may only hold the kinds that don't read one). */
+  datasetId: string | null,
   name: string,
   operations: ModelOperationInputPayload[],
   inputOperationIds: string[],
   outputOperationIds: string[],
 ): Promise<ModelRegisterResponsePayload> {
-  const response = await apiFetch(`${API_BASE_URL}/api/v1/dataset/${encodeURIComponent(datasetId)}/model`, {
+  const url = datasetId === null ? `${API_BASE_URL}/api/v1/model` : `${API_BASE_URL}/api/v1/dataset/${encodeURIComponent(datasetId)}/model`;
+  const response = await apiFetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, operations, inputOperationIds, outputOperationIds }),
@@ -540,13 +542,16 @@ export async function getNrmDataset(nrmId: string): Promise<DatasetImportRespons
  * operations too (any in the model), returned as `watched`.
  */
 export async function runModel(
-  datasetId: string,
+  /** Null runs a model that has no dataset, by its id alone. */
+  datasetId: string | null,
   modelId: string,
   inputValues: Record<string, string>,
   watchIds: string[] = [],
 ): Promise<ModelRunResponsePayload> {
   const response = await apiFetch(
-    `${API_BASE_URL}/api/v1/dataset/${encodeURIComponent(datasetId)}/model/${encodeURIComponent(modelId)}/run`,
+    datasetId === null
+      ? `${API_BASE_URL}/api/v1/model/${encodeURIComponent(modelId)}/run`
+      : `${API_BASE_URL}/api/v1/dataset/${encodeURIComponent(datasetId)}/model/${encodeURIComponent(modelId)}/run`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

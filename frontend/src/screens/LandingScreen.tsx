@@ -1,6 +1,7 @@
-import { StoreIcon } from '../components/ButtonIcons/ButtonIcons';
+import { BuildIcon, StoreIcon } from '../components/ButtonIcons/ButtonIcons';
+import { useState } from 'react';
+import { BuildNormaModal } from '../components/BuildNormaModal/BuildNormaModal';
 import { AppFooter } from '../components/AppFooter/AppFooter';
-import { DatasetUploader } from '../components/DatasetUploader/DatasetUploader';
 import { NormaUploader } from '../components/NormaUploader/NormaUploader';
 import { ThemeToggle } from '../components/ThemeToggle/ThemeToggle';
 import type { DatasetImportStatus } from '../types/dataset';
@@ -14,7 +15,7 @@ interface LandingScreenProps {
   onImportSuccess: (dataset: DatasetImportStatus, file: File) => void;
   onNormaImportSuccess: (
     dataset: NrmImportStatusPayload,
-    datasetFile: File,
+    datasetFile: File | null,
     model: ImportedModel,
     modelText: string,
     nrmFile: File,
@@ -22,6 +23,8 @@ interface LandingScreenProps {
   onGoHome: () => void;
   /** "Explorar as minhas normas" — opens the `/normas` route. */
   onBrowseNormas: () => void;
+  /** "Construir a minha norma" → "Sem dataset": starts a norma with nothing loaded (only the operations that don't read a dataset). */
+  onCreateWithoutDataset: () => void;
 }
 
 /**
@@ -38,7 +41,10 @@ export function LandingScreen({
   onNormaImportSuccess,
   onGoHome,
   onBrowseNormas,
+  onCreateWithoutDataset,
 }: LandingScreenProps) {
+  const [isBuildOpen, setIsBuildOpen] = useState(false);
+
   return (
     <div className="app app--landing">
       <header className="app__topbar">
@@ -47,7 +53,7 @@ export function LandingScreen({
 
       <div className="app__landing-body">
         <div className="app__landing-left">
-          <p className="app__intro">Importe um ficheiro de dados para começar a criar um modelo inteligente.</p>
+          <p className="app__intro">Importe uma norma que já tem, ou construa a sua, com ou sem um ficheiro de dados.</p>
         </div>
         <div className="app__landing-right">
           <div className="app__landing-content">
@@ -56,13 +62,41 @@ export function LandingScreen({
               <div className="app__landing-uploaders-or">
                 <span>ou</span>
               </div>
-              <DatasetUploader onImportSuccess={onImportSuccess} />
+              {/* Replaces the dataset upload: how the norma starts is chosen in the dialog. Same shape as the .nrm dropzone beside it. */}
+              <div className="norma-uploader">
+                <div
+                  className="norma-uploader__dropzone"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setIsBuildOpen(true)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setIsBuildOpen(true);
+                    }
+                  }}
+                >
+                  <div className="norma-uploader__icon" aria-hidden="true">
+                    <BuildIcon />
+                  </div>
+                  <p className="norma-uploader__title">Construir a minha norma</p>
+                  <p className="norma-uploader__hint">Comece com um dataset ou sem dados e escolha as operações</p>
+                </div>
+              </div>
             </div>
             <button type="button" className="app__browse-button" onClick={onBrowseNormas}>
               <StoreIcon className="app__browse-icon" />
               <span>Explorar as minhas normas</span>
               <span className="app__browse-hint">Veja e abra as normas que já criou</span>
             </button>
+
+            {isBuildOpen && (
+              <BuildNormaModal
+                onClose={() => setIsBuildOpen(false)}
+                onImportSuccess={onImportSuccess}
+                onStartWithoutDataset={onCreateWithoutDataset}
+              />
+            )}
           </div>
         </div>
       </div>

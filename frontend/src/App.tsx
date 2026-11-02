@@ -24,7 +24,7 @@ import {
 } from './services/datasetApi';
 import type { ModelExportFormat } from './components/SaveModal/SaveModal';
 import type { NrmImportStatusPayload } from './types/nrm';
-import type { DatasetHandle, DatasetImportStatus, DatasetImportResponse } from './types/dataset';
+import { NO_DATASET, type DatasetHandle, type DatasetImportStatus, type DatasetImportResponse } from './types/dataset';
 import { useDocumentTitle } from './hooks/useDocumentTitle';
 import { preloadDatasetSheets, useDatasetSheets } from './hooks/useDatasetSheets';
 import type { ColumnPickField, ColumnPickState, RangePickState } from './types/columnPick';
@@ -97,7 +97,18 @@ function DatasetRoute({
  * the sheets, so the choose and Utilizar screens never download them. children is a render prop so
  * the editor gets the full dataset non-null.
  */
-function EditorDataset({
+function EditorDataset(props: {
+  datasetId: string;
+  nrmId?: string;
+  /** A norma without a dataset has no sheets to load: the editor opens at once with an empty one. */
+  withoutDataset?: boolean;
+  children: (dataset: DatasetImportResponse) => ReactNode;
+}) {
+  if (props.withoutDataset) return <>{props.children(NO_DATASET)}</>;
+  return <LoadedEditorDataset datasetId={props.datasetId} nrmId={props.nrmId}>{props.children}</LoadedEditorDataset>;
+}
+
+function LoadedEditorDataset({
   datasetId,
   nrmId,
   children,
@@ -158,6 +169,8 @@ function App() {
   // The .nrm file's own name (see ExportedModel.nrmName) — what "Sessões recentes" identifies a
   // session by, and what "Exportar modelo" names the downloaded file. Empty until picked.
   const [nrmName, setNrmName] = useState('');
+  // What the author wrote about the norma (optional) — asked for in the save dialog, shown on its card in "As minhas normas".
+  const [nrmDescription, setNrmDescription] = useState('');
   const [activeSheetIndex, setActiveSheetIndex] = useState(0);
   const [columnPick, setColumnPick] = useState<ColumnPickState | null>(null);
   const [rangePick, setRangePick] = useState<RangePickState | null>(null);
@@ -293,19 +306,39 @@ function App() {
 
   /** Starts tracking a brand-new cached entry (a fresh dataset or .nrm upload) under a new id —
    * distinct from cacheCurrentSession, which updates whichever entry is already active. */
-  function startNewCachedSession(id: string, datasetId: string, datasetFileName: string, datasetBlob: Blob, modelJson: string | null) {
+  function startNewCachedSession(
+    id: string,
+    datasetId: string,
+    datasetFileName: string,
+    datasetBlob: Blob | null,
+    modelJson: string | null,
+    withoutDataset = false,
+  ) {
     currentSessionIdRef.current = id;
-    saveSessionCacheEntry(id, { datasetId, datasetFileName, datasetBlob, modelJson })
+    saveSessionCacheEntry(id, { datasetId, datasetFileName, datasetBlob, modelJson, ...(withoutDataset ? { withoutDataset } : {}) })
       .then(refreshRecentSessions)
       .catch((error) => console.warn('Falha ao guardar a sessão no IndexedDB.', error));
   }
 
   /** Updates the currently active entry (see currentSessionIdRef) in place — a no-op if there
    * somehow isn't one, which shouldn't happen whenever `dataset` is set. */
-  function cacheCurrentSession(datasetId: string, datasetFileName: string, datasetBlob: Blob | null, modelJson: string | null) {
+  function cacheCurrentSession(
+    datasetId: string,
+    datasetFileName: string,
+    datasetBlob: Blob | null,
+    modelJson: string | null,
+    withoutDataset = false,
+  ) {
     const id = currentSessionIdRef.current;
     if (!id) return;
-    saveSessionCacheEntry(id, { datasetId, datasetFileName, datasetBlob, modelJson, savedNrmId: savedNrmIdRef.current })
+    saveSessionCacheEntry(id, {
+      datasetId,
+      datasetFileName,
+      datasetBlob,
+      modelJson,
+      savedNrmId: savedNrmIdRef.current,
+      ...(withoutDataset ? { withoutDataset } : {}),
+    })
       .then(refreshRecentSessions)
       .catch((error) => console.warn('Falha ao atualizar a sessão no IndexedDB.', error));
   }
@@ -313,7 +346,7 @@ function App() {
   // The model last registered on the backend, so picking Utilizar again for the very same
   // imported model reuses its id instead of registering (and leaving behind) another copy. Keyed
   // by the ImportedModel object itself, so importing or restoring a model anew naturally misses.
-  const registeredModelRef = useRef<{ model: ImportedModel; datasetId: string; modelId: string } | null>(null);
+  const registeredModelRef = useRef<{ model: ImportedModel; datasetId: string | null; modelId: string } | null>(null);
 
   /** Gets a model ready for the Utilizar screen, which only ever sees its inputs (outputs arrive
    * with a run). A model already registered on the backend is only asked for its inputs; otherwise
@@ -339,13 +372,14 @@ function App() {
 
     // Only a model without its own .nrm (a bare .json imported onto an .nrm's dataset) gets here with
     // a handle whose id is the .nrm's: the dataset endpoints below need the dataset's real id.
-    const datasetId = handle.nrmId ? (await getNrmDataset(handle.nrmId)).datasetId : handle.datasetId;
+    // (A norma without a dataset registers against none.)
+    const datasetId = handle.withoutDataset ? null : handle.nrmId ? (await getNrmDataset(handle.nrmId)).datasetId : handle.datasetId;
 
     const known = registeredModelRef.current;
     if (known && known.model === model && known.datasetId === datasetId) {
       try {
         const { inputs, operations } = await getModelInputs(known.modelId, { silent: true });
-        return { modelName: model.nrmName || model.modelName, modelId: known.modelId, datasetId, inputs, operations };
+        return { modelName: model.nrmName || model.modelName, modelId: known.modelId, datasetId: datasetId ?? undefined, inputs, operations };
       } catch {
         registeredModelRef.current = null; // forgotten by the backend — register it again below
       }
@@ -359,7 +393,7 @@ function App() {
       outputOperationIds,
     );
     registeredModelRef.current = { model, datasetId, modelId };
-    return { modelName: model.nrmName || model.modelName, modelId, datasetId, inputs, operations };
+    return { modelName: model.nrmName || model.modelName, modelId, datasetId: datasetId ?? undefined, inputs, operations };
   }
 
   // The actual replay, only run once the user has chosen to resume a given entry (or a page reload
@@ -386,21 +420,31 @@ function App() {
         .finally(() => setResumingId(null));
     }
     const datasetBlob = entry.datasetBlob;
-    if (!datasetBlob) {
+    // A norma made without a dataset keeps no spreadsheet: there is nothing to import, only the model to bring back.
+    const withoutDataset = Boolean(entry.withoutDataset);
+    if (!datasetBlob && !withoutDataset) {
       setResumingId(null);
       return Promise.resolve(false);
     }
     clearModelState();
-    const file = new File([datasetBlob], entry.datasetFileName);
+    const file = datasetBlob ? new File([datasetBlob], entry.datasetFileName) : null;
     // A reload already knows its dataset id from the URL: if the backend still has that dataset,
     // fetch it instead of re-uploading, which also keeps the URL exactly as it was. Only when it
     // doesn't (the backend restarted) is the cached file re-imported, getting a fresh id.
-    const loadDataset = knownDatasetId
-      ? checkDataset(knownDatasetId).catch(() => importDataset(file))
-      : importDataset(file);
+    const loadDataset: Promise<DatasetImportStatus> =
+      withoutDataset || !file
+        ? Promise.resolve({ status: 'success', datasetId: knownDatasetId ?? entry.datasetId ?? generateSessionId() })
+        : knownDatasetId
+          ? checkDataset(knownDatasetId).catch(() => importDataset(file))
+          : importDataset(file);
     return loadDataset
       .then(async (restoredDataset) => {
-        setDataset({ datasetId: restoredDataset.datasetId, filename: entry.datasetFileName });
+        const restoredHandle: DatasetHandle = {
+          datasetId: restoredDataset.datasetId,
+          filename: entry.datasetFileName,
+          ...(withoutDataset ? { withoutDataset: true } : {}),
+        };
+        setDataset(restoredHandle);
         setDatasetFile(file);
         currentSessionIdRef.current = entry.id;
         setSavedNrmId(entry.savedNrmId ?? null);
@@ -411,6 +455,7 @@ function App() {
           const model: ImportedModel = {
             modelName: imported.modelName,
             nrmName: imported.nrmName,
+            nrmDescription: imported.nrmDescription,
             entries: imported.entries,
             inputOperationIds: imported.inputOperationIds,
             outputOperationIds: imported.outputOperationIds,
@@ -419,6 +464,7 @@ function App() {
           if (target === 'editor') {
             setModelName(imported.modelName);
             setNrmName(imported.nrmName);
+            setNrmDescription(imported.nrmDescription);
             setPendingImportEntries(imported.entries);
             setModelInputIds(imported.inputOperationIds);
             setModelOutputIds(imported.outputOperationIds);
@@ -428,10 +474,11 @@ function App() {
             // Kept as the imported model so the choose screen's Editar/Utilizar pair (and "back"
             // from Utilizar) still work.
             setImportedModel(model);
+            setNrmDescription(imported.nrmDescription);
             if (target === 'choose') {
               landOn(base);
             } else {
-              const prepared = await prepareUtilize({ datasetId: restoredDataset.datasetId, filename: entry.datasetFileName }, model);
+              const prepared = await prepareUtilize(restoredHandle, model);
               setUtilizeModel(prepared);
               // The model is registered now, and the address names it.
               landOn(prepared.modelId ? `${base}/m/${prepared.modelId}/utilizar` : `${base}/utilizar`);
@@ -442,7 +489,7 @@ function App() {
         }
         // Bumps this entry back to the top of "recent" (same content, fresh savedAt, and the new
         // dataset id) without needing its own separate "touch" call.
-        cacheCurrentSession(restoredDataset.datasetId, entry.datasetFileName, datasetBlob, entry.modelJson);
+        cacheCurrentSession(restoredDataset.datasetId, entry.datasetFileName, datasetBlob, entry.modelJson, withoutDataset);
         return true;
       })
       .catch((error) => {
@@ -592,13 +639,15 @@ function App() {
   // handleImportModelFile just cached with a premature null. Debounced since every keystroke in a
   // field re-renders with new modelEntries — no need to hit IndexedDB that often.
   useEffect(() => {
-    if (!dataset || !datasetFile || !location.pathname.endsWith('/editor')) return;
+    // A norma without a dataset has no file to wait for — unless it is one opened from the platform, which is not autosaved.
+    const isCacheable = datasetFile !== null || (dataset?.withoutDataset === true && !dataset.savedId);
+    if (!dataset || !isCacheable || !location.pathname.endsWith('/editor')) return;
     const timeoutId = window.setTimeout(() => {
       // Built here, not up front: serializing the whole model on every change (every mousemove of
       // a drag) is what this debounce exists to avoid. Only the model half is rewritten — the
       // dataset's bytes in the cache entry are already there and never change while editing.
       const modelJson = hasConfirmedEntry
-        ? JSON.stringify(buildModelExport(modelEntries, modelName, dataset.datasetId, modelInputIds, modelOutputIds, nrmName))
+        ? JSON.stringify(buildModelExport(modelEntries, modelName, dataset.datasetId, modelInputIds, modelOutputIds, nrmName, nrmDescription))
         : null;
       const id = currentSessionIdRef.current;
       if (id) {
@@ -607,11 +656,11 @@ function App() {
         );
       } else if (modelJson) {
         // The first usable model of a dataset that had none: only now does it become a recent session.
-        startNewCachedSession(generateSessionId(), dataset.datasetId, datasetFile.name, datasetFile, modelJson);
+        startNewCachedSession(generateSessionId(), dataset.datasetId, datasetFile?.name ?? '', datasetFile, modelJson, dataset.withoutDataset === true);
       }
     }, 500);
     return () => window.clearTimeout(timeoutId);
-  }, [dataset, datasetFile, location.pathname, modelEntries, modelName, nrmName, modelInputIds, modelOutputIds, hasConfirmedEntry]);
+  }, [dataset, datasetFile, location.pathname, modelEntries, modelName, nrmName, nrmDescription, modelInputIds, modelOutputIds, hasConfirmedEntry]);
 
   // Auto-open the sheet panel whenever a pick starts, wherever it was triggered from (the panel
   // itself, if already open, just keeps showing).
@@ -697,11 +746,57 @@ function App() {
     setModelOutputIds([]);
     setIsSheetPanelOpen(false);
     setIsPreparingModel(true);
-    preloadDatasetSheets(dataset.datasetId, dataset.nrmId)
+    (dataset.withoutDataset ? Promise.resolve() : preloadDatasetSheets(dataset.datasetId, dataset.nrmId))
       .then(() => navigate(pagePath(dataset, 'editor')))
       // On failure the editor route's own loader shows the error.
       .catch(() => navigate(pagePath(dataset, 'editor')))
       .finally(() => setIsPreparingModel(false));
+  }
+
+  /** "Criar sem dataset" on the landing screen: a session with nothing loaded, which lands on the same create/import
+   * choice as a dataset does. Its handle's id is only the session's own key (the address and the cache use it). */
+  function startWithoutDataset() {
+    clearModelState();
+    const sessionKey = generateSessionId();
+    setDataset({ datasetId: sessionKey, filename: '', withoutDataset: true });
+    setDatasetFile(null);
+    // Not a recent session yet: that only happens once it has a model.
+    currentSessionIdRef.current = null;
+    navigate(`/d/${sessionKey}`);
+  }
+
+  /**
+   * Gives the norma on screen a dataset (the editor's "Anexar dataset"), which unlocks the operation kinds that read one.
+   * The session becomes a plain "dataset plus model" one: the model on screen is kept as it is, and saving it again writes
+   * a .nrm with the spreadsheet (replacing the library entry it came from, if any).
+   */
+  async function attachDataset(file: File) {
+    if (!dataset?.withoutDataset) return;
+    setIsPreparingModel(true);
+    try {
+      const attached = await importDataset(file);
+      await preloadDatasetSheets(attached.datasetId);
+      const handle: DatasetHandle = { datasetId: attached.datasetId, filename: file.name, ...(dataset.savedId ? { savedId: dataset.savedId } : {}) };
+      // The editor mounts again once the sheets are in: it restarts from the model as it is now.
+      setPendingImportEntries(modelEntries);
+      // A model that stayed on the backend with the old .nrm is replaced by the one on screen.
+      if (importedModel) {
+        setImportedModel({ ...importedModel, nrmId: undefined, entries: modelEntries, inputOperationIds: modelInputIds, outputOperationIds: modelOutputIds, modelName, nrmName, nrmDescription });
+      }
+      registeredModelRef.current = null;
+      setDatasetFile(file);
+      setDataset(handle);
+      const modelJson = hasConfirmedEntry
+        ? JSON.stringify(buildModelExport(modelEntries, modelName, attached.datasetId, modelInputIds, modelOutputIds, nrmName, nrmDescription))
+        : null;
+      if (currentSessionIdRef.current) cacheCurrentSession(attached.datasetId, file.name, file, modelJson);
+      navigate(pagePath(handle, 'editor'), { replace: true });
+      reportSuccess('Dataset anexado');
+    } catch {
+      // The API toast already says what went wrong.
+    } finally {
+      setIsPreparingModel(false);
+    }
   }
 
   function triggerImportModel() {
@@ -724,18 +819,30 @@ function App() {
         // Refuse a model that doesn't fit the loaded dataset here, rather than letting the editor or
         // utilize screen fail on it later. (A .nrm-backed session has no real dataset id of its own
         // to check against — its dataset and model were already validated together on import.)
-        if (dataset && !dataset.nrmId) await validateModelForDataset(dataset.datasetId, text);
+        if (dataset?.withoutDataset) {
+          // The same refusal the backend gives a norma without a dataset, said here before the model is taken in.
+          const needsDataset = imported.entries.find((entry) => KINDS_BY_ID[entry.kindId].requiresDataset);
+          if (needsDataset) {
+            throw new Error(
+              `A operação "${needsDataset.name || 'sem nome'}" precisa de um dataset, mas esta norma não tem nenhum. Anexe um dataset no editor ou escolha outro modelo.`,
+            );
+          }
+        } else if (dataset && !dataset.nrmId) {
+          await validateModelForDataset(dataset.datasetId, text);
+        }
         const model: ImportedModel = {
           modelName: imported.modelName,
           nrmName: imported.nrmName,
+          nrmDescription: imported.nrmDescription,
           entries: imported.entries,
           inputOperationIds: imported.inputOperationIds,
           outputOperationIds: imported.outputOperationIds,
         };
         setImportedModel(model);
+        setNrmDescription(imported.nrmDescription);
         setImportError(null);
         reportSuccess('Modelo importado');
-        if (dataset && datasetFile) {
+        if (dataset && (datasetFile || dataset.withoutDataset)) {
           const modelJson = JSON.stringify(
             buildModelExport(
               imported.entries,
@@ -744,10 +851,12 @@ function App() {
               imported.inputOperationIds,
               imported.outputOperationIds,
               imported.nrmName,
+              imported.nrmDescription,
             ),
           );
-          if (currentSessionIdRef.current) cacheCurrentSession(dataset.datasetId, datasetFile.name, datasetFile, modelJson);
-          else startNewCachedSession(generateSessionId(), dataset.datasetId, datasetFile.name, datasetFile, modelJson);
+          const withoutDataset = dataset.withoutDataset === true;
+          if (currentSessionIdRef.current) cacheCurrentSession(dataset.datasetId, datasetFile?.name ?? '', datasetFile, modelJson, withoutDataset);
+          else startNewCachedSession(generateSessionId(), dataset.datasetId, datasetFile?.name ?? '', datasetFile, modelJson, withoutDataset);
         }
       })
       .catch((error) => {
@@ -785,7 +894,7 @@ function App() {
   // dataset import followed by a separate "Importar Modelo" would land, just in one step.
   function handleNormaImportSuccess(
     importedNrm: NrmImportStatusPayload,
-    file: File,
+    file: File | null,
     model: ImportedModel,
     modelText: string,
     nrmFile?: File,
@@ -794,13 +903,14 @@ function App() {
     setUploadedNrmFile(nrmFile ?? null);
     currentNrmFileRef.current = nrmFile ?? null;
     // The .nrm's id doubles as the session key: its dataset's own id is never handed out.
-    setDataset({ datasetId: importedNrm.nrmId, filename: file.name, nrmId: importedNrm.nrmId });
+    setDataset({ datasetId: importedNrm.nrmId, filename: file?.name ?? '', nrmId: importedNrm.nrmId, ...(file ? {} : { withoutDataset: true }) });
     setDatasetFile(file);
     setImportedModel(model);
+    setNrmDescription(model.nrmDescription ?? '');
     navigate(`/d/${importedNrm.nrmId}`);
     // The model JSON exactly as the .nrm held it (never parsed here) — kept only so a reload or a
     // "recent" entry can bring the session back.
-    startNewCachedSession(generateSessionId(), importedNrm.nrmId, file.name, file, modelText);
+    startNewCachedSession(generateSessionId(), importedNrm.nrmId, file?.name ?? '', file, modelText, file === null);
   }
 
   // True while Editar / Utilizar / "Importar Modelo" are fetching or checking a model — drives the
@@ -821,10 +931,11 @@ function App() {
       : Promise.resolve(importedModel);
     // The dataset's sheets download in parallel with the model, so the editor opens with them ready
     // instead of rendering blank while they arrive.
-    Promise.all([loaded, preloadDatasetSheets(dataset.datasetId, dataset.nrmId)])
+    Promise.all([loaded, dataset.withoutDataset ? Promise.resolve() : preloadDatasetSheets(dataset.datasetId, dataset.nrmId)])
       .then(([model]) => {
         setModelName(model.modelName);
         setNrmName(model.nrmName);
+        setNrmDescription(model.nrmDescription ?? '');
         setPendingImportEntries(model.entries);
         setModelInputIds(model.inputOperationIds ?? []);
         setModelOutputIds(model.outputOperationIds ?? []);
@@ -868,16 +979,17 @@ function App() {
       if (file) downloadBlob(file, file.name);
       return;
     }
-    const model = buildModelExport(modelEntries, modelName, dataset.datasetId, modelInputIds, modelOutputIds, nrmName);
+    const model = buildModelExport(modelEntries, modelName, dataset.datasetId, modelInputIds, modelOutputIds, nrmName, nrmDescription);
     const fileName = nrmName.trim() || modelName.trim() || 'modelo';
     if (format === 'json') {
       downloadBlob(new Blob([JSON.stringify(model, null, 2)], { type: 'application/json' }), `${fileName}.json`);
       return;
     }
-    const sourceFile = await ensureDatasetFile();
-    if (!sourceFile) return;
+    // A norma without a dataset is saved without a spreadsheet; any other needs its file.
+    const sourceFile = dataset.withoutDataset ? null : await ensureDatasetFile();
+    if (!sourceFile && !dataset.withoutDataset) return;
     // A model that already had a creation date keeps it: saving again does not make it new.
-    const blob = await buildNrmFile(sourceFile, model, fileName, importedModel?.nrmCreatedAt);
+    const blob = await buildNrmFile(sourceFile, model, fileName, importedModel?.nrmCreatedAt, nrmDescription);
     if (format === 'library') {
       const file = new File([blob], `${fileName}.nrm`, { type: 'application/octet-stream' });
       const isReplacing = savedNrmIdRef.current !== null;
@@ -939,10 +1051,18 @@ function App() {
     clearModelState();
     beforeNavigate?.(`/normas/${savedId}`);
     setImportError(null);
-    const handle: DatasetHandle = { datasetId: opened.nrmId, filename: opened.datasetFilename, nrmId: opened.nrmId, savedId };
+    const withoutDataset = opened.datasetFilename === null;
+    const handle: DatasetHandle = {
+      datasetId: opened.nrmId,
+      filename: opened.datasetFilename ?? '',
+      nrmId: opened.nrmId,
+      savedId,
+      ...(withoutDataset ? { withoutDataset: true } : {}),
+    };
     const model: ImportedModel = {
       modelName: opened.modelName || opened.name,
       nrmName: opened.name,
+      nrmDescription: opened.description ?? undefined,
       nrmId: opened.nrmId,
       nrmCreatedAt: opened.createdAt,
       nrmUpdatedAt: opened.updatedAt,
@@ -950,17 +1070,19 @@ function App() {
     setDataset(handle);
     setDatasetFile(null);
     setImportedModel(model);
+    setNrmDescription(opened.description ?? '');
     navigate(`/normas/${savedId}`);
     // The recent session only points at the library entry: the file itself stays on the platform.
     const sessionId = generateSessionId();
     currentSessionIdRef.current = sessionId;
     saveSessionCacheEntry(sessionId, {
       datasetId: opened.nrmId,
-      datasetFileName: opened.datasetFilename,
+      datasetFileName: opened.datasetFilename ?? '',
       datasetBlob: null,
       modelJson: null,
       nrmName: opened.name,
       savedNrmId: savedId,
+      ...(withoutDataset ? { withoutDataset: true } : {}),
     })
       .then(refreshRecentSessions)
       .catch((error) => console.warn('Falha ao guardar a sessão no IndexedDB.', error));
@@ -980,6 +1102,7 @@ function App() {
     setDatasetFile(null);
     setModelName('');
     setNrmName('');
+    setNrmDescription('');
     setActiveSheetIndex(0);
     setColumnPick(null);
     setRangePick(null);
@@ -1011,6 +1134,7 @@ function App() {
     currentNrmFileRef.current = null;
     setModelName('');
     setNrmName('');
+    setNrmDescription('');
     setModelEntries([]);
     setModelInputIds([]);
     setModelOutputIds([]);
@@ -1104,10 +1228,12 @@ function App() {
             element={
               <DatasetRoute dataset={dataset} isRestoring={isRestoring} bounceTo={lastOutsidePathRef.current} modelRouteId={utilizeModel?.modelId || undefined}>
                 {(activeDataset) => (
-                  <EditorDataset datasetId={activeDataset.datasetId} nrmId={activeDataset.nrmId}>
+                  <EditorDataset datasetId={activeDataset.datasetId} nrmId={activeDataset.nrmId} withoutDataset={activeDataset.withoutDataset}>
                     {(fullDataset) => (
                       <EditorScreen
                         dataset={fullDataset}
+                        withoutDataset={activeDataset.withoutDataset === true}
+                        onAttachDataset={attachDataset}
                         theme={theme}
                         onToggleTheme={toggleTheme}
                         onBackToChoose={() => navigate(pagePath(activeDataset))}
@@ -1127,7 +1253,7 @@ function App() {
                         onRevealInSheet={revealInSheet}
                         onEntriesChange={setModelEntries}
                         getModelJson={() =>
-                          JSON.stringify(buildModelExport(modelEntries, modelName, dataset?.datasetId ?? '', modelInputIds, modelOutputIds, nrmName), null, 2)
+                          JSON.stringify(buildModelExport(modelEntries, modelName, dataset?.datasetId ?? '', modelInputIds, modelOutputIds, nrmName, nrmDescription), null, 2)
                         }
                         modelInputIds={modelInputIds}
                         modelOutputIds={modelOutputIds}
@@ -1153,6 +1279,8 @@ function App() {
                         onCloseSaveModal={() => setIsSaveModalOpen(false)}
                         onExportModel={exportModel}
                         nrmName={nrmName}
+                        nrmDescription={nrmDescription}
+                        onNrmDescriptionChange={setNrmDescription}
                         onNrmNameChange={setNrmName}
                         canExportModel={canExportModel}
                         exportHint={exportHint}
@@ -1219,6 +1347,7 @@ function App() {
             }}
             onGoHome={goHome}
             onBrowseNormas={() => navigate('/normas')}
+            onCreateWithoutDataset={startWithoutDataset}
           />
         }
       />

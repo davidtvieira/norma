@@ -114,6 +114,9 @@ export interface OperationInputEditorContext {
 export interface OperationKind {
   /** Matches an id from GET /api/v1/dataset/operations. */
   id: string;
+  /** Whether the kind reads the dataset (its sheets, columns or ranges): a norma without a dataset can't hold it. Mirrors
+   * the backend's OperationTypes, kept in sync by hand. */
+  requiresDataset: boolean;
   /** Starting fields for a new entry — given the dataset so a lone table can be pre-selected. */
   createFields: (dataset: DatasetImportResponse) => OperationFields;
   canConfirm: (fields: OperationFields) => boolean;

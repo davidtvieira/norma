@@ -12,20 +12,25 @@ import java.util.List;
 public final class OperationTypes {
 
     public static final List<OperationType> ALL = List.of(
-            new OperationType("lookup", "Lookup"),
-            new OperationType("sum", "Sum"),
-            new OperationType("counter", "Counter"),
-            new OperationType("node", "Node"),
-            new OperationType("find", "Find"),
-            new OperationType("translator", "Translator"),
-            new OperationType("selector", "Selector"),
-            new OperationType("iterator", "Iterator"),
-            new OperationType("calc", "Calc"),
-            new OperationType("page", "Page selector"),
-            new OperationType("formatter", "Input formatter")
+            new OperationType("lookup", "Lookup", true),
+            new OperationType("sum", "Sum", true),
+            new OperationType("counter", "Counter", false),
+            new OperationType("node", "Node", false),
+            new OperationType("find", "Find", true),
+            new OperationType("translator", "Translator", false),
+            new OperationType("selector", "Selector", false),
+            new OperationType("iterator", "Iterator", true),
+            new OperationType("calc", "Calc", false),
+            new OperationType("page", "Page selector", true),
+            new OperationType("formatter", "Input formatter", false)
     );
 
     private OperationTypes() {
+    }
+
+    /** Whether the kind reads from the dataset, so a model without one can't hold it (false for an unknown kind). */
+    public static boolean requiresDataset(String id) {
+        return ALL.stream().anyMatch(type -> type.id().equals(id) && type.requiresDataset());
     }
 
     public static boolean isKnown(String id) {

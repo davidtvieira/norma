@@ -48,6 +48,7 @@ function asCalcFields(fields: OperationFields): CalcFields {
  */
 export const calcKind: OperationKind = {
   id: 'calc',
+  requiresDataset: false,
 
   createFields: (): OperationFields => ({
     a: literalSource(''),

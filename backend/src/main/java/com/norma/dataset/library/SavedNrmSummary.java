@@ -11,7 +11,10 @@ import java.util.UUID;
 public record SavedNrmSummary(
         UUID id,
         String name,
+        /** Null for a norma saved without a dataset. */
         String datasetFilename,
+        /** What the author wrote about the norma; null when they wrote nothing. */
+        String description,
         long sizeBytes,
         int operationCount,
         int inputCount,

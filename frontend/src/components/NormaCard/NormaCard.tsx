@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { TrashIcon } from '../ButtonIcons/ButtonIcons';
+import { InfoIcon, TrashIcon } from '../ButtonIcons/ButtonIcons';
+import { Modal } from '../Modal/Modal';
 import { NormaMark } from '../NormaMark/NormaMark';
 import type { SavedNrmPayload } from '../../types/savedNrm';
 import { NORMA_DRAG_TYPE } from '../../utils/normaDrag';
@@ -36,10 +37,14 @@ function formatDate(iso: string): string {
 export function NormaCard({ model, isOpening, onOpen, onDelete, onDragChange }: NormaCardProps) {
   const canOpen = model.available && !isOpening;
   const [isDragging, setIsDragging] = useState(false);
+  // The description (when the author wrote one) opens in its own dialog, from the "i" beside the bin.
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
+  const description = model.description?.trim() ? model.description : null;
 
   return (
+    <>
     <div
-      className={`norma-card norma-card--norma${model.available ? ' norma-card--openable' : ''}${isOpening ? ' norma-card--opening' : ''}${isDragging ? ' norma-card--dragging' : ''}`}
+      className={`norma-card norma-card--norma${description ? ' norma-card--has-info' : ''}${model.available ? ' norma-card--openable' : ''}${isOpening ? ' norma-card--opening' : ''}${isDragging ? ' norma-card--dragging' : ''}`}
       draggable
       onDragStart={(event) => {
         event.dataTransfer.setData(NORMA_DRAG_TYPE, model.id);
@@ -68,6 +73,20 @@ export function NormaCard({ model, isOpening, onOpen, onDelete, onDragChange }: 
           : undefined
       }
     >
+      {description && (
+        <button
+          type="button"
+          className="norma-card__info"
+          onClick={(event) => {
+            event.stopPropagation();
+            setIsInfoOpen(true);
+          }}
+          aria-label={`Descrição de ${model.name}`}
+          title="Descrição"
+        >
+          <InfoIcon className="norma-card__info-icon" />
+        </button>
+      )}
       <button
         type="button"
         className="norma-card__delete"
@@ -92,12 +111,27 @@ export function NormaCard({ model, isOpening, onOpen, onDelete, onDragChange }: 
               {plural(model.outputCount, 'output', 'outputs')}
             </li>
             <li>Atualizado em {formatDate(model.updatedAt)}</li>
-            <li>{formatSize(model.sizeBytes)}</li>
+            <li>{formatSize(model.sizeBytes)}{model.datasetFilename === null ? ' · sem dataset' : ''}</li>
           </ul>
         ) : (
           <p className="norma-card__meta">O ficheiro desta norma já não existe na plataforma.</p>
         )}
       </div>
     </div>
+    {isInfoOpen && description && (
+      <Modal
+        title={model.name}
+        size="sm"
+        onClose={() => setIsInfoOpen(false)}
+        actions={
+          <button type="button" className="btn btn--secondary" onClick={() => setIsInfoOpen(false)}>
+            Fechar
+          </button>
+        }
+      >
+        <p className="modal__text norma-card__description">{description}</p>
+      </Modal>
+    )}
+    </>
   );
 }

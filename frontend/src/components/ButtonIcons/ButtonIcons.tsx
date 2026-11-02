@@ -8,6 +8,9 @@ import {
   BrushCleaning,
   Download,
   Eye,
+  FilePlus,
+  Hammer,
+  Info,
   Folder,
   FolderOpen,
   LayoutGrid,
@@ -98,6 +101,12 @@ export const MoonIcon = make(Moon);
 export const StoreIcon = make(Store);
 /** Arrow into a tray, for the dropzones. */
 export const UploadIcon = make(Upload);
+/** A circled "i" — more about something (a norma's description). */
+export const InfoIcon = make(Info);
+/** A hammer — building something of one's own ("Construir a minha norma"). */
+export const BuildIcon = make(Hammer);
+/** A new blank file — starting something empty ("Criar sem dataset"). */
+export const NewFileIcon = make(FilePlus);
 export const FolderOpenIcon = make(FolderOpen);
 /** Closed folder — a folder card at rest (it opens on hover). */
 export const FolderClosedIcon = make(Folder);

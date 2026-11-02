@@ -10,6 +10,8 @@ export interface ImportedModel {
   modelName: string;
   /** The .nrm's own name — empty when the model came from a bare .json or an unnamed .nrm. */
   nrmName: string;
+  /** What the author wrote about the norma (optional). */
+  nrmDescription?: string;
   /** When the .nrm was made (ISO), when it said so. */
   nrmCreatedAt?: string;
   /** When the library entry the model was opened from was last updated (ISO) — only for a saved norma. */
@@ -72,12 +74,12 @@ export function ChooseModelScreen({
 
       <div className="app__create-model-body">
         <div className="app__create-model-content">
-          <p className="app__create-model-eyebrow">{importedModel ? importedModel.modelName || 'Modelo sem nome' : dataset.filename}</p>
+          <p className="app__create-model-eyebrow">{importedModel ? importedModel.modelName || 'Modelo sem nome' : dataset.withoutDataset ? 'Sem dataset' : dataset.filename}</p>
           <h1 className="app__create-model-title">
-            {importedModel ? 'O modelo foi importado.' : 'O seu conjunto de dados está pronto.'}
+            {importedModel ? 'O modelo foi importado.' : dataset.withoutDataset ? 'Vai criar uma norma sem dataset.' : 'O seu conjunto de dados está pronto.'}
           </h1>
           <p className="app__create-model-hint">
-            {importedModel ? 'O que pretende fazer com o modelo importado?' : 'Escolha uma das opções abaixo para começar.'}
+            {importedModel ? 'O que pretende fazer com o modelo importado?' : dataset.withoutDataset ? 'Só estão disponíveis as operações que não leem dados. Pode anexar um dataset no editor.' : 'Escolha uma das opções abaixo para começar.'}
           </p>
           <div className="app__create-model-actions">
             {importedModel ? (

@@ -6,4 +6,6 @@
 export interface OperationType {
   id: string;
   label: string;
+  /** Whether the kind reads the dataset: a norma without one can't hold it (mirrors each kind's `requiresDataset`). */
+  requiresDataset: boolean;
 }

@@ -27,6 +27,7 @@ function asFindFields(fields: OperationFields): FindFields {
 
 export const findKind: OperationKind = {
   id: 'find',
+  requiresDataset: true,
 
   createFields: (dataset): OperationFields => ({
     input: literalSource(''),

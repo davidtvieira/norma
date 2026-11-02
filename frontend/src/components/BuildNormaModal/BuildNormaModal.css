@@ -1,0 +1,104 @@
+.build-norma-modal__options {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: stretch;
+  gap: 1rem;
+}
+
+/* The two choices side by side, the same height: the dataset dropzone and the option fill their column. */
+.build-norma-modal__options > .dataset-uploader,
+.build-norma-modal__options > .build-norma-modal__option {
+  min-width: 0;
+}
+
+.build-norma-modal__options > .dataset-uploader .dataset-uploader__dropzone {
+  flex: 1;
+}
+
+.build-norma-modal__or {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+.build-norma-modal__or::before,
+.build-norma-modal__or::after {
+  content: '';
+  flex: 1;
+  width: 1px;
+  background: var(--color-border);
+}
+
+@media (max-width: 640px) {
+  .build-norma-modal__options {
+    grid-template-columns: 1fr;
+  }
+
+  .build-norma-modal__or {
+    flex-direction: row;
+  }
+
+  .build-norma-modal__or::before,
+  .build-norma-modal__or::after {
+    width: auto;
+    height: 1px;
+  }
+}
+
+/* The same shape as the dataset dropzone above it, so the two choices read as a pair. */
+.build-norma-modal__option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 1.75rem 2rem;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  text-align: center;
+  cursor: pointer;
+}
+
+.build-norma-modal__option:focus-visible {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.build-norma-modal__option-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin-bottom: 0.25rem;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--btn-primary-bg) 14%, transparent);
+  color: var(--btn-primary-bg);
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+.build-norma-modal__option:hover .build-norma-modal__option-icon {
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-contrast);
+}
+
+.build-norma-modal__option-icon svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.build-norma-modal__option-title {
+  margin: 0;
+  font-size: 0.925rem;
+  font-weight: 500;
+}
+
+.build-norma-modal__option-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}

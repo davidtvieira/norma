@@ -130,17 +130,19 @@ export function UtilizeScreen({ dataset, utilizeModel, theme, onToggleTheme, onB
       <header className="app__topbar app__topbar--with-title">
         <BackButton onClick={onBack} />
         <div className="app__topbar-actions">
-          <button
-            type="button"
-            className="btn btn--secondary"
-            onClick={() => {
-              setHighlights(NO_HIGHLIGHTS);
-              openSheetPanel();
-            }}
-          >
-            <SpreadsheetIcon />
-            Ver dados
-          </button>
+          {!dataset.withoutDataset && (
+            <button
+              type="button"
+              className="btn btn--secondary"
+              onClick={() => {
+                setHighlights(NO_HIGHLIGHTS);
+                openSheetPanel();
+              }}
+            >
+              <SpreadsheetIcon />
+              Ver dados
+            </button>
+          )}
           <ThemeToggle theme={theme} onToggle={onToggleTheme} />
         </div>
       </header>
@@ -159,17 +161,19 @@ export function UtilizeScreen({ dataset, utilizeModel, theme, onToggleTheme, onB
 
       <AppFooter onGoHome={onGoHome} />
 
-      <SheetPanel title={dataset.filename} open={isSheetPanelOpen} onClose={() => setIsSheetPanelOpen(false)}>
-        {hasOpenedSheetPanel && (
-          <DataViewer
-            dataset={dataset}
-            activeSheetIndex={activeSheetIndex}
-            onActiveSheetIndexChange={setActiveSheetIndex}
-            highlights={highlights}
-            active={isSheetPanelOpen}
-          />
-        )}
-      </SheetPanel>
+      {!dataset.withoutDataset && (
+        <SheetPanel title={dataset.filename} open={isSheetPanelOpen} onClose={() => setIsSheetPanelOpen(false)}>
+          {hasOpenedSheetPanel && (
+            <DataViewer
+              dataset={dataset}
+              activeSheetIndex={activeSheetIndex}
+              onActiveSheetIndexChange={setActiveSheetIndex}
+              highlights={highlights}
+              active={isSheetPanelOpen}
+            />
+          )}
+        </SheetPanel>
+      )}
     </div>
   );
 }

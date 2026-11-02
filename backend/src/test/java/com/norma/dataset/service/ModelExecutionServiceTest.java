@@ -76,6 +76,33 @@ class ModelExecutionServiceTest {
         return modelExecutionService.runModel(datasetId, modelId, inputValues);
     }
 
+    @Test
+    void runsAModelRegisteredWithoutADataset() {
+        ModelOperationInput node = new ModelOperationInput("n", "node", Map.of("input", literalInput("")), "Valor");
+        ModelOperationInput calc = new ModelOperationInput("c", "calc",
+                Map.of("a", referenceInput("n"), "b", literalInput("2"), "operation", "multiply"), "Dobro");
+
+        String modelId = modelExecutionService.registerModel(
+                null, new ModelRegisterRequest("Sem dados", List.of(node, calc), List.of("n"), List.of("c")));
+
+        assertThat(modelExecutionService.runModelWatching(null, modelId, Map.of("n", "21"), null).results())
+                .singleElement().satisfies(result -> {
+                    assertThat(result.success()).isTrue();
+                    assertThat(result.value()).hasToString("42");
+                });
+        modelExecutionService.deleteModel(null, modelId);
+    }
+
+    @Test
+    void aModelWithoutADatasetCannotHoldAKindThatReadsOne() {
+        ModelOperationInput sum = new ModelOperationInput("s", "sum", Map.of(), "Soma");
+
+        assertThatThrownBy(() -> modelExecutionService.registerModel(
+                null, new ModelRegisterRequest("Sem dados", List.of(sum), List.of(), List.of("s"))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("needs a dataset");
+    }
+
     private Map<String, Object> literalInput(String value) {
         return Map.of("type", "literal", "value", value);
     }

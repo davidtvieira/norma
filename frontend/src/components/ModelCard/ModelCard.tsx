@@ -172,7 +172,7 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
     setIsRunning(true);
 
     withMinimumDelay(
-      nrmId ? runNrm(nrmId, inputValues, watchIds) : runModel(dataset.datasetId, modelId, inputValues, watchIds),
+      nrmId ? runNrm(nrmId, inputValues, watchIds) : runModel(dataset.withoutDataset ? null : dataset.datasetId, modelId, inputValues, watchIds),
       RUN_MIN_DURATION_MS,
     )
       .then((response) => {

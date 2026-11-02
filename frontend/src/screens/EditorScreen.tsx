@@ -1,5 +1,5 @@
-import { DiskIcon, SpreadsheetIcon } from '../components/ButtonIcons/ButtonIcons';
-import { useState } from 'react';
+import { DiskIcon, SpreadsheetIcon, UploadIcon } from '../components/ButtonIcons/ButtonIcons';
+import { useRef, useState } from 'react';
 import { BackButton } from '../components/BackButton/BackButton';
 import { AppFooter } from '../components/AppFooter/AppFooter';
 import { OperationPanel } from '../components/OperationPanel/OperationPanel';
@@ -18,6 +18,10 @@ import type { CategoryNode } from '../types/category';
 
 interface EditorScreenProps {
   dataset: DatasetImportResponse;
+  /** The norma has no dataset: the editor offers "Anexar dataset" instead of "Ver dados", and the kinds that read one are locked. */
+  withoutDataset: boolean;
+  /** Gives the norma the spreadsheet the user picked (resolves once it is attached or has failed). */
+  onAttachDataset: (file: File) => Promise<void>;
   theme: Theme;
   onToggleTheme: () => void;
   onBackToChoose: () => void;
@@ -67,6 +71,9 @@ interface EditorScreenProps {
   onExportModel: (format: ModelExportFormat) => void;
   nrmName: string;
   onNrmNameChange: (name: string) => void;
+  /** What the author says about the norma (optional), asked for in the save dialog. */
+  nrmDescription: string;
+  onNrmDescriptionChange: (description: string) => void;
   canExportModel: boolean;
   exportHint: string | null;
   inputItems: IoItem[];
@@ -87,6 +94,8 @@ interface EditorScreenProps {
  * viewer/save modal it drives. */
 export function EditorScreen({
   dataset,
+  withoutDataset,
+  onAttachDataset,
   theme,
   onToggleTheme,
   onBackToChoose,
@@ -128,6 +137,8 @@ export function EditorScreen({
   onExportModel,
   nrmName,
   onNrmNameChange,
+  nrmDescription,
+  onNrmDescriptionChange,
   canExportModel,
   exportHint,
   inputItems,
@@ -144,6 +155,7 @@ export function EditorScreen({
   // ...and the bottom-right one it draws "Carregar teste" into, on the left of the main action.
   const [loadActionSlot, setLoadActionSlot] = useState<HTMLElement | null>(null);
   const [isJsonOpen, setIsJsonOpen] = useState(false);
+  const attachInputRef = useRef<HTMLInputElement>(null);
 
   return (
     <div className="app">
@@ -153,10 +165,30 @@ export function EditorScreen({
           <button type="button" className="btn btn--secondary" onClick={() => setIsJsonOpen(true)}>
             {'{ }'} Ver JSON
           </button>
-          <button type="button" className="btn btn--secondary" onClick={onOpenSheetPanel}>
-            <SpreadsheetIcon />
-            Ver dados
-          </button>
+          {withoutDataset ? (
+            <>
+              <button type="button" className="btn btn--secondary" onClick={() => attachInputRef.current?.click()}>
+                <UploadIcon className="button-icon" />
+                Anexar dataset
+              </button>
+              <input
+                ref={attachInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                className="app__import-model-file-input"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = ''; // so picking the same file again fires onChange again
+                  if (file) void onAttachDataset(file);
+                }}
+              />
+            </>
+          ) : (
+            <button type="button" className="btn btn--secondary" onClick={onOpenSheetPanel}>
+              <SpreadsheetIcon />
+              Ver dados
+            </button>
+          )}
           <ThemeToggle theme={theme} onToggle={onToggleTheme} />
         </div>
       </header>
@@ -168,6 +200,7 @@ export function EditorScreen({
             loadActionSlot={loadActionSlot}
             onSaveTestCase={onSaveTestCase}
             dataset={dataset}
+            withoutDataset={withoutDataset}
             initialEntries={pendingImportEntries}
             columnPick={columnPick}
             onStartColumnPick={onStartColumnPick}
@@ -207,6 +240,7 @@ export function EditorScreen({
 
       <AppFooter onGoHome={onGoHome} />
 
+      {!withoutDataset && (
       <SheetPanel title={dataset.filename} open={isSheetPanelOpen} onClose={onCloseSheetPanel}>
         <SheetViewer
           dataset={dataset}
@@ -223,6 +257,7 @@ export function EditorScreen({
           active={isSheetPanelOpen}
         />
       </SheetPanel>
+      )}
 
       {isJsonOpen && (
         <Modal
@@ -249,6 +284,8 @@ export function EditorScreen({
         onExport={onExportModel}
         nrmName={nrmName}
         onNrmNameChange={onNrmNameChange}
+        nrmDescription={nrmDescription}
+        onNrmDescriptionChange={onNrmDescriptionChange}
         nrmNamePlaceholder={modelName.trim() || 'modelo'}
         canExport={canExportModel}
         exportHint={exportHint}
@@ -257,6 +294,7 @@ export function EditorScreen({
         inputEmptyText={inputEmptyText}
         onReorderInputs={onReorderInputs}
         onReorderOutputs={onReorderOutputs}
+        withoutDataset={withoutDataset}
       />
     </div>
   );

@@ -25,6 +25,27 @@ final class ModelDatasetValidator {
         }
     }
 
+    /**
+     * Checks that a model can live without a dataset: none of its operations (at any depth) may be a kind that reads
+     * from one. Done when a model with no dataset is registered or imported.
+     */
+    static void assertNoDatasetNeeded(JsonNode model) {
+        for (JsonNode operation : model.path("operations")) {
+            assertDatasetFree(operation);
+        }
+    }
+
+    private static void assertDatasetFree(JsonNode operation) {
+        String kind = operation.path("kind").asText();
+        if (OperationTypes.requiresDataset(kind)) {
+            throw new ModelDatasetMismatchException("Operation \"" + operation.path("name").asText()
+                    + "\" is a " + kind + " operation, which needs a dataset, but the model has none.");
+        }
+        for (JsonNode child : operation.path("operations")) {
+            assertDatasetFree(child);
+        }
+    }
+
     private static void assertOperationFits(JsonNode operation, int sheetCount) {
         JsonNode fields = operation.path("fields");
         for (String field : SHEET_FIELDS) {

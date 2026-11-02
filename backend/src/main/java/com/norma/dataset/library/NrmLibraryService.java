@@ -108,7 +108,8 @@ public class NrmLibraryService {
         String pattern = "%" + search.trim().toLowerCase(Locale.ROOT).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
         return (root, query, builder) -> builder.or(
                 builder.like(builder.lower(root.get("name")), pattern, '\\'),
-                builder.like(builder.lower(root.get("datasetFilename")), pattern, '\\'));
+                builder.like(builder.lower(root.get("datasetFilename")), pattern, '\\'),
+                builder.like(builder.lower(root.get("description")), pattern, '\\'));
     }
 
     @Transactional(readOnly = true)
@@ -263,7 +264,7 @@ public class NrmLibraryService {
 
     private void describe(SavedNrm saved, NrmSummary summary, byte[] bytes) {
         saved.describe(summary.name(), summary.datasetFilename(), bytes.length, sha256(bytes),
-                summary.operationCount(), summary.inputCount(), summary.outputCount(), now());
+                summary.operationCount(), summary.inputCount(), summary.outputCount(), summary.description(), now());
     }
 
     private SavedNrmSummary toSummary(SavedNrm saved) {
@@ -271,7 +272,7 @@ public class NrmLibraryService {
     }
 
     private SavedNrmSummary toSummary(SavedNrm saved, Map<UUID, List<String>> paths) {
-        return new SavedNrmSummary(saved.getId(), saved.getName(), saved.getDatasetFilename(), saved.getSizeBytes(),
+        return new SavedNrmSummary(saved.getId(), saved.getName(), saved.getDatasetFilename(), saved.getDescription(), saved.getSizeBytes(),
                 saved.getOperationCount(), saved.getInputCount(), saved.getOutputCount(), saved.getCategoryId(),
                 saved.getCategoryId() == null ? List.of() : paths.getOrDefault(saved.getCategoryId(), List.of()), saved.getCreatedAt(),
                 saved.getUpdatedAt(), storage.exists(saved.getId()));

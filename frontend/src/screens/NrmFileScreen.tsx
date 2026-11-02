@@ -73,6 +73,7 @@ export function NrmFileScreen({
           <div className="app__nrm-title-row">
             <h1 className="app__create-model-title app__create-model-title--name">{currentName}</h1>
           </div>
+          {importedModel.nrmDescription?.trim() && <p className="app__nrm-description">{importedModel.nrmDescription}</p>}
           {(importedModel.nrmCreatedAt || importedModel.nrmUpdatedAt) && (
             <dl className="app__nrm-details">
               {importedModel.nrmCreatedAt && (

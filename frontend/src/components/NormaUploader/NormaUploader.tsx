@@ -12,7 +12,7 @@ interface NormaUploaderProps {
   /** Also hands back the dataset file extracted from the .nrm (not just the parsed dataset), same
    * reason as DatasetUploader's own onImportSuccess — so it's available again if "Guardar modelo"
    * re-exports this model later — and the .nrm itself, so it can be kept in the library as it came. */
-  onImportSuccess: (dataset: NrmImportStatusPayload, datasetFile: File, model: ImportedModel, modelText: string, nrmFile: File) => void;
+  onImportSuccess: (dataset: NrmImportStatusPayload, datasetFile: File | null, model: ImportedModel, modelText: string, nrmFile: File) => void;
 }
 
 /**

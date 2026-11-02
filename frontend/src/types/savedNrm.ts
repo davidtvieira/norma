@@ -2,7 +2,10 @@
 export interface SavedNrmPayload {
   id: string;
   name: string;
-  datasetFilename: string;
+  /** Null for a norma saved without a dataset. */
+  datasetFilename: string | null;
+  /** What the author wrote about the norma; null when they wrote nothing. */
+  description: string | null;
   sizeBytes: number;
   operationCount: number;
   inputCount: number;

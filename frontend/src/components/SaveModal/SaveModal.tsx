@@ -8,6 +8,9 @@ import type { CategoryNode } from '../../types/category';
 import './SaveModal.css';
 
 /** What "Guardar modelo" can export: a copy kept in the platform's library, the full .nrm bundle (model + dataset), just the model .json, or just the dataset's original spreadsheet. */
+/** The longest description a norma may carry, in characters — the backend's limit. */
+export const MAX_DESCRIPTION_LENGTH = 2000;
+
 export type ModelExportFormat = 'library' | 'nrm' | 'json' | 'dataset';
 
 /** One designated input/output of the model, as listed (and reordered) in the dialog. */
@@ -29,6 +32,9 @@ interface SaveModalProps {
   onExport: (format: ModelExportFormat) => void | Promise<void>;
   nrmName: string;
   onNrmNameChange: (name: string) => void;
+  /** What the author says about the norma (optional): shown on its card in "As minhas normas", behind an "i". */
+  nrmDescription: string;
+  onNrmDescriptionChange: (description: string) => void;
   /** Shown as the name field's placeholder — what the file is called if left blank. */
   nrmNamePlaceholder: string;
   canExport: boolean;
@@ -47,6 +53,8 @@ interface SaveModalProps {
   inputEmptyText: string;
   onReorderInputs: (ids: string[]) => void;
   onReorderOutputs: (ids: string[]) => void;
+  /** The norma has no dataset: there is no "only the data" file to download. */
+  withoutDataset?: boolean;
 }
 
 /**
@@ -66,6 +74,8 @@ export function SaveModal({
   onExport,
   nrmName,
   onNrmNameChange,
+  nrmDescription,
+  onNrmDescriptionChange,
   nrmNamePlaceholder,
   canExport,
   exportHint,
@@ -74,6 +84,7 @@ export function SaveModal({
   inputEmptyText,
   onReorderInputs,
   onReorderOutputs,
+  withoutDataset = false,
 }: SaveModalProps) {
   const [isSaving, setIsSaving] = useState(false);
   if (!open) return null;
@@ -102,7 +113,7 @@ export function SaveModal({
           <button type="button" className="btn btn--secondary" onClick={onClose}>
             Fechar
           </button>
-          <ExportButton label={isUpdate ? 'Atualizar' : 'Guardar'} disabled={!canExport || isSaving} onExport={exportAs} />
+          <ExportButton label={isUpdate ? 'Atualizar' : 'Guardar'} disabled={!canExport || isSaving} withoutDataset={withoutDataset} onExport={exportAs} />
         </>
       }
     >
@@ -120,6 +131,18 @@ export function SaveModal({
           value={nrmName}
           placeholder={nrmNamePlaceholder}
           onChange={(event) => onNrmNameChange(event.target.value)}
+        />
+      </label>
+
+      <label className="save-modal__name">
+        <span className="modal__label">Descrição (opcional)</span>
+        <textarea
+          className="modal__input save-modal__description"
+          rows={3}
+          maxLength={MAX_DESCRIPTION_LENGTH}
+          value={nrmDescription}
+          placeholder="Para que serve esta norma?"
+          onChange={(event) => onNrmDescriptionChange(event.target.value)}
         />
       </label>
 
@@ -144,6 +167,7 @@ export function SaveModal({
 interface ExportButtonProps {
   label: string;
   disabled: boolean;
+  withoutDataset: boolean;
   onExport: (format: ModelExportFormat) => void;
 }
 
@@ -153,7 +177,7 @@ interface ExportButtonProps {
  * usual way to move a model between machines), just the model's .json (importable through "Importar
  * Modelo" on a dataset that's already loaded), or just the dataset's own file.
  */
-function ExportButton({ label, disabled, onExport }: ExportButtonProps) {
+function ExportButton({ label, disabled, withoutDataset, onExport }: ExportButtonProps) {
   return (
     <SplitButton
       onClick={() => onExport('library')}
@@ -163,7 +187,7 @@ function ExportButton({ label, disabled, onExport }: ExportButtonProps) {
       items={[
         { label: 'Exportar ficheiro Norma (.nrm)', onSelect: () => onExport('nrm') },
         { label: 'Só o modelo (.json)', onSelect: () => onExport('json') },
-        { label: 'Só os dados (ficheiro original)', onSelect: () => onExport('dataset') },
+        ...(withoutDataset ? [] : [{ label: 'Só os dados (ficheiro original)', onSelect: () => onExport('dataset') }]),
       ]}
     >
       {label}

@@ -5,6 +5,13 @@
   margin: 0 0 1rem;
 }
 
+.save-modal__description {
+  resize: vertical;
+  min-height: 4.5rem;
+  max-height: 14rem;
+  line-height: 1.4;
+}
+
 .save-modal__io {
   display: grid;
   grid-template-columns: 1fr 1fr;

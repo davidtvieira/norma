@@ -38,7 +38,8 @@ import java.util.zip.ZipInputStream;
 
 /**
  * Validates the content of an uploaded .nrm file — the frontend only checks the extension. A .nrm
- * is a zip holding exactly three entries: the dataset spreadsheet (.xlsx/.xls), the model
+ * is a zip holding exactly three entries: the dataset spreadsheet (.xlsx/.xls — left out of a norma made
+ * without a dataset, which is version 2 of the format and may only hold the operation kinds that don't read one), the model
  * ({@code *.json}, not {@code info.json}), and {@code info.json} ({@link NrmInfo}). Anything else —
  * a missing or duplicated entry, an unexpected extra one, malformed JSON, an unknown operation
  * kind, a spreadsheet that can't be opened, a model pointing at sheets the spreadsheet doesn't have — is rejected, so a file only gets past here if it's
@@ -50,7 +51,12 @@ public class NrmService {
     private static final Logger log = LoggerFactory.getLogger(NrmService.class);
     private static final String INVALID_MESSAGE = "Invalid .nrm file.";
     private static final String INFO_ENTRY_NAME = "info.json";
-    private static final int SUPPORTED_VERSION = 1;
+    /** The format with a dataset in it. */
+    private static final int VERSION_WITH_DATASET = 1;
+    /** The longest description a .nrm may carry, in characters (the frontend's field stops at the same number). */
+    public static final int MAX_DESCRIPTION_LENGTH = 2000;
+    /** Adds the .nrm that holds no dataset (the file says it by leaving the spreadsheet out). */
+    private static final int VERSION_WITHOUT_DATASET = 2;
     /** A .nrm only ever holds three files; this just bounds how much of a hostile zip is walked. */
     private static final int MAX_ENTRIES = 16;
     /** Cap on the total decompressed size, so a small zip bomb can't exhaust memory. */
@@ -68,14 +74,18 @@ public class NrmService {
         this.nrmStore = nrmStore;
     }
 
+    /** {@code spreadsheetBytes} is null for a .nrm that holds no dataset. */
     private record Contents(String spreadsheetName, byte[] spreadsheetBytes, NrmInfo info, JsonNode model) {
+        boolean hasDataset() {
+            return spreadsheetBytes != null;
+        }
     }
 
     /** Validates everything about the file without storing anything — used where only the model
      * half is wanted and a second copy of the dataset isn't.*/
     public NrmInfo validate(MultipartFile file) {
         Contents contents = read(file);
-        ModelDatasetValidator.assertFits(contents.model(), sheetCountOf(contents));
+        assertModelFits(contents);
         return contents.info();
     }
 
@@ -86,7 +96,7 @@ public class NrmService {
      */
     public NrmSummary inspect(byte[] bytes) {
         Contents contents = read("library.nrm", bytes);
-        ModelDatasetValidator.assertFits(contents.model(), sheetCountOf(contents));
+        assertModelFits(contents);
         List<ModelOperationInput> operations = new ArrayList<>();
         for (JsonNode node : contents.model().path("operations")) {
             flatten(node, operations);
@@ -97,7 +107,8 @@ public class NrmService {
                 contents.spreadsheetName(),
                 operations.size(),
                 readIds(contents.model(), "inputOperationIds", "inputOperationId").size(),
-                readIds(contents.model(), "outputOperationIds", "outputOperationId").size());
+                readIds(contents.model(), "outputOperationIds", "outputOperationId").size(),
+                contents.info().description());
     }
 
     /**
@@ -117,16 +128,27 @@ public class NrmService {
         Contents contents = read(originalName, bytes);
         String nrmId = importContents(contents).nrmId();
         return new NrmOpenResponse(DatasetImportStatus.SUCCESS, nrmId, contents.info().name(), createdAt,
-                contents.model().path("modelName").asText(""), contents.spreadsheetName(), updatedAt);
+                contents.model().path("modelName").asText(""), contents.spreadsheetName(), updatedAt,
+                contents.info().description());
     }
 
     private NrmImportStatus importContents(Contents contents) {
-        ModelDatasetValidator.assertFits(contents.model(), sheetCountOf(contents));
-        DatasetImportResponse dataset = datasetParserService.parse(
-                new ByteArrayInputStream(contents.spreadsheetBytes()), contents.spreadsheetName());
-        String modelId = registerModel(dataset.datasetId(), contents.model());
-        String nrmId = nrmStore.put(new StoredNrm(dataset.datasetId(), modelId, contents.info(), contents.model()));
+        assertModelFits(contents);
+        String datasetId = contents.hasDataset()
+                ? datasetParserService.parse(new ByteArrayInputStream(contents.spreadsheetBytes()), contents.spreadsheetName()).datasetId()
+                : null;
+        String modelId = registerModel(datasetId, contents.model());
+        String nrmId = nrmStore.put(new StoredNrm(datasetId, modelId, contents.info(), contents.model()));
         return NrmImportStatus.success(nrmId);
+    }
+
+    /** The model must fit the dataset the file holds — or, in a file without one, must not need a dataset. */
+    private void assertModelFits(Contents contents) {
+        if (contents.hasDataset()) {
+            ModelDatasetValidator.assertFits(contents.model(), sheetCountOf(contents));
+        } else {
+            ModelDatasetValidator.assertNoDatasetNeeded(contents.model());
+        }
     }
 
     /** The imported .nrm's model's designated inputs — see {@link ModelExecutionService#getModelInputs}. */
@@ -153,7 +175,11 @@ public class NrmService {
 
     /** The dataset (every sheet) stored from the imported .nrm's spreadsheet. */
     public DatasetImportResponse getDataset(String nrmId) {
-        return datasetParserService.get(get(nrmId).datasetId());
+        String datasetId = get(nrmId).datasetId();
+        if (datasetId == null) {
+            throw new IllegalArgumentException("This .nrm has no dataset.");
+        }
+        return datasetParserService.get(datasetId);
     }
 
     /**
@@ -165,6 +191,12 @@ public class NrmService {
         StoredNrm nrm = get(nrmId);
         ObjectNode model = nrm.model().deepCopy();
         model.put("nrmName", nrm.info().name());
+        // The description too, from info.json (the source of truth for it); a norma with none carries no such field.
+        if (nrm.info().description() != null) {
+            model.put("nrmDescription", nrm.info().description());
+        } else {
+            model.remove("nrmDescription");
+        }
         return model;
     }
 
@@ -296,9 +328,6 @@ public class NrmService {
         if (entryCount == 0) {
             throw invalid("not a valid zip archive, or empty.");
         }
-        if (spreadsheetBytes == null) {
-            throw invalid("does not contain a dataset (.xlsx/.xls).");
-        }
         if (modelBytes == null) {
             throw invalid("does not contain a model (.json).");
         }
@@ -308,7 +337,12 @@ public class NrmService {
 
         JsonNode model = parseJson(modelBytes, "the model");
         validateModel(model);
-        return new Contents(spreadsheetName, spreadsheetBytes, parseInfo(parseJson(infoBytes, INFO_ENTRY_NAME)), model);
+        NrmInfo info = parseInfo(parseJson(infoBytes, INFO_ENTRY_NAME));
+        // Only the second version of the format may leave the dataset out; the first always carries one.
+        if (spreadsheetBytes == null && info.version() < VERSION_WITHOUT_DATASET) {
+            throw invalid("does not contain a dataset (.xlsx/.xls).");
+        }
+        return new Contents(spreadsheetName, spreadsheetBytes, info, model);
     }
 
     private byte[] readEntry(InputStream in, long remainingBudget) throws IOException {
@@ -340,7 +374,8 @@ public class NrmService {
     }
 
     private NrmInfo parseInfo(JsonNode info) {
-        if (!info.isObject() || !info.path("version").isInt() || info.path("version").asInt() != SUPPORTED_VERSION) {
+        if (!info.isObject() || !info.path("version").isInt()
+                || (info.path("version").asInt() != VERSION_WITH_DATASET && info.path("version").asInt() != VERSION_WITHOUT_DATASET)) {
             throw invalid(INFO_ENTRY_NAME + " has a missing or unsupported version.");
         }
         String name = info.path("name").isTextual() ? info.path("name").asText().trim() : "";
@@ -353,7 +388,11 @@ public class NrmService {
         } catch (DateTimeParseException e) {
             throw invalid(INFO_ENTRY_NAME + " has no valid creation date.");
         }
-        return new NrmInfo(SUPPORTED_VERSION, name, createdAt);
+        String description = info.path("description").isTextual() ? info.path("description").asText().trim() : "";
+        if (description.length() > MAX_DESCRIPTION_LENGTH) {
+            throw invalid(INFO_ENTRY_NAME + " has a description that is too long.");
+        }
+        return new NrmInfo(info.path("version").asInt(), name, createdAt, description.isEmpty() ? null : description);
     }
 
     private void validateModel(JsonNode model) {

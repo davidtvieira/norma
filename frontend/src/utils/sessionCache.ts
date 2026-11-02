@@ -18,6 +18,9 @@ export interface SessionCacheEntry {
    * next loads (see App.tsx's resumeSession). */
   /** Null for a model opened from the library: it is reopened from there (see savedNrmId), nothing is kept here. */
   datasetBlob: Blob | null;
+  /** True for a session of a norma made without a dataset (there is no spreadsheet to keep): `datasetId` is then the
+   * session's own key, not a backend dataset id. */
+  withoutDataset?: boolean;
   /** The model's name, when the entry has no model JSON of its own to read it from. */
   nrmName?: string | null;
   /** The entry's model as exported JSON text (see utils/modelSerialization.ts's ExportedModel) —

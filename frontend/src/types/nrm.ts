@@ -21,7 +21,10 @@ export interface NrmOpenPayload {
   /** ISO 8601 timestamp. */
   createdAt: string;
   modelName: string;
-  datasetFilename: string;
+  /** Null for a norma without a dataset. */
+  datasetFilename: string | null;
   /** ISO 8601 timestamp: when the saved entry was last updated. */
   updatedAt: string;
+  /** What the author wrote about the norma; null when they wrote nothing. */
+  description: string | null;
 }

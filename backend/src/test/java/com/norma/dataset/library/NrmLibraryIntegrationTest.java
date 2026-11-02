@@ -105,6 +105,51 @@ class NrmLibraryIntegrationTest {
     }
 
     @Test
+    void aNrmWithoutADatasetCanBeSavedAndListedWithNoDatasetFile() throws IOException {
+        Map<String, byte[]> entries = new LinkedHashMap<>();
+        entries.put("modelo.json", MODEL.getBytes(StandardCharsets.UTF_8));
+        entries.put("info.json", INFO.formatted("Sem dados").replace("\"version\":1", "\"version\":2").getBytes(StandardCharsets.UTF_8));
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (ZipOutputStream zip = new ZipOutputStream(out)) {
+            for (Map.Entry<String, byte[]> entry : entries.entrySet()) {
+                zip.putNextEntry(new ZipEntry(entry.getKey()));
+                zip.write(entry.getValue());
+                zip.closeEntry();
+            }
+        }
+
+        SavedNrmSummary saved = upload(out.toByteArray()).getBody();
+
+        assertThat(saved.name()).isEqualTo("Sem dados");
+        assertThat(saved.datasetFilename()).isNull();
+        assertThat(saved.operationCount()).isEqualTo(1);
+    }
+
+    @Test
+    void aDescriptionIsKeptListedSearchedAndDroppedWhenTheFileHasNone() throws IOException {
+        String info = INFO.formatted("Com nota").replace("}", ",\"description\":\"Rastreio de sintomas\"}");
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (ZipOutputStream zip = new ZipOutputStream(out)) {
+            for (Map.Entry<String, byte[]> entry : Map.of("dados.xlsx", workbookBytes(1), "modelo.json", MODEL.getBytes(StandardCharsets.UTF_8),
+                    "info.json", info.getBytes(StandardCharsets.UTF_8)).entrySet()) {
+                zip.putNextEntry(new ZipEntry(entry.getKey()));
+                zip.write(entry.getValue());
+                zip.closeEntry();
+            }
+        }
+
+        SavedNrmSummary saved = upload(out.toByteArray()).getBody();
+        assertThat(saved.description()).isEqualTo("Rastreio de sintomas");
+
+        LibraryListing found = http.getForObject("/api/v1/library?search=sintomas", LibraryListing.class);
+        assertThat(found.normas()).extracting(SavedNrmSummary::id).containsExactly(saved.id());
+
+        // Replacing it with a file that has no description clears it.
+        http.exchange("/api/v1/library/" + saved.id(), HttpMethod.PUT, multipart(filePart(nrmBytes("Com nota", "dados.xlsx"))), SavedNrmSummary.class);
+        assertThat(http.getForObject("/api/v1/library/" + saved.id(), SavedNrmSummary.class).description()).isNull();
+    }
+
+    @Test
     void downloadingGivesTheExactBytesUnderTheModelsName() throws IOException {
         byte[] bytes = nrmBytes("Vendas Q1/2026", "dados.xlsx");
         SavedNrmSummary saved = upload(bytes).getBody();

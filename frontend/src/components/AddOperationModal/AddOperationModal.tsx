@@ -14,6 +14,8 @@ interface AddOperationModalProps {
   kinds: OperationKindOption[];
   /** Kinds that can't be added right now (e.g. a second iterator) — shown but disabled. */
   disabledKindIds?: string[];
+  /** Kinds that read the dataset, while the norma has none — shown but disabled, with the reason. */
+  needsDatasetKindIds?: string[];
   /** The kind whose new operation is being set up in the panel docked beside this modal, if any. */
   activeKindId?: string | null;
   onPick: (kindId: string) => void;
@@ -25,7 +27,7 @@ interface AddOperationModalProps {
  * (see OperationPanel's renderConfigPanel) while this modal stays open behind it; the owner closes
  * it once the operation has been added. Clicking another type meanwhile switches to that one.
  */
-export function AddOperationModal({ open, onClose, kinds, disabledKindIds = [], activeKindId = null, onPick }: AddOperationModalProps) {
+export function AddOperationModal({ open, onClose, kinds, disabledKindIds = [], needsDatasetKindIds = [], activeKindId = null, onPick }: AddOperationModalProps) {
   if (!open) return null;
 
   return (
@@ -49,8 +51,14 @@ export function AddOperationModal({ open, onClose, kinds, disabledKindIds = [], 
             type="button"
             className={`add-operation-modal__kind-option${activeKindId === kind.id ? ' add-operation-modal__kind-option--selected' : ''}`}
             aria-pressed={activeKindId === kind.id}
-            disabled={disabledKindIds.includes(kind.id)}
-            title={disabledKindIds.includes(kind.id) ? 'O modelo já tem uma operação deste tipo.' : undefined}
+            disabled={disabledKindIds.includes(kind.id) || needsDatasetKindIds.includes(kind.id)}
+            title={
+              needsDatasetKindIds.includes(kind.id)
+                ? 'Precisa de um dataset: anexe um no editor ("Anexar dataset").'
+                : disabledKindIds.includes(kind.id)
+                  ? 'O modelo já tem uma operação deste tipo.'
+                  : undefined
+            }
             onClick={() => onPick(kind.id)}
           >
             <span className="add-operation-modal__kind-text">

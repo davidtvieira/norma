@@ -22,8 +22,12 @@ public class SavedNrm {
     @Column(nullable = false)
     private String name;
 
-    @Column(name = "dataset_filename", nullable = false)
+    @Column(name = "dataset_filename")
     private String datasetFilename;
+
+    /** What the author wrote about the norma, when they did (from the file's info.json). */
+    @Column(length = 2000)
+    private String description;
 
     @Column(name = "size_bytes", nullable = false)
     private long sizeBytes;
@@ -108,6 +112,10 @@ public class SavedNrm {
         return updatedAt;
     }
 
+    public String getDescription() {
+        return description;
+    }
+
     /** The name the entry is listed under, apart from the name the file carries inside. */
     public void rename(String name) {
         this.name = name;
@@ -115,8 +123,9 @@ public class SavedNrm {
 
     /** Takes over everything the file says about itself, as saved or replaced at {@code now}. */
     public void describe(String name, String datasetFilename, long sizeBytes, String sha256,
-                         int operationCount, int inputCount, int outputCount, Instant now) {
+                         int operationCount, int inputCount, int outputCount, String description, Instant now) {
         this.name = name;
+        this.description = description;
         this.datasetFilename = datasetFilename;
         this.sizeBytes = sizeBytes;
         this.sha256 = sha256;

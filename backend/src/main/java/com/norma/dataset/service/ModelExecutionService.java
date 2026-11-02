@@ -48,6 +48,9 @@ public class ModelExecutionService {
     /** The kinds that read from a page of the dataset, and so follow the model's page selector. */
     private static final Set<String> PAGE_AWARE_KINDS = Set.of("lookup", "sum", "find");
 
+    /** What a model with no dataset runs against: no sheets at all (its kinds never read any, see {@link OperationTypes#requiresDataset}). */
+    private static final DatasetImportResponse NO_DATASET = new DatasetImportResponse(null, null, null, List.of());
+
     private final DatasetStore datasetStore;
     private final ModelStore modelStore;
 
@@ -60,12 +63,15 @@ public class ModelExecutionService {
      * Registers a model against a previously imported dataset so it can be run repeatedly
      * afterwards (see {@link #runModel}) without resending its operations on every run — only
      * the model's id, kept in memory by {@link ModelStore}, and (on each run) the values a caller
-     * supplies for its designated input operations, if it has any.
+     * supplies for its designated input operations, if it has any. A null {@code datasetId} registers a model with
+     * no dataset, which may only hold the kinds that don't read one.
      */
     public String registerModel(String datasetId, ModelRegisterRequest request) {
-        datasetStore.get(datasetId)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Dataset not found. Please import the file again."));
+        if (datasetId != null) {
+            datasetStore.get(datasetId)
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Dataset not found. Please import the file again."));
+        }
 
         List<ModelOperationInput> operations = request.operations();
         if (operations == null || operations.isEmpty()) {
@@ -89,7 +95,16 @@ public class ModelExecutionService {
             }
         }
 
-        validateIterator(datasetStore.get(datasetId).orElseThrow(), operations, outputOperationIds);
+        if (datasetId == null) {
+            for (ModelOperationInput operation : operations) {
+                if (OperationTypes.requiresDataset(operation.kind())) {
+                    throw new IllegalArgumentException("Operation \"" + operation.name() + "\" is a " + operation.kind()
+                            + " operation, which needs a dataset, but the model has none.");
+                }
+            }
+        } else {
+            validateIterator(datasetStore.get(datasetId).orElseThrow(), operations, outputOperationIds);
+        }
         if (operations.stream().filter(operation -> PAGE_KIND.equals(operation.kind())).count() > 1) {
             throw new IllegalArgumentException("A model can have only one page selector.");
         }
@@ -128,7 +143,8 @@ public class ModelExecutionService {
     /**
      * {@link #runModel} that also returns the value of each operation in {@code watchIds} (any
      * operation of the model, not only its outputs), in the order asked — resolved in the very same
-     * pass, so they share the outputs' computed values. An id the model doesn't have is skipped.
+     * pass, so they share the outputs' computed values. An id the model doesn't have is skipped. A null
+     * {@code datasetId} runs the model against whatever dataset it was registered with (none, for a dataset-free one).
      */
     public ModelRunResponse runModelWatching(
             String datasetId, String modelId, Map<String, String> inputValues, List<String> watchIds) {
@@ -138,13 +154,15 @@ public class ModelExecutionService {
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Model not found. Please prepare the model again before running it."));
 
-        if (!model.datasetId().equals(datasetId)) {
+        if (datasetId != null && !datasetId.equals(model.datasetId())) {
             throw new IllegalArgumentException("This model does not belong to the given dataset.");
         }
 
-        DatasetImportResponse dataset = datasetStore.get(datasetId)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Dataset not found. Please import the file again."));
+        DatasetImportResponse dataset = model.datasetId() == null
+                ? NO_DATASET
+                : datasetStore.get(model.datasetId())
+                        .orElseThrow(() -> new IllegalArgumentException(
+                                "Dataset not found. Please import the file again."));
 
         List<ModelOperationInput> operations = withInputOverride(model, inputValues);
 
@@ -432,7 +450,7 @@ public class ModelExecutionService {
         StoredModel model = modelStore.get(modelId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Model not found. Please prepare the model again before deleting it."));
-        if (!model.datasetId().equals(datasetId)) {
+        if (datasetId != null && !datasetId.equals(model.datasetId())) {
             throw new IllegalArgumentException("This model does not belong to the given dataset.");
         }
         modelStore.remove(modelId);

@@ -79,6 +79,7 @@ function parseRowIndex(resolvedInput: ResolvedInput): number | null {
 
 export const lookupKind: OperationKind = {
   id: 'lookup',
+  requiresDataset: true,
 
   createFields: (dataset): OperationFields => ({
     input: literalSource(''),

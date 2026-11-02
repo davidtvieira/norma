@@ -29,6 +29,7 @@ function asSelectorFields(fields: OperationFields): SelectorFields {
  */
 export const selectorKind: OperationKind = {
   id: 'selector',
+  requiresDataset: false,
 
   createFields: (): OperationFields => ({
     index: literalSource(''),

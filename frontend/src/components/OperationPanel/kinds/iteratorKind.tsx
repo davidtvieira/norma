@@ -39,6 +39,7 @@ export function iteratorPreviewSheet(fields: OperationFields): number | null {
  */
 export const iteratorKind: OperationKind = {
   id: 'iterator',
+  requiresDataset: true,
 
   createFields: (dataset): OperationFields => ({
     startSheet: dataset.sheets.length === 1 ? 0 : '',

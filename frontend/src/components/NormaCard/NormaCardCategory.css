@@ -3,7 +3,8 @@
   padding-right: 3.6rem;
 }
 
-.norma-card__move {
+.norma-card__move,
+.norma-card__info {
   position: absolute;
   top: 0.55rem;
   right: 2.4rem;
@@ -21,12 +22,14 @@
   transition: background 0.15s, color 0.15s;
 }
 
-.norma-card__move:hover {
+.norma-card__move:hover,
+.norma-card__info:hover {
   background: color-mix(in srgb, var(--color-text) 10%, transparent);
   color: var(--color-text);
 }
 
-.norma-card__move .norma-card__move-icon {
+.norma-card__move .norma-card__move-icon,
+.norma-card__info .norma-card__info-icon {
   width: 1.05rem;
   height: 1.05rem;
 }
@@ -78,4 +81,15 @@
 .norma-card--folder:hover .norma-card__folder-icon--open,
 .norma-card--folder:focus-visible .norma-card__folder-icon--open {
   display: block;
+}
+
+/* A norma with a description has the "i" beside its bin: its name leaves room for both, like a folder's. */
+.norma-card--has-info .norma-card__name {
+  padding-right: 3.6rem;
+}
+
+/* The description as written: line breaks kept. */
+.norma-card__description {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }

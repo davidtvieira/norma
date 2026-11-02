@@ -18,6 +18,7 @@ function asSumFields(fields: OperationFields): SumFields {
 
 export const sumKind: OperationKind = {
   id: 'sum',
+  requiresDataset: true,
 
   createFields: (dataset): OperationFields => ({
     sheetIndex: dataset.sheets.length === 1 ? 0 : '',

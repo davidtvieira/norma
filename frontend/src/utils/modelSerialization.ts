@@ -50,6 +50,8 @@ export interface ExportedModel {
    * landing screen's "Sessões recentes" identifies a session by. Absent on a model exported
    * before .nrm files had names (readNrmName falls back to the file's own name for those). */
   nrmName?: string;
+  /** What the author wrote about the norma (optional): kept with the model so the session cache and a bare .json carry it too. The .nrm's own info.json is its source of truth. */
+  nrmDescription?: string;
   datasetId: string;
   /**
    * The operations whose literal values are what a caller of the model fills in (possibly
@@ -117,6 +119,7 @@ export function buildModelExport(
   inputOperationIds: string[],
   outputOperationIds: string[],
   nrmName = '',
+  nrmDescription = '',
 ): ExportedModel {
   const confirmedEntries = entries.filter((entry) => entry.confirmed);
   const roots = confirmedEntries.filter((entry) => !isLinkedChild(entry, confirmedEntries));
@@ -124,6 +127,7 @@ export function buildModelExport(
     version: MODEL_EXPORT_VERSION,
     modelName,
     ...(nrmName.trim() ? { nrmName: nrmName.trim() } : {}),
+    ...(nrmDescription.trim() ? { nrmDescription: nrmDescription.trim() } : {}),
     datasetId,
     inputOperationIds,
     outputOperationIds,
@@ -208,7 +212,7 @@ function readOperationIds(model: Record<string, unknown>, arrayField: string, le
 export function parseModelImport(
   raw: string,
   knownKindIds: Set<string>,
-): ExportedModel & { nrmName: string; entries: SerializableEntry[] } {
+): ExportedModel & { nrmName: string; nrmDescription: string; entries: SerializableEntry[] } {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -233,6 +237,7 @@ export function parseModelImport(
   return {
     ...model,
     nrmName: typeof model.nrmName === 'string' ? model.nrmName.trim() : '',
+    nrmDescription: typeof model.nrmDescription === 'string' ? model.nrmDescription.trim() : '',
     inputOperationIds: readOperationIds(rawModel, 'inputOperationIds', 'inputOperationId'),
     outputOperationIds: readOperationIds(rawModel, 'outputOperationIds', 'outputOperationId'),
     entries,
