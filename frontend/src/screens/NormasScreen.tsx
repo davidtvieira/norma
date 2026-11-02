@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { LoadingOverlay } from '../components/LoadingOverlay/LoadingOverlay';
 import { AppFooter } from '../components/AppFooter/AppFooter';
 import { BackButton } from '../components/BackButton/BackButton';
@@ -6,7 +6,11 @@ import { RecentSessionCard } from '../components/RecentSessionCard/RecentSession
 import { ThemeToggle } from '../components/ThemeToggle/ThemeToggle';
 import { ConfirmModal } from '../components/Modal/ConfirmModal';
 import { NormaCard } from '../components/NormaCard/NormaCard';
-import { NormasExportButton, NormasToolbar } from '../components/NormasToolbar/NormasToolbar';
+import { NormasExportButton, NormasToolbar, type NormasView } from '../components/NormasToolbar/NormasToolbar';
+import { NormaTree, NormaTreeEnd } from '../components/NormaTree/NormaTree';
+import { NormaInfoModal } from '../components/NormaInfoModal/NormaInfoModal';
+import { useNormaTree } from '../hooks/useNormaTree';
+import { buildNormaTree } from '../utils/normaTree';
 import { CategoryModal } from '../components/CategoryModal/CategoryModal';
 import { FolderBreadcrumb } from '../components/FolderBreadcrumb/FolderBreadcrumb';
 import { RemoveFromFolderCard } from '../components/RemoveFromFolderCard/RemoveFromFolderCard';
@@ -17,6 +21,17 @@ import { useNormaDropTarget } from '../hooks/useNormaDropTarget';
 import type { Theme } from '../hooks/useTheme';
 import type { FolderEntryPayload, LibraryListingPayload, PathStepPayload, SavedNrmPayload, SavedNrmQuery } from '../types/savedNrm';
 import './NormasHeading.css';
+
+const VIEW_KEY = 'norma.normasView';
+
+/** The view last chosen (it stays between visits); the tree until one was chosen. */
+function readStoredView(): NormasView {
+  try {
+    return window.localStorage.getItem(VIEW_KEY) === 'folders' ? 'folders' : 'tree';
+  } catch {
+    return 'tree';
+  }
+}
 
 export interface RecentSessionEntryProps {
   id: string;
@@ -102,6 +117,34 @@ export function NormasScreen({
   const [pendingDeleteCategory, setPendingDeleteCategory] = useState<FolderEntryPayload | null>(null);
   const normas = listing?.normas ?? null;
   const searching = savedQuery.search.trim() !== '';
+  // How the library is shown: a tree of folders (read whole from the backend) or the folders opened one at a time.
+  const [view, setViewState] = useState<NormasView>(readStoredView);
+  function setView(next: NormasView) {
+    setViewState(next);
+    try {
+      window.localStorage.setItem(VIEW_KEY, next);
+    } catch {
+      // The choice just isn't remembered.
+    }
+  }
+  const isTree = view === 'tree';
+  const tree = useNormaTree(isTree, savedQuery);
+  const treeItems = useMemo(
+    () => (tree.data ? buildNormaTree(tree.data.categories, tree.data.normas, { pruneEmpty: searching }) : null),
+    [tree.data, searching],
+  );
+  // Folders the user closed in the tree (all are open to begin with; a search opens every one that holds a match).
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
+  function toggleFolder(id: string) {
+    setCollapsed((current) => {
+      const next = new Set(current);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  }
+  // After anything that changes a folder or a norma, the tree reads the library again (the folder view is refreshed by App).
+  const refreshTree = () => (isTree ? tree.refresh() : Promise.resolve());
+  const [infoFor, setInfoFor] = useState<SavedNrmPayload | null>(null);
   // Where the page is: the path the backend answered with, its last step the open folder. A search across all folders
   // has no path in its answer, so the last one answered stays while its folder is still the open one.
   const [lastPath, setLastPath] = useState<PathStepPayload[]>([]);
@@ -123,23 +166,25 @@ export function NormasScreen({
     const here = lastPath[lastPath.length - 1]?.id ?? null;
     return opened && opened.parentId === here ? [...lastPath, { id: opened.id, name: opened.name }] : [];
   };
-  const path = listing && listing.path.length > 0 ? listing.path : expectedPath();
+  // The tree has no open folder and no trail: it shows everything at once.
+  const path = isTree ? [] : listing && listing.path.length > 0 ? listing.path : expectedPath();
   const current = path[path.length - 1] ?? null;
   // What the backend found at this level: its folders (none while searching) and, beside them, the normas.
   const folders = listing?.categories ?? [];
   // A norma card dropped on a folder (or a step of the breadcrumb): files it there, unless it already is.
   function dropNorma(normaId: string, folderId: string | null) {
-    const model = normas?.find((candidate) => candidate.id === normaId);
+    const model = (isTree ? tree.data?.normas : normas)?.find((candidate) => candidate.id === normaId);
     if (!model || model.categoryId === folderId) return;
     setIsMoving(true);
     onMoveNorma(normaId, folderId)
+      .then(() => refreshTree())
       .catch(() => undefined)
       .finally(() => setIsMoving(false));
   }
 
   // The counter by the title: how many normas the open folder (and the ones inside it) holds, or all of them at the top —
   // the backend counts it, whatever the search says.
-  const count = listing?.total ?? null;
+  const count = isTree ? (tree.data?.total ?? null) : (listing?.total ?? null);
 
   const [pendingDelete, setPendingDelete] = useState<SavedNrmPayload | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -159,7 +204,7 @@ export function NormasScreen({
         <div className="app__normas-header">
           <div className="app__normas-headline">
             <div className="normas-heading">
-              <h1 className="app__normas-title app__normas-title--crumb">
+              <h1 className={`app__normas-title app__normas-title--crumb${path.length > 0 ? ' app__normas-title--trail' : ''}`}>
                 {path.length > 0 ? <HomeTitle onOpen={() => onFolderChange(null)} onDropNorma={(normaId) => dropNorma(normaId, null)} /> : 'As minhas normas'}
               </h1>
               {path.length > 0 && <FolderBreadcrumb path={path} onOpen={onFolderChange} onDropNorma={dropNorma} />}
@@ -183,11 +228,14 @@ export function NormasScreen({
             query={savedQuery}
             onChange={onSavedQueryChange}
             folderName={current?.name ?? null}
+            showScopeToggle={!isTree}
             searchEverywhere={searchEverywhere}
             onSearchEverywhereChange={onSearchEverywhereChange}
+            view={view}
+            onViewChange={setView}
           />
         </div>
-        {normas !== null && normas.length === 0 && folders.length === 0 && (
+        {(isTree ? treeItems !== null && treeItems.length === 0 : normas !== null && normas.length === 0 && folders.length === 0) && (
           <p className="app__normas-placeholder app__normas-no-match">
             {searching ? 'Nenhuma norma corresponde à pesquisa.' : (current ? 'Esta pasta ainda não tem normas.' : 'Ainda não há normas nem pastas.')}
           </p>
@@ -195,7 +243,43 @@ export function NormasScreen({
         {/* The zone that loads: the folders and normas. Its loading state covers just this area, so the title, the search and
             "Sessões recentes" stay usable meanwhile. */}
         <div className="app__normas-zone">
-          {normas !== null || !normasFailed ? (
+          {isTree ? (
+            treeItems !== null ? (
+              <div className="app__normas-scroll">
+                <div className="normas-tree-scroll">
+                  <NormaTree
+                    items={treeItems}
+                    collapsed={collapsed}
+                    openAll={searching}
+                    onToggleFolder={toggleFolder}
+                    openingSavedId={openingSavedId}
+                    onOpen={onOpenSaved}
+                    onDelete={setPendingDelete}
+                    onShowInfo={setInfoFor}
+                    onDropNorma={dropNorma}
+                    onDragChange={setDraggedNorma}
+                    onNewFolder={(parentId) => setCategoryDialog({ editing: null, parentId })}
+                    onEditFolder={(folder) => setCategoryDialog({ editing: folder, parentId: null })}
+                    onDeleteFolder={setPendingDeleteCategory}
+                  />
+                  <div className="normas-tree__end">
+                    <NormaTreeEnd
+                      isDraggingFiled={draggedNorma?.categoryId != null}
+                      canCreate={!searching}
+                      onNewFolder={() => setCategoryDialog({ editing: null, parentId: null })}
+                      onDropNorma={dropNorma}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              tree.failed && (
+                <div className="app__normas-container">
+                  <p className="app__normas-placeholder">Não foi possível obter as normas guardadas.</p>
+                </div>
+              )
+            )
+          ) : normas !== null || !normasFailed ? (
             <div className="app__normas-scroll">
               <div className="app__normas-list">
                 {folders.map((category) => (
@@ -237,8 +321,12 @@ export function NormasScreen({
               </p>
             </div>
           )}
-          {(isDeleting || isMoving || isExporting || normasLoading || (normas === null && !normasFailed)) &&
-            (normas === null && !normasFailed ? <LoadingOverlay zone key="blank" /> : <LoadingOverlay zone key={`refresh-${savedQuery.search}`} delayMs={200} />)}
+          {(() => {
+            const blank = isTree ? tree.data === null && !tree.failed : normas === null && !normasFailed;
+            const busy = isDeleting || isMoving || isExporting || (isTree ? tree.loading : normasLoading);
+            if (!blank && !busy) return null;
+            return blank ? <LoadingOverlay zone key="blank" /> : <LoadingOverlay zone key={`refresh-${savedQuery.search}`} delayMs={200} />;
+          })()}
         </div>
       </div>
 
@@ -272,9 +360,10 @@ export function NormasScreen({
         <CategoryModal
           editing={categoryDialog.editing}
           initialParentId={categoryDialog.parentId}
-          onSubmit={(name, parentId) =>
-            categoryDialog.editing ? onUpdateCategory(categoryDialog.editing.id, name, parentId) : onCreateCategory(name, parentId)
-          }
+          onSubmit={async (name, parentId) => {
+            await (categoryDialog.editing ? onUpdateCategory(categoryDialog.editing.id, name, parentId) : onCreateCategory(name, parentId));
+            await refreshTree();
+          }}
           onClose={() => setCategoryDialog(null)}
         />
       )}
@@ -297,12 +386,15 @@ export function NormasScreen({
             setPendingDeleteCategory(null);
             setIsDeleting(true);
             onDeleteCategory(target.id)
+              .then(() => refreshTree())
               .catch(() => undefined)
               .finally(() => setIsDeleting(false));
           }}
           onCancel={() => setPendingDeleteCategory(null)}
         />
       )}
+
+      {infoFor && <NormaInfoModal model={infoFor} onClose={() => setInfoFor(null)} />}
 
       {pendingDelete && (
         <ConfirmModal
@@ -315,6 +407,7 @@ export function NormasScreen({
             setPendingDelete(null);
             setIsDeleting(true);
             onDeleteSaved(target)
+              .then(() => refreshTree())
               .catch(() => undefined)
               .finally(() => setIsDeleting(false));
           }}

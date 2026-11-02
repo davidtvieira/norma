@@ -13,6 +13,7 @@ import {
   Info,
   Folder,
   FolderOpen,
+  FolderTree,
   LayoutGrid,
   List,
   Moon,
@@ -101,6 +102,8 @@ export const MoonIcon = make(Moon);
 export const StoreIcon = make(Store);
 /** Arrow into a tray, for the dropzones. */
 export const UploadIcon = make(Upload);
+/** A tree of folders — the tree view of "As minhas normas". */
+export const TreeIcon = make(FolderTree);
 /** A circled "i" — more about something (a norma's description). */
 export const InfoIcon = make(Info);
 /** A hammer — building something of one's own ("Construir a minha norma"). */

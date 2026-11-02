@@ -88,8 +88,14 @@
   padding-right: 3.6rem;
 }
 
-/* The description as written: line breaks kept. */
-.norma-card__description {
-  white-space: pre-wrap;
+/* The description on a card: quiet, at most two lines (and capped in length by the card's own code). */
+.norma-card__summary {
+  margin: 0 0 0.4rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
   overflow-wrap: anywhere;
+  font-size: clamp(0.8rem, 0.2rem + 1.6cqh, 1rem);
+  color: var(--color-text-muted);
 }

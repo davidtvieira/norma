@@ -16,12 +16,18 @@
    too, where there are no other steps yet. */
 .normas-heading .app__normas-title--crumb {
   font-size: 0.95rem;
-  font-weight: 400;
+  font-weight: 600;
   letter-spacing: 0;
+  color: var(--color-text);
+}
+
+/* Muted and regular only while another step of the trail is shown after it (a folder is open: that one is the bold one). */
+.normas-heading .app__normas-title--trail {
+  font-weight: 400;
   color: var(--color-text-muted);
 }
 
-.normas-heading .app__normas-title--crumb .normas-heading__home:hover {
+.normas-heading .app__normas-title--trail .normas-heading__home:hover {
   color: var(--color-text);
 }
 

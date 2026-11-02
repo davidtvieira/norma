@@ -1,0 +1,214 @@
+/* The library as a tree: one line per folder and per norma, indented by depth. */
+.normas-tree {
+  --tree-indent: 1.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.normas-tree__group {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.normas-tree__row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.3rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  cursor: default;
+}
+
+.normas-tree__row--folder,
+.normas-tree__row--openable {
+  cursor: pointer;
+}
+
+.normas-tree__row:hover,
+.normas-tree__row:focus-within {
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+}
+
+.normas-tree__row:focus-visible {
+  outline: none;
+  background: color-mix(in srgb, var(--color-text) 9%, transparent);
+}
+
+/* A norma is being dragged over a folder. */
+.normas-tree__row--drop,
+.normas-tree__row--drop:hover {
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-contrast);
+}
+
+.normas-tree__row--dragging {
+  opacity: 0.45;
+}
+
+.normas-tree__row--opening {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.normas-tree__chevron,
+.normas-tree__chevron-space {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  color: var(--color-text-muted);
+}
+
+.normas-tree__chevron {
+  transition: transform 0.15s ease;
+}
+
+.normas-tree__chevron--open {
+  transform: rotate(90deg);
+}
+
+.normas-tree__folder-icon {
+  flex: none;
+  width: 1.1rem;
+  height: 1.1rem;
+  stroke-width: 1.6;
+  color: var(--color-text-muted);
+}
+
+.normas-tree__row--drop .normas-tree__chevron,
+.normas-tree__row--drop .normas-tree__folder-icon,
+.normas-tree__row--drop .normas-tree__count {
+  color: inherit;
+}
+
+.normas-tree__mark {
+  flex: none;
+  width: 1.1rem;
+  height: 1.1rem;
+  opacity: 0.8;
+}
+
+.normas-tree__name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 0.92rem;
+}
+
+.normas-tree__row--folder .normas-tree__name {
+  font-weight: 600;
+}
+
+.normas-tree__count {
+  flex: none;
+  padding: 0 0.45rem;
+  border-radius: var(--radius-btn);
+  background: color-mix(in srgb, var(--color-text) 9%, transparent);
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+/* The norma's details sit at the right, quiet; a long line gives way to the name. */
+/* A row: the name, then the description (one line, cut where the room ends) and, at the right, when it was updated. */
+.normas-tree__summary {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.normas-tree__meta {
+  flex: none;
+  margin-left: auto;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.normas-tree__row--folder .normas-tree__name {
+  flex: 0 1 auto;
+}
+
+.normas-tree__row--folder .normas-tree__actions {
+  margin-left: auto;
+}
+
+.normas-tree__actions {
+  flex: none;
+  display: inline-flex;
+  gap: 0.1rem;
+  /* Only there while the row is pointed at or focused (always there on a screen with no hover). */
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.normas-tree__row:hover .normas-tree__actions,
+.normas-tree__row:focus-within .normas-tree__actions {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .normas-tree__actions {
+    opacity: 1;
+  }
+}
+
+.normas-tree__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.normas-tree__action:hover {
+  background: color-mix(in srgb, var(--color-text) 10%, transparent);
+  color: var(--color-text);
+}
+
+.normas-tree__action-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* The row at the end: a new folder at the top level — or, while a norma that is in a folder is dragged, where to drop it to
+   take it out of its folder. */
+.normas-tree__end {
+  margin-top: 0.75rem;
+  padding-left: 0.5rem;
+}
+
+.normas-tree__remove {
+  padding: 0.6rem 0.9rem;
+  border: var(--border-width) dashed var(--color-error);
+  border-radius: var(--radius-sm);
+  color: var(--color-error);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.normas-tree__remove--over {
+  background: color-mix(in srgb, var(--color-error) 18%, transparent);
+}
+
+/* The tree scrolls inside the zone it is given, never the page. */
+.normas-tree-scroll {
+  height: 100%;
+  overflow-y: auto;
+  padding-bottom: 1rem;
+}

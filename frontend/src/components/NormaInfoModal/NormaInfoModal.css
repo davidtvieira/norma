@@ -1,0 +1,29 @@
+.norma-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin: 0;
+}
+
+.norma-info__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.norma-info dt {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.norma-info dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-text);
+}
+
+/* The description as written: line breaks kept. */
+.norma-info__description {
+  white-space: pre-wrap;
+}

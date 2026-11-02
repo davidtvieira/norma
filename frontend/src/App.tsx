@@ -213,8 +213,9 @@ function App() {
   const [folder, setFolder] = useState<string | null>(() => new URLSearchParams(window.location.search).get('pasta'));
   // A search inside a folder looks only in that folder; this (off by default) makes it look in every folder.
   const [searchEverywhere, setSearchEverywhere] = useState(false);
-  // A search at the top level looks everywhere (there is no folder to stay in); inside a folder only if asked to.
-  const everywhere = savedQuery.search.trim() !== '' && (folder === null || searchEverywhere);
+  // A search only looks at the normas of the level being looked at (the top, or the open folder) unless "Em subpastas" is on,
+  // which makes it look in every folder.
+  const everywhere = savedQuery.search.trim() !== '' && searchEverywhere;
   const library = useNormas(location.pathname === '/normas', { ...savedQuery, folder, everywhere });
   // The whole folder tree is only needed by the save dialog's folder choice; /normas gets everything from the listing.
   const categories = useCategories(isSaveModalOpen);
