@@ -587,6 +587,9 @@ interface OperationPanelProps {
   isSheetPanelOpen: boolean;
   /** Reports the current entry list up so App.tsx can export it (see the "Guardar modelo" flow). */
   onEntriesChange: (entries: SerializableEntry[]) => void;
+  /** Tells the screen whether the canvas is in "Editar" mode (its changes only count once it is left with "Guardar"), so
+   * the norma itself can't be saved from under it. */
+  onEditModeChange?: (isEditing: boolean) => void;
   /** The model's designated inputs/outputs — picked directly on a node's toggles below (see
    * ConfirmedOperationCard) instead of in the save modal. Owned by App.tsx, same as the
    * column/range pick state above, since it has to survive an operation being deleted/edited. A
@@ -675,6 +678,7 @@ export function OperationPanel({
   onOperationConfirmed,
   isSheetPanelOpen,
   onEntriesChange,
+  onEditModeChange,
   modelInputIds,
   modelOutputIds,
   onModelInputIdsChange,
@@ -1124,6 +1128,13 @@ export function OperationPanel({
   useEffect(() => {
     onEntriesChange(entries);
   }, [entries, onEntriesChange]);
+
+  // "Editar" mode is on while the tool is "select": the screen holds "Guardar norma" back until it is left.
+  const isEditingCanvas = tool === 'select';
+  useEffect(() => {
+    onEditModeChange?.(isEditingCanvas);
+  }, [isEditingCanvas, onEditModeChange]);
+  useEffect(() => () => onEditModeChange?.(false), [onEditModeChange]);
 
   // Commits a new "Desfazer"/"Refazer" step (see EditHistoryState) whenever `entries` actually
   // settles on something new during "Editar" — skipped mid-drag (dragNode still set: onDragEntry

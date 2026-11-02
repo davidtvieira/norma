@@ -156,6 +156,8 @@ export function EditorScreen({
   const [loadActionSlot, setLoadActionSlot] = useState<HTMLElement | null>(null);
   const [isJsonOpen, setIsJsonOpen] = useState(false);
   const attachInputRef = useRef<HTMLInputElement>(null);
+  // The canvas is in "Editar" mode: its changes only count once that is left, so the norma can't be saved meanwhile.
+  const [isEditingCanvas, setIsEditingCanvas] = useState(false);
 
   return (
     <div className="app">
@@ -215,6 +217,7 @@ export function EditorScreen({
             onOperationConfirmed={onCloseSheetPanel}
             isSheetPanelOpen={isSheetPanelOpen}
             onEntriesChange={onEntriesChange}
+            onEditModeChange={setIsEditingCanvas}
             modelInputIds={modelInputIds}
             modelOutputIds={modelOutputIds}
             onModelInputIdsChange={onModelInputIdsChange}
@@ -229,7 +232,13 @@ export function EditorScreen({
             </div>
             <div className="app__save-row-group">
               <div ref={setLoadActionSlot} className="app__save-row-slot" />
-              <button type="button" className="btn btn--primary app__save-button" onClick={onOpenSaveModal}>
+              <button
+                type="button"
+                className="btn btn--primary app__save-button"
+                onClick={onOpenSaveModal}
+                disabled={isEditingCanvas}
+                title={isEditingCanvas ? 'Saia do modo "Editar" (Guardar ou Cancelar) para guardar a norma.' : undefined}
+              >
                 <DiskIcon />
                 {isSavedInLibrary ? 'Atualizar norma' : 'Guardar norma'}
               </button>
