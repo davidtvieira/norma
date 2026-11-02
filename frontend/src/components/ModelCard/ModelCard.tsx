@@ -2,7 +2,7 @@ import { ModelTitle } from '../ModelTitle/ModelTitle';
 import type { FolderStep } from '../../hooks/useNormaFolderPath';
 import { LogoIcon, BroomIcon, ChevronDownIcon, EyeIcon, GridIcon, ListIcon, LoadIcon, SaveIcon } from '../ButtonIcons/ButtonIcons';
 import { LoadingOverlay } from '../LoadingOverlay/LoadingOverlay';
-import { inlineErrorMessage } from '../../services/apiErrors';
+import { inlineErrorMessage, reportApiError } from '../../services/apiErrors';
 import { useRef, useState } from 'react';
 import type { DatasetHandle } from '../../types/dataset';
 import type { OperationFields } from '../OperationPanel/operationKind';
@@ -18,7 +18,7 @@ import type {
   ModelOperationRefPayload,
   ModelOperationResultPayload,
 } from '../../types/modelCalculation';
-import { downloadTestCase, parseTestCaseFile } from '../../utils/testCaseSerialization';
+import { NOT_A_TEST_MESSAGE, checkTestCaseMatches, downloadTestCase, parseTestCaseFile } from '../../utils/testCaseSerialization';
 import { formatCellValue } from '../../utils/sheet';
 import { ConfirmModal } from '../Modal/ConfirmModal';
 import { Modal } from '../Modal/Modal';
@@ -232,10 +232,7 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
     }));
   }
 
-  const [testLoadError, setTestLoadError] = useState<string | null>(null);
-
   function clearTestCase() {
-    setTestLoadError(null);
     // Back to untouched: no input has been left yet, so none is checked while empty.
     setLeftInputs(new Set());
     setFields((current) => {
@@ -268,7 +265,9 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
   function loadTestCase(file: File) {
     parseTestCaseFile(file)
       .then((parsed) => {
-        setTestLoadError(null);
+        // A test that is not this model's (other names, or inputs missing) loads nothing and says why.
+        const mismatch = checkTestCaseMatches(parsed, inputEntries.map((entry) => entry.name));
+        if (mismatch) throw new Error(mismatch);
         const valueByName = new Map(parsed.inputs.map((input) => [input.name, input.value]));
         const nextFields = { ...fields };
         for (const entry of inputEntries) {
@@ -283,7 +282,8 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
         setFields(nextFields);
       })
       .catch((error) => {
-        setTestLoadError(error instanceof Error ? error.message : 'Falha ao carregar o teste.');
+        // One short toast: the file is not a test, or its inputs are not this model's.
+        reportApiError({ title: error instanceof Error ? error.message : NOT_A_TEST_MESSAGE });
       });
   }
 
@@ -510,7 +510,6 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
       </div>
 
       <div className="model-card__actions">
-        {testLoadError && <p className="model-card__missing-io">{testLoadError}</p>}
         <div className="model-card__actions-row">
           <div className="model-card__actions-group">
             {inputEntries.length > 0 && (

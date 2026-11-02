@@ -23,11 +23,6 @@ interface TestValuesModalProps {
    * empty (see OperationPanel's runModelTest) — shown right here rather than elsewhere on the
    * canvas, which this overlay covers entirely while open. Null clears it. */
   warning: string | null;
-  /** Set when the canvas toolbar's own "Importar teste" (see OperationPanel's triggerImportTest)
-   * fails to parse a file — shown here for the same reason as `warning`: this overlay covers
-   * whatever's underneath while open, so an error from an import that happened just before this
-   * modal opened still needs somewhere to surface. Null clears it. */
-  importError: string | null;
 }
 
 /**
@@ -42,7 +37,7 @@ interface TestValuesModalProps {
  * here — that's the canvas toolbar's own toggle (see OperationPanel), reachable without needing
  * this modal open at all.
  */
-export function TestValuesModal({ open, onClose, inputs, onChangeValue, onRun, isRunning, warning, importError }: TestValuesModalProps) {
+export function TestValuesModal({ open, onClose, inputs, onChangeValue, onRun, isRunning, warning }: TestValuesModalProps) {
   if (!open) return null;
 
   // "Correr teste" stays disabled until every field a formatter requires a value for has something in it — this is a
@@ -96,7 +91,6 @@ export function TestValuesModal({ open, onClose, inputs, onChangeValue, onRun, i
         </div>
 
         {warning && <p className="modal__hint modal__hint--error">{warning}</p>}
-        {importError && <p className="modal__hint modal__hint--error">{importError}</p>}
       </Modal>
     </>
   );

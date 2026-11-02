@@ -1,3 +1,4 @@
+import { reportApiError } from '../../services/apiErrors';
 import { ModelTitle } from '../ModelTitle/ModelTitle';
 import { LogoIcon, BroomIcon, ClearIcon, CloseIcon, EyeIcon, LoadIcon, PencilIcon, PlayIcon, RedoIcon, SaveIcon, StopIcon, UndoIcon } from '../ButtonIcons/ButtonIcons';
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -11,7 +12,7 @@ import { KIND_LABELS } from './kindLabels';
 import { buildReferenceGraph, getDependencyChain, getDependents, resolveOperationInputs } from '../../utils/resolveOperationInputs';
 import { getInputSource, getInputSources, hasSingleInputField, literalSource, outputResultKey, remapValueSourceReferences } from '../../types/valueSource';
 import type { SerializableEntry } from '../../utils/modelSerialization';
-import { parseTestCaseFile } from '../../utils/testCaseSerialization';
+import { NOT_A_TEST_MESSAGE, checkTestCaseMatches, parseTestCaseFile } from '../../utils/testCaseSerialization';
 import type { FormatTarget, OperationFields, ReferenceOption } from './operationKind';
 import { iteratorPreviewSheet } from './kinds/iteratorKind';
 import { FORMATTER_KIND_ID } from './kinds/formatterKind';
@@ -872,9 +873,6 @@ export function OperationPanel({
   // currently empty — cleared on the next test that actually runs (see runModelTest) or on
   // "Limpar dados".
   const [granularTestWarning, setGranularTestWarning] = useState<string | null>(null);
-  // Set when "Importar teste" (inside TestValuesModal) fails to parse a file — cleared on the
-  // next successful load.
-  const [testLoadError, setTestLoadError] = useState<string | null>(null);
   const testFileInputRef = useRef<HTMLInputElement>(null);
   // Whether the test-values modal (see TestValuesModal) is open — only reachable when the model
   // has at least one designated input; with none, "Testar modelo" runs immediately since there's
@@ -1689,19 +1687,20 @@ export function OperationPanel({
   }
 
   function triggerImportTest() {
-    setTestLoadError(null);
     testFileInputRef.current?.click();
   }
 
   // Matches each saved value against a currently-present input by exact name (see
-  // testCaseSerialization.ts for why name, not id) — a name from the file with no match on the
-  // canvas today is silently skipped, and a current input not mentioned in the file is left
-  // exactly as it was. Only fills the input fields, same as typing the values in by hand — it
+  // testCaseSerialization.ts for why name, not id) — a file whose inputs are not the model's (a name
+  // the model lacks, or an input of the model the file lacks) is refused whole, with the reason
+  // (see checkTestCaseMatches). Only fills the input fields, same as typing the values in by hand — it
   // does NOT run the model itself; "Testar modelo" is a separate, explicit click.
   function loadTestCase(file: File) {
     parseTestCaseFile(file)
       .then((parsed) => {
-        setTestLoadError(null);
+        // A test that is not this model's (other names, or inputs missing) loads nothing and says why.
+        const mismatch = checkTestCaseMatches(parsed, testInputEntries.map((entry) => entry.name));
+        if (mismatch) throw new Error(mismatch);
         for (const input of parsed.inputs) {
           const matched = testInputEntries.find((entry) => entry.name === input.name);
           if (matched) {
@@ -1710,7 +1709,8 @@ export function OperationPanel({
         }
       })
       .catch((error) => {
-        setTestLoadError(error instanceof Error ? error.message : 'Falha ao carregar o teste.');
+        // One short toast: the file is not a test, or its inputs are not this model's.
+        reportApiError({ title: error instanceof Error ? error.message : NOT_A_TEST_MESSAGE });
       });
   }
 
@@ -2458,9 +2458,6 @@ export function OperationPanel({
         </div>
       </div>
 
-      {/* testLoadError has no toolbar display of its own — it's set by the toolbar's "Importar
-          teste" (see loadTestCase) but only ever shown inside TestValuesModal (its own
-          importError prop), which covers the whole canvas whenever it's open. */}
       {granularTestWarning && <p className="operation-canvas__test-load-error">{granularTestWarning}</p>}
 
       <div
@@ -2860,7 +2857,6 @@ export function OperationPanel({
         onRun={runTestFromModal}
         isRunning={isStartingTest}
         warning={granularTestWarning}
-        importError={testLoadError}
       />
     </div>
   );
