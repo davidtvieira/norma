@@ -561,7 +561,7 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
             {isRunning && <LoadingOverlay delayMs={200} />}
             <SplitButton
               className="model-card__run-split"
-              buttonClassName={`btn--lg${runAnalysisClass}`}
+              buttonClassName={runAnalysisClass.trim()}
               onClick={run}
               disabled={isRunning || !allRequiredFilled || !allInputsValid}
               // The arrow (add operations to analyze) follows the button: nothing to run, nothing to analyze.
