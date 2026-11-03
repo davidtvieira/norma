@@ -7,6 +7,8 @@ export interface ConversionReportPayload {
   counters: number;
   calcs: number;
   formatters: number;
+  pages: number;
+  iterations: number;
   cases: number;
   problems: string[];
 }

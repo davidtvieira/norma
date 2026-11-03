@@ -16,6 +16,8 @@ function describe(report: ConversionReportPayload): string {
     report.counters > 0 ? `${report.counters} ${report.counters === 1 ? 'Contador' : 'Contadores'}` : '',
     report.calcs > 0 ? `${report.calcs} Calcular reescritos` : '',
     report.formatters > 0 ? `${report.formatters} ${report.formatters === 1 ? 'Formatador passou' : 'Formatadores passaram'} para a validação` : '',
+    report.pages > 0 ? 'Seletor de página passou para a configuração' : '',
+    report.iterations > 0 ? 'Iterador passou para a configuração' : '',
   ].filter(Boolean);
   const cases = report.cases > 0 ? `${report.cases} testes iguais` : '';
   return [changed.join(' e '), cases].filter(Boolean).join(' · ');

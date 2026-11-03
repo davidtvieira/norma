@@ -1937,7 +1937,8 @@ export function OperationPanel({
     return getInputSources(entry.fields).flatMap((source) => {
       if (source.type !== 'reference') return [];
       const from = entriesById.get(source.operationId);
-      if (!from) return [];
+      // Nothing is drawn to or from a settings entry (it is not on the canvas): the card that reads it names it.
+      if (!from || isSettingEntry(from)) return [];
       return [{ fromId: from.id, toId: entry.id, from: hiddenInputIds.has(from.id) && inputsGroup ? inputsGroup : from.position, to: entry.position }];
     });
   });
@@ -2978,6 +2979,21 @@ export function OperationPanel({
               ? { id: pageSelectorEntry.id, name: pageSelectorEntry.name, summary: KINDS_BY_ID[pageSelectorEntry.kindId].renderSummary(pageSelectorEntry.fields, dataset, null) }
               : null
           }
+          iteration={
+            iteratorEntry
+              ? { id: iteratorEntry.id, name: iteratorEntry.name, summary: KINDS_BY_ID[iteratorEntry.kindId].renderSummary(iteratorEntry.fields, dataset, null) }
+              : null
+          }
+          onAddIteration={() => {
+            setIsSettingsOpen(false);
+            addToStaging('iterator');
+          }}
+          onPreviewIteration={(id) => setModalEntryId(id)}
+          onEditIteration={(id) => {
+            setIsSettingsOpen(false);
+            editEntry(id);
+          }}
+          onRemoveIteration={removeEntry}
           sets={entries
             .filter((entry) => entry.kindId === FORMATTER_KIND_ID && entry.confirmed)
             .map((entry) => ({ id: entry.id, name: entry.name, summary: KINDS_BY_ID[entry.kindId].renderSummary(entry.fields, dataset, null) }))}

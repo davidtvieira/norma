@@ -38,6 +38,7 @@ export function iteratorPreviewSheet(fields: OperationFields): number | null {
  * not the sheets' own indexes). While editing there's only ever one "current" sheet, the preview one.
  */
 export const iteratorKind: OperationKind = {
+  setting: true,
   id: 'iterator',
   requiresDataset: true,
 
