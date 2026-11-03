@@ -259,10 +259,7 @@ public class NrmService {
      * output, or the registration is rejected (an input/output id matching no operation).
      */
     private String registerModel(String datasetId, JsonNode model) {
-        List<ModelOperationInput> operations = new ArrayList<>();
-        for (JsonNode node : model.path("operations")) {
-            flatten(node, operations);
-        }
+        List<ModelOperationInput> operations = operationsOf(model);
         List<String> inputIds = readIds(model, "inputOperationIds", "inputOperationId");
         List<String> outputIds = readIds(model, "outputOperationIds", "outputOperationId");
         if (operations.isEmpty() || outputIds.isEmpty()) {
@@ -275,6 +272,23 @@ public class NrmService {
             log.debug("Imported .nrm's model was not registered.", e);
             return null;
         }
+    }
+
+    /**
+     * Every operation the engine runs for a model: the ones on its canvas (the tree, flattened) and, after them, one
+     * formatter for each rule set in the model's {@code settings.validation}. The settings keep them out of the canvas;
+     * the engine still applies them as formatters.
+     */
+    private List<ModelOperationInput> operationsOf(JsonNode model) {
+        List<ModelOperationInput> operations = new ArrayList<>();
+        for (JsonNode node : model.path("operations")) {
+            flatten(node, operations);
+        }
+        for (JsonNode ruleSet : model.path("settings").path("validation")) {
+            Map<String, Object> fields = objectMapper.convertValue(ruleSet.path("fields"), new TypeReference<>() { });
+            operations.add(new ModelOperationInput(ruleSet.path("id").asText(), "formatter", fields, ruleSet.path("name").asText()));
+        }
+        return operations;
     }
 
     private void flatten(JsonNode node, List<ModelOperationInput> out) {
@@ -442,6 +456,22 @@ public class NrmService {
         }
         for (JsonNode node : model.path("operations")) {
             validateOperation(node);
+        }
+        validateSettings(model.path("settings"));
+    }
+
+    /** The model's optional settings: for now, its input validation rule sets, each an id, a name and its rules. */
+    private void validateSettings(JsonNode settings) {
+        if (settings.isMissingNode() || settings.isNull()) {
+            return;
+        }
+        if (!settings.isObject() || (!settings.path("validation").isMissingNode() && !settings.path("validation").isArray())) {
+            throw invalid("the model has malformed settings.");
+        }
+        for (JsonNode ruleSet : settings.path("validation")) {
+            if (!ruleSet.isObject() || !ruleSet.path("id").isTextual() || !ruleSet.path("name").isTextual() || !ruleSet.path("fields").isObject()) {
+                throw invalid("the model has a malformed validation rule set.");
+            }
         }
     }
 

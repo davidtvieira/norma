@@ -64,6 +64,40 @@ class NrmServiceTest {
         assertThat(nrmService.getDataset(imported.nrmId()).sheets()).hasSize(1);
     }
 
+    /** One input, and its validation rule set kept in the model's settings (an integer from 0 to 9) instead of on the canvas. */
+    private static final String MODEL_WITH_VALIDATION_SETTINGS = """
+            {"modelName":"M","datasetId":"d","inputOperationIds":["b"],"outputOperationIds":["b"],
+             "operations":[{"id":"b","kind":"node","name":"Valor",
+               "fields":{"input":{"type":"literal","value":""}},"operations":[]}],
+             "settings":{"validation":[{"id":"v","name":"Pergunta","fields":
+               {"type":"integer","required":true,"min":0,"max":9,"appliesTo":["b"]}}]}}""";
+
+    @Test
+    void aModelsValidationSettingsApplyToItsInputsAsAFormatterWould() throws IOException {
+        NrmImportStatus imported = nrmService.importNrm(nrm("a.nrm", entries(MODEL_WITH_VALIDATION_SETTINGS, INFO)));
+
+        assertThat(nrmService.getInputs(imported.nrmId()).inputs()).singleElement().satisfies(input ->
+                assertThat(input.format().max()).isEqualByComparingTo("9"));
+        assertThat(nrmService.run(imported.nrmId(), Map.of("b", "5"))).singleElement().satisfies(result -> {
+            assertThat(result.success()).isTrue();
+            assertThat(result.value()).isEqualTo("5");
+        });
+        assertThat(nrmService.run(imported.nrmId(), Map.of("b", "12"))).singleElement().satisfies(result ->
+                assertThat(result.success()).isFalse());
+        assertThat(nrmService.run(imported.nrmId(), Map.of())).singleElement().satisfies(result ->
+                assertThat(result.success()).isFalse());
+    }
+
+    @Test
+    void rejectsAModelWhoseSettingsAreMalformed() {
+        assertThatThrownBy(() -> nrmService.importNrm(nrm("a.nrm", entries(
+                MODEL_WITH_VALIDATION_SETTINGS.replace("\"name\":\"Pergunta\",", ""), INFO))))
+                .isInstanceOf(DatasetParsingException.class);
+        assertThatThrownBy(() -> nrmService.importNrm(nrm("a.nrm", entries(
+                MODEL_WITH_VALIDATION_SETTINGS.replace("\"validation\":[", "\"validation\":{\"x\":["), INFO))))
+                .isInstanceOf(DatasetParsingException.class);
+    }
+
     @Test
     void anImportedNrmServesItsOriginalModelWithTheNrmName() throws IOException {
         NrmImportStatus imported = nrmService.importNrm(nrm("a.nrm", entries(MODEL, INFO)));

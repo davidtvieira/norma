@@ -66,7 +66,7 @@ public class LegacyConversionService {
             }
             return report(id, name, dryRun ? "verified" : "converted", changes[0], cases, List.of());
         } catch (RuntimeException e) {
-            return new ConversionReport(id.toString(), name, "failed", 0, 0, 0,
+            return new ConversionReport(id.toString(), name, "failed", 0, 0, 0, 0,
                     List.of(String.valueOf(e.getMessage())));
         }
     }
@@ -147,6 +147,6 @@ public class LegacyConversionService {
 
     private static ConversionReport report(
             UUID id, String name, String status, LegacyModelConverter.Changes changes, int cases, List<String> problems) {
-        return new ConversionReport(id.toString(), name, status, changes.counters(), changes.calcs(), cases, problems);
+        return new ConversionReport(id.toString(), name, status, changes.counters(), changes.calcs(), changes.formatters(), cases, problems);
     }
 }

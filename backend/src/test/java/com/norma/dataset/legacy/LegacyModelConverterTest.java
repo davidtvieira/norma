@@ -80,4 +80,39 @@ class LegacyModelConverterTest {
 
         assertThat(LegacyModelConverter.convert(model(plain)).changes().any()).isFalse();
     }
+
+    private static final String WITH_FORMATTERS = """
+            {"modelName":"M","operations":[
+              {"id":"n1","kind":"node","name":"A","fields":{"input":{"type":"literal","value":""}},"position":{"x":1,"y":2},"operations":[]},
+              {"id":"f1","kind":"formatter","name":"Perguntas","fields":{"type":"integer","required":true,"min":0,"max":9,"appliesTo":["n1"]},"position":{"x":5,"y":6},"operations":[]},
+              {"id":"f2","kind":"formatter","name":"Idade","fields":{"type":"integer","required":true,"min":3,"max":17,"appliesTo":[]},"position":{"x":7,"y":8},"operations":[]}]}""";
+
+    @Test
+    void formattersLeaveTheCanvasForTheValidationSettingsKeepingIdNameAndRules() throws Exception {
+        LegacyModelConverter.Result result = LegacyModelConverter.convert(model(WITH_FORMATTERS));
+
+        assertThat(result.changes().formatters()).isEqualTo(2);
+        assertThat(result.model().path("operations")).hasSize(1);
+        assertThat(result.model().path("operations").get(0).path("id").asText()).isEqualTo("n1");
+        JsonNode rules = result.model().path("settings").path("validation");
+        assertThat(rules).hasSize(2);
+        assertThat(rules.get(0).path("id").asText()).isEqualTo("f1");
+        assertThat(rules.get(0).path("name").asText()).isEqualTo("Perguntas");
+        assertThat(rules.get(0).path("fields")).isEqualTo(model(WITH_FORMATTERS).path("operations").get(1).path("fields"));
+        assertThat(rules.get(0).has("position")).isFalse();
+        assertThat(rules.get(1).path("id").asText()).isEqualTo("f2");
+    }
+
+    @Test
+    void formattersAreOnlyMovedOnceAndExistingSettingsAreKept() throws Exception {
+        JsonNode first = LegacyModelConverter.convert(model(WITH_FORMATTERS)).model();
+        LegacyModelConverter.Result second = LegacyModelConverter.convert(first);
+        assertThat(second.changes().any()).isFalse();
+        assertThat(second.model()).isEqualTo(first);
+
+        String withSettings = WITH_FORMATTERS.replace("{\"modelName\":\"M\",", "{\"modelName\":\"M\",\"settings\":{\"validation\":[{\"id\":\"old\",\"name\":\"Antiga\",\"fields\":{}}]},");
+        JsonNode merged = LegacyModelConverter.convert(model(withSettings)).model();
+        assertThat(merged.path("settings").path("validation")).hasSize(3);
+        assertThat(merged.path("settings").path("validation").get(0).path("id").asText()).isEqualTo("old");
+    }
 }
