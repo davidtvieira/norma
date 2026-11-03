@@ -253,6 +253,8 @@ interface ConfirmedOperationCardProps {
   /** The "which table/columns/range" detail (see operationKind.ts's renderSummary) — shown next
    * to kindLabel in the footer. */
   summary: ReactNode;
+  /** The summary as it is while the card's dialog is open and being edited (the card itself keeps showing the saved one). */
+  modalSummary?: ReactNode;
   onEdit: () => void;
   editDisabled: boolean;
   /** Whether the canvas is currently in "Editar" mode — the pencil is only shown at all while
@@ -337,6 +339,7 @@ function ConfirmedOperationCard({
   name,
   kindLabel,
   summary,
+  modalSummary,
   onEdit,
   editDisabled,
   isEditMode,
@@ -461,7 +464,7 @@ function ConfirmedOperationCard({
           title={name || 'Operação sem nome'}
           subtitle={
             <>
-              <span className="operation-card__kind">{kindLabel}</span> <span className="operation-card__summary">{summary}</span>
+              <span className="operation-card__kind">{kindLabel}</span> <span className="operation-card__summary">{modalSummary ?? summary}</span>
             </>
           }
           size="md"
@@ -713,7 +716,7 @@ export function OperationPanel({
   // The open node modal's fields as they were when it opened, so "Cancelar" can put them back
   // (and so closing knows whether anything changed). `revision` remounts the modal's body after a
   // revert, since the kinds' editors keep some state of their own that wouldn't follow the fields.
-  const modalSnapshotRef = useRef<{ id: string; fields: OperationFields } | null>(null);
+  const [modalSnapshot, setModalSnapshot] = useState<{ id: string; fields: OperationFields } | null>(null);
   const [modalRevision, setModalRevision] = useState<{ id: string; count: number }>({ id: '', count: 0 });
 
   // Clears the pinned highlight once the sheet panel it was shown in closes — otherwise
@@ -923,22 +926,40 @@ export function OperationPanel({
   const iteratorSheet = iteratorEntry && iteratorEntry.confirmed ? iteratorPreviewSheet(iteratorEntry.fields) : null;
   // The reference graph is rebuilt once per change to `entries` (not once per card per render, which
   // is what made big models freeze on every hover/drag), and shared by every per-card lookup below.
-  const referenceGraph = useMemo(() => buildReferenceGraph(entries), [entries]);
+  // What the canvas shows for the operations: `entries` as they were saved. While a dialog edits an operation (its card's own
+  // dialog, or "Editar operação" from the pencil) that one still has the fields and name it had when the dialog opened, so
+  // nothing behind the dialog changes until it is saved; `entries` itself is live, for the dialog's own sake.
+  const committedEntries = useMemo(() => {
+    const editing = editingEntryId !== null ? editSnapshots[editingEntryId] : undefined;
+    const open = modalEntryId !== null && modalSnapshot?.id === modalEntryId ? modalSnapshot : null;
+    if (!editing && !open) return entries;
+    return entries.map((entry) => {
+      if (editing && entry.id === editingEntryId) return { ...editing, position: entry.position };
+      if (open && entry.id === open.id) return { ...entry, fields: open.fields };
+      return entry;
+    });
+  }, [entries, editingEntryId, editSnapshots, modalEntryId, modalSnapshot]);
+  const referenceGraph = useMemo(() => buildReferenceGraph(committedEntries), [committedEntries]);
   // The operations a formatter requires a value for (its "Obrigatório" rule): the only inputs that may not be left empty.
   const requiredInputIds = useMemo(() => {
     const ids = new Set<string>();
-    for (const entry of entries) {
+    for (const entry of committedEntries) {
       if (!entry.confirmed || entry.kindId !== FORMATTER_KIND_ID || !(entry.fields as { required?: boolean }).required) continue;
       for (const id of (entry.fields as { appliesTo?: string[] }).appliesTo ?? []) ids.add(id);
     }
     return ids;
-  }, [entries]);
-  const resolvedInputsByEntry = useMemo(() => resolveOperationInputs(entries, results), [entries, results]);
+  }, [committedEntries]);
+  const resolvedInputsByEntry = useMemo(() => resolveOperationInputs(committedEntries, results), [committedEntries, results]);
+  // The same resolution for the dialog being edited, from its live fields (the same object as above when nothing is open).
+  const liveResolvedInputsByEntry = useMemo(
+    () => (committedEntries === entries ? resolvedInputsByEntry : resolveOperationInputs(entries, results)),
+    [committedEntries, entries, resolvedInputsByEntry, results],
+  );
   // An operation whose input breaks a formatter's rules has no result: one left from a value that was fine is dropped, so
   // nothing chained off it keeps using it.
   useEffect(() => {
     const stale = entries.filter(
-      (entry) => (resolvedInputsByEntry[entry.id] ?? []).some((input) => input.status === 'invalid') && results[entry.id] != null,
+      (entry) => (liveResolvedInputsByEntry[entry.id] ?? []).some((input) => input.status === 'invalid') && results[entry.id] != null,
     );
     if (stale.length === 0) return;
     setResults((current) => {
@@ -946,7 +967,7 @@ export function OperationPanel({
       for (const entry of stale) next[entry.id] = null;
       return next;
     });
-  }, [entries, resolvedInputsByEntry, results]);
+  }, [entries, liveResolvedInputsByEntry, results]);
   // Which edges (see the `edges` computation below, keyed the same way — "fromId-toId") are lit
   // up as data has flowed through them — lit by flashEdgesFrom the moment the operation an edge
   // starts *from* reports a new result (see each renderBody's own onResultChange below), whether
@@ -1160,13 +1181,14 @@ export function OperationPanel({
     if (tool !== 'select' || !editHistory || dragNode) return;
     if (entries.some((entry) => !entry.confirmed)) return;
     const currentStep = editHistory.steps[editHistory.index];
-    if (JSON.stringify(currentStep) === JSON.stringify(entries)) return;
-    const steps = [...editHistory.steps.slice(0, editHistory.index + 1), structuredClone(entries)];
+    // The saved entries, so the edits made inside a dialog become one step when it is saved, not one per keystroke.
+    if (JSON.stringify(currentStep) === JSON.stringify(committedEntries)) return;
+    const steps = [...editHistory.steps.slice(0, editHistory.index + 1), structuredClone(committedEntries)];
     setEditHistory({ steps, index: steps.length - 1 });
     // editHistory is deliberately left out — this effect only reacts to entries/dragNode settling
     // on something new, not to editHistory's own writes (which never touch entries themselves).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries, dragNode, tool]);
+  }, [entries, committedEntries, dragNode, tool]);
 
   // Closes the edit panel once the entry it was editing resolves — reverted (× cancels back to
   // its confirmed snapshot — see cancelEntry) or, in principle, confirmed some other way. Driven
@@ -1268,13 +1290,13 @@ export function OperationPanel({
 
   useEffect(() => {
     const entry = modalEntryId === null ? undefined : entries.find((candidate) => candidate.id === modalEntryId);
-    modalSnapshotRef.current = entry ? { id: entry.id, fields: entry.fields } : null;
+    setModalSnapshot(entry ? { id: entry.id, fields: entry.fields } : null);
     // Only when the modal opens/closes — entries changing while it's open is exactly what this tracks.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modalEntryId]);
 
   function cancelModal(entry: OperationEntryState) {
-    const snapshot = modalSnapshotRef.current;
+    const snapshot = modalSnapshot;
     if (snapshot && snapshot.id === entry.id) {
       updateEntry(entry.id, { fields: snapshot.fields });
       setModalRevision((revision) => ({ id: entry.id, count: revision.count + 1 }));
@@ -1534,14 +1556,14 @@ export function OperationPanel({
   }
 
   const entryLabels = useMemo(
-    () => new Map(entries.map((entry) => [entry.id, entry.name || 'Operação sem nome'])),
-    [entries],
+    () => new Map(committedEntries.map((entry) => [entry.id, entry.name || 'Operação sem nome'])),
+    [committedEntries],
   );
   // Every confirmed operation as something an input could reference, built once per `entries`
   // change; referenceOptionsFor then only filters it per card.
   const referenceOptionPool = useMemo(
     () =>
-      entries
+      committedEntries
         .filter((entry) => entry.confirmed)
         .map((entry) => {
           // An operation with several outputs is referenced per output ("Tradutor › Pergunta 2").
@@ -1556,7 +1578,7 @@ export function OperationPanel({
               : [{ operationId: entry.id, label: label(entry.id) }];
           return { entryId: entry.id, options };
         }),
-    [entries, entryLabels],
+    [committedEntries, entryLabels],
   );
 
   // What a given operation's "input" field can reference: every other confirmed operation,
@@ -1884,7 +1906,7 @@ export function OperationPanel({
   // Every confirmed operation whose input dynamically references another one's result — drawn
   // as a connecting line between the two nodes (see edgePath) instead of nesting one inside the
   // other's DOM, since both need to stay independently draggable on the canvas.
-  const entriesById = new Map(entries.map((entry) => [entry.id, entry]));
+  const entriesById = new Map(committedEntries.map((entry) => [entry.id, entry]));
 
   // While inputs are collapsed, the confirmed designated inputs aren't drawn; one stand-in node
   // sits at the center of their bounding box instead (using each card's real rendered height, so
@@ -1904,7 +1926,7 @@ export function OperationPanel({
     inputsGroup = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 - NODE_HEADER_ANCHOR_Y };
   }
 
-  const edges: Edge[] = entries.flatMap((entry) => {
+  const edges: Edge[] = committedEntries.flatMap((entry) => {
     if (!entry.confirmed) return [];
     return getInputSources(entry.fields).flatMap((source) => {
       if (source.type !== 'reference') return [];
@@ -1987,14 +2009,17 @@ export function OperationPanel({
 
   function renderConfirmedCard(entry: OperationEntryState) {
     const kind = KINDS_BY_ID[entry.kindId];
+    // What the card itself shows (its name and summary line): the saved version, while a dialog is editing this operation.
+    const shown = committedEntries.find((candidate) => candidate.id === entry.id) ?? entry;
     const isModelInputEligible =
       Boolean(kind.renderInputEditor) && hasSingleInputField(entry.fields) && getInputSource(entry.fields).type === 'literal';
 
     return (
       <ConfirmedOperationCard
-        name={entry.name}
+        name={shown.name}
         kindLabel={labelForKind(entry.kindId)}
-        summary={kind.renderSummary(entry.fields, dataset, pageSheetFor(entry.kindId))}
+        summary={kind.renderSummary(shown.fields, dataset, pageSheetFor(entry.kindId))}
+        modalSummary={kind.renderSummary(entry.fields, dataset, pageSheetFor(entry.kindId))}
         onEdit={() => editEntry(entry.id)}
         editDisabled={hasDraftInProgress}
         isEditMode={tool === 'select'}
@@ -2004,7 +2029,7 @@ export function OperationPanel({
         hasFailed={failedIds.has(entry.id) || (resolvedInputsByEntry[entry.id] ?? []).some((input) => input.status === 'invalid')}
         onTestUpToHere={() => runModelTest(entry.id)}
         onClearTest={() => clearChainTest(entry.id)}
-        hasEmptyInput={chainHasEmptyInput(entry.id, entries, referenceGraph, requiredInputIds)}
+        hasEmptyInput={chainHasEmptyInput(entry.id, committedEntries, referenceGraph, requiredInputIds)}
         onReveal={() => revealEntry(entry)}
         isRevealEligible={sheetIndexForEntry(entry) !== null}
         isModelInput={modelInputIds.includes(entry.id)}
@@ -2050,8 +2075,8 @@ export function OperationPanel({
         onCancelModal={() => cancelModal(entry)}
         isModalDirty={
           modalEntryId === entry.id &&
-          modalSnapshotRef.current?.id === entry.id &&
-          JSON.stringify(modalSnapshotRef.current.fields) !== JSON.stringify(entry.fields)
+          modalSnapshot?.id === entry.id &&
+          JSON.stringify(modalSnapshot.fields) !== JSON.stringify(entry.fields)
         }
       >
         <Fragment key={modalRevision.id === entry.id ? modalRevision.count : 0}>
@@ -2072,8 +2097,8 @@ export function OperationPanel({
             setMatchedRows((current) => ({ ...current, [entry.id]: rowIndex }));
             setMatchedColumns((current) => ({ ...current, [entry.id]: columnIndex ?? null }));
           },
-          resolvedInput: resolvedInputsByEntry[entry.id][0],
-          resolvedInputs: resolvedInputsByEntry[entry.id],
+          resolvedInput: liveResolvedInputsByEntry[entry.id][0],
+          resolvedInputs: liveResolvedInputsByEntry[entry.id],
           referenceOptions: referenceOptionsFor(entry.id),
           pageSheet: pageSheetFor(entry.kindId),
           iteratorSheet,
