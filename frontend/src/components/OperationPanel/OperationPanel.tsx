@@ -1,6 +1,6 @@
 import { reportApiError } from '../../services/apiErrors';
 import { ModelTitle } from '../ModelTitle/ModelTitle';
-import { LogoIcon, BroomIcon, ClearIcon, CloseIcon, EyeIcon, LoadIcon, PencilIcon, PlayIcon, RedoIcon, SaveIcon, StopIcon, UndoIcon } from '../ButtonIcons/ButtonIcons';
+import { LogoIcon, BroomIcon, ClearIcon, CloseIcon, EyeIcon, HelpIcon, LoadIcon, PencilIcon, PlayIcon, RedoIcon, SaveIcon, StopIcon, UndoIcon } from '../ButtonIcons/ButtonIcons';
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
@@ -20,7 +20,9 @@ import { PAGE_AWARE_KIND_IDS, PAGE_SELECTOR_KIND_ID, pageSheetFromResult } from 
 import { KINDS, KINDS_BY_ID } from './kinds/registry';
 import { AddOperationModal } from '../AddOperationModal/AddOperationModal';
 import { ConfirmModal } from '../Modal/ConfirmModal';
-import { Modal } from '../Modal/Modal';
+import { Modal, ModalAsideContext } from '../Modal/Modal';
+import { ShortcutsModal } from '../ShortcutsModal/ShortcutsModal';
+import { PanControls } from './PanControls';
 import { TestValuesModal } from '../TestValuesModal/TestValuesModal';
 import { useCanvasViewport, MIN_ZOOM, MAX_ZOOM, ZOOM_STEP } from './useCanvasViewport';
 import type { NodePosition } from './useCanvasViewport';
@@ -706,6 +708,8 @@ export function OperationPanel({
   const [modalEntryId, setModalEntryId] = useState<string | null>(null);
   // "Limpar dados" asks first: it wipes the results of the last test and every value typed in the inputs.
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
+  // The "?" on the canvas' toolbar: the list of shortcuts.
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   // The open node modal's fields as they were when it opened, so "Cancelar" can put them back
   // (and so closing knows whether anything changed). `revision` remounts the modal's body after a
   // revert, since the kinds' editors keep some state of their own that wouldn't follow the fields.
@@ -998,11 +1002,13 @@ export function OperationPanel({
   // canvas) — see copySelection/pasteClipboardAt. Cleared only by copying again, never by pasting,
   // so the same copy can be pasted more than once.
   const [clipboard, setClipboard] = useState<OperationEntryState[] | null>(null);
-  // True once "Colar" has been clicked and is waiting for the placement click on the canvas (see
+  // True once "Copiar" has been clicked and the copy is waiting for the placement click on the canvas (see
   // handleViewportClick) — lets the user choose where the pasted copy lands instead of it always
   // dropping on top of the original, which would bury it under (or overlapping) the rest of the
   // model.
   const [pendingPaste, setPendingPaste] = useState(false);
+  // Where the mouse went down on the canvas while a paste is pending, to tell a placing click from the end of a drag.
+  const pasteMouseDownRef = useRef<{ x: number; y: number } | null>(null);
 
   // The canvas' own pan/zoom/marquee-select/node-drag mechanics — see useCanvasViewport for why
   // this is split out rather than living directly here: none of it needs to know what an
@@ -1020,6 +1026,7 @@ export function OperationPanel({
     startMarquee,
     startNodeDrag,
     zoomBy,
+    panBy,
     handleViewportWheel,
     centerViewOn,
   } = useCanvasViewport({
@@ -1059,6 +1066,9 @@ export function OperationPanel({
       // node to reposition it still works in every case (see onDragEntry above), only what a
       // plain click does changes.
       onNodeClick: (id, event) => {
+        // While a paste waits for its click on the canvas, a click on an operation does nothing at all — it neither pastes
+        // (see handleViewportClick) nor changes the selection under the "Clique no canvas para colar…" message.
+        if (pendingPaste) return;
         if (tool === 'select') {
           const additive = event.shiftKey || event.metaKey || event.ctrlKey;
           setSelectedIds((current) => {
@@ -1213,7 +1223,13 @@ export function OperationPanel({
   // never more than one at a time. The middle mouse button always pans instead, in either mode
   // (button === 1), since a left-button drag is spoken for by marquee-select while editing.
   function handleViewportMouseDown(event: ReactMouseEvent<HTMLDivElement>) {
-    if (pendingPaste) return;
+    if (pendingPaste) {
+      // A drag on the background still moves the canvas, to find the spot for the copy; only a click that stayed put places it
+      // (see handleViewportClick).
+      pasteMouseDownRef.current = { x: event.clientX, y: event.clientY };
+      if (event.button === 0 || event.button === 1) startPan(event);
+      return;
+    }
     if (event.button === 1) {
       startPan(event);
       return;
@@ -1226,7 +1242,7 @@ export function OperationPanel({
     startPan(event);
   }
 
-  // The companion click handler for a pending paste (see "Colar" in the toolbar) — fires after
+  // The companion click handler for a pending paste (see "Copiar" in the toolbar) — fires after
   // handleViewportMouseDown above declines to pan/marquee-select while one's pending, so this is
   // the only thing a click on the canvas does in that state: place the clipboard at wherever was
   // clicked, converting the click's screen position back to the same canvas-local coordinate
@@ -1234,10 +1250,14 @@ export function OperationPanel({
   // transform — see the JSX below).
   function handleViewportClick(event: ReactMouseEvent<HTMLDivElement>) {
     if (!pendingPaste) return;
+    // The click that ends a drag moved the canvas; it isn't a placement.
+    const pressed = pasteMouseDownRef.current;
+    pasteMouseDownRef.current = null;
+    if (pressed && Math.hypot(event.clientX - pressed.x, event.clientY - pressed.y) > 4) return;
     // Ignore a click that landed on an existing node (it still bubbles up here) — pasting
     // straight on top of it is exactly the overlap this whole placement step exists to avoid;
     // pendingPaste stays on so the very next click on actual empty canvas still places it.
-    if ((event.target as HTMLElement).closest('.operation-canvas__node, .operation-canvas__floating-toolbar, .operation-canvas__minimap')) return;
+    if ((event.target as HTMLElement).closest('.operation-canvas__node, .operation-canvas__floating-toolbar, .operation-canvas__minimap, .operation-canvas__navigation')) return;
     const viewportBox = viewportRef.current?.getBoundingClientRect();
     if (!viewportBox) return;
     pasteClipboardAt({
@@ -1396,7 +1416,77 @@ export function OperationPanel({
     const copied = entries.filter((entry) => selectedSet.has(entry.id) && entry.kindId !== 'iterator' && entry.kindId !== PAGE_SELECTOR_KIND_ID);
     if (copied.length === 0) return;
     setClipboard(copied.map((entry) => structuredClone(entry)));
+    // Straight into placing: the next click on the empty canvas drops the copy there (see handleViewportClick), so there is no
+    // separate "Colar" step. Escape, or the button that appears meanwhile, backs out.
+    setPendingPaste(true);
   }
+
+  // Escape backs out of a pending paste.
+  useEffect(() => {
+    if (!pendingPaste) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setPendingPaste(false);
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [pendingPaste]);
+
+  // Ctrl/Cmd+Z / Ctrl/Cmd+Shift+Z (and Ctrl+Y), and Ctrl/Cmd+C and Ctrl/Cmd+V, while "Editar" is on: C is the toolbar's "Copiar" (the button turns into "Clique no canvas para
+  // colar…"), V drops the copy at the mouse pointer when it is over the canvas without waiting for a click (or, with the
+  // pointer elsewhere, waits for a click on the canvas). Left alone while typing in a field, while a dialog or the dataset panel is open,
+  // and while the browser has text selected, so the usual copy/paste keeps working there.
+  const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
+  const shortcutRef = useRef<(event: KeyboardEvent) => void>(() => undefined);
+  useEffect(() => {
+    shortcutRef.current = (event: KeyboardEvent) => {
+      if (tool !== 'select' || !(event.ctrlKey || event.metaKey) || event.altKey) return;
+      const key = event.key.toLowerCase();
+      if (key !== 'c' && key !== 'v' && key !== 'z' && key !== 'y') return;
+      // Shift only belongs to Ctrl+Shift+Z (redo).
+      if (event.shiftKey && key !== 'z') return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+      if (document.querySelector('.modal__overlay') || isSheetPanelOpen) return;
+      // Ctrl+Z undoes, Ctrl+Shift+Z (or Ctrl+Y) redoes: the "Desfazer"/"Refazer" buttons, with the same limits.
+      if (key === 'z' || key === 'y') {
+        if (!editHistory || hasDraftInProgress) return;
+        const redo = key === 'y' || event.shiftKey;
+        if (redo ? editHistory.index >= editHistory.steps.length - 1 : editHistory.index <= 0) return;
+        event.preventDefault();
+        if (redo) redoEditMode();
+        else undoEditMode();
+        return;
+      }
+      if (key === 'c') {
+        if (!hasSelection || window.getSelection()?.toString()) return;
+        event.preventDefault();
+        // The same as the "Copiar" button, whose state (waiting for the click that places the copy) shows it.
+        copySelection();
+        return;
+      }
+      if (!clipboard || clipboard.length === 0) return;
+      event.preventDefault();
+      const box = viewportRef.current?.getBoundingClientRect();
+      const pointer = lastPointerRef.current;
+      if (box && pointer && pointer.x >= box.left && pointer.x <= box.right && pointer.y >= box.top && pointer.y <= box.bottom) {
+        pasteClipboardAt({ x: (pointer.x - box.left - viewOffset.x) / zoom, y: (pointer.y - box.top - viewOffset.y) / zoom });
+      } else {
+        setPendingPaste(true);
+      }
+    };
+  });
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => shortcutRef.current(event);
+    const onMouseMove = (event: MouseEvent) => {
+      lastPointerRef.current = { x: event.clientX, y: event.clientY };
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('mousemove', onMouseMove);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('mousemove', onMouseMove);
+    };
+  }, []);
 
   // "Eliminar" in the selection bar — same per-entry cleanup as a single removeEntry, just for
   // every selected id at once.
@@ -1440,7 +1530,7 @@ export function OperationPanel({
 
     setEntries((current) => [...current, ...pasted]);
     setSelectedIds(pasted.map((entry) => entry.id));
-    setPendingPaste(false);
+    // A pending paste stays on: every further click on the canvas drops another copy, until Escape or the orange button ends it.
   }
 
   const entryLabels = useMemo(
@@ -1778,10 +1868,9 @@ export function OperationPanel({
   const hasAnyEmptyInput = entries.some((entry) => entry.confirmed && hasEmptyInput(entry, requiredInputIds));
   // Gate which of the "Editar"-only buttons are disabled once they're rendered at all — see their
   // own render below (next to the pencil toggle), gated on tool === 'select' ("Editar" mode)
-  // first. Neither hasClipboard nor hasSelection gate whether their buttons *appear* — only
-  // whether each is disabled (Colar/Copiar/Eliminar/Cancelar seleção are all always rendered).
+  // first. hasSelection doesn't gate whether their buttons *appear* — only whether each is
+  // disabled (Copiar/Eliminar/Cancelar seleção are all always rendered).
   const hasSelection = tool === 'select' && selectedIds.length > 0;
-  const hasClipboard = !!clipboard && clipboard.length > 0;
   // Whether anything's actually changed since "Editar" turned on (see editModeSnapshot) — a
   // plain deep-equality check against the snapshot rather than tracking every mutation site
   // (drag, copy/paste, delete, a per-operation edit confirmed, ...) separately. Drives which
@@ -1973,10 +2062,8 @@ export function OperationPanel({
           datasetId: dataset.datasetId,
           columnPick,
           onStartColumnPick: (id, field, sheetIndex) => {
-            // Closes this card's own detail modal first — its full-screen overlay would otherwise
-            // sit on top of (and swallow every click meant for) the sheet panel the pick needs to
-            // be visible and clickable (see OperationBodyContext's own note on columnPick).
-            setModalEntryId((current) => (current === entry.id ? null : current));
+            // The card's detail modal stays open: with the sheet panel open every modal slides aside to the left
+            // (see ModalAsideContext), and closing the panel without picking brings the user back to it.
             onStartColumnPick(id, field, sheetIndex);
           },
           onFinishColumnPick,
@@ -2197,7 +2284,7 @@ export function OperationPanel({
           setIsAddModalOpen(false);
           if (stagingEntryIds.length > 0) cancelStaging();
         }}
-        kinds={KINDS.map((kind) => ({ id: kind.id, label: labelForKind(kind.id) }))}
+        kinds={KINDS.map((kind) => ({ id: kind.id, label: labelForKind(kind.id), requiresDataset: kind.requiresDataset }))}
         // A model has one iterator — it's the always-first loop around everything else.
         disabledKindIds={[...(iteratorEntry ? ['iterator'] : []), ...(entries.some((entry) => entry.kindId === PAGE_SELECTOR_KIND_ID) ? [PAGE_SELECTOR_KIND_ID] : [])]}
         needsDatasetKindIds={withoutDataset ? KINDS.filter((kind) => kind.requiresDataset).map((kind) => kind.id) : []}
@@ -2289,15 +2376,21 @@ export function OperationPanel({
                   confirming it are shared across every staged card (the "+" after them and the buttons below). */}
               {stagingEntries.map((entry) => (
                 <div key={entry.id} className="operation-staged__card">
-                  <button
-                    type="button"
-                    className="operation-staged__remove"
-                    onClick={() => removeFromStaging(entry.id)}
-                    aria-label="Remover esta operação do lote"
-                    title="Remover esta operação do lote"
-                  >
-                    <CloseIcon />
-                  </button>
+                  <div className="operation-staged__header">
+                    <span className="modal__label">{labelForKind(entry.kindId)}</span>
+                    {/* Nothing to drop from a batch of one — the modal's own Cancelar discards it. */}
+                    {stagingEntries.length > 1 && (
+                      <button
+                        type="button"
+                        className="operation-staged__remove"
+                        onClick={() => removeFromStaging(entry.id)}
+                        aria-label="Remover esta operação do lote"
+                        title="Remover esta operação do lote"
+                      >
+                        <CloseIcon />
+                      </button>
+                    )}
+                  </div>
                   {renderDraftCard(entry)}
                 </div>
               ))}
@@ -2322,6 +2415,7 @@ export function OperationPanel({
   }
 
   return (
+    <ModalAsideContext.Provider value={isSheetPanelOpen}>
     <div className="operation-canvas">
       <div className="operation-canvas__toolbar">
         {/* The operation count, at the start of this same row — .operation-canvas__toolbar-actions'
@@ -2494,7 +2588,7 @@ export function OperationPanel({
             these are canvas-manipulation controls, so they stay in view right where the canvas
             itself is. Split into two groups by what they're controls *over* rather than one big
             row — zoom and "Desfazer"/"Refazer" (view/history, pinned to the viewport's own
-            top-left corner) from "+ Adicionar operação"/"Copiar"/"Colar"/"Eliminar"/
+            top-left corner) from "+ Adicionar operação"/"Copiar"/"Eliminar"/
             "Cancelar seleção"/"Editar" (the operations themselves, top-right). Each group's own
             mousedown stops propagation before reaching the viewport's (which would otherwise
             start a pan/marquee-select right under the click); handleViewportClick also excludes
@@ -2503,37 +2597,16 @@ export function OperationPanel({
           className="operation-canvas__floating-toolbar operation-canvas__floating-toolbar--left"
           onMouseDown={(event) => event.stopPropagation()}
         >
-          <div className="operation-canvas__zoom-controls">
-            <button
-              type="button"
-              className="operation-canvas__zoom-button"
-              onClick={() => zoomBy(1 / ZOOM_STEP)}
-              disabled={zoom <= MIN_ZOOM}
-              title="Diminuir zoom"
-              aria-label="Diminuir zoom"
-            >
-              −
-            </button>
-            <button
-              type="button"
-              className="operation-canvas__zoom-level"
-              onClick={() => zoomBy(1 / zoom)}
-              disabled={zoom === 1}
-              title="Repor zoom para 100%"
-            >
-              {Math.round(zoom * 100)}%
-            </button>
-            <button
-              type="button"
-              className="operation-canvas__zoom-button"
-              onClick={() => zoomBy(ZOOM_STEP)}
-              disabled={zoom >= MAX_ZOOM}
-              title="Aumentar zoom"
-              aria-label="Aumentar zoom"
-            >
-              +
-            </button>
-          </div>
+          {/* Always there, in or out of "Editar": opens the list of shortcuts. */}
+          <button
+            type="button"
+            className="btn btn--secondary btn--sm"
+            onClick={() => setIsShortcutsOpen(true)}
+            title="Atalhos do teclado"
+          >
+            <HelpIcon />
+            Atalhos
+          </button>
 
           {/* "Desfazer"/"Refazer": step back/forward through this "Editar" session's own history
               (see editHistory/undoEditMode/redoEditMode) — kept with zoom rather than the
@@ -2541,7 +2614,7 @@ export function OperationPanel({
               controls over the canvas' view/history, not actions on the operations themselves.
               Always rendered while editing, each disabled at whichever end of the history it's
               already at (nothing before the first step, nothing past the last), same "show
-              always, disable when there's nothing to do" treatment as "Colar"/"Cancelar seleção"
+              always, disable when there's nothing to do" treatment as "Cancelar seleção"
               get. Also disabled while a draft's in progress (a staged batch, or a single
               operation reopened via its own pencil) — every committed step is a fully-confirmed
               state (see the history effect's own guard), so jumping to one mid-edit would just
@@ -2554,7 +2627,7 @@ export function OperationPanel({
                 onClick={undoEditMode}
                 disabled={editHistory.index <= 0 || hasDraftInProgress}
                 aria-label="Desfazer"
-                title="Desfazer"
+                title="Desfazer (Ctrl+Z)"
               >
                 <UndoIcon />
               </button>
@@ -2564,7 +2637,7 @@ export function OperationPanel({
                 onClick={redoEditMode}
                 disabled={editHistory.index >= editHistory.steps.length - 1 || hasDraftInProgress}
                 aria-label="Refazer"
-                title="Refazer"
+                title="Refazer (Ctrl+Shift+Z)"
               >
                 <RedoIcon />
               </button>
@@ -2609,41 +2682,29 @@ export function OperationPanel({
               the whole session). Every button here is text, not an icon — same convention as
               "Editar" and the rest of this row, rather than singling three of them out (copy/
               paste/trash glyphs aren't universal enough here to carry meaning on their own
-              without a label anyway). All four are always rendered, disabled rather than hidden
-              when there's nothing for them to act on yet ("Colar" while the clipboard's empty,
-              the rest while nothing's selected). There's no separate "Selecionar" toggle any
+              without a label anyway). They are always rendered, disabled rather than hidden
+              while nothing's selected; "Copiar" goes straight into placing the copy (no "Colar"
+              button) and turns into "Clique no canvas para colar…" while that is pending. There's no separate "Selecionar" toggle any
               more — selecting is just what "Editar" itself does throughout: a plain click on a
               node selects it, shift/ctrl/cmd-click adds/removes it, and a drag over the
               background marquee-selects a range (see onNodeClick/handleViewportMouseDown). */}
           {tool === 'select' && (
             <>
+              {/* "Copiar" itself: once a copy waits to be placed it says so instead, and clicking it (or Esc) backs out. */}
               <button
                 type="button"
-                className="btn btn--secondary btn--sm"
-                onClick={copySelection}
-                disabled={!hasSelection}
-                title={hasSelection ? undefined : 'Selecione uma ou mais operações primeiro.'}
-              >
-                Copiar
-              </button>
-              <button
-                type="button"
-                className={
-                  pendingPaste
-                    ? 'btn btn--primary btn--sm'
-                    : 'btn btn--secondary btn--sm'
-                }
-                onClick={() => setPendingPaste((current) => !current)}
-                disabled={!hasClipboard}
+                className={pendingPaste ? 'btn btn--primary btn--sm' : 'btn btn--secondary btn--sm'}
+                onClick={pendingPaste ? () => setPendingPaste(false) : copySelection}
+                disabled={!hasSelection && !pendingPaste}
                 title={
-                  !hasClipboard
-                    ? 'Copie uma ou mais operações primeiro.'
-                    : pendingPaste
-                      ? 'Clique no canvas para colar aqui — ou clique de novo aqui para cancelar.'
-                      : 'Cola as operações copiadas onde clicar no canvas.'
+                  pendingPaste
+                    ? 'Clique no canvas para colar aqui (ou Ctrl+V junto ao cursor) — ou clique neste botão (ou Esc) para cancelar.'
+                    : hasSelection
+                      ? 'Copia as operações selecionadas (Ctrl+C) e cola-as onde clicar no canvas — ou com Ctrl+V, junto ao cursor.'
+                      : 'Selecione uma ou mais operações primeiro.'
                 }
               >
-                {pendingPaste ? 'Clique no canvas para colar…' : clipboard && clipboard.length > 0 ? `Colar (${clipboard.length})` : 'Colar'}
+                {pendingPaste ? 'Clique no canvas para colar…' : 'Copiar'}
               </button>
               <button
                 type="button"
@@ -2820,6 +2881,41 @@ export function OperationPanel({
           })}
         </div>
 
+        {/* Moving about the canvas, in its bottom-left corner: the arrows that move the view, and the zoom beside them. */}
+        <div className="operation-canvas__navigation" onMouseDown={(event) => event.stopPropagation()}>
+          <PanControls onPan={panBy} />
+          <div className="operation-canvas__zoom-controls">
+            <button
+              type="button"
+              className="operation-canvas__zoom-button"
+              onClick={() => zoomBy(1 / ZOOM_STEP)}
+              disabled={zoom <= MIN_ZOOM}
+              title="Diminuir zoom"
+              aria-label="Diminuir zoom"
+            >
+              −
+            </button>
+            <button
+              type="button"
+              className="operation-canvas__zoom-level"
+              onClick={() => zoomBy(1 / zoom)}
+              disabled={zoom === 1}
+              title="Repor zoom para 100%"
+            >
+              {Math.round(zoom * 100)}%
+            </button>
+            <button
+              type="button"
+              className="operation-canvas__zoom-button"
+              onClick={() => zoomBy(ZOOM_STEP)}
+              disabled={zoom >= MAX_ZOOM}
+              title="Aumentar zoom"
+              aria-label="Aumentar zoom"
+            >
+              +
+            </button>
+          </div>
+        </div>
         {renderMinimap()}
       </div>
 
@@ -2832,12 +2928,13 @@ export function OperationPanel({
 
       {renderConfigPanel()}
 
+      {isShortcutsOpen && <ShortcutsModal onClose={() => setIsShortcutsOpen(false)} />}
+
       {isClearConfirmOpen && (
         <ConfirmModal
           title="Limpar dados?"
           message="Os resultados do último teste e os valores introduzidos nos inputs vão ser apagados. Esta ação não se pode desfazer."
           confirmLabel="Limpar"
-          danger
           onConfirm={() => {
             setIsClearConfirmOpen(false);
             clearTest();
@@ -2859,5 +2956,6 @@ export function OperationPanel({
         warning={granularTestWarning}
       />
     </div>
+    </ModalAsideContext.Provider>
   );
 }

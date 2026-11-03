@@ -6,6 +6,8 @@ import './AddOperationModal.css';
 export interface OperationKindOption {
   id: string;
   label: string;
+  /** Whether this kind reads the dataset: those that do carry a "Conjunto de dados" tag, whether or not the norma has one. */
+  requiresDataset: boolean;
 }
 
 interface AddOperationModalProps {
@@ -49,12 +51,12 @@ export function AddOperationModal({ open, onClose, kinds, disabledKindIds = [], 
           <button
             key={kind.id}
             type="button"
-            className={`add-operation-modal__kind-option${activeKindId === kind.id ? ' add-operation-modal__kind-option--selected' : ''}`}
+            className="add-operation-modal__kind-option"
             aria-pressed={activeKindId === kind.id}
             disabled={disabledKindIds.includes(kind.id) || needsDatasetKindIds.includes(kind.id)}
             title={
               needsDatasetKindIds.includes(kind.id)
-                ? 'Precisa de um dataset: anexe um no editor ("Anexar dataset").'
+                ? 'Precisa de um conjunto de dados: anexe um no editor ("Anexar conjunto de dados").'
                 : disabledKindIds.includes(kind.id)
                   ? 'O modelo já tem uma operação deste tipo.'
                   : undefined
@@ -62,7 +64,10 @@ export function AddOperationModal({ open, onClose, kinds, disabledKindIds = [], 
             onClick={() => onPick(kind.id)}
           >
             <span className="add-operation-modal__kind-text">
-              <span className="add-operation-modal__kind-label">{kind.label}</span>
+              <span className="add-operation-modal__kind-label">
+                <span className="add-operation-modal__kind-name">{kind.label}</span>
+                {kind.requiresDataset && <span className="add-operation-modal__kind-tag">Conjunto de dados</span>}
+              </span>
               {KIND_DESCRIPTIONS[kind.id] && (
                 <span className="add-operation-modal__kind-description">{KIND_DESCRIPTIONS[kind.id]}</span>
               )}

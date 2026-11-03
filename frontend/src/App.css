@@ -962,6 +962,11 @@
 
 .editor-json {
   margin: 0;
+  padding: 1rem;
+  /* A block of its own: a shade apart from the dialog it sits in. */
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.8rem;
   white-space: pre;

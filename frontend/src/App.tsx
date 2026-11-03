@@ -754,7 +754,7 @@ function App() {
       .finally(() => setIsPreparingModel(false));
   }
 
-  /** "Criar sem dataset" on the landing screen: a session with nothing loaded, which lands on the same create/import
+  /** "Criar sem conjunto de dados" on the landing screen: a session with nothing loaded, which lands on the same create/import
    * choice as a dataset does. Its handle's id is only the session's own key (the address and the cache use it). */
   function startWithoutDataset() {
     clearModelState();
@@ -767,7 +767,7 @@ function App() {
   }
 
   /**
-   * Gives the norma on screen a dataset (the editor's "Anexar dataset"), which unlocks the operation kinds that read one.
+   * Gives the norma on screen a dataset (the editor's "Anexar conjunto de dados"), which unlocks the operation kinds that read one.
    * The session becomes a plain "dataset plus model" one: the model on screen is kept as it is, and saving it again writes
    * a .nrm with the spreadsheet (replacing the library entry it came from, if any).
    */
@@ -792,7 +792,7 @@ function App() {
         : null;
       if (currentSessionIdRef.current) cacheCurrentSession(attached.datasetId, file.name, file, modelJson);
       navigate(pagePath(handle, 'editor'), { replace: true });
-      reportSuccess('Dataset anexado');
+      reportSuccess('Conjunto de dados anexado');
     } catch {
       // The API toast already says what went wrong.
     } finally {
@@ -825,7 +825,7 @@ function App() {
           const needsDataset = imported.entries.find((entry) => KINDS_BY_ID[entry.kindId].requiresDataset);
           if (needsDataset) {
             throw new Error(
-              `A operação "${needsDataset.name || 'sem nome'}" precisa de um dataset, mas esta norma não tem nenhum. Anexe um dataset no editor ou escolha outro modelo.`,
+              `A operação "${needsDataset.name || 'sem nome'}" precisa de um conjunto de dados, mas esta norma não tem nenhum. Anexe um conjunto de dados no editor ou escolha outro modelo.`,
             );
           }
         } else if (dataset && !dataset.nrmId) {

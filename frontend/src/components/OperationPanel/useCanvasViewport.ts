@@ -259,6 +259,11 @@ export function useCanvasViewport({ entries, onDragEntry, onNodeClick, onMarquee
     setMarqueeRect({ left: event.clientX, top: event.clientY, width: 0, height: 0 });
   }
 
+  // Moves the view by a fixed amount (the pan buttons on the canvas): dx/dy are how far the canvas' content moves on screen.
+  function panBy(dx: number, dy: number) {
+    setViewOffset((current) => ({ x: current.x + dx, y: current.y + dy }));
+  }
+
   // Zooms toward/away from a focal point (in screen coordinates — the cursor for a wheel notch,
   // or the viewport's own center for a toolbar +/− click, which has no cursor position of its own
   // to zoom around) while keeping whatever's currently under that point visually still, the same
@@ -348,6 +353,7 @@ export function useCanvasViewport({ entries, onDragEntry, onNodeClick, onMarquee
     startMarquee,
     startNodeDrag,
     zoomBy,
+    panBy,
     handleViewportWheel,
     centerViewOn,
   };

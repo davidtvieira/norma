@@ -1,15 +1,18 @@
 import {
   ChevronDown as LucideChevronDown,
+  ChevronLeft as LucideChevronLeft,
   ChevronRight as LucideChevronRight,
   ChevronUp as LucideChevronUp,
   ChevronsDown as LucideChevronsDown,
   ChevronsLeft as LucideChevronsLeft,
   ChevronsUp as LucideChevronsUp,
   BrushCleaning,
+  CircleHelp,
   Download,
   Eye,
   FilePlus,
   Hammer,
+  Move,
   Info,
   Folder,
   FolderOpen,
@@ -86,10 +89,13 @@ export const EyeIcon = make(Eye);
 export const CloseIcon = make(X);
 export const ChevronDownIcon = make(LucideChevronDown);
 export const ChevronUpIcon = make(LucideChevronUp);
+export const ChevronLeftIcon = make(LucideChevronLeft);
 export const ChevronRightIcon = make(LucideChevronRight);
 export const ChevronsLeftIcon = make(LucideChevronsLeft);
 export const ChevronsUpIcon = make(LucideChevronsUp);
 export const ChevronsDownIcon = make(LucideChevronsDown);
+export const MoveIcon = make(Move);
+export const HelpIcon = make(CircleHelp, 'button-icon');
 export const UndoIcon = make(Undo2);
 export const RedoIcon = make(Redo2);
 export const PlayIcon = make(Play);
@@ -108,7 +114,7 @@ export const TreeIcon = make(FolderTree);
 export const InfoIcon = make(Info);
 /** A hammer — building something of one's own ("Construir a minha norma"). */
 export const BuildIcon = make(Hammer);
-/** A new blank file — starting something empty ("Criar sem dataset"). */
+/** A new blank file — starting something empty ("Criar sem conjunto de dados"). */
 export const NewFileIcon = make(FilePlus);
 export const FolderOpenIcon = make(FolderOpen);
 /** Closed folder — a folder card at rest (it opens on hover). */

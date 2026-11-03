@@ -14,11 +14,13 @@ import type { ColumnHighlight, OperationHighlight, RangeHighlight } from '../typ
 import type { CellRange } from '../types/cellRange';
 import type { SerializableEntry } from '../utils/modelSerialization';
 import type { Theme } from '../hooks/useTheme';
+import { reportApiError, reportSuccess } from '../services/apiErrors';
+import { copyText } from '../utils/copyText';
 import type { CategoryNode } from '../types/category';
 
 interface EditorScreenProps {
   dataset: DatasetImportResponse;
-  /** The norma has no dataset: the editor offers "Anexar dataset" instead of "Ver dados", and the kinds that read one are locked. */
+  /** The norma has no dataset: the editor offers "Anexar conjunto de dados" instead of "Ver dados", and the kinds that read one are locked. */
   withoutDataset: boolean;
   /** Gives the norma the spreadsheet the user picked (resolves once it is attached or has failed). */
   onAttachDataset: (file: File) => Promise<void>;
@@ -171,7 +173,7 @@ export function EditorScreen({
             <>
               <button type="button" className="btn btn--secondary" onClick={() => attachInputRef.current?.click()}>
                 <UploadIcon className="button-icon" />
-                Anexar dataset
+                Anexar conjunto de dados
               </button>
               <input
                 ref={attachInputRef}
@@ -271,12 +273,24 @@ export function EditorScreen({
       {isJsonOpen && (
         <Modal
           title="JSON do modelo"
-          size="lg"
+          size="md"
           onClose={() => setIsJsonOpen(false)}
           actions={
-            <button type="button" className="btn btn--secondary" onClick={() => setIsJsonOpen(false)}>
-              Fechar
-            </button>
+            <>
+              <button type="button" className="btn btn--secondary" onClick={() => setIsJsonOpen(false)}>
+                Fechar
+              </button>
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={async () => {
+                  if (await copyText(getModelJson())) reportSuccess('JSON copiado');
+                  else reportApiError({ title: 'Não foi possível copiar o JSON' });
+                }}
+              >
+                Copiar
+              </button>
+            </>
           }
         >
           <pre className="editor-json">{getModelJson()}</pre>

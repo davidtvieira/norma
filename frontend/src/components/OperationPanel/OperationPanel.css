@@ -143,26 +143,38 @@
   box-shadow: var(--shadow-sm);
 }
 
+/* Inside a dialog the card of an operation is a shade apart from the dialog itself, so it reads as its own block. */
+.modal .operation-entry {
+  background: var(--color-bg);
+  box-shadow: none;
+}
+
+/* ...and its fields a tone between the card's and the dialog's, so they stand out from the card without being a third colour. */
+.modal .operation-entry .operation-entry__input,
+.modal .operation-entry .operation-entry__select,
+.modal .operation-entry .operation-entry__name-input {
+  background-color: color-mix(in srgb, var(--color-surface) 55%, var(--color-bg));
+}
+
 .operation-entry__name-input {
   width: 100%;
-  padding: 0.4rem 0.6rem;
-  border: 1px solid transparent;
+  padding: 0.6rem 0.75rem;
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-text);
   font: inherit;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 600;
 }
 
 .operation-entry__name-input:hover {
-  border-color: var(--color-border);
+  border-color: var(--color-border-hover);
 }
 
 .operation-entry__name-input:focus {
   outline: none;
   border-color: var(--color-primary);
-  background: var(--color-surface-hover);
 }
 
 /* Base pill chrome, shared by every picked-value pill: a picked column/range, and
@@ -250,21 +262,30 @@
 }
 
 .operation-entry__label {
-  font-size: 0.75rem;
-  font-weight: 500;
-  letter-spacing: 0.02em;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   color: var(--color-text-muted);
 }
 
 .operation-entry__select {
   width: 100%;
-  padding: 0.55rem 0.7rem;
+  padding: 0.6rem 2.1rem 0.6rem 0.75rem;
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-sm);
-  background: transparent;
+  /* The same chevron on every select, in the muted text colour, instead of the browser's own arrow. */
+  background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%2375695a' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 0.8rem center;
   color: var(--color-text);
   font: inherit;
-  font-size: 0.875rem;
+  font-size: 0.9rem;
+  appearance: none;
+  cursor: pointer;
+}
+
+.operation-entry__select:focus {
+  outline: none;
+  border-color: var(--color-primary);
 }
 
 .operation-entry__select:disabled {
@@ -374,37 +395,6 @@
   color: var(--color-text-muted);
 }
 
-.operation-entry__source-toggle {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-top: 0.75rem;
-}
-
-.operation-entry__source-toggle-button {
-  flex: 1 1 auto;
-  padding: 0.4rem 0.75rem;
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.8rem;
-  transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
-}
-
-.operation-entry__source-toggle-button:hover {
-  color: var(--color-primary);
-  background: var(--btn-secondary-bg-hover);
-}
-
-.operation-entry__source-toggle-button--active {
-  border-color: var(--color-primary);
-  background: var(--color-primary);
-  color: var(--color-surface);
-}
-
 .operation-entry__static-input-row {
   display: flex;
   align-items: center;
@@ -447,61 +437,145 @@
   color: var(--color-text);
 }
 
-.operation-entry__dynamic-input-menu {
+/* A segmented choice between a few options: the tabs of ValueSourcePickerModal (see fields.tsx), and the translator's
+   Fixo/Intervalo. */
+.value-picker__tabs,
+.operation-entry__source-toggle {
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
+  gap: 0.2rem;
+  padding: 0.2rem;
   margin-bottom: 1rem;
-  padding: 0.6rem;
-  max-height: 14rem;
-  overflow-y: auto;
-  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-sm);
-  background: transparent;
+  background: var(--color-surface-hover);
 }
 
-.operation-entry__dynamic-input-option {
-  width: 100%;
-  padding: 0.4rem 0.75rem;
-  border: var(--border-width) solid var(--color-primary);
-  border-radius: var(--radius-sm);
+.value-picker__tab,
+.operation-entry__source-toggle-button {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0.45rem 0.75rem;
+  border: var(--border-width) solid transparent;
+  border-radius: calc(var(--radius-sm) - 2px);
   background: transparent;
-  color: var(--color-primary);
+  color: var(--color-text-muted);
   cursor: pointer;
   font: inherit;
-  font-size: 0.8rem;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.operation-entry__dynamic-input-option:hover {
-  background: var(--color-primary);
-  color: var(--color-surface);
+.value-picker__tab:hover:not(.value-picker__tab--active),
+.operation-entry__source-toggle-button:hover:not(.operation-entry__source-toggle-button--active) {
+  color: var(--color-text);
 }
 
-/* The option clicked in ValueSourcePickerModal's list, awaiting Confirmar — not yet committed
-   (see selectedOperationId in fields.tsx), just visually marked as the current pick. */
-.operation-entry__dynamic-input-option--active {
-  background: var(--color-primary);
-  color: var(--color-surface);
+.value-picker__tab--active,
+.operation-entry__source-toggle-button--active {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
 }
 
-/* ValueSourcePickerModal's static tab (see fields.tsx): the value's input row. */
-.value-source-modal__static {
-  margin-top: 0.75rem;
-  margin-bottom: 1rem;
+.operation-entry__source-toggle {
+  margin-bottom: 0;
 }
 
-/* The column tab's own body (see fields.tsx) — same spacing as .value-source-modal__static, just
-   a hint + a dedicated "Selecionar coluna" button instead of a text field, since picking the
-   actual column happens in the sheet viewer next, not in this modal. */
-.value-source-modal__column {
+.value-picker__panel {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 0.6rem;
-  margin-top: 0.75rem;
-  margin-bottom: 1rem;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.value-picker__hint,
+.value-picker__empty {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.value-picker__empty {
+  padding: 1.25rem 0;
+  text-align: center;
+}
+
+.value-picker__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 16rem;
+  overflow-y: auto;
+  /* Room for the selected row's ring, so the list never grows a horizontal scrollbar. */
+  padding: 0.15rem;
+}
+
+.value-picker__option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.55rem 0.8rem;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.value-picker__option:hover {
+  background: var(--color-surface-hover);
+}
+
+.value-picker__option--selected,
+.value-picker__option--selected:hover {
+  border-color: var(--btn-primary-bg);
+  background: var(--color-surface-hover);
+  box-shadow: 0 0 0 1px var(--btn-primary-bg);
+}
+
+.value-picker__option-label {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The round (one pick) or square (several, numbered by pick order) marker at the start of a row. */
+.value-picker__mark {
+  flex: none;
+  width: 1.15rem;
+  height: 1.15rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: var(--border-width) solid var(--color-border-hover);
+  border-radius: 50%;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--btn-primary-contrast);
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.value-picker__mark--check {
+  border-radius: 5px;
+}
+
+.value-picker__option--selected .value-picker__mark {
+  border-color: var(--btn-primary-bg);
+  background: var(--btn-primary-bg);
+  /* One pick: a white dot inside the orange circle. */
+  box-shadow: inset 0 0 0 3px var(--color-surface-hover);
+}
+
+.value-picker__option--selected .value-picker__mark--check {
+  box-shadow: none;
 }
 
 /* counterKind: one row per input, each a full ValueSourceField. The × to cancel the row only
@@ -629,8 +703,13 @@
   cursor: crosshair;
 }
 
-.operation-canvas__viewport--placing {
+.operation-canvas__viewport.operation-canvas__viewport--placing {
   cursor: crosshair;
+  /* Placing a copy: the whole canvas takes an orange wash and outline, under the nodes, so it is plain that the next click
+     on it pastes. */
+  background-color: color-mix(in srgb, var(--btn-primary-bg) 10%, var(--color-surface));
+  border-color: var(--btn-primary-bg);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--btn-primary-bg) 45%, transparent);
 }
 
 /* While a test is staggering through the model's operations (see OperationPanel.tsx's
@@ -1078,12 +1157,6 @@
   user-select: none;
 }
 
-/* The search box above ValueSourcePickerModal's dynamic list (see fields.tsx). */
-.operation-entry__dynamic-input-search {
-  margin-top: 0.75rem;
-  margin-bottom: -0.25rem;
-}
-
 /* The minimap's dot for the collapsed inputs node — filled orange like the node itself. */
 .operation-canvas__minimap-node--group {
   background: var(--color-secondary);
@@ -1132,4 +1205,107 @@
   padding-bottom: 0.4rem;
   border-bottom: 1px solid var(--color-border);
   font-weight: 600;
+}
+
+/* Moving about the canvas: one panel over the nodes in its bottom-left corner, with the arrows that move the view (PanControls.tsx)
+   on the left and the zoom, stacked, on the right. */
+.operation-canvas__navigation {
+  position: absolute;
+  left: 0.75rem;
+  bottom: 0.75rem;
+  z-index: 19;
+  display: flex;
+  align-items: stretch;
+  gap: 0.4rem;
+  padding: 0.3rem;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+/* The cross of arrows: a 3 x 3 grid with a "move" mark in the middle. */
+.operation-canvas__pan-controls {
+  display: grid;
+  grid-template-columns: repeat(3, 1.9rem);
+  grid-template-rows: repeat(3, 1.9rem);
+}
+
+.operation-canvas__pan-button,
+.operation-canvas__pan-center {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+}
+
+.operation-canvas__pan-button {
+  border: none;
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  touch-action: none;
+}
+
+.operation-canvas__pan-button:hover,
+.operation-canvas__pan-button:active {
+  background: var(--color-surface-hover);
+}
+
+.operation-canvas__pan-center {
+  grid-column: 2;
+  grid-row: 2;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.operation-canvas__pan-button--up {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.operation-canvas__pan-button--left {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.operation-canvas__pan-button--right {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.operation-canvas__pan-button--down {
+  grid-column: 2;
+  grid-row: 3;
+}
+
+/* The zoom inside that panel: the same three controls, one above the other and flat, set off by a line. */
+.operation-canvas__navigation .operation-canvas__zoom-controls {
+  /* "+" on top, "−" below, as on a map. */
+  flex-direction: column-reverse;
+  justify-content: space-between;
+  border: none;
+  border-left: 1px solid var(--color-border);
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  padding-left: 0.4rem;
+  overflow: visible;
+}
+
+.operation-canvas__navigation .operation-canvas__zoom-button,
+.operation-canvas__navigation .operation-canvas__zoom-level {
+  width: 3rem;
+  height: 1.9rem;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-btn);
+  background: transparent;
+}
+
+.operation-canvas__navigation .operation-canvas__zoom-button:hover:not(:disabled),
+.operation-canvas__navigation .operation-canvas__zoom-level:hover:not(:disabled) {
+  background: var(--color-surface-hover);
 }

@@ -1,5 +1,5 @@
 import { CloseIcon } from '../ButtonIcons/ButtonIcons';
-import { useEffect, useId, useRef } from 'react';
+import { createContext, useContext, useEffect, useId, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import './Modal.css';
@@ -46,6 +46,13 @@ function animateOut(overlay: HTMLElement) {
   window.setTimeout(() => ghost.remove(), LEAVE_MS + 80);
 }
 
+/**
+ * True while the dataset's off-canvas panel is open over the screen that renders it: every modal below then slides to the
+ * left edge, out of the panel's way, and leaves Escape to the panel — without its owner having to say so. A modal that is
+ * open when a column is being picked stays open this way, and is back in the middle once the panel closes.
+ */
+export const ModalAsideContext = createContext(false);
+
 /** The modals stacked on screen, oldest first — Escape only closes the top one. */
 const openModals: symbol[] = [];
 
@@ -56,6 +63,11 @@ const openModals: symbol[] = [];
  */
 export function Modal({ title, subtitle, size = 'sm', onClose, closeDisabled = false, closeOnBackdrop = true, escapeCloses = true, align = 'center', actions, children }: ModalProps) {
   const titleId = useId();
+  const aside = useContext(ModalAsideContext);
+  if (aside) {
+    align = 'left';
+    escapeCloses = false;
+  }
   const overlayRef = useRef<HTMLDivElement>(null);
 
   // When the modal goes away for real (its owner stopped rendering it) its box is already out of the document by the time

@@ -23,7 +23,7 @@ interface LandingScreenProps {
   onGoHome: () => void;
   /** "Explorar as minhas normas" — opens the `/normas` route. */
   onBrowseNormas: () => void;
-  /** "Construir a minha norma" → "Sem dataset": starts a norma with nothing loaded (only the operations that don't read a dataset). */
+  /** "Construir a minha norma" → "Sem conjunto de dados": starts a norma with nothing loaded (only the operations that don't read a dataset). */
   onCreateWithoutDataset: () => void;
 }
 
@@ -80,7 +80,7 @@ export function LandingScreen({
                     <BuildIcon />
                   </div>
                   <p className="norma-uploader__title">Construir a minha norma</p>
-                  <p className="norma-uploader__hint">Comece com um dataset ou sem dados e escolha as operações</p>
+                  <p className="norma-uploader__hint">Comece com um conjunto de dados ou sem dados e escolha as operações</p>
                 </div>
               </div>
             </div>

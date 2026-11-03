@@ -12,10 +12,12 @@
   animation: modal-dim 0.25s ease backwards;
 }
 
-/* Moves the dialog from the centre to the left edge (and back) by sliding it, not by re-laying it out, so the
+/* Moves the dialog from the centre of the screen to the centre of the part the dataset panel leaves free (and back) by sliding it, not by re-laying it out, so the
    change can be animated. */
 .modal__overlay--left .modal {
-  transform: translateX(calc(-50vw + 50% + 1.5rem));
+  /* To the middle of what the dataset panel (App.css's .sheet-panel, min(720px, 92vw) wide) leaves free: half the panel's width
+     to the left of the screen's middle. */
+  transform: translateX(calc(min(720px, 92vw) / -2));
 }
 
 .modal {
@@ -92,6 +94,9 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  /* A scrollbar sits in the dialog's own padding, beside the content, instead of over the cards' edge. */
+  margin-right: -1rem;
+  padding-right: 1rem;
 }
 
 .modal__actions {

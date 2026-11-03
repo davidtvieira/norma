@@ -1,6 +1,8 @@
 .add-operation-modal__kinds {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* Every row as tall as the tallest card, so they are all the same height. */
+  grid-auto-rows: 1fr;
   gap: 0.6rem;
   /* Room for the hovered card's outline and nudge, so the modal body never grows a scrollbar. */
   padding: 0.35rem;
@@ -21,7 +23,8 @@
   border: var(--border-width) solid var(--color-border);
   border-left: 4px solid var(--color-primary);
   border-radius: var(--radius-sm);
-  background: var(--color-surface);
+  /* A shade darker than the dialog, always. */
+  background: var(--color-bg);
   color: var(--color-text);
   cursor: pointer;
   font: inherit;
@@ -33,13 +36,6 @@
   background: var(--color-surface-hover);
   box-shadow: var(--shadow-sm);
   transform: translateX(2px);
-}
-
-.add-operation-modal__kind-option--selected,
-.add-operation-modal__kind-option--selected:hover:not(:disabled) {
-  border-color: var(--color-primary);
-  background: var(--color-surface-hover);
-  box-shadow: 0 0 0 1px var(--color-primary);
 }
 
 .add-operation-modal__kind-option:disabled {
@@ -57,9 +53,32 @@
 }
 
 .add-operation-modal__kind-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
   font-size: 0.95rem;
   font-weight: 600;
 }
+
+/* The name never breaks: the tag next to it drops to the next line instead when there is no room. */
+.add-operation-modal__kind-name {
+  white-space: nowrap;
+}
+
+/* On a kind that reads the dataset (the others carry no tag). */
+.add-operation-modal__kind-tag {
+  padding: 0.1rem 0.5rem;
+  border: var(--border-width) solid var(--color-border-hover);
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+
 
 .add-operation-modal__kind-description {
   font-size: 0.78rem;
@@ -84,35 +103,48 @@
 }
 
 .operation-staged__card {
-  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The row above a card in a batch: which operation it is, and (with several) the × that drops it. */
+.operation-staged__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  /* As tall as the × so the row doesn't change height when there is none. */
+  min-height: 1.6rem;
+  margin-bottom: 0.4rem;
 }
 
 .operation-staged__remove {
-  position: absolute;
-  top: 0.6rem;
-  right: 0.6rem;
-  z-index: 1;
-  width: 1.6rem;
-  height: 1.6rem;
+  flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  padding: 0.1rem 0.3rem;
   border: none;
-  border-radius: var(--radius-btn);
-  background: var(--color-surface-hover);
+  /* The same plain × as the dialogs' own close button. */
+  background: transparent;
   color: var(--color-text-muted);
-  font-size: 1.1rem;
+  font-size: 0.95rem;
   line-height: 1;
   cursor: pointer;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition: color 0.2s ease;
 }
 
 .operation-staged__remove:hover {
-  background: var(--color-error);
-  color: var(--color-surface);
+  color: var(--color-text);
 }
 
 .operation-staged__add {
-  align-self: center;
+  align-self: stretch;
+  width: 100%;
+  /* With enough cards to scroll, it stays at the bottom of the list instead of out of sight below them. The ring in the
+     dialog's colour keeps the cards passing under it from showing around it. */
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  box-shadow: 0 0 0 0.5rem var(--color-surface);
 }
 

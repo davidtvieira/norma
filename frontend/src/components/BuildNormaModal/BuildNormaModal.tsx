@@ -8,7 +8,7 @@ interface BuildNormaModalProps {
   onClose: () => void;
   /** A dataset was imported here: the norma starts from it (the create/import-a-model choice follows). */
   onImportSuccess: (dataset: DatasetImportStatus, file: File) => void;
-  /** "Sem dataset": the norma starts with nothing loaded (the create/import-a-model choice follows). */
+  /** "Sem conjunto de dados": the norma starts with nothing loaded (the create/import-a-model choice follows). */
   onStartWithoutDataset: () => void;
 }
 
@@ -52,9 +52,9 @@ export function BuildNormaModal({ onClose, onImportSuccess, onStartWithoutDatase
           <div className="build-norma-modal__option-icon" aria-hidden="true">
             <NewFileIcon />
           </div>
-          <p className="build-norma-modal__option-title">Sem dataset</p>
+          <p className="build-norma-modal__option-title">Sem conjunto de dados</p>
           <p className="build-norma-modal__option-hint">
-            Crie ou importe um modelo só com operações que não leem dados. Pode anexar um dataset mais tarde, no editor.
+            Crie ou importe um modelo só com operações que não leem dados. Pode anexar um conjunto de dados mais tarde, no editor.
           </p>
         </div>
       </div>

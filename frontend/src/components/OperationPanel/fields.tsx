@@ -300,10 +300,11 @@ interface ValueSourcePickerModalProps {
   /** Whether this field also offers the column-pick source (see ValueSourceField's own
    * `columnPicker` prop) — shows a third tab when true. */
   hasColumnPicker: boolean;
-  /** Starts the column pick (see ValueSourceField's `columnPicker.onStart`) — closes this modal
-   * immediately after, same as picking a reference or typing a static value does, since the actual
-   * selection happens by clicking a header in the sheet viewer, not inside this modal. */
+  /** Starts the column pick (see ValueSourceField's `columnPicker.onStart`). This modal stays open: with the
+   * sheet panel open it slides aside (see ModalAsideContext), and the field closes it once a column lands. */
   onStartColumnPick: () => void;
+  /** Whether that pick is under way right now (the sheet panel is open for it). */
+  isColumnPicking?: boolean;
   /** Which tab the modal opens on — 'dynamic' when reopening a field that already has (or last
    * had) a reference picked, 'static' otherwise. Purely a starting point; the user can still
    * switch tabs inside the modal unless referenceOnly hides the toggle entirely. */
@@ -341,6 +342,7 @@ export function ValueSourcePickerModal({
   referenceOptions,
   hasColumnPicker,
   onStartColumnPick,
+  isColumnPicking = false,
   initialTab,
   onPickStatic,
   onPickReference,
@@ -371,11 +373,16 @@ export function ValueSourcePickerModal({
       return current.includes(operationId) ? current.filter((id) => id !== operationId) : [...current, operationId];
     });
   }
+  const tabs: Array<[typeof tab, string]> = [
+    ['dynamic', 'Dinâmico'],
+    ['static', 'Estático'],
+    ...(hasColumnPicker ? ([['column', 'Coluna da tabela']] as Array<[typeof tab, string]>) : []),
+  ];
   const isDynamicMode = referenceOnly || tab === 'dynamic';
   const isColumnMode = !referenceOnly && tab === 'column';
   // The column tab has no Confirmar step of its own — its dedicated "Selecionar coluna" button
-  // (below) starts the pick and closes this modal in one action, since the actual selection
-  // happens by clicking a header in the sheet viewer next, not by confirming anything in here.
+  // (below) starts the pick, and the actual selection happens by clicking a header in the sheet viewer,
+  // not by confirming anything in here — the field closes this modal once a column lands.
   const canConfirm = isColumnMode ? false : isDynamicMode ? selectedOperationIds.length > 0 : draftValue.trim() !== '';
 
   function confirm() {
@@ -410,52 +417,40 @@ export function ValueSourcePickerModal({
       }
     >
       {!referenceOnly && (
-        <div className="operation-entry__source-toggle">
-          <button
-            type="button"
-            className={`operation-entry__source-toggle-button${tab === 'static' ? ' operation-entry__source-toggle-button--active' : ''}`}
-            onClick={() => setTab('static')}
-          >
-            Input estático
-          </button>
-          <button
-            type="button"
-            className={`operation-entry__source-toggle-button${tab === 'dynamic' ? ' operation-entry__source-toggle-button--active' : ''}`}
-            onClick={() => setTab('dynamic')}
-          >
-            Input dinâmico
-          </button>
-          {hasColumnPicker && (
+        <div className="value-picker__tabs" role="tablist">
+          {tabs.map(([id, text]) => (
             <button
+              key={id}
               type="button"
-              className={`operation-entry__source-toggle-button${tab === 'column' ? ' operation-entry__source-toggle-button--active' : ''}`}
-              onClick={() => setTab('column')}
+              role="tab"
+              aria-selected={tab === id}
+              className={`value-picker__tab${tab === id ? ' value-picker__tab--active' : ''}`}
+              onClick={() => setTab(id)}
             >
-              Coluna da tabela
+              {text}
             </button>
-          )}
+          ))}
         </div>
       )}
 
       {isColumnMode && (
-        <div className="value-source-modal__column">
-          <p className="operation-entry__chain-status">Escolha diretamente uma coluna na tabela à direita.</p>
-          <button
-            type="button"
-            className="btn btn--secondary btn--sm btn--block"
-            onClick={() => {
-              onStartColumnPick();
-              onClose();
-            }}
-          >
+        <div className="value-picker__panel">
+          <p className="value-picker__hint">
+            {isColumnPicking ? 'Escolha uma coluna na tabela à direita.' : 'Escolha diretamente uma coluna na tabela.'}
+          </p>
+          <button type="button" className="btn btn--secondary btn--sm btn--block" onClick={onStartColumnPick}>
             Selecionar coluna
           </button>
         </div>
       )}
 
       {!isDynamicMode && !isColumnMode && (
-        <div className="value-source-modal__static">
+        <div className="value-picker__panel">
+          <label className="modal__label" htmlFor="value-picker-static">
+            Valor
+          </label>
           <input
+            id="value-picker-static"
             type={inputType}
             className="operation-entry__input"
             placeholder={placeholder}
@@ -467,42 +462,51 @@ export function ValueSourcePickerModal({
             }}
             autoFocus
           />
+          <p className="value-picker__hint">Um valor fixo, igual em todas as execuções do modelo.</p>
         </div>
       )}
 
       {isDynamicMode && (
-        <>
-          {multiple && <p className="operation-entry__chain-status">Pode escolher várias operações; ficam pela ordem em que as escolher.</p>}
+        <div className="value-picker__panel">
           <input
             type="search"
-            className="operation-entry__input operation-entry__dynamic-input-search"
+            className="operation-entry__input"
             placeholder="Pesquisar operação..."
+            aria-label="Pesquisar operação"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             autoFocus
           />
-          <div className="operation-entry__dynamic-input-menu">
-            {visibleReferenceOptions.length === 0 && (
-              <p className="operation-entry__chain-status">Nenhuma operação encontrada.</p>
-            )}
+          <div className="value-picker__list" role="listbox" aria-multiselectable={multiple}>
+            {visibleReferenceOptions.length === 0 && <p className="value-picker__empty">Nenhuma operação encontrada.</p>}
             {visibleReferenceOptions.map((option) => {
               const position = selectedOperationIds.indexOf(option.operationId);
+              const selected = position !== -1;
               return (
                 <button
                   key={option.operationId}
                   type="button"
-                  className={`operation-entry__dynamic-input-option${
-                    position !== -1 ? ' operation-entry__dynamic-input-option--active' : ''
-                  }`}
+                  role="option"
+                  aria-selected={selected}
+                  className={`value-picker__option${selected ? ' value-picker__option--selected' : ''}`}
                   onClick={() => selectOption(option.operationId)}
                 >
-                  {multiple && position !== -1 ? `${position + 1}. ` : ''}
-                  {option.label}
+                  <span className={`value-picker__mark${multiple ? ' value-picker__mark--check' : ''}`} aria-hidden="true">
+                    {multiple && selected ? position + 1 : null}
+                  </span>
+                  <span className="value-picker__option-label">{option.label}</span>
                 </button>
               );
             })}
           </div>
-        </>
+          <p className="value-picker__hint">
+            {multiple
+              ? selectedOperationIds.length > 0
+                ? `${selectedOperationIds.length} escolhida${selectedOperationIds.length === 1 ? '' : 's'}, pela ordem em que as escolheu.`
+                : 'Pode escolher várias operações; ficam pela ordem em que as escolher.'
+              : 'O valor vem do resultado da operação escolhida.'}
+          </p>
+        </div>
       )}
     </Modal>
   );
@@ -584,6 +588,8 @@ export function ValueSourceField({
     if (columnPicker?.isPicking && columnPicker.pendingColumn !== null) {
       onChange(literalSource(String(columnPicker.pendingColumn)));
       columnPicker.onCancel();
+      // The picker modal stayed open (aside) while the column was chosen — done with it now.
+      setIsPickerOpen(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [columnPicker?.isPicking, columnPicker?.pendingColumn]);
@@ -599,9 +605,9 @@ export function ValueSourceField({
       <label className="operation-entry__label">{label}</label>
 
       {/* Column-pick in progress for this exact field — the ValueSourcePickerModal that started it
-          (see its own "Selecionar coluna" button) already closed itself, and — if this field lives
-          on a confirmed card's own detail modal — that modal closed too (see OperationPanel's
-          renderConfirmedCard), so the sheet viewer is actually visible/clickable. This replaces
+          (see its own "Selecionar coluna" button) and — if this field lives on a confirmed card's
+          own detail modal — that modal are still open, just slid aside for the sheet panel (see
+          ModalAsideContext). This replaces
           every other control below (there's nothing else to show/edit until the pick resolves),
           and stays visible even on an otherwise-collapsed card (see the matching CSS exemption on
           .operation-entry__field--active-pick) so the "click a header" hint isn't just silently
@@ -680,7 +686,8 @@ export function ValueSourceField({
           referenceOptions={referenceOptions}
           hasColumnPicker={columnPicker !== undefined}
           onStartColumnPick={() => columnPicker?.onStart()}
-          initialTab={source.type === 'reference' ? 'dynamic' : 'static'}
+          isColumnPicking={picking}
+          initialTab={source.type === 'literal' && source.value !== '' ? 'static' : 'dynamic'}
           onPickStatic={pickStatic}
           onPickReference={pickReference}
           multiple={onPickMany !== undefined}

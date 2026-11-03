@@ -1,0 +1,94 @@
+.shortcuts__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+}
+
+.shortcuts__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  /* Every row the same height, whatever it holds (key caps or a long description). */
+  min-height: 3rem;
+  padding: 0.4rem 0.8rem;
+}
+
+.shortcuts__row + .shortcuts__row {
+  border-top: 1px solid var(--color-border);
+}
+
+.shortcuts__action {
+  font-size: 0.88rem;
+  text-align: right;
+  color: var(--color-text);
+}
+
+.shortcuts__keys {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.shortcuts__key-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.shortcuts__plus {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.shortcuts__key {
+  padding: 0.1rem 0.45rem;
+  border: var(--border-width) solid var(--color-border-hover);
+  border-bottom-width: 3px;
+  border-radius: 6px;
+  background: var(--color-surface);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--color-text);
+}
+
+/* The mouse drawing: outline in the text colour, the button that is meant in the accent colour. */
+.shortcuts__mouse {
+  display: block;
+  width: 1.2rem;
+  height: 1.7rem;
+  overflow: visible;
+}
+
+.shortcuts__mouse-body {
+  fill: var(--color-surface);
+  stroke: var(--color-text-muted);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.shortcuts__mouse-lines {
+  fill: none;
+  stroke: var(--color-text-muted);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.shortcuts__mouse-on {
+  fill: var(--btn-primary-bg);
+  stroke: none;
+}
+
+.shortcuts__mouse-wheel {
+  stroke: var(--btn-primary-bg);
+  stroke-width: 1.5;
+}
