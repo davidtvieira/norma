@@ -15,7 +15,8 @@ import java.util.Map;
  * <ul>
  *   <li>a counter becomes a calc that adds: same inputs, in the same order;</li>
  *   <li>a calc made with "a" and "b" becomes a calc with the list "inputs" [a, b], keeping its operation and format;</li>
- *   <li>a formatter leaves the canvas for the model's {@code settings.validation}: same id, name and rules.</li>
+ *   <li>a formatter leaves the canvas for the model's {@code settings.validation}: same id, name and rules;</li>
+ *   <li>the page selector leaves it for {@code settings.page}: same id, name and input.</li>
  * </ul>
  *
  * The model is a tree (an operation nests under the first operation it references), and every operation keeps its id
@@ -26,9 +27,9 @@ public final class LegacyModelConverter {
     private static final JsonNodeFactory NODES = JsonNodeFactory.instance;
 
     /** What a conversion changed: how many counters became calcs, and how many two-value calcs became lists. */
-    public record Changes(int counters, int calcs, int formatters) {
+    public record Changes(int counters, int calcs, int formatters, int pages) {
         public boolean any() {
-            return counters > 0 || calcs > 0 || formatters > 0;
+            return counters > 0 || calcs > 0 || formatters > 0 || pages > 0;
         }
     }
 
@@ -38,6 +39,7 @@ public final class LegacyModelConverter {
     private int counters;
     private int calcs;
     private final ArrayNode validation = NODES.arrayNode();
+    private ObjectNode page;
 
     private LegacyModelConverter() {
     }
@@ -52,7 +54,10 @@ public final class LegacyModelConverter {
             ArrayNode rules = settings.get("validation") instanceof ArrayNode existing ? existing : settings.putArray("validation");
             rules.addAll(converter.validation);
         }
-        return new Result(copy, new Changes(converter.counters, converter.calcs, converter.validation.size()));
+        if (converter.page != null && copy instanceof ObjectNode root && !(root.path("settings").has("page"))) {
+            (root.get("settings") instanceof ObjectNode existing ? existing : root.putObject("settings")).set("page", converter.page);
+        }
+        return new Result(copy, new Changes(converter.counters, converter.calcs, converter.validation.size(), converter.page != null ? 1 : 0));
     }
 
     private void walk(JsonNode operations) {
@@ -70,6 +75,20 @@ public final class LegacyModelConverter {
                 ruleSet.set("name", operation.get("name"));
                 ruleSet.set("fields", operation.get("fields"));
                 validation.add(ruleSet);
+                if (operation.path("operations").isArray()) {
+                    walk(operation.path("operations"));
+                    kept.addAll((ArrayNode) operation.path("operations"));
+                }
+                continue;
+            }
+            // The page selector (a model has one): taken out the same way. A second one stays where it is.
+            if (node instanceof ObjectNode operation && "page".equals(operation.path("kind").asText()) && page == null
+                    && operation.get("fields") instanceof ObjectNode) {
+                ObjectNode setting = NODES.objectNode();
+                setting.set("id", operation.get("id"));
+                setting.set("name", operation.get("name"));
+                setting.set("fields", operation.get("fields"));
+                page = setting;
                 if (operation.path("operations").isArray()) {
                     walk(operation.path("operations"));
                     kept.addAll((ArrayNode) operation.path("operations"));

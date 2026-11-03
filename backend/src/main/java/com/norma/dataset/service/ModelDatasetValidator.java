@@ -33,6 +33,12 @@ final class ModelDatasetValidator {
         for (JsonNode operation : model.path("operations")) {
             assertDatasetFree(operation);
         }
+        // The page selector of the settings reads the dataset's pages like the operation it stands for.
+        JsonNode page = model.path("settings").path("page");
+        if (page.isObject()) {
+            throw new ModelDatasetMismatchException("The page selector \"" + page.path("name").asText()
+                    + "\" needs a dataset, but the model has none.");
+        }
     }
 
     private static void assertDatasetFree(JsonNode operation) {

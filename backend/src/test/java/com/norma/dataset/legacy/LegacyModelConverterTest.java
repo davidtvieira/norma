@@ -115,4 +115,24 @@ class LegacyModelConverterTest {
         assertThat(merged.path("settings").path("validation")).hasSize(3);
         assertThat(merged.path("settings").path("validation").get(0).path("id").asText()).isEqualTo("old");
     }
+
+    private static final String WITH_PAGE = """
+            {"modelName":"M","operations":[
+              {"id":"l","kind":"lookup","name":"Encontrar Página","fields":{},"position":{"x":1,"y":2},"operations":[
+                {"id":"p","kind":"page","name":"Selecionar Página","fields":{"input":{"type":"reference","operationId":"l"}},"position":{"x":3,"y":4},"operations":[]}]}]}""";
+
+    @Test
+    void thePageSelectorLeavesTheCanvasForTheSettingsKeepingIdNameAndInput() throws Exception {
+        LegacyModelConverter.Result result = LegacyModelConverter.convert(model(WITH_PAGE));
+
+        assertThat(result.changes().pages()).isEqualTo(1);
+        assertThat(result.model().path("operations").get(0).path("operations")).isEmpty();
+        JsonNode page = result.model().path("settings").path("page");
+        assertThat(page.path("id").asText()).isEqualTo("p");
+        assertThat(page.path("name").asText()).isEqualTo("Selecionar Página");
+        assertThat(page.path("fields")).isEqualTo(model(WITH_PAGE).path("operations").get(0).path("operations").get(0).path("fields"));
+        assertThat(page.has("position")).isFalse();
+        // Moving it again changes nothing.
+        assertThat(LegacyModelConverter.convert(result.model()).changes().any()).isFalse();
+    }
 }

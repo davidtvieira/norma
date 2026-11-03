@@ -88,6 +88,35 @@ class NrmServiceTest {
                 assertThat(result.success()).isFalse());
     }
 
+    /** A page selector kept in the model's settings: its input is a node on the canvas, the value says which page to read. */
+    private static final String MODEL_WITH_PAGE_SETTING = """
+            {"modelName":"M","datasetId":"d","inputOperationIds":["n"],"outputOperationIds":["f"],
+             "operations":[
+               {"id":"n","kind":"node","name":"Página","fields":{"input":{"type":"literal","value":"0"}},"operations":[]},
+               {"id":"f","kind":"find","name":"Procurar","fields":{"input":{"type":"literal","value":"x"},"sheetIndex":0,
+                 "range":{"startRow":0,"endRow":0,"startColumn":0,"endColumn":0}},"operations":[]}],
+             "settings":{"page":{"id":"p","name":"Selecionar Página","fields":{"input":{"type":"reference","operationId":"n"}}}}}""";
+
+    @Test
+    void aModelsPageSettingMakesItsOperationsReadThePageItPicks() throws IOException {
+        NrmImportStatus imported = nrmService.importNrm(nrm("a.nrm", entries(MODEL_WITH_PAGE_SETTING, INFO)));
+
+        // The dataset has one page: page 0 is fine, page 1 does not exist, and either way the page selector is what decides.
+        assertThat(nrmService.run(imported.nrmId(), Map.of("n", "0"))).singleElement().satisfies(result ->
+                assertThat(result.success()).isTrue());
+        assertThat(nrmService.run(imported.nrmId(), Map.of("n", "5"))).singleElement().satisfies(result ->
+                assertThat(result.success()).isFalse());
+    }
+
+    @Test
+    void aModelWithAPageSettingNeedsADataset() throws IOException {
+        Map<String, byte[]> withoutDataset = new LinkedHashMap<>();
+        withoutDataset.put("modelo.json", MODEL_WITH_PAGE_SETTING.getBytes(StandardCharsets.UTF_8));
+        withoutDataset.put("info.json", "{\"version\":2,\"name\":\"Vendas\",\"createdAt\":\"2026-10-19T13:04:00.000Z\"}".getBytes(StandardCharsets.UTF_8));
+
+        assertThatThrownBy(() -> nrmService.importNrm(nrm("a.nrm", withoutDataset))).isInstanceOf(ModelDatasetMismatchException.class);
+    }
+
     @Test
     void rejectsAModelWhoseSettingsAreMalformed() {
         assertThatThrownBy(() -> nrmService.importNrm(nrm("a.nrm", entries(
