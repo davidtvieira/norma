@@ -147,48 +147,6 @@ public class NrmService {
         }
     }
 
-    /**
-     * Rewrites the model and the info of a .nrm held as bytes and returns the new file: the dataset is carried over byte for
-     * byte, every entry under the same name and in the same order. Used by the one-off conversion of saved
-     * normas (see the legacy package); the result is not validated here, whoever stores it does that.
-     */
-    public byte[] rewrite(byte[] nrmBytes, java.util.function.UnaryOperator<JsonNode> modelTransform, java.util.function.UnaryOperator<JsonNode> infoTransform) {
-        ByteArrayOutputStream result = new ByteArrayOutputStream();
-        long totalBytes = 0;
-        int entryCount = 0;
-        boolean rewritten = false;
-        try (ZipInputStream in = new ZipInputStream(new ByteArrayInputStream(nrmBytes));
-                java.util.zip.ZipOutputStream out = new java.util.zip.ZipOutputStream(result)) {
-            ZipEntry entry;
-            while ((entry = in.getNextEntry()) != null) {
-                if (entry.isDirectory()) {
-                    continue;
-                }
-                if (++entryCount > MAX_ENTRIES) {
-                    throw invalid("contains too many files.");
-                }
-                byte[] bytes = readEntry(in, MAX_UNCOMPRESSED_BYTES - totalBytes);
-                totalBytes += bytes.length;
-                String lower = baseName(entry.getName()).toLowerCase(Locale.ROOT);
-                if (lower.equals(INFO_ENTRY_NAME)) {
-                    bytes = objectMapper.writeValueAsBytes(infoTransform.apply(parseJson(bytes, INFO_ENTRY_NAME)));
-                } else if (lower.endsWith(".json")) {
-                    bytes = objectMapper.writeValueAsBytes(modelTransform.apply(parseJson(bytes, "the model")));
-                    rewritten = true;
-                }
-                out.putNextEntry(new ZipEntry(entry.getName()));
-                out.write(bytes);
-                out.closeEntry();
-            }
-        } catch (IOException e) {
-            throw new DatasetParsingException(INVALID_MESSAGE, e);
-        }
-        if (!rewritten) {
-            throw invalid("does not contain a model (.json).");
-        }
-        return result.toByteArray();
-    }
-
     /** The imported .nrm's model's designated inputs — see {@link ModelExecutionService#getModelInputs}. */
     public ModelInputsResponse getInputs(String nrmId) {
         return modelExecutionService.getModelInputs(modelIdOf(get(nrmId)));
