@@ -43,6 +43,19 @@ export interface ExportedOperationNode {
   operations: ExportedOperationNode[];
 }
 
+/**
+ * One rule set of the model's input validation, kept in the model's settings and not on its canvas: the id, name and rules (with the
+ * inputs they apply to) of what the editor works with as a formatter.
+ */
+export interface ExportedRuleSet {
+  id: string;
+  name: string;
+  fields: Record<string, unknown>;
+}
+
+/** What the editor keeps in an entry of this kind in the model's settings instead of on its canvas. */
+const VALIDATION_KIND_ID = 'formatter';
+
 export interface ExportedModel {
   version: 1;
   modelName: string;
@@ -53,6 +66,8 @@ export interface ExportedModel {
   /** What the author wrote about the norma (optional): kept with the model so the session cache and a bare .json carry it too. The .nrm's own info.json is its source of truth. */
   nrmDescription?: string;
   datasetId: string;
+  /** The model's own configuration, apart from its operations. Absent when it has none. */
+  settings?: { validation: ExportedRuleSet[] };
   /**
    * The operations whose literal values are what a caller of the model fills in (possibly
    * several, each filled in separately — possibly none, for a model with nothing dynamic left to
@@ -121,8 +136,11 @@ export function buildModelExport(
   nrmName = '',
   nrmDescription = '',
 ): ExportedModel {
-  const confirmedEntries = entries.filter((entry) => entry.confirmed);
+  const confirmedEntries = entries.filter((entry) => entry.confirmed && entry.kindId !== VALIDATION_KIND_ID);
   const roots = confirmedEntries.filter((entry) => !isLinkedChild(entry, confirmedEntries));
+  const validation: ExportedRuleSet[] = entries
+    .filter((entry) => entry.confirmed && entry.kindId === VALIDATION_KIND_ID)
+    .map((entry) => ({ id: entry.id, name: entry.name, fields: entry.fields }));
   return {
     version: MODEL_EXPORT_VERSION,
     modelName,
@@ -131,6 +149,7 @@ export function buildModelExport(
     datasetId,
     inputOperationIds,
     outputOperationIds,
+    ...(validation.length > 0 ? { settings: { validation } } : {}),
     operations: roots.map((entry) => toNode(entry, confirmedEntries)),
   };
 }
@@ -188,6 +207,20 @@ function flattenNode(node: unknown, knownKindIds: Set<string>, out: Serializable
   }
 }
 
+/** The validation rule sets of the model's settings, if it has any. */
+function readRuleSets(model: ExportedModel): ExportedRuleSet[] {
+  const validation = (model.settings as { validation?: unknown } | undefined)?.validation;
+  if (validation === undefined) return [];
+  if (!Array.isArray(validation)) throw new ModelImportError('Ficheiro de modelo inválido: configuração mal formada.');
+  return validation.map((item) => {
+    const ruleSet = item as Partial<ExportedRuleSet> | null;
+    if (typeof ruleSet !== 'object' || ruleSet === null || typeof ruleSet.id !== 'string' || typeof ruleSet.name !== 'string' || typeof ruleSet.fields !== 'object' || ruleSet.fields === null) {
+      throw new ModelImportError('Ficheiro de modelo inválido: regras de validação mal formadas.');
+    }
+    return { id: ruleSet.id, name: ruleSet.name, fields: ruleSet.fields };
+  });
+}
+
 /**
  * Reads one of the model's designated input/output lists, tolerating a file exported before a
  * model could have more than one of either: the current array field (`arrayField`) if present,
@@ -228,6 +261,9 @@ export function parseModelImport(
   const entries: SerializableEntry[] = [];
   for (const node of model.operations) {
     flattenNode(node, knownKindIds, entries);
+  }
+  for (const ruleSet of readRuleSets(model)) {
+    entries.push({ id: ruleSet.id, name: ruleSet.name, kindId: VALIDATION_KIND_ID, confirmed: true, fields: ruleSet.fields });
   }
 
   // Missing on a model exported before the input/output pickers existed — treated as "not set

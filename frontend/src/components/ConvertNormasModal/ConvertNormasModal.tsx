@@ -14,7 +14,8 @@ interface ConvertNormasModalProps {
 function describe(report: ConversionReportPayload): string {
   const changed = [
     report.counters > 0 ? `${report.counters} ${report.counters === 1 ? 'Contador' : 'Contadores'}` : '',
-    report.calcs > 0 ? `${report.calcs} ${report.calcs === 1 ? 'Calcular' : 'Calcular'} reescritos` : '',
+    report.calcs > 0 ? `${report.calcs} Calcular reescritos` : '',
+    report.formatters > 0 ? `${report.formatters} ${report.formatters === 1 ? 'Formatador passou' : 'Formatadores passaram'} para a validação` : '',
   ].filter(Boolean);
   const cases = report.cases > 0 ? `${report.cases} testes iguais` : '';
   return [changed.join(' e '), cases].filter(Boolean).join(' · ');

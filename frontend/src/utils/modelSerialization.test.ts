@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildModelExport, parseModelImport, ModelImportError, type SerializableEntry } from './modelSerialization';
 import { literalSource } from '../types/valueSource';
 
-const KNOWN_KIND_IDS = new Set(['lookup', 'find', 'node']);
+const KNOWN_KIND_IDS = new Set(['lookup', 'find', 'node', 'formatter']);
 
 function entry(overrides: Partial<SerializableEntry> & Pick<SerializableEntry, 'id' | 'kindId'>): SerializableEntry {
   return {
@@ -39,6 +39,44 @@ describe('buildModelExport / parseModelImport round trip', () => {
     const plain = buildModelExport(entries, 'Model', 'dataset-1', [], ['op-1'], 'Nome');
     expect(plain).not.toHaveProperty('nrmDescription');
     expect(parseModelImport(JSON.stringify(plain), KNOWN_KIND_IDS).nrmDescription).toBe('');
+  });
+
+  it('keeps the validation rule sets in the settings, out of the operations, and reads them back', () => {
+    const rules = { type: 'integer', required: true, min: 0, max: 9, appliesTo: ['op-1'] };
+    const entries = [
+      entry({ id: 'op-1', kindId: 'node' }),
+      entry({ id: 'rules-1', kindId: 'formatter', name: 'Perguntas', fields: rules, position: undefined }),
+    ];
+
+    const exported = buildModelExport(entries, 'Model', 'dataset-1', ['op-1'], ['op-1']);
+
+    expect(exported.operations.map((operation) => operation.id)).toEqual(['op-1']);
+    expect(exported.settings).toEqual({ validation: [{ id: 'rules-1', name: 'Perguntas', fields: rules }] });
+    const imported = parseModelImport(JSON.stringify(exported), KNOWN_KIND_IDS);
+    expect(imported.entries.map((item) => [item.id, item.kindId, item.name, item.confirmed])).toEqual([
+      ['op-1', 'node', 'op-1', true],
+      ['rules-1', 'formatter', 'Perguntas', true],
+    ]);
+    expect(imported.entries[1].fields).toEqual(rules);
+  });
+
+  it('has no settings at all for a model without validation rules', () => {
+    const exported = buildModelExport([entry({ id: 'op-1', kindId: 'node' })], 'Model', 'dataset-1', [], ['op-1']);
+
+    expect(exported).not.toHaveProperty('settings');
+  });
+
+  it('still reads a formatter that an older model kept among its operations', () => {
+    const older = { modelName: 'M', operations: [{ id: 'f', kind: 'formatter', name: 'F', fields: { type: 'text' }, position: { x: 0, y: 0 }, operations: [] }] };
+
+    expect(parseModelImport(JSON.stringify(older), KNOWN_KIND_IDS).entries.map((item) => item.kindId)).toEqual(['formatter']);
+  });
+
+  it('refuses settings that are malformed', () => {
+    const base = { modelName: 'M', operations: [] };
+
+    expect(() => parseModelImport(JSON.stringify({ ...base, settings: { validation: 3 } }), KNOWN_KIND_IDS)).toThrow(ModelImportError);
+    expect(() => parseModelImport(JSON.stringify({ ...base, settings: { validation: [{ id: 'x' }] } }), KNOWN_KIND_IDS)).toThrow(ModelImportError);
   });
 
   it('drops unconfirmed (draft) entries from the export entirely', () => {

@@ -92,6 +92,7 @@ function RulesForm({ fields, updateFields }: RulesFormProps) {
  */
 export const formatterKind: OperationKind = {
   id: FORMATTER_KIND_ID,
+  setting: true,
   requiresDataset: false,
 
   createFields: (): OperationFields => ({ ...DEFAULT_VALUE_FORMAT, appliesTo: [] } satisfies FormatterFields),

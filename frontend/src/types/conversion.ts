@@ -6,6 +6,7 @@ export interface ConversionReportPayload {
   status: 'converted' | 'verified' | 'unchanged' | 'failed';
   counters: number;
   calcs: number;
+  formatters: number;
   cases: number;
   problems: string[];
 }

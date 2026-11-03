@@ -22,6 +22,7 @@ import { AddOperationModal } from '../AddOperationModal/AddOperationModal';
 import { ConfirmModal } from '../Modal/ConfirmModal';
 import { Modal, ModalAsideContext } from '../Modal/Modal';
 import { ShortcutsModal } from '../ShortcutsModal/ShortcutsModal';
+import { ValidationModal } from '../ValidationModal/ValidationModal';
 import { PanControls } from './PanControls';
 import { TestValuesModal } from '../TestValuesModal/TestValuesModal';
 import { useCanvasViewport, MIN_ZOOM, MAX_ZOOM, ZOOM_STEP } from './useCanvasViewport';
@@ -713,6 +714,8 @@ export function OperationPanel({
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
   // The "?" on the canvas' toolbar: the list of shortcuts.
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+  // "Validação" on the canvas' toolbar: the model's input validation rule sets (see ValidationModal).
+  const [isValidationOpen, setIsValidationOpen] = useState(false);
   // The open node modal's fields as they were when it opened, so "Cancelar" can put them back
   // (and so closing knows whether anything changed). `revision` remounts the modal's body after a
   // revert, since the kinds' editors keep some state of their own that wouldn't follow the fields.
@@ -1051,7 +1054,8 @@ export function OperationPanel({
     handleViewportWheel,
     centerViewOn,
   } = useCanvasViewport({
-      entries,
+      // Not the settings entries (the validation rule sets): they are not on the canvas, so a marquee must not pick them up.
+      entries: entries.filter((entry) => KINDS_BY_ID[entry.kindId]?.setting !== true),
       // Repositioning only actually applies in "Editar" mode (see its own button/comment below)
       // — the hook itself still tracks the drag either way (so its own click-vs-drag distance
       // check, and therefore onNodeClick, still works outside "Editar" mode too), this just
@@ -1883,7 +1887,9 @@ export function OperationPanel({
   }
 
   const hasDraftInProgress = entries.some((entry) => !entry.confirmed);
-  const confirmedCount = entries.filter((entry) => entry.confirmed).length;
+  // What is on the canvas: an entry of a settings kind (the validation rule sets) is kept out of it and out of the count.
+  const isSettingEntry = (entry: OperationEntryState) => KINDS_BY_ID[entry.kindId]?.setting === true;
+  const confirmedCount = entries.filter((entry) => entry.confirmed && !isSettingEntry(entry)).length;
   // Same condition runModelTest itself blocks a run on (see its own emptyInputNames) — precomputed
   // here so "Testar modelo" can stay disabled up front instead of only bouncing off that check
   // after the click.
@@ -2180,7 +2186,7 @@ export function OperationPanel({
   function renderMinimap(): ReactNode {
     // While the inputs are collapsed on the canvas (see inputsHidden), the minimap collapses them
     // the same way: the hidden ones drop out and the stand-in group shows as one input-colored dot.
-    const confirmed = entries.filter((entry) => entry.confirmed && !hiddenInputIds.has(entry.id));
+    const confirmed = entries.filter((entry) => entry.confirmed && !hiddenInputIds.has(entry.id) && !isSettingEntry(entry));
     const groupDot = inputsGroup ? { x: inputsGroup.x, y: inputsGroup.y } : null;
     if (confirmed.length + (groupDot ? 1 : 0) === 0 || !viewportSize.width || !viewportSize.height) return null;
 
@@ -2309,7 +2315,7 @@ export function OperationPanel({
           setIsAddModalOpen(false);
           if (stagingEntryIds.length > 0) cancelStaging();
         }}
-        kinds={KINDS.filter((kind) => !kind.deprecated).map((kind) => ({ id: kind.id, label: labelForKind(kind.id), requiresDataset: kind.requiresDataset }))}
+        kinds={KINDS.filter((kind) => !kind.deprecated && !kind.setting).map((kind) => ({ id: kind.id, label: labelForKind(kind.id), requiresDataset: kind.requiresDataset }))}
         // A model has one iterator — it's the always-first loop around everything else.
         disabledKindIds={[...(iteratorEntry ? ['iterator'] : []), ...(entries.some((entry) => entry.kindId === PAGE_SELECTOR_KIND_ID) ? [PAGE_SELECTOR_KIND_ID] : [])]}
         needsDatasetKindIds={withoutDataset ? KINDS.filter((kind) => kind.requiresDataset).map((kind) => kind.id) : []}
@@ -2633,6 +2639,15 @@ export function OperationPanel({
             Atalhos
           </button>
 
+          <button
+            type="button"
+            className="btn btn--secondary btn--sm"
+            onClick={() => setIsValidationOpen(true)}
+            title="Regras que as entradas do modelo têm de cumprir."
+          >
+            Validação
+          </button>
+
           {/* "Desfazer"/"Refazer": step back/forward through this "Editar" session's own history
               (see editHistory/undoEditMode/redoEditMode) — kept with zoom rather than the
               create/select/copy/paste/delete cluster on the right: both this and zoom are "meta"
@@ -2891,7 +2906,8 @@ export function OperationPanel({
                   top: entry.position.y,
                   width: NODE_WIDTH,
                   zIndex: nodeZIndex[entry.id],
-                  ...(hiddenInputIds.has(entry.id) ? { visibility: 'hidden', pointerEvents: 'none' } : {}),
+                  // A settings entry stays mounted (its dialog is how its inputs are chosen) but is not drawn.
+                  ...(hiddenInputIds.has(entry.id) || isSettingEntry(entry) ? { visibility: 'hidden', pointerEvents: 'none' } : {}),
                 }}
                 onMouseDown={beginNodeDrag(entry)}
               >
@@ -2954,6 +2970,25 @@ export function OperationPanel({
       {renderConfigPanel()}
 
       {isShortcutsOpen && <ShortcutsModal onClose={() => setIsShortcutsOpen(false)} />}
+      {isValidationOpen && (
+        <ValidationModal
+          sets={entries
+            .filter((entry) => entry.kindId === FORMATTER_KIND_ID && entry.confirmed)
+            .map((entry) => ({ id: entry.id, name: entry.name, summary: KINDS_BY_ID[entry.kindId].renderSummary(entry.fields, dataset, null) }))}
+          canEdit={tool === 'select' && !hasDraftInProgress}
+          onChooseInputs={(id) => setModalEntryId(id)}
+          onEditRules={(id) => {
+            setIsValidationOpen(false);
+            editEntry(id);
+          }}
+          onRemove={removeEntry}
+          onAdd={() => {
+            setIsValidationOpen(false);
+            addToStaging(FORMATTER_KIND_ID);
+          }}
+          onClose={() => setIsValidationOpen(false)}
+        />
+      )}
 
       {isClearConfirmOpen && (
         <ConfirmModal

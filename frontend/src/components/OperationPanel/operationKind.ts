@@ -114,6 +114,8 @@ export interface OperationInputEditorContext {
 export interface OperationKind {
   /** True for a kind being phased out: operations already of it keep showing and working, but it is no longer offered when adding one. */
   deprecated?: boolean;
+  /** True for a kind that belongs to the model's settings: it is not offered when adding an operation, not drawn on the canvas, and managed from its own panel. */
+  setting?: boolean;
   /** Matches an id from GET /api/v1/dataset/operations. */
   id: string;
   /** Whether the kind reads the dataset (its sheets, columns or ranges): a norma without a dataset can't hold it. Mirrors
