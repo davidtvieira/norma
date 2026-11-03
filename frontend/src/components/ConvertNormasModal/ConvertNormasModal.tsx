@@ -18,6 +18,7 @@ function describe(report: ConversionReportPayload): string {
     report.formatters > 0 ? `${report.formatters} ${report.formatters === 1 ? 'Formatador passou' : 'Formatadores passaram'} para a validação` : '',
     report.pages > 0 ? 'Seletor de página passou para a configuração' : '',
     report.iterations > 0 ? 'Iterador passou para a configuração' : '',
+    report.version ? 'versões retiradas' : '',
   ].filter(Boolean);
   const cases = report.cases > 0 ? `${report.cases} testes iguais` : '';
   return [changed.join(' e '), cases].filter(Boolean).join(' · ');

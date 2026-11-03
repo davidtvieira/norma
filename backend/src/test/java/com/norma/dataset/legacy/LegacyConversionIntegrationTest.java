@@ -120,6 +120,34 @@ class LegacyConversionIntegrationTest {
     }
 
     @Test
+    void aConvertedNormaCarriesNoVersionInItsInfoOrItsModelAndStillOpens() throws Exception {
+        UUID id = saveOldNorma();
+        saveBaselineFrom(id);
+        assertThat(infoOf(library.file(id).bytes())).contains("\"version\"");
+
+        conversion.convert(id, false);
+
+        byte[] converted = library.file(id).bytes();
+        assertThat(infoOf(converted)).doesNotContain("version");
+        assertThat(modelOf(converted)).doesNotContain("\"version\"");
+        assertThat(library.open(id).nrmId()).isNotBlank();
+    }
+
+    @Test
+    void aNormaThatOnlyHasVersionsToDropIsStillConverted() throws Exception {
+        String plain = "{\"version\":1,\"modelName\":\"P\",\"inputOperationIds\":[\"n\"],\"outputOperationIds\":[\"n\"],\"operations\":["
+                + "{\"id\":\"n\",\"kind\":\"node\",\"name\":\"N\",\"fields\":{\"input\":{\"type\":\"literal\",\"value\":\"\"}},\"operations\":[]}]}";
+        UUID id = library.save(zip(plain), null).id();
+        saveBaselineFrom(id, plain);
+
+        ConversionReport report = conversion.convert(id, false);
+
+        assertThat(report.status()).isEqualTo("converted");
+        assertThat(report.version()).isTrue();
+        assertThat(infoOf(library.file(id).bytes())).doesNotContain("version");
+    }
+
+    @Test
     void convertingAgainChangesNothing() throws Exception {
         UUID id = saveOldNorma();
         saveBaselineFrom(id);
@@ -168,9 +196,9 @@ class LegacyConversionIntegrationTest {
 
     @Test
     void aNormaWithNothingToConvertIsLeftAlone() throws Exception {
-        String plain = "{\"version\":1,\"modelName\":\"P\",\"inputOperationIds\":[\"n\"],\"outputOperationIds\":[\"n\"],\"operations\":["
+        String plain = "{\"modelName\":\"P\",\"inputOperationIds\":[\"n\"],\"outputOperationIds\":[\"n\"],\"operations\":["
                 + "{\"id\":\"n\",\"kind\":\"node\",\"name\":\"N\",\"fields\":{\"input\":{\"type\":\"literal\",\"value\":\"\"}},\"operations\":[]}]}";
-        UUID id = library.save(zip(plain), null).id();
+        UUID id = library.save(zip(plain, "{\"name\":\"Novo\",\"createdAt\":\"2026-10-19T13:04:00.000Z\"}"), null).id();
         byte[] original = library.file(id).bytes();
 
         ConversionReport report = conversion.convert(id, false);
@@ -184,6 +212,17 @@ class LegacyConversionIntegrationTest {
     }
 
     /** What the norma answers now, in the cases the saved baselines hold: the same shape the app's own script saves. */
+    private void saveBaselineFrom(UUID id, String model) throws Exception {
+        String nrmId = nrmService.open("old.nrm", library.file(id).bytes(), Instant.now(), Instant.now()).nrmId();
+        ObjectNode baseline = mapper.createObjectNode();
+        baseline.putArray("operations").addObject().put("id", "n");
+        ObjectNode entry = baseline.putArray("cases").addObject();
+        entry.put("case", "only");
+        entry.set("inputValues", mapper.valueToTree(Map.of("n", "x")));
+        entry.set("response", mapper.readTree(mapper.writeValueAsString(nrmService.runWatching(nrmId, Map.of("n", "x"), List.of("n")))));
+        mapper.writeValue(BASELINES.resolve(id + ".json").toFile(), baseline);
+    }
+
     private void saveBaselineFrom(UUID id) throws Exception {
         String nrmId = nrmService.open("old.nrm", library.file(id).bytes(), Instant.now(), Instant.now()).nrmId();
         ObjectNode baseline = mapper.createObjectNode();
@@ -206,16 +245,32 @@ class LegacyConversionIntegrationTest {
     }
 
     private static byte[] zip(String model) throws IOException {
+        return zip(model, INFO);
+    }
+
+    private static byte[] zip(String model, String info) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (ZipOutputStream out = new ZipOutputStream(bytes)) {
             out.putNextEntry(new ZipEntry("modelo.json"));
             out.write(model.getBytes(StandardCharsets.UTF_8));
             out.closeEntry();
             out.putNextEntry(new ZipEntry("info.json"));
-            out.write(INFO.getBytes(StandardCharsets.UTF_8));
+            out.write(info.getBytes(StandardCharsets.UTF_8));
             out.closeEntry();
         }
         return bytes.toByteArray();
+    }
+
+    private static String infoOf(byte[] nrm) throws IOException {
+        try (ZipInputStream in = new ZipInputStream(new java.io.ByteArrayInputStream(nrm))) {
+            ZipEntry entry;
+            while ((entry = in.getNextEntry()) != null) {
+                if (entry.getName().equals("info.json")) {
+                    return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+                }
+            }
+        }
+        throw new IllegalStateException("no info");
     }
 
     private static String modelOf(byte[] nrm) throws IOException {

@@ -23,15 +23,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class NrmServiceTest {
 
     private static final String MODEL = """
-            {"version":1,"modelName":"M","datasetId":"d","inputOperationIds":[],"outputOperationIds":["a"],
+            {"modelName":"M","datasetId":"d","inputOperationIds":[],"outputOperationIds":["a"],
              "operations":[{"id":"a","kind":"find","name":"Soma","fields":{},"position":{"x":0,"y":0},
                "operations":[{"id":"b","kind":"lookup","name":"L","fields":{},"operations":[]}]}]}""";
     // A "node" operation just returns its (literal) input, so no dataset content is needed to run it.
     private static final String MODEL_WITH_INPUT = """
-            {"version":1,"modelName":"M","datasetId":"d","inputOperationIds":["b"],"outputOperationIds":["b"],
+            {"modelName":"M","datasetId":"d","inputOperationIds":["b"],"outputOperationIds":["b"],
              "operations":[{"id":"b","kind":"node","name":"Valor",
                "fields":{"input":{"type":"literal","value":""}},"operations":[]}]}""";
-    private static final String INFO = "{\"version\":1,\"name\":\"Vendas\",\"createdAt\":\"2026-10-19T13:04:00.000Z\"}";
+    private static final String INFO = "{\"name\":\"Vendas\",\"createdAt\":\"2026-10-19T13:04:00.000Z\"}";
 
     private final DatasetStore datasetStore = new DatasetStore();
     private final NrmService nrmService = new NrmService(
@@ -130,7 +130,7 @@ class NrmServiceTest {
     void aModelWithAnIterationSettingNeedsADatasetAndPagesThatExist() throws IOException {
         Map<String, byte[]> withoutDataset = new LinkedHashMap<>();
         withoutDataset.put("modelo.json", MODEL_WITH_ITERATION_SETTING.getBytes(StandardCharsets.UTF_8));
-        withoutDataset.put("info.json", "{\"version\":2,\"name\":\"Vendas\",\"createdAt\":\"2026-10-19T13:04:00.000Z\"}".getBytes(StandardCharsets.UTF_8));
+        withoutDataset.put("info.json", "{\"name\":\"Vendas\",\"createdAt\":\"2026-10-19T13:04:00.000Z\"}".getBytes(StandardCharsets.UTF_8));
         assertThatThrownBy(() -> nrmService.importNrm(nrm("a.nrm", withoutDataset))).isInstanceOf(ModelDatasetMismatchException.class);
 
         String tooFar = MODEL_WITH_ITERATION_SETTING.replace("\"endSheet\":0", "\"endSheet\":5");
@@ -141,7 +141,7 @@ class NrmServiceTest {
     void aModelWithAPageSettingNeedsADataset() throws IOException {
         Map<String, byte[]> withoutDataset = new LinkedHashMap<>();
         withoutDataset.put("modelo.json", MODEL_WITH_PAGE_SETTING.getBytes(StandardCharsets.UTF_8));
-        withoutDataset.put("info.json", "{\"version\":2,\"name\":\"Vendas\",\"createdAt\":\"2026-10-19T13:04:00.000Z\"}".getBytes(StandardCharsets.UTF_8));
+        withoutDataset.put("info.json", "{\"name\":\"Vendas\",\"createdAt\":\"2026-10-19T13:04:00.000Z\"}".getBytes(StandardCharsets.UTF_8));
 
         assertThatThrownBy(() -> nrmService.importNrm(nrm("a.nrm", withoutDataset))).isInstanceOf(ModelDatasetMismatchException.class);
     }
@@ -214,9 +214,15 @@ class NrmServiceTest {
         noModel.remove("modelo.json");
         assertRejected(noModel);
 
+    }
+
+    @Test
+    void aFileWithNoDatasetHoldsOnlyAModelThatNeedsNone() throws IOException {
         Map<String, byte[]> noDataset = entries(MODEL, INFO);
         noDataset.remove("dados.xlsx");
-        assertRejected(noDataset);
+
+        // The model reads a dataset, and the file has none: refused for that, not for being malformed.
+        assertThatThrownBy(() -> nrmService.validate(nrm("a.nrm", noDataset))).isInstanceOf(ModelDatasetMismatchException.class);
     }
 
     @Test
@@ -240,7 +246,6 @@ class NrmServiceTest {
 
     @Test
     void rejectsABadInfoJson() throws IOException {
-        assertRejected(entries(MODEL, INFO.replace("\"version\":1", "\"version\":3")));
         assertRejected(entries(MODEL, INFO.replace("Vendas", "  ")));
         assertRejected(entries(MODEL, INFO.replace("2026-10-19T13:04:00.000Z", "ontem")));
     }
@@ -314,9 +319,9 @@ class NrmServiceTest {
                 .hasSize(NrmService.MAX_DESCRIPTION_LENGTH);
     }
 
-    // --- a .nrm without a dataset (version 2) ---
+    // --- a .nrm without a dataset ---
 
-    private static final String INFO_V2 = "{\"version\":2,\"name\":\"Sem dados\",\"createdAt\":\"2026-10-19T13:04:00.000Z\"}";
+    private static final String INFO_V2 = "{\"name\":\"Sem dados\",\"createdAt\":\"2026-10-19T13:04:00.000Z\"}";
 
     private static Map<String, byte[]> entriesWithoutDataset(String model, String info) {
         Map<String, byte[]> entries = new LinkedHashMap<>();
@@ -339,8 +344,18 @@ class NrmServiceTest {
     }
 
     @Test
-    void aVersionOneNrmStillNeedsItsDataset() throws IOException {
-        assertRejected(entriesWithoutDataset(MODEL_WITH_INPUT, INFO));
+    void aVersionAnOlderFileCarriesIsIgnoredBothInItsInfoAndItsModel() throws IOException {
+        String oldInfo = INFO.replace("{", "{\"version\":1,");
+        String oldModel = MODEL_WITH_INPUT.replace("{\"modelName\"", "{\"version\":1,\"modelName\"");
+
+        assertThat(nrmService.importNrm(nrm("a.nrm", entries(oldModel, oldInfo))).status()).isEqualTo("success");
+        assertThat(nrmService.importNrm(nrm("a.nrm", entriesWithoutDataset(oldModel, oldInfo.replace("\"version\":1", "\"version\":2")))).status()).isEqualTo("success");
+    }
+
+    @Test
+    void aNrmWithoutADatasetWhoseModelNeedsOneIsRefused() {
+        assertThatThrownBy(() -> nrmService.importNrm(nrm("a.nrm", entriesWithoutDataset(MODEL, INFO))))
+                .isInstanceOf(ModelDatasetMismatchException.class);
     }
 
     @Test

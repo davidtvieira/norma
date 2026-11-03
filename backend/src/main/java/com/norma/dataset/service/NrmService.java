@@ -39,7 +39,7 @@ import java.util.zip.ZipInputStream;
 /**
  * Validates the content of an uploaded .nrm file — the frontend only checks the extension. A .nrm
  * is a zip holding exactly three entries: the dataset spreadsheet (.xlsx/.xls — left out of a norma made
- * without a dataset, which is version 2 of the format and may only hold the operation kinds that don't read one), the model
+ * without a dataset, which may only hold the operation kinds that don't read one), the model
  * ({@code *.json}, not {@code info.json}), and {@code info.json} ({@link NrmInfo}). Anything else —
  * a missing or duplicated entry, an unexpected extra one, malformed JSON, an unknown operation
  * kind, a spreadsheet that can't be opened, a model pointing at sheets the spreadsheet doesn't have — is rejected, so a file only gets past here if it's
@@ -51,12 +51,8 @@ public class NrmService {
     private static final Logger log = LoggerFactory.getLogger(NrmService.class);
     private static final String INVALID_MESSAGE = "Invalid .nrm file.";
     private static final String INFO_ENTRY_NAME = "info.json";
-    /** The format with a dataset in it. */
-    private static final int VERSION_WITH_DATASET = 1;
     /** The longest description a .nrm may carry, in characters (the frontend's field stops at the same number). */
     public static final int MAX_DESCRIPTION_LENGTH = 2000;
-    /** Adds the .nrm that holds no dataset (the file says it by leaving the spreadsheet out). */
-    private static final int VERSION_WITHOUT_DATASET = 2;
     /** A .nrm only ever holds three files; this just bounds how much of a hostile zip is walked. */
     private static final int MAX_ENTRIES = 16;
     /** Cap on the total decompressed size, so a small zip bomb can't exhaust memory. */
@@ -152,11 +148,11 @@ public class NrmService {
     }
 
     /**
-     * Rewrites the model of a .nrm held as bytes and returns the new file: every other entry (the info and the dataset)
-     * is carried over byte for byte, under the same name and in the same order. Used by the one-off conversion of saved
+     * Rewrites the model and the info of a .nrm held as bytes and returns the new file: the dataset is carried over byte for
+     * byte, every entry under the same name and in the same order. Used by the one-off conversion of saved
      * normas (see the legacy package); the result is not validated here, whoever stores it does that.
      */
-    public byte[] rewriteModel(byte[] nrmBytes, java.util.function.UnaryOperator<JsonNode> transform) {
+    public byte[] rewrite(byte[] nrmBytes, java.util.function.UnaryOperator<JsonNode> modelTransform, java.util.function.UnaryOperator<JsonNode> infoTransform) {
         ByteArrayOutputStream result = new ByteArrayOutputStream();
         long totalBytes = 0;
         int entryCount = 0;
@@ -174,9 +170,10 @@ public class NrmService {
                 byte[] bytes = readEntry(in, MAX_UNCOMPRESSED_BYTES - totalBytes);
                 totalBytes += bytes.length;
                 String lower = baseName(entry.getName()).toLowerCase(Locale.ROOT);
-                boolean isModel = lower.endsWith(".json") && !lower.equals(INFO_ENTRY_NAME);
-                if (isModel) {
-                    bytes = objectMapper.writeValueAsBytes(transform.apply(parseJson(bytes, "the model")));
+                if (lower.equals(INFO_ENTRY_NAME)) {
+                    bytes = objectMapper.writeValueAsBytes(infoTransform.apply(parseJson(bytes, INFO_ENTRY_NAME)));
+                } else if (lower.endsWith(".json")) {
+                    bytes = objectMapper.writeValueAsBytes(modelTransform.apply(parseJson(bytes, "the model")));
                     rewritten = true;
                 }
                 out.putNextEntry(new ZipEntry(entry.getName()));
@@ -404,10 +401,6 @@ public class NrmService {
         JsonNode model = parseJson(modelBytes, "the model");
         validateModel(model);
         NrmInfo info = parseInfo(parseJson(infoBytes, INFO_ENTRY_NAME));
-        // Only the second version of the format may leave the dataset out; the first always carries one.
-        if (spreadsheetBytes == null && info.version() < VERSION_WITHOUT_DATASET) {
-            throw invalid("does not contain a dataset (.xlsx/.xls).");
-        }
         return new Contents(spreadsheetName, spreadsheetBytes, info, model);
     }
 
@@ -440,9 +433,8 @@ public class NrmService {
     }
 
     private NrmInfo parseInfo(JsonNode info) {
-        if (!info.isObject() || !info.path("version").isInt()
-                || (info.path("version").asInt() != VERSION_WITH_DATASET && info.path("version").asInt() != VERSION_WITHOUT_DATASET)) {
-            throw invalid(INFO_ENTRY_NAME + " has a missing or unsupported version.");
+        if (!info.isObject()) {
+            throw invalid(INFO_ENTRY_NAME + " is malformed.");
         }
         String name = info.path("name").isTextual() ? info.path("name").asText().trim() : "";
         if (name.isEmpty()) {
@@ -458,7 +450,7 @@ public class NrmService {
         if (description.length() > MAX_DESCRIPTION_LENGTH) {
             throw invalid(INFO_ENTRY_NAME + " has a description that is too long.");
         }
-        return new NrmInfo(info.path("version").asInt(), name, createdAt, description.isEmpty() ? null : description);
+        return new NrmInfo(name, createdAt, description.isEmpty() ? null : description);
     }
 
     private void validateModel(JsonNode model) {

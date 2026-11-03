@@ -18,7 +18,8 @@ import java.util.Map;
  *   <li>a formatter leaves the canvas for the model's {@code settings.validation}: same id, name and rules;</li>
  *   <li>the page selector leaves it for {@code settings.page}: same id, name and input;</li>
  *   <li>the iterator leaves it for {@code settings.iteration}: same id, name and pages. What was nested under it stays on the
- *       canvas, in its place.</li>
+ *       canvas, in its place;</li>
+ *   <li>the model's {@code version} is dropped (and, in {@link LegacyConversionService}, the info's).</li>
  * </ul>
  *
  * The model is a tree (an operation nests under the first operation it references), and every operation keeps its id
@@ -29,9 +30,9 @@ public final class LegacyModelConverter {
     private static final JsonNodeFactory NODES = JsonNodeFactory.instance;
 
     /** What a conversion changed: how many counters became calcs, and how many two-value calcs became lists. */
-    public record Changes(int counters, int calcs, int formatters, int pages, int iterations) {
+    public record Changes(int counters, int calcs, int formatters, int pages, int iterations, boolean version) {
         public boolean any() {
-            return counters > 0 || calcs > 0 || formatters > 0 || pages > 0 || iterations > 0;
+            return counters > 0 || calcs > 0 || formatters > 0 || pages > 0 || iterations > 0 || version;
         }
     }
 
@@ -50,6 +51,7 @@ public final class LegacyModelConverter {
     /** Converts a copy of {@code model}; the given tree is left as it is. */
     public static Result convert(JsonNode model) {
         JsonNode copy = model.deepCopy();
+        boolean hadVersion = copy instanceof ObjectNode root && root.remove("version") != null;
         LegacyModelConverter converter = new LegacyModelConverter();
         converter.walk(copy.path("operations"));
         if (converter.validation.size() > 0 && copy instanceof ObjectNode root) {
@@ -64,7 +66,7 @@ public final class LegacyModelConverter {
             (root.get("settings") instanceof ObjectNode existing ? existing : root.putObject("settings")).set("iteration", converter.iteration);
         }
         return new Result(copy, new Changes(converter.counters, converter.calcs, converter.validation.size(),
-                converter.page != null ? 1 : 0, converter.iteration != null ? 1 : 0));
+                converter.page != null ? 1 : 0, converter.iteration != null ? 1 : 0, hadVersion));
     }
 
     private void walk(JsonNode operations) {

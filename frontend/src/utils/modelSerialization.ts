@@ -59,7 +59,6 @@ const PAGE_KIND_ID = 'page';
 const ITERATOR_KIND_ID = 'iterator';
 
 export interface ExportedModel {
-  version: 1;
   modelName: string;
   /** The .nrm file's own name (distinct from modelName and the dataset's filename) — what the
    * landing screen's "Sessões recentes" identifies a session by. Absent on a model exported
@@ -83,8 +82,6 @@ export interface ExportedModel {
   outputOperationIds: string[];
   operations: ExportedOperationNode[];
 }
-
-const MODEL_EXPORT_VERSION = 1;
 
 /**
  * An entry's tree parent for export nesting: the first of its (possibly several — e.g. counter's
@@ -151,7 +148,6 @@ export function buildModelExport(
     ...(iterationEntry ? { iteration: { id: iterationEntry.id, name: iterationEntry.name, fields: iterationEntry.fields } } : {}),
   };
   return {
-    version: MODEL_EXPORT_VERSION,
     modelName,
     ...(nrmName.trim() ? { nrmName: nrmName.trim() } : {}),
     ...(nrmDescription.trim() ? { nrmDescription: nrmDescription.trim() } : {}),

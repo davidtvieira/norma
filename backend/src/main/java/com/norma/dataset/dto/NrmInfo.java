@@ -7,10 +7,10 @@ import java.time.Instant;
  * the model or dataset it bundles. New fields go here as the format grows. {@code description} is what the author wrote
  * about the norma (optional, null when there is none).
  */
-public record NrmInfo(int version, String name, Instant createdAt, String description) {
+public record NrmInfo(String name, Instant createdAt, String description) {
 
     /** An info with no description. */
-    public NrmInfo(int version, String name, Instant createdAt) {
-        this(version, name, createdAt, null);
+    public NrmInfo(String name, Instant createdAt) {
+        this(name, createdAt, null);
     }
 }

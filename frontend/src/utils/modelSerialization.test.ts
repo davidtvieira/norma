@@ -180,7 +180,6 @@ describe('buildModelExport / parseModelImport round trip', () => {
 
   it('falls back to the legacy singular input/output field for a model exported before it could have several', () => {
     const legacyJson = JSON.stringify({
-      version: 1,
       modelName: 'Old model',
       datasetId: 'dataset-1',
       inputOperationId: 'op-a',
@@ -199,7 +198,6 @@ describe('buildModelExport / parseModelImport round trip', () => {
 
   it('tolerates a node with no saved position by leaving it undefined, not rejecting the import', () => {
     const json = JSON.stringify({
-      version: 1,
       modelName: 'Model',
       datasetId: 'dataset-1',
       inputOperationIds: [],
@@ -214,7 +212,6 @@ describe('buildModelExport / parseModelImport round trip', () => {
 
   it('rejects a model referencing an operation kind the app does not know', () => {
     const json = JSON.stringify({
-      version: 1,
       modelName: 'Model',
       datasetId: 'dataset-1',
       inputOperationIds: [],
@@ -235,7 +232,6 @@ describe('buildModelExport / parseModelImport round trip', () => {
 
   it('rejects an operation missing a required field', () => {
     const json = JSON.stringify({
-      version: 1,
       modelName: 'Model',
       datasetId: 'dataset-1',
       operations: [{ id: 'op-1', kind: 'find' }],

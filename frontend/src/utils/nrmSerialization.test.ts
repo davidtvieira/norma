@@ -2,7 +2,7 @@ import { zipSync, strToU8 } from 'fflate';
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('../services/datasetApi', () => ({
   importNrm: vi.fn(),
-  validateNrm: vi.fn().mockResolvedValue({ version: 1, name: 'x', createdAt: '2026-01-01T00:00:00Z' }),
+  validateNrm: vi.fn().mockResolvedValue({ name: 'x', createdAt: '2026-01-01T00:00:00Z' }),
 }));
 
 import { buildNrmFile, extractNrmFile, NrmImportError, readModelFile } from './nrmSerialization';
@@ -38,9 +38,9 @@ describe('extractNrmFile', () => {
     expect(modelText).toBe('{"operations":[]}');
   });
 
-  it('rejects a zip with no spreadsheet entry', async () => {
+  it('reads a zip with no spreadsheet entry as a norma without a dataset', async () => {
     const file = nrmFile({ 'modelo.json': strToU8('{"operations":[]}') });
-    await expect(extractNrmFile(file)).rejects.toBeInstanceOf(NrmImportError);
+    await expect(extractNrmFile(file)).resolves.toMatchObject({ datasetFile: null });
   });
 
   it('rejects a zip with no model entry', async () => {
@@ -73,7 +73,6 @@ describe('extractNrmFile', () => {
 });
 
 const SAMPLE_MODEL: ExportedModel = {
-  version: 1,
   modelName: 'Modelo de Teste',
   datasetId: 'dataset-1',
   inputOperationIds: [],
@@ -101,27 +100,31 @@ describe('a norma description', () => {
 });
 
 describe('a .nrm without a dataset', () => {
-  it('is built as version 2, with no spreadsheet, and reads back with no dataset file', async () => {
+  it('is built with no spreadsheet, and reads back with no dataset file', async () => {
     const blob = await buildNrmFile(null, SAMPLE_MODEL, 'Sem dados');
-    const { datasetFile, modelText, info } = await extractNrmFile(new File([await blob.arrayBuffer()], 'x.nrm'));
+    const { datasetFile, modelText } = await extractNrmFile(new File([await blob.arrayBuffer()], 'x.nrm'));
 
     expect(datasetFile).toBeNull();
     expect(JSON.parse(modelText)).toEqual({ ...SAMPLE_MODEL, modelName: 'Sem dados', nrmName: 'Sem dados' });
-    expect(info?.version).toBe(2);
   });
 
-  it('is only accepted when its info.json says version 2', async () => {
-    const info = (version: number) => strToU8(JSON.stringify({ version, name: 'x', createdAt: '2026-01-01T00:00:00Z' }));
-    const without = (version: number) => nrmFile({ 'modelo.json': strToU8('{"operations":[]}'), 'info.json': info(version) });
+  it('is accepted whatever its info.json holds, since nothing in the file says it has a dataset', async () => {
+    const info = (extra: object) => strToU8(JSON.stringify({ name: 'x', createdAt: '2026-01-01T00:00:00Z', ...extra }));
+    const without = (extra: object) => nrmFile({ 'modelo.json': strToU8('{"operations":[]}'), 'info.json': info(extra) });
 
-    await expect(extractNrmFile(without(2))).resolves.toMatchObject({ datasetFile: null });
-    await expect(extractNrmFile(without(1))).rejects.toBeInstanceOf(NrmImportError);
+    await expect(extractNrmFile(without({}))).resolves.toMatchObject({ datasetFile: null });
+    // A file an older build made still reads (its version is simply ignored).
+    await expect(extractNrmFile(without({ version: 1 }))).resolves.toMatchObject({ datasetFile: null });
+    await expect(extractNrmFile(without({ version: 2 }))).resolves.toMatchObject({ datasetFile: null });
   });
 
-  it('keeps writing version 1 for a .nrm that has a dataset, so older builds still open it', async () => {
-    const blob = await buildNrmFile(new File([strToU8('bytes')], 'd.xlsx'), SAMPLE_MODEL, 'Com dados');
-    const { info } = await extractNrmFile(new File([await blob.arrayBuffer()], 'x.nrm'));
-    expect(info?.version).toBe(1);
+  it('writes no version, with or without a dataset', async () => {
+    for (const dataset of [new File([strToU8('bytes')], 'd.xlsx'), null]) {
+      const blob = await buildNrmFile(dataset, SAMPLE_MODEL, 'Nome');
+      const { info, modelText } = await extractNrmFile(new File([await blob.arrayBuffer()], 'x.nrm'));
+      expect(info).not.toHaveProperty('version');
+      expect(JSON.parse(modelText)).not.toHaveProperty('version');
+    }
   });
 });
 

@@ -8,5 +8,5 @@ import java.util.List;
  * ({@code problems} says why, and the norma is as it was).
  */
 public record ConversionReport(
-        String id, String name, String status, int counters, int calcs, int formatters, int pages, int iterations, int cases, List<String> problems) {
+        String id, String name, String status, int counters, int calcs, int formatters, int pages, int iterations, boolean version, int cases, List<String> problems) {
 }

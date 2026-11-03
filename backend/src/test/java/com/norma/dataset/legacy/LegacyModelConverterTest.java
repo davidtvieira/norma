@@ -160,4 +160,13 @@ class LegacyModelConverterTest {
         assertThat(result.model().path("operations").get(0).path("fields").path("index").path("operationId").asText()).isEqualTo("it");
         assertThat(LegacyModelConverter.convert(result.model()).changes().any()).isFalse();
     }
+
+    @Test
+    void theModelsVersionIsDroppedAndAModelWithoutOneHasNothingToDrop() throws Exception {
+        LegacyModelConverter.Result result = LegacyModelConverter.convert(model(OLD));
+
+        assertThat(result.model().has("version")).isFalse();
+        assertThat(result.changes().version()).isTrue();
+        assertThat(LegacyModelConverter.convert(result.model()).changes().version()).isFalse();
+    }
 }

@@ -2,6 +2,7 @@ package com.norma.dataset.legacy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.norma.dataset.dto.ModelRunResponse;
 import com.norma.dataset.library.NrmLibraryService;
 import com.norma.dataset.service.NrmService;
@@ -41,11 +42,20 @@ public class LegacyConversionService {
         try {
             NrmLibraryService.StoredFile stored = library.file(id);
             LegacyModelConverter.Changes[] changes = new LegacyModelConverter.Changes[1];
-            byte[] converted = nrmService.rewriteModel(stored.bytes(), model -> {
+            boolean[] infoHadVersion = new boolean[1];
+            byte[] converted = nrmService.rewrite(stored.bytes(), model -> {
                 LegacyModelConverter.Result result = LegacyModelConverter.convert(model);
                 changes[0] = result.changes();
                 return result.model();
+            }, info -> {
+                JsonNode copy = info.deepCopy();
+                infoHadVersion[0] = copy instanceof ObjectNode object && object.remove("version") != null;
+                return copy;
             });
+            if (infoHadVersion[0]) {
+                LegacyModelConverter.Changes found = changes[0];
+                changes[0] = new LegacyModelConverter.Changes(found.counters(), found.calcs(), found.formatters(), found.pages(), found.iterations(), true);
+            }
             if (!changes[0].any()) {
                 return report(id, name, "unchanged", changes[0], 0, List.of());
             }
@@ -66,7 +76,7 @@ public class LegacyConversionService {
             }
             return report(id, name, dryRun ? "verified" : "converted", changes[0], cases, List.of());
         } catch (RuntimeException e) {
-            return new ConversionReport(id.toString(), name, "failed", 0, 0, 0, 0, 0, 0,
+            return new ConversionReport(id.toString(), name, "failed", 0, 0, 0, 0, 0, false, 0,
                     List.of(String.valueOf(e.getMessage())));
         }
     }
@@ -147,6 +157,6 @@ public class LegacyConversionService {
 
     private static ConversionReport report(
             UUID id, String name, String status, LegacyModelConverter.Changes changes, int cases, List<String> problems) {
-        return new ConversionReport(id.toString(), name, status, changes.counters(), changes.calcs(), changes.formatters(), changes.pages(), changes.iterations(), cases, problems);
+        return new ConversionReport(id.toString(), name, status, changes.counters(), changes.calcs(), changes.formatters(), changes.pages(), changes.iterations(), changes.version(), cases, problems);
     }
 }

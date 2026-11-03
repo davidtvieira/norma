@@ -46,10 +46,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 class NrmLibraryIntegrationTest {
 
     private static final String MODEL = """
-            {"version":1,"modelName":"M","datasetId":"d","inputOperationIds":["b"],"outputOperationIds":["b"],
+            {"modelName":"M","datasetId":"d","inputOperationIds":["b"],"outputOperationIds":["b"],
              "operations":[{"id":"b","kind":"node","name":"Valor",
                "fields":{"input":{"type":"literal","value":""}},"operations":[]}]}""";
-    private static final String INFO = "{\"version\":1,\"name\":\"%s\",\"createdAt\":\"2026-10-19T13:04:00.000Z\"}";
+    private static final String INFO = "{\"name\":\"%s\",\"createdAt\":\"2026-10-19T13:04:00.000Z\"}";
 
     private static final EmbeddedPostgres POSTGRES = startPostgres();
     private static final Path STORAGE = createStorage();
@@ -108,7 +108,7 @@ class NrmLibraryIntegrationTest {
     void aNrmWithoutADatasetCanBeSavedAndListedWithNoDatasetFile() throws IOException {
         Map<String, byte[]> entries = new LinkedHashMap<>();
         entries.put("modelo.json", MODEL.getBytes(StandardCharsets.UTF_8));
-        entries.put("info.json", INFO.formatted("Sem dados").replace("\"version\":1", "\"version\":2").getBytes(StandardCharsets.UTF_8));
+        entries.put("info.json", INFO.formatted("Sem dados").getBytes(StandardCharsets.UTF_8));
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try (ZipOutputStream zip = new ZipOutputStream(out)) {
             for (Map.Entry<String, byte[]> entry : entries.entrySet()) {

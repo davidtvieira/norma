@@ -14,8 +14,6 @@ const INFO_ENTRY_NAME = 'info.json';
  * before a field existed still reads back fine (see readNrmInfo).
  */
 export interface NrmInfo {
-  /** 1 for a .nrm that carries a dataset; 2 for one made without a dataset (the spreadsheet is simply left out). */
-  version: 1 | 2;
   /** The name the file was saved under (without the .nrm extension). */
   name: string;
   /** ISO 8601 timestamp of when the file was created (exported). */
@@ -23,9 +21,6 @@ export interface NrmInfo {
   /** What the author wrote about the norma (optional) — shown on its card in "As minhas normas". */
   description?: string;
 }
-
-const NRM_INFO_VERSION = 1;
-const NRM_INFO_VERSION_WITHOUT_DATASET = 2;
 
 export interface NrmContents {
   /** The dataset spreadsheet found inside the .nrm, ready to hand to importDataset as-is — null for a .nrm made without one. */
@@ -48,7 +43,6 @@ function readNrmInfo(bytes: Uint8Array | undefined): NrmInfo | null {
   try {
     const parsed = JSON.parse(new TextDecoder('utf-8').decode(bytes)) as Record<string, unknown>;
     return {
-      version: parsed.version === NRM_INFO_VERSION_WITHOUT_DATASET ? NRM_INFO_VERSION_WITHOUT_DATASET : NRM_INFO_VERSION,
       name: typeof parsed.name === 'string' ? parsed.name.trim() : '',
       createdAt: typeof parsed.createdAt === 'string' ? parsed.createdAt : '',
       ...(typeof parsed.description === 'string' && parsed.description.trim() ? { description: parsed.description.trim() } : {}),
@@ -94,11 +88,8 @@ export function extractNrmFile(file: File): Promise<NrmContents> {
             const infoPath = paths.find(isInfoEntry);
 
             const info = readNrmInfo(infoPath ? entries[infoPath] : undefined);
-            // Only the second version of the format may leave the dataset out.
-            if (spreadsheetPaths.length === 0 && info?.version !== NRM_INFO_VERSION_WITHOUT_DATASET) {
-              reject(new NrmImportError('Ficheiro .nrm inválido: não contém um conjunto de dados (.xlsx/.xls).'));
-              return;
-            }
+            // No spreadsheet is fine: a norma can be built without a conjunto de dados (the backend refuses one whose
+            // operations need it).
             if (spreadsheetPaths.length > 1) {
               reject(new NrmImportError('Ficheiro .nrm inválido: contém mais do que um conjunto de dados.'));
               return;
@@ -136,7 +127,7 @@ export function extractNrmFile(file: File): Promise<NrmContents> {
  * saved file is also enough to reopen the model later without the dataset having to be imported
  * separately first (see NormaUploader's landing-page counterpart). Also writes an
  * `info.json` (see NrmInfo) recording `fileName` and when this file was created. A null `datasetFile` builds a .nrm
- * without a dataset: version 2 of the format, with the spreadsheet left out.
+ * without a dataset, with the spreadsheet left out.
  */
 export async function buildNrmFile(
   datasetFile: File | null,
@@ -146,7 +137,6 @@ export async function buildNrmFile(
   description = '',
 ): Promise<Blob> {
   const info: NrmInfo = {
-    version: datasetFile ? NRM_INFO_VERSION : NRM_INFO_VERSION_WITHOUT_DATASET,
     name: fileName,
     createdAt: createdAt || new Date().toISOString(),
     // Left out when empty, so a norma with none looks like one made before descriptions existed.

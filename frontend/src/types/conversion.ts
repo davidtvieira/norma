@@ -9,6 +9,8 @@ export interface ConversionReportPayload {
   formatters: number;
   pages: number;
   iterations: number;
+  /** Whether the version of the norma's info and model was dropped. */
+  version: boolean;
   cases: number;
   problems: string[];
 }
