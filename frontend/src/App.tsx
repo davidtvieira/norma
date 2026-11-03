@@ -35,7 +35,7 @@ import { buildModelExport, parseModelImport, type SerializableEntry } from './ut
 import { buildNrmFile, extractNrmFile, readModelFile } from './utils/nrmSerialization';
 import { useNormas } from './hooks/useNormas';
 import { DEFAULT_SAVED_QUERY, type SavedNrmPayload, type SavedNrmQuery } from './types/savedNrm';
-import { deleteSessionCacheEntry, forgetSavedNrm, listSessionCacheEntries, markSessionSaved, saveSessionCacheEntry, updateSessionCacheModel, type SessionCacheEntry } from './utils/sessionCache';
+import { deleteSessionCacheEntry, forgetSavedNrm, listSessionCacheEntries, markSessionSaved, saveSessionCacheEntry, setSessionDescription, updateSessionCacheModel, type SessionCacheEntry } from './utils/sessionCache';
 import { downloadTestCase } from './utils/testCaseSerialization';
 import { LandingScreen } from './screens/LandingScreen';
 import { UtilizeScreen, type UtilizeModel } from './screens/UtilizeScreen';
@@ -1009,6 +1009,11 @@ function App() {
       // Updating keeps the norma's folder; the dialog's folder choice may be another one.
       if (isReplacing && saveCategoryPicked.current && saved.categoryId !== saveCategoryId) saved = await assignSavedNrmCategory(saved.id, saveCategoryId);
       setSavedNrmId(saved.id);
+      if (currentSessionIdRef.current) {
+        setSessionDescription(currentSessionIdRef.current, saved.description)
+          .then(refreshRecentSessions)
+          .catch((error) => console.warn('Falha ao atualizar a sessão no IndexedDB.', error));
+      }
       reportSuccess(isReplacing ? 'Norma atualizada na plataforma' : 'Norma guardada na plataforma');
       return;
     }
@@ -1093,6 +1098,7 @@ function App() {
       datasetBlob: null,
       modelJson: null,
       nrmName: opened.name,
+      nrmDescription: opened.description,
       savedNrmId: savedId,
       ...(withoutDataset ? { withoutDataset: true } : {}),
     })
@@ -1420,7 +1426,7 @@ function App() {
               id: entry.id,
               datasetFileName: entry.datasetFileName,
               nrmName: entry.nrmName ?? cachedNrmName(entry.modelJson),
-              description: cachedNrmDescription(entry.modelJson),
+              description: entry.nrmDescription ?? cachedNrmDescription(entry.modelJson),
               hasModel: entry.modelJson !== null || Boolean(entry.savedNrmId),
               isSaved: Boolean(entry.savedNrmId),
               isResuming: resumingId === entry.id,

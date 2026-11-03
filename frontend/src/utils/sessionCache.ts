@@ -23,6 +23,8 @@ export interface SessionCacheEntry {
   withoutDataset?: boolean;
   /** The model's name, when the entry has no model JSON of its own to read it from. */
   nrmName?: string | null;
+  /** The norma's description, when the entry has no model JSON of its own to read it from (a norma opened from the library). */
+  nrmDescription?: string | null;
   /** The entry's model as exported JSON text (see utils/modelSerialization.ts's ExportedModel) —
    * kept live while editing (App.tsx debounces a save on every modelEntries/modelName/
    * modelInputIds/modelOutputIds change), not just on an explicit "Guardar modelo"/.nrm upload.
@@ -116,6 +118,11 @@ export function updateSessionCacheModel(id: string, modelJson: string | null): P
 }
 
 /** Notes (or, with null, forgets) which library entry a session's model is kept as. */
+/** Keeps a library-opened session's description current (it is edited and saved from the editor). */
+export function setSessionDescription(id: string, nrmDescription: string | null): Promise<void> {
+  return enqueue(() => patchSessionCacheEntry(id, (existing) => ({ ...existing, nrmDescription })));
+}
+
 export function markSessionSaved(id: string, savedNrmId: string | null): Promise<void> {
   return enqueue(() => patchSessionCacheEntry(id, (existing) => ({ ...existing, savedNrmId })));
 }
