@@ -53,8 +53,9 @@ export interface ExportedRuleSet {
   fields: Record<string, unknown>;
 }
 
-/** What the editor keeps in an entry of this kind in the model's settings instead of on its canvas. */
+/** The kinds whose entries the model keeps in its settings instead of on its canvas: the validation rule sets, and the page selector. */
 const VALIDATION_KIND_ID = 'formatter';
+const PAGE_KIND_ID = 'page';
 
 export interface ExportedModel {
   version: 1;
@@ -67,7 +68,7 @@ export interface ExportedModel {
   nrmDescription?: string;
   datasetId: string;
   /** The model's own configuration, apart from its operations. Absent when it has none. */
-  settings?: { validation: ExportedRuleSet[] };
+  settings?: { validation?: ExportedRuleSet[]; page?: ExportedRuleSet };
   /**
    * The operations whose literal values are what a caller of the model fills in (possibly
    * several, each filled in separately — possibly none, for a model with nothing dynamic left to
@@ -136,11 +137,16 @@ export function buildModelExport(
   nrmName = '',
   nrmDescription = '',
 ): ExportedModel {
-  const confirmedEntries = entries.filter((entry) => entry.confirmed && entry.kindId !== VALIDATION_KIND_ID);
+  const confirmedEntries = entries.filter((entry) => entry.confirmed && entry.kindId !== VALIDATION_KIND_ID && entry.kindId !== PAGE_KIND_ID);
   const roots = confirmedEntries.filter((entry) => !isLinkedChild(entry, confirmedEntries));
   const validation: ExportedRuleSet[] = entries
     .filter((entry) => entry.confirmed && entry.kindId === VALIDATION_KIND_ID)
     .map((entry) => ({ id: entry.id, name: entry.name, fields: entry.fields }));
+  const pageEntry = entries.find((entry) => entry.confirmed && entry.kindId === PAGE_KIND_ID);
+  const settings = {
+    ...(validation.length > 0 ? { validation } : {}),
+    ...(pageEntry ? { page: { id: pageEntry.id, name: pageEntry.name, fields: pageEntry.fields } } : {}),
+  };
   return {
     version: MODEL_EXPORT_VERSION,
     modelName,
@@ -149,7 +155,7 @@ export function buildModelExport(
     datasetId,
     inputOperationIds,
     outputOperationIds,
-    ...(validation.length > 0 ? { settings: { validation } } : {}),
+    ...(Object.keys(settings).length > 0 ? { settings } : {}),
     operations: roots.map((entry) => toNode(entry, confirmedEntries)),
   };
 }
@@ -207,18 +213,22 @@ function flattenNode(node: unknown, knownKindIds: Set<string>, out: Serializable
   }
 }
 
+/** One entry of the model's settings (an id, a name and its fields), or undefined when there is none; anything else is refused. */
+function readSettingEntry(item: unknown): ExportedRuleSet | undefined {
+  if (item === undefined) return undefined;
+  const entry = item as Partial<ExportedRuleSet> | null;
+  if (typeof entry !== 'object' || entry === null || typeof entry.id !== 'string' || typeof entry.name !== 'string' || typeof entry.fields !== 'object' || entry.fields === null) {
+    throw new ModelImportError('Ficheiro de modelo inválido: configuração mal formada.');
+  }
+  return { id: entry.id, name: entry.name, fields: entry.fields };
+}
+
 /** The validation rule sets of the model's settings, if it has any. */
 function readRuleSets(model: ExportedModel): ExportedRuleSet[] {
   const validation = (model.settings as { validation?: unknown } | undefined)?.validation;
   if (validation === undefined) return [];
   if (!Array.isArray(validation)) throw new ModelImportError('Ficheiro de modelo inválido: configuração mal formada.');
-  return validation.map((item) => {
-    const ruleSet = item as Partial<ExportedRuleSet> | null;
-    if (typeof ruleSet !== 'object' || ruleSet === null || typeof ruleSet.id !== 'string' || typeof ruleSet.name !== 'string' || typeof ruleSet.fields !== 'object' || ruleSet.fields === null) {
-      throw new ModelImportError('Ficheiro de modelo inválido: regras de validação mal formadas.');
-    }
-    return { id: ruleSet.id, name: ruleSet.name, fields: ruleSet.fields };
-  });
+  return validation.map((item) => readSettingEntry(item ?? {}) as ExportedRuleSet);
 }
 
 /**
@@ -265,6 +275,8 @@ export function parseModelImport(
   for (const ruleSet of readRuleSets(model)) {
     entries.push({ id: ruleSet.id, name: ruleSet.name, kindId: VALIDATION_KIND_ID, confirmed: true, fields: ruleSet.fields });
   }
+  const page = readSettingEntry((model.settings as { page?: unknown } | undefined)?.page);
+  if (page) entries.push({ id: page.id, name: page.name, kindId: PAGE_KIND_ID, confirmed: true, fields: page.fields });
 
   // Missing on a model exported before the input/output pickers existed — treated as "not set
   // yet" rather than rejecting the file, same as a freshly created model before its author has

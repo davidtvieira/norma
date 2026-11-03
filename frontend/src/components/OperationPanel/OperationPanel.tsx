@@ -22,7 +22,7 @@ import { AddOperationModal } from '../AddOperationModal/AddOperationModal';
 import { ConfirmModal } from '../Modal/ConfirmModal';
 import { Modal, ModalAsideContext } from '../Modal/Modal';
 import { ShortcutsModal } from '../ShortcutsModal/ShortcutsModal';
-import { ValidationModal } from '../ValidationModal/ValidationModal';
+import { ModelSettingsModal } from '../ModelSettingsModal/ModelSettingsModal';
 import { PanControls } from './PanControls';
 import { TestValuesModal } from '../TestValuesModal/TestValuesModal';
 import { useCanvasViewport, MIN_ZOOM, MAX_ZOOM, ZOOM_STEP } from './useCanvasViewport';
@@ -714,8 +714,8 @@ export function OperationPanel({
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
   // The "?" on the canvas' toolbar: the list of shortcuts.
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
-  // "Validação" on the canvas' toolbar: the model's input validation rule sets (see ValidationModal).
-  const [isValidationOpen, setIsValidationOpen] = useState(false);
+  // "Configuração" on the canvas' toolbar: the model's page selector and input validation rule sets (see ModelSettingsModal).
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   // The open node modal's fields as they were when it opened, so "Cancelar" can put them back
   // (and so closing knows whether anything changed). `revision` remounts the modal's body after a
   // revert, since the kinds' editors keep some state of their own that wouldn't follow the fields.
@@ -1933,7 +1933,7 @@ export function OperationPanel({
   }
 
   const edges: Edge[] = committedEntries.flatMap((entry) => {
-    if (!entry.confirmed) return [];
+    if (!entry.confirmed || isSettingEntry(entry)) return [];
     return getInputSources(entry.fields).flatMap((source) => {
       if (source.type !== 'reference') return [];
       const from = entriesById.get(source.operationId);
@@ -2642,10 +2642,10 @@ export function OperationPanel({
           <button
             type="button"
             className="btn btn--secondary btn--sm"
-            onClick={() => setIsValidationOpen(true)}
-            title="Regras que as entradas do modelo têm de cumprir."
+            onClick={() => setIsSettingsOpen(true)}
+            title="A página que as operações lêem e as regras que as entradas têm de cumprir."
           >
-            Validação
+            Configuração
           </button>
 
           {/* "Desfazer"/"Refazer": step back/forward through this "Editar" session's own history
@@ -2970,23 +2970,35 @@ export function OperationPanel({
       {renderConfigPanel()}
 
       {isShortcutsOpen && <ShortcutsModal onClose={() => setIsShortcutsOpen(false)} />}
-      {isValidationOpen && (
-        <ValidationModal
+      {isSettingsOpen && (
+        <ModelSettingsModal
+          hasDataset={!withoutDataset}
+          page={
+            pageSelectorEntry
+              ? { id: pageSelectorEntry.id, name: pageSelectorEntry.name, summary: KINDS_BY_ID[pageSelectorEntry.kindId].renderSummary(pageSelectorEntry.fields, dataset, null) }
+              : null
+          }
           sets={entries
             .filter((entry) => entry.kindId === FORMATTER_KIND_ID && entry.confirmed)
             .map((entry) => ({ id: entry.id, name: entry.name, summary: KINDS_BY_ID[entry.kindId].renderSummary(entry.fields, dataset, null) }))}
           canEdit={tool === 'select' && !hasDraftInProgress}
+          onAddPage={() => {
+            setIsSettingsOpen(false);
+            addToStaging(PAGE_SELECTOR_KIND_ID);
+          }}
+          onEditPage={(id) => setModalEntryId(id)}
+          onRemovePage={removeEntry}
           onChooseInputs={(id) => setModalEntryId(id)}
           onEditRules={(id) => {
-            setIsValidationOpen(false);
+            setIsSettingsOpen(false);
             editEntry(id);
           }}
-          onRemove={removeEntry}
-          onAdd={() => {
-            setIsValidationOpen(false);
+          onRemoveRules={removeEntry}
+          onAddRules={() => {
+            setIsSettingsOpen(false);
             addToStaging(FORMATTER_KIND_ID);
           }}
-          onClose={() => setIsValidationOpen(false)}
+          onClose={() => setIsSettingsOpen(false)}
         />
       )}
 

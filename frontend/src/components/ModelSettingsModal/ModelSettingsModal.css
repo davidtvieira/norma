@@ -1,4 +1,26 @@
-.validation-modal__list {
+.model-settings__section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.model-settings__section + .model-settings__section {
+  margin-top: 1.25rem;
+}
+
+.model-settings__section .modal__label {
+  margin: 0;
+}
+
+.model-settings__hint {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}
+
+.model-settings__list {
+  align-self: stretch;
   display: flex;
   flex-direction: column;
   margin: 0;
@@ -9,7 +31,7 @@
   background: var(--color-bg);
 }
 
-.validation-modal__row {
+.model-settings__row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -18,37 +40,39 @@
   padding: 0.5rem 0.8rem;
 }
 
-.validation-modal__row + .validation-modal__row {
+.model-settings__row + .model-settings__row {
   border-top: 1px solid var(--color-border);
 }
 
-.validation-modal__text {
+.model-settings__text {
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
 }
 
-.validation-modal__name {
+.model-settings__name {
   font-size: 0.92rem;
   font-weight: 600;
 }
 
-.validation-modal__summary {
+.model-settings__summary {
   font-size: 0.8rem;
   color: var(--color-text-muted);
 }
 
-.validation-modal__actions {
+.model-settings__actions {
   flex: none;
   display: flex;
   gap: 0.4rem;
 }
 
-.validation-modal__empty {
+.model-settings__empty {
   margin: 0;
-  padding: 1.25rem 0;
-  text-align: center;
   font-size: 0.85rem;
   color: var(--color-text-muted);
+}
+
+.model-settings__add {
+  align-self: flex-start;
 }

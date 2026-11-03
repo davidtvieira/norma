@@ -30,6 +30,7 @@ function pageIndexOf(resolved: ResolvedInput, pageCount: number): number | null 
  * value — typed, chained from another operation, or supplied by whoever utilizes the model.
  */
 export const pageKind: OperationKind = {
+  setting: true,
   id: 'page',
   requiresDataset: true,
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildModelExport, parseModelImport, ModelImportError, type SerializableEntry } from './modelSerialization';
 import { literalSource } from '../types/valueSource';
 
-const KNOWN_KIND_IDS = new Set(['lookup', 'find', 'node', 'formatter']);
+const KNOWN_KIND_IDS = new Set(['lookup', 'find', 'node', 'formatter', 'page']);
 
 function entry(overrides: Partial<SerializableEntry> & Pick<SerializableEntry, 'id' | 'kindId'>): SerializableEntry {
   return {
@@ -60,6 +60,34 @@ describe('buildModelExport / parseModelImport round trip', () => {
     expect(imported.entries[1].fields).toEqual(rules);
   });
 
+  it('keeps the page selector in the settings too, out of the operations, and reads it back', () => {
+    const page = { input: { type: 'reference', operationId: 'op-1' } };
+    const entries = [
+      entry({ id: 'op-1', kindId: 'node' }),
+      entry({ id: 'page-1', kindId: 'page', name: 'Selecionar Página', fields: page, position: undefined }),
+    ];
+
+    const exported = buildModelExport(entries, 'Model', 'dataset-1', [], ['op-1']);
+
+    expect(exported.operations.map((operation) => operation.id)).toEqual(['op-1']);
+    expect(exported.settings).toEqual({ page: { id: 'page-1', name: 'Selecionar Página', fields: page } });
+    const imported = parseModelImport(JSON.stringify(exported), KNOWN_KIND_IDS);
+    expect(imported.entries.map((item) => [item.id, item.kindId])).toEqual([['op-1', 'node'], ['page-1', 'page']]);
+    expect(imported.entries[1].fields).toEqual(page);
+  });
+
+  it('carries the validation rule sets and the page selector side by side', () => {
+    const entries = [
+      entry({ id: 'op-1', kindId: 'node' }),
+      entry({ id: 'rules-1', kindId: 'formatter', fields: { type: 'text' }, position: undefined }),
+      entry({ id: 'page-1', kindId: 'page', fields: { input: { type: 'literal', value: '0' } }, position: undefined }),
+    ];
+
+    const exported = buildModelExport(entries, 'Model', 'dataset-1', [], ['op-1']);
+
+    expect(Object.keys(exported.settings ?? {}).sort()).toEqual(['page', 'validation']);
+  });
+
   it('has no settings at all for a model without validation rules', () => {
     const exported = buildModelExport([entry({ id: 'op-1', kindId: 'node' })], 'Model', 'dataset-1', [], ['op-1']);
 
@@ -77,6 +105,7 @@ describe('buildModelExport / parseModelImport round trip', () => {
 
     expect(() => parseModelImport(JSON.stringify({ ...base, settings: { validation: 3 } }), KNOWN_KIND_IDS)).toThrow(ModelImportError);
     expect(() => parseModelImport(JSON.stringify({ ...base, settings: { validation: [{ id: 'x' }] } }), KNOWN_KIND_IDS)).toThrow(ModelImportError);
+    expect(() => parseModelImport(JSON.stringify({ ...base, settings: { page: { id: 'x' } } }), KNOWN_KIND_IDS)).toThrow(ModelImportError);
   });
 
   it('drops unconfirmed (draft) entries from the export entirely', () => {
