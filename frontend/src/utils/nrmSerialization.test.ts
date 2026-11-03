@@ -79,7 +79,7 @@ const SAMPLE_MODEL: ExportedModel = {
   inputOperationIds: [],
   outputOperationIds: ['op1'],
   operations: [
-    { id: 'op1', kind: 'sum', name: 'Soma', fields: { sheetIndex: 0 }, position: { x: 0, y: 0 }, operations: [] },
+    { id: 'op1', kind: 'find', name: 'Soma', fields: { sheetIndex: 0 }, position: { x: 0, y: 0 }, operations: [] },
   ],
 };
 

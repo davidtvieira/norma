@@ -2,7 +2,7 @@
 export const PAGE_SELECTOR_KIND_ID = 'page';
 
 /** The kinds that read from a page of the dataset, and so automatically follow the model's page selector. */
-export const PAGE_AWARE_KIND_IDS: ReadonlySet<string> = new Set(['lookup', 'sum', 'find']);
+export const PAGE_AWARE_KIND_IDS: ReadonlySet<string> = new Set(['lookup', 'find']);
 
 /**
  * The page a page selector's result stands for: its index when the result is a whole number, -1

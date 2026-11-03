@@ -14,7 +14,6 @@ import com.norma.dataset.dto.TranslatorRule;
 import com.norma.dataset.dto.ValueFormat;
 import com.norma.dataset.service.OperationSupport.FindOutcome;
 import com.norma.dataset.service.OperationSupport.MatchMode;
-import com.norma.dataset.service.OperationSupport.SumOutcome;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -33,7 +32,7 @@ import java.util.stream.Collectors;
  * by id — resolving "reference" (chained) inputs between its operations server-side, with cycle
  * detection, the same way OperationPanel's own client-side chain resolution does while a model
  * is still being built. Split out from {@link DatasetOperationService}, which keeps the
- * single-operation live-editor endpoints (lookup/sum/... each called individually while a model
+ * single-operation live-editor endpoints (lookup/find/... each called individually while a model
  * is being built) — this service instead only ever deals with a whole model's operations at
  * once, addressed by a kind's untyped {@code Map<String,Object>} fields rather than a typed
  * per-endpoint request DTO. Range/match/translate mechanics both services need are shared via
@@ -46,7 +45,7 @@ public class ModelExecutionService {
     private static final String FORMATTER_KIND = "formatter";
     private static final String PAGE_KIND = "page";
     /** The kinds that read from a page of the dataset, and so follow the model's page selector. */
-    private static final Set<String> PAGE_AWARE_KINDS = Set.of("lookup", "sum", "find");
+    private static final Set<String> PAGE_AWARE_KINDS = Set.of("lookup", "find");
 
     /** What a model with no dataset runs against: no sheets at all (its kinds never read any, see {@link OperationTypes#requiresDataset}). */
     private static final DatasetImportResponse NO_DATASET = new DatasetImportResponse(null, null, null, List.of());
@@ -317,7 +316,7 @@ public class ModelExecutionService {
     /**
      * Points an operation at the sheet this round is on: the iterator itself learns its position in
      * its range (0 for its first sheet — what it outputs, not the sheet's own index), and any operation set to use the iterator's sheet (its {@code useIteratorSheet}
-     * field) is pointed at it — a lookup's {@code searchSheetIndex}, a sum/find's {@code sheetIndex}
+     * field) is pointed at it — a lookup's {@code searchSheetIndex}, a find's {@code sheetIndex}
      * — with its columns/range staying exactly as picked, blindly applied to each sheet. Every other operation is used as registered.
      */
     private ModelOperationInput forSheet(ModelOperationInput operation, int sheet, int position) {
@@ -326,7 +325,7 @@ public class ModelExecutionService {
             fields.put("currentIndex", position);
         } else if (Boolean.TRUE.equals(fields.get("useIteratorSheet"))) {
             // A lookup only moves where it *searches*: the value it returns is still read from the
-            // sheet picked when the operation was created (its sheetIndex). Sum/find have just the
+            // sheet picked when the operation was created (its sheetIndex). Find has just the
             // one sheet, so it is that sheet that follows the iterator.
             fields.put("lookup".equals(operation.kind()) ? "searchSheetIndex" : "sheetIndex", sheet);
         } else {
@@ -524,7 +523,6 @@ public class ModelExecutionService {
             String inputValue = applyFormatters(operation, resolveInputValue(operation, dataset, byId, cyclicIds, resolved), byId);
             return switch (operation.kind()) {
                 case "lookup" -> computeLookup(operation, dataset, inputValue, byId, cyclicIds, resolved);
-                case "sum" -> computeSum(operation, dataset);
                 case "counter" -> computeCounter(operation, dataset, byId, cyclicIds, resolved);
                 case "node" -> new ModelOperationResult(id, true, inputValue, null);
                 case "find" -> computeFind(operation, dataset, inputValue);
@@ -588,7 +586,7 @@ public class ModelExecutionService {
     /**
      * Resolves a "chainable" field the same way the frontend's getInputSource does: a literal
      * value is used as-is, a reference recursively resolves the operation it points at and uses
-     * its (string-formatted) result. Kinds with no chainable field (e.g. sum) simply have no
+     * its (string-formatted) result. Kinds with no chainable field (e.g. find) simply have no
      * "input" entry in their fields, so this falls back to an empty literal, same as the
      * frontend.
      */
@@ -774,23 +772,6 @@ public class ModelExecutionService {
         }
     }
 
-    private ModelOperationResult computeSum(ModelOperationInput operation, DatasetImportResponse dataset) {
-        Map<String, Object> fields = fieldsOf(operation);
-        int sheetIndex = intField(fields, "sheetIndex");
-        Map<String, Object> range = mapField(fields, "range");
-        int startRow = intField(range, "startRow");
-        int endRow = intField(range, "endRow");
-        int startColumn = intField(range, "startColumn");
-        int endColumn = intField(range, "endColumn");
-
-        SheetData sheet = OperationSupport.sheetAt(dataset, sheetIndex, "a somar");
-        OperationSupport.validateRange(startRow, endRow, startColumn, endColumn);
-
-        SumOutcome outcome = OperationSupport.sumRange(sheet, startRow, endRow, startColumn, endColumn);
-        return new ModelOperationResult(operation.id(), true, OperationSupport.normalizeNumber(outcome.total()), null)
-                .withTouches(List.of(DatasetTouch.range(sheetIndex, "search", startRow, endRow, startColumn, endColumn, "Onde soma")));
-    }
-
     /**
      * Unlike lookup (which reads a value from a different column of the matched row), find
      * reports the position of the match itself — the first cell within its range whose value
@@ -837,9 +818,9 @@ public class ModelExecutionService {
      * every other kind's validation failures.
      */
     /**
-     * When the model has a page selector, every lookup/sum/find reads from the page it picks
+     * When the model has a page selector, every lookup/find reads from the page it picks
      * instead of its own table: a lookup searches it and, unless it keeps its original page for the
-     * value, reads the value from it too; sum/find have the one sheet. Applied after the iterator's own override, so the
+     * value, reads the value from it too; find has the one sheet. Applied after the iterator's own override, so the
      * page selector wins. Other operations, and models without a page selector, are used as is.
      */
     private ModelOperationInput withSelectedPage(
@@ -959,7 +940,7 @@ public class ModelExecutionService {
     }
 
     /**
-     * A counter has no dataset dependency of its own (unlike lookup/sum): it just adds up
+     * A counter has no dataset dependency of its own (unlike lookup/find): it just adds up
      * whatever its "inputs" — each a value source, literal or chained off another operation's
      * result, same shape as lookup's single "input" — resolve to. Unlike every other kind, it can
      * have more than one chainable field, which is why cycle detection (see
@@ -1085,7 +1066,7 @@ public class ModelExecutionService {
      * "searchColumn", or a list of them, e.g. counter's "inputs") rather than by a fixed set of
      * field names, so a new chainable field on any kind is automatically covered here without
      * this needing to know its name in advance. A field that happens to be a plain map without a
-     * "reference" type (e.g. sum/find's "range") is harmlessly skipped by referencedOperationId.
+     * "reference" type (e.g. find's "range") is harmlessly skipped by referencedOperationId.
      */
     private List<String> referencedOperationIds(Map<String, Object> fields) {
         List<String> ids = new ArrayList<>();

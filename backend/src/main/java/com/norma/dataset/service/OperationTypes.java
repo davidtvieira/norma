@@ -13,7 +13,6 @@ public final class OperationTypes {
 
     public static final List<OperationType> ALL = List.of(
             new OperationType("lookup", "Lookup", true),
-            new OperationType("sum", "Sum", true),
             new OperationType("counter", "Counter", false),
             new OperationType("node", "Node", false),
             new OperationType("find", "Find", true),

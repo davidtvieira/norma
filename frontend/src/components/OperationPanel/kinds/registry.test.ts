@@ -6,7 +6,7 @@ describe('the kinds that need a dataset', () => {
   // norma without a dataset can only hold the other kinds.
   it('are the ones that read sheets, columns or ranges', () => {
     const needing = KINDS.filter((kind) => kind.requiresDataset).map((kind) => kind.id).sort();
-    expect(needing).toEqual(['find', 'iterator', 'lookup', 'page', 'sum']);
+    expect(needing).toEqual(['find', 'iterator', 'lookup', 'page']);
   });
 
   it('leave the value-only kinds available without one', () => {

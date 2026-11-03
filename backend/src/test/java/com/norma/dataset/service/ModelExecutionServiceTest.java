@@ -95,7 +95,7 @@ class ModelExecutionServiceTest {
 
     @Test
     void aModelWithoutADatasetCannotHoldAKindThatReadsOne() {
-        ModelOperationInput sum = new ModelOperationInput("s", "sum", Map.of(), "Soma");
+        ModelOperationInput sum = new ModelOperationInput("s", "find", Map.of(), "Procurar");
 
         assertThatThrownBy(() -> modelExecutionService.registerModel(
                 null, new ModelRegisterRequest("Sem dados", List.of(sum), List.of(), List.of("s"))))
@@ -190,27 +190,6 @@ class ModelExecutionServiceTest {
     }
 
     @Test
-    void runsASumOperation() {
-        SheetData sales = new SheetData("Vendas", 2, List.of(
-                new RowData(0, List.of(new CellData(0, 10L))),
-                new RowData(1, List.of(new CellData(0, 5L)))
-        ));
-        String datasetId = storeDataset(new DatasetImportResponse("dataset-model-sum", "test.xlsx", Instant.now(), List.of(sales)));
-
-        ModelOperationInput sum = new ModelOperationInput("op-1", "sum", Map.of(
-                "sheetIndex", 0,
-                "range", Map.of("startRow", 0, "endRow", 1, "startColumn", 0, "endColumn", 0)));
-
-        ModelOperationResult result = registerAndRun(datasetId, List.of(sum), null, "op-1", null);
-
-        assertThat(result.success()).isTrue();
-        // A whole-number sum normalizes to a Long, same as a whole-number cell value already does
-        // (see OperationSupport.normalizeNumber) — so a downstream reference to it stringifies
-        // as "15", not "15.0", matching cells the same way the frontend's own testing does.
-        assertThat(result.value()).isEqualTo(15L);
-    }
-
-    @Test
     void chainsALookupsResultIntoAnotherLookupsInput() {
         String datasetId = twoSheetDataset();
 
@@ -241,18 +220,17 @@ class ModelExecutionServiceTest {
     }
 
     @Test
-    void chainsAWholeNumberSumsResultIntoALookupsInputWithoutATrailingDecimal() {
+    void chainsAWholeNumberCountersResultIntoALookupsInputWithoutATrailingDecimal() {
         SheetData clients = new SheetData("Clientes", 3, List.of(
                 new RowData(0, List.of(new CellData(0, 10L), new CellData(1, "Ana"))),
                 new RowData(1, List.of(new CellData(0, 15L), new CellData(1, "Bruno")))
         ));
-        String datasetId = storeDataset(new DatasetImportResponse("dataset-sum-lookup-chain", "test.xlsx", Instant.now(), List.of(clients)));
+        String datasetId = storeDataset(new DatasetImportResponse("dataset-counter-lookup-chain", "test.xlsx", Instant.now(), List.of(clients)));
 
-        // Sums to a whole number (15) that must match a Long-typed cell's own "15" — a naive
-        // String.valueOf(Double) on the raw sum would instead produce "15.0" and never match.
-        ModelOperationInput sum = new ModelOperationInput("op-1", "sum", Map.of(
-                "sheetIndex", 0,
-                "range", Map.of("startRow", 1, "endRow", 1, "startColumn", 0, "endColumn", 0)));
+        // Adds up to a whole number (15) that must match a Long-typed cell's own "15" — a naive
+        // String.valueOf(Double) on the raw total would instead produce "15.0" and never match.
+        ModelOperationInput sum = new ModelOperationInput("op-1", "counter", Map.of(
+                "inputs", List.of(literalInput("10"), literalInput("5"))));
         ModelOperationInput findByTotal = new ModelOperationInput("op-2", "lookup", Map.of(
                 "startRow", literalInput("0"),
                 "input", referenceInput("op-1"),
@@ -314,8 +292,7 @@ class ModelExecutionServiceTest {
         String datasetId = twoSheetDataset();
 
         ModelOperationInput unknown = new ModelOperationInput("op-1", "does-not-exist", Map.of());
-        ModelOperationInput sum = new ModelOperationInput("op-2", "sum", Map.of(
-                "sheetIndex", 0, "range", Map.of("startRow", 0, "endRow", 0, "startColumn", 0, "endColumn", 0)));
+        ModelOperationInput sum = new ModelOperationInput("op-2", "counter", Map.of("inputs", List.of(literalInput("1"))));
 
         // Only what the output (op-2) actually depends on gets computed — op-1 is never referenced
         // by it, so its broken kind never gets in the way of running the model for op-2.
@@ -367,7 +344,7 @@ class ModelExecutionServiceTest {
     @Test
     void rejectsRegisteringAModelWithoutAnOutputOperation() {
         String datasetId = twoSheetDataset();
-        List<ModelOperationInput> operations = List.of(new ModelOperationInput("op-1", "sum", Map.of(
+        List<ModelOperationInput> operations = List.of(new ModelOperationInput("op-1", "find", Map.of(
                 "sheetIndex", 0, "range", Map.of("startRow", 0, "endRow", 0, "startColumn", 0, "endColumn", 0))));
 
         assertThatThrownBy(() -> modelExecutionService.registerModel(
@@ -378,7 +355,7 @@ class ModelExecutionServiceTest {
     @Test
     void rejectsRegisteringAModelWhoseOutputDoesNotMatchAnyOperation() {
         String datasetId = twoSheetDataset();
-        List<ModelOperationInput> operations = List.of(new ModelOperationInput("op-1", "sum", Map.of(
+        List<ModelOperationInput> operations = List.of(new ModelOperationInput("op-1", "find", Map.of(
                 "sheetIndex", 0, "range", Map.of("startRow", 0, "endRow", 0, "startColumn", 0, "endColumn", 0))));
 
         assertThatThrownBy(() -> modelExecutionService.registerModel(
@@ -388,7 +365,7 @@ class ModelExecutionServiceTest {
 
     @Test
     void rejectsAnUnknownDatasetIdWhenRegisteringAModel() {
-        List<ModelOperationInput> operations = List.of(new ModelOperationInput("op-1", "sum", Map.of(
+        List<ModelOperationInput> operations = List.of(new ModelOperationInput("op-1", "find", Map.of(
                 "sheetIndex", 0, "range", Map.of("startRow", 0, "endRow", 0, "startColumn", 0, "endColumn", 0))));
 
         assertThatThrownBy(() -> modelExecutionService.registerModel(
@@ -417,11 +394,9 @@ class ModelExecutionServiceTest {
         ));
         String datasetId = storeDataset(new DatasetImportResponse("dataset-counter-1", "test.xlsx", Instant.now(), List.of(sales)));
 
-        ModelOperationInput sumA = new ModelOperationInput("op-a", "sum", Map.of(
-                "sheetIndex", 0, "range", Map.of("startRow", 0, "endRow", 0, "startColumn", 0, "endColumn", 0)));
-        ModelOperationInput sumB = new ModelOperationInput("op-b", "sum", Map.of(
-                "sheetIndex", 0, "range", Map.of("startRow", 1, "endRow", 1, "startColumn", 0, "endColumn", 0)));
-        // The counter takes both sums as inputs — this is its whole point: unlike every other
+        ModelOperationInput sumA = new ModelOperationInput("op-a", "node", Map.of("input", literalInput("10")));
+        ModelOperationInput sumB = new ModelOperationInput("op-b", "node", Map.of("input", literalInput("5")));
+        // The counter takes both values as inputs — this is its whole point: unlike every other
         // kind (at most one chainable field), it can chain off several operations at once.
         ModelOperationInput counter = new ModelOperationInput("op-counter", "counter", Map.of(
                 "inputs", List.of(referenceInput("op-a"), referenceInput("op-b"), literalInput("100"))));
@@ -473,20 +448,22 @@ class ModelExecutionServiceTest {
     }
 
     @Test
-    void iteratorMovesASumsSheetBecauseItHasNoOtherSheetToReadFrom() {
-        SheetData first = new SheetData("A", 1, List.of(new RowData(0, List.of(new CellData(0, 1L)))));
-        SheetData second = new SheetData("B", 1, List.of(new RowData(0, List.of(new CellData(0, 10L)))));
-        String datasetId = storeDataset(new DatasetImportResponse("dataset-iter-sum", "test.xlsx", Instant.now(), List.of(first, second)));
+    void iteratorMovesAFindsSheetBecauseItHasNoOtherSheetToReadFrom() {
+        SheetData first = new SheetData("A", 2, List.of(new RowData(0, List.of(new CellData(0, "k")))));
+        SheetData second = new SheetData("B", 2, List.of(new RowData(0, List.of(new CellData(1, "k")))));
+        String datasetId = storeDataset(new DatasetImportResponse("dataset-iter-find", "test.xlsx", Instant.now(), List.of(first, second)));
 
-        ModelOperationInput sum = new ModelOperationInput("op-1", "sum", Map.of(
+        ModelOperationInput find = new ModelOperationInput("op-1", "find", Map.of(
+                "input", literalInput("k"),
                 "sheetIndex", 0,
                 "useIteratorSheet", true,
-                "range", Map.of("startRow", 0, "endRow", 0, "startColumn", 0, "endColumn", 0)));
+                "range", Map.of("startRow", 0, "endRow", 0, "startColumn", 0, "endColumn", 1)));
 
         List<ModelOperationResult> results = registerAndRunMulti(
-                datasetId, List.of(iterator(0, 1), sum), null, List.of("op-1"), null);
+                datasetId, List.of(iterator(0, 1), find), null, List.of("op-1"), null);
 
-        assertThat(results).extracting(ModelOperationResult::value).containsExactly(1L, 10L);
+        // The same range on each sheet: the match is at column 0 of the first and column 1 of the second.
+        assertThat(results).extracting(ModelOperationResult::value).containsExactly("0,0", "0,1");
     }
 
     @Test
@@ -1261,7 +1238,7 @@ class ModelExecutionServiceTest {
     @Test
     void rejectsRegisteringAModelWhoseInputsIncludeAnUnknownOperation() {
         String datasetId = twoSheetDataset();
-        List<ModelOperationInput> operations = List.of(new ModelOperationInput("op-1", "sum", Map.of(
+        List<ModelOperationInput> operations = List.of(new ModelOperationInput("op-1", "find", Map.of(
                 "sheetIndex", 0, "range", Map.of("startRow", 0, "endRow", 0, "startColumn", 0, "endColumn", 0))));
 
         assertThatThrownBy(() -> modelExecutionService.registerModel(
@@ -1320,8 +1297,7 @@ class ModelExecutionServiceTest {
         ModelOperationInput broken = new ModelOperationInput("op-broken", "lookup", Map.of(
                 "startRow", literalInput("0"),
                 "input", referenceInput("does-not-exist"), "sheetIndex", 0, "searchColumn", literalInput("0"), "resultColumn", 1));
-        ModelOperationInput sum = new ModelOperationInput("op-sum", "sum", Map.of(
-                "sheetIndex", 0, "range", Map.of("startRow", 0, "endRow", 0, "startColumn", 0, "endColumn", 0)));
+        ModelOperationInput sum = new ModelOperationInput("op-sum", "counter", Map.of("inputs", List.of(literalInput("1"))));
 
         List<ModelOperationResult> results = registerAndRunMulti(
                 datasetId, List.of(broken, sum), null, List.of("op-broken", "op-sum"), null);
@@ -1334,7 +1310,7 @@ class ModelExecutionServiceTest {
     @Test
     void rejectsRegisteringAModelWhoseOutputsIncludeAnUnknownOperation() {
         String datasetId = twoSheetDataset();
-        List<ModelOperationInput> operations = List.of(new ModelOperationInput("op-1", "sum", Map.of(
+        List<ModelOperationInput> operations = List.of(new ModelOperationInput("op-1", "find", Map.of(
                 "sheetIndex", 0, "range", Map.of("startRow", 0, "endRow", 0, "startColumn", 0, "endColumn", 0))));
 
         assertThatThrownBy(() -> modelExecutionService.registerModel(datasetId, new ModelRegisterRequest(
@@ -1345,7 +1321,7 @@ class ModelExecutionServiceTest {
     @Test
     void rejectsRegisteringAModelWithAnEmptyOutputList() {
         String datasetId = twoSheetDataset();
-        List<ModelOperationInput> operations = List.of(new ModelOperationInput("op-1", "sum", Map.of(
+        List<ModelOperationInput> operations = List.of(new ModelOperationInput("op-1", "find", Map.of(
                 "sheetIndex", 0, "range", Map.of("startRow", 0, "endRow", 0, "startColumn", 0, "endColumn", 0))));
 
         assertThatThrownBy(() -> modelExecutionService.registerModel(
@@ -1364,7 +1340,7 @@ class ModelExecutionServiceTest {
     @Test
     void rejectsRunningAModelAgainstADifferentDatasetThanItWasRegisteredFor() {
         String datasetId = twoSheetDataset();
-        List<ModelOperationInput> operations = List.of(new ModelOperationInput("op-1", "sum", Map.of(
+        List<ModelOperationInput> operations = List.of(new ModelOperationInput("op-1", "find", Map.of(
                 "sheetIndex", 0, "range", Map.of("startRow", 0, "endRow", 0, "startColumn", 0, "endColumn", 0))));
         String modelId = modelExecutionService.registerModel(
                 datasetId, new ModelRegisterRequest("Test model", operations, null, List.of("op-1")));
@@ -1503,7 +1479,7 @@ class ModelExecutionServiceTest {
     @Test
     void deletesARegisteredModelSoItCanNoLongerBeRun() {
         String datasetId = twoSheetDataset();
-        List<ModelOperationInput> operations = List.of(new ModelOperationInput("op-1", "sum", Map.of(
+        List<ModelOperationInput> operations = List.of(new ModelOperationInput("op-1", "find", Map.of(
                 "sheetIndex", 0, "range", Map.of("startRow", 0, "endRow", 0, "startColumn", 0, "endColumn", 0))));
         String modelId = modelExecutionService.registerModel(
                 datasetId, new ModelRegisterRequest("Test model", operations, null, List.of("op-1")));
@@ -1525,7 +1501,7 @@ class ModelExecutionServiceTest {
     @Test
     void rejectsDeletingAModelThatBelongsToADifferentDataset() {
         String datasetId = twoSheetDataset();
-        List<ModelOperationInput> operations = List.of(new ModelOperationInput("op-1", "sum", Map.of(
+        List<ModelOperationInput> operations = List.of(new ModelOperationInput("op-1", "find", Map.of(
                 "sheetIndex", 0, "range", Map.of("startRow", 0, "endRow", 0, "startColumn", 0, "endColumn", 0))));
         String modelId = modelExecutionService.registerModel(
                 datasetId, new ModelRegisterRequest("Test model", operations, null, List.of("op-1")));

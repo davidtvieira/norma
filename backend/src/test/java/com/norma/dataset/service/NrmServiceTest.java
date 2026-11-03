@@ -24,7 +24,7 @@ class NrmServiceTest {
 
     private static final String MODEL = """
             {"version":1,"modelName":"M","datasetId":"d","inputOperationIds":[],"outputOperationIds":["a"],
-             "operations":[{"id":"a","kind":"sum","name":"Soma","fields":{},"position":{"x":0,"y":0},
+             "operations":[{"id":"a","kind":"find","name":"Soma","fields":{},"position":{"x":0,"y":0},
                "operations":[{"id":"b","kind":"lookup","name":"L","fields":{},"operations":[]}]}]}""";
     // A "node" operation just returns its (literal) input, so no dataset content is needed to run it.
     private static final String MODEL_WITH_INPUT = """
@@ -142,7 +142,7 @@ class NrmServiceTest {
     void rejectsMalformedModelsAndUnknownOperationKinds() throws IOException {
         assertRejected(entries("not json", INFO));
         assertRejected(entries("{\"modelName\":\"M\"}", INFO));
-        assertRejected(entries(MODEL.replace("\"sum\"", "\"bogus\""), INFO));
+        assertRejected(entries(MODEL.replace("\"find\"", "\"bogus\""), INFO));
         assertRejected(entries(MODEL.replace("\"fields\":{},\"position\"", "\"position\""), INFO));
     }
 

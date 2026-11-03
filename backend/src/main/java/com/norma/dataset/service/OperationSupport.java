@@ -50,9 +50,6 @@ final class OperationSupport {
         }
     }
 
-    record SumOutcome(double total, int cellsSummed) {
-    }
-
     record FindOutcome(boolean found, Integer rowIndex, Integer columnIndex, String value) {
     }
 
@@ -82,24 +79,6 @@ final class OperationSupport {
         if (endRow < startRow || endColumn < startColumn) {
             throw new IllegalArgumentException("The end of the range cannot be before its start.");
         }
-    }
-
-    static SumOutcome sumRange(SheetData sheet, int startRow, int endRow, int startColumn, int endColumn) {
-        double total = 0;
-        int cellsSummed = 0;
-        for (RowData row : sheet.rows()) {
-            if (row.rowIndex() < startRow || row.rowIndex() > endRow) {
-                continue;
-            }
-            for (int column = startColumn; column <= endColumn; column++) {
-                Object value = cellValue(row, column);
-                if (value instanceof Number number) {
-                    total += number.doubleValue();
-                    cellsSummed++;
-                }
-            }
-        }
-        return new SumOutcome(total, cellsSummed);
     }
 
     /** Scans the range row by row, then column by column within each row, for the first cell
@@ -328,7 +307,7 @@ final class OperationSupport {
     /**
      * Mirrors {@link DatasetParserService}'s own cell-value normalization — the single copy both
      * that service (parsing whole-number cells) and {@link ModelExecutionService} (stringifying a
-     * whole-number sum/counter result so it matches a whole-number cell the same way, "24" not
+     * whole-number counter result so it matches a whole-number cell the same way, "24" not
      * "24.0") now share, instead of each keeping its own independent copy.
      */
     /** Parses a decimal number (a comma is accepted as the decimal separator) for the calc operation. */

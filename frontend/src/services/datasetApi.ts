@@ -16,7 +16,6 @@ import type { CategoryNode } from '../types/category';
 import type { LibraryListingPayload, SavedNrmPayload, SavedNrmQuery } from '../types/savedNrm';
 import type { NodeRequestPayload, NodeResponsePayload } from '../types/node';
 import type { OperationType } from '../types/operation';
-import type { SumRequestPayload, SumResponsePayload } from '../types/sum';
 import type { TranslatorRequestPayload, TranslatorResponsePayload } from '../types/translator';
 
 /**
@@ -298,26 +297,7 @@ export async function findMatch(payload: FindRequestPayload): Promise<FindRespon
 }
 
 /**
- * Sums the numeric values of every cell within a rectangular range, against a previously
- * imported dataset. The range filtering, numeric-cell filtering and summing all happen on the
- * API — the frontend only sends the inputs and renders the returned total.
- */
-export async function sumColumn(payload: SumRequestPayload): Promise<SumResponsePayload> {
-  const response = await apiFetch(`${API_BASE_URL}/api/v1/dataset/operation/sum`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    throw await apiError(response, 'Falha ao somar a coluna');
-  }
-
-  return response.json();
-}
-
-/**
- * Adds up however many already-resolved values it's given. Unlike lookup/sum, a counter has no
+ * Adds up however many already-resolved values it's given. Unlike lookup/find, a counter has no
  * dataset dependency of its own — each value was already resolved client-side (a typed literal,
  * or another operation's own live result) before this is called, so no datasetId/table/column/
  * range is sent, only the values — the API just does the actual addition.

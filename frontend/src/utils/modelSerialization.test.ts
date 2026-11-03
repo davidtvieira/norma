@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildModelExport, parseModelImport, ModelImportError, type SerializableEntry } from './modelSerialization';
 import { literalSource } from '../types/valueSource';
 
-const KNOWN_KIND_IDS = new Set(['lookup', 'sum', 'node']);
+const KNOWN_KIND_IDS = new Set(['lookup', 'find', 'node']);
 
 function entry(overrides: Partial<SerializableEntry> & Pick<SerializableEntry, 'id' | 'kindId'>): SerializableEntry {
   return {
@@ -17,7 +17,7 @@ function entry(overrides: Partial<SerializableEntry> & Pick<SerializableEntry, '
 describe('buildModelExport / parseModelImport round trip', () => {
   it('preserves every confirmed operation, its fields, name and position', () => {
     const entries = [
-      entry({ id: 'op-1', kindId: 'sum', name: 'Total', fields: { sheetIndex: 0 }, position: { x: 10, y: 20 } }),
+      entry({ id: 'op-1', kindId: 'find', name: 'Total', fields: { sheetIndex: 0 }, position: { x: 10, y: 20 } }),
     ];
 
     const exported = buildModelExport(entries, 'My model', 'dataset-1', [], ['op-1']);
@@ -43,7 +43,7 @@ describe('buildModelExport / parseModelImport round trip', () => {
 
   it('drops unconfirmed (draft) entries from the export entirely', () => {
     const entries = [
-      entry({ id: 'op-1', kindId: 'sum', confirmed: true }),
+      entry({ id: 'op-1', kindId: 'find', confirmed: true }),
       entry({ id: 'op-2', kindId: 'node', confirmed: false }),
     ];
 
@@ -84,7 +84,7 @@ describe('buildModelExport / parseModelImport round trip', () => {
     const entries = [
       entry({ id: 'op-a', kindId: 'node' }),
       entry({ id: 'op-b', kindId: 'node' }),
-      entry({ id: 'op-c', kindId: 'sum' }),
+      entry({ id: 'op-c', kindId: 'find' }),
     ];
 
     const exported = buildModelExport(entries, 'Model', 'dataset-1', ['op-a', 'op-b'], ['op-c']);
@@ -103,7 +103,7 @@ describe('buildModelExport / parseModelImport round trip', () => {
       outputOperationId: 'op-b',
       operations: [
         { id: 'op-a', kind: 'node', name: 'Input', fields: {}, position: { x: 0, y: 0 }, operations: [] },
-        { id: 'op-b', kind: 'sum', name: 'Output', fields: {}, position: { x: 0, y: 0 }, operations: [] },
+        { id: 'op-b', kind: 'find', name: 'Output', fields: {}, position: { x: 0, y: 0 }, operations: [] },
       ],
     });
 
@@ -120,7 +120,7 @@ describe('buildModelExport / parseModelImport round trip', () => {
       datasetId: 'dataset-1',
       inputOperationIds: [],
       outputOperationIds: ['op-1'],
-      operations: [{ id: 'op-1', kind: 'sum', name: 'Total', fields: {}, operations: [] }],
+      operations: [{ id: 'op-1', kind: 'find', name: 'Total', fields: {}, operations: [] }],
     });
 
     const imported = parseModelImport(json, KNOWN_KIND_IDS);
@@ -154,7 +154,7 @@ describe('buildModelExport / parseModelImport round trip', () => {
       version: 1,
       modelName: 'Model',
       datasetId: 'dataset-1',
-      operations: [{ id: 'op-1', kind: 'sum' }],
+      operations: [{ id: 'op-1', kind: 'find' }],
     });
 
     expect(() => parseModelImport(json, KNOWN_KIND_IDS)).toThrow(ModelImportError);

@@ -79,7 +79,7 @@ export const translatorKind: OperationKind = {
     return findDuplicateSources(f.rules).size === 0;
   },
 
-  // Unlike lookup/sum, a translator has no table/column/range to pick — its whole configuration
+  // Unlike lookup/find, a translator has no table/column/range to pick — its whole configuration
   // is the mapping table itself, edited here the same way lookup picks its table/columns: once,
   // at draft time, not on the confirmed card (which only shows the chainable "input" — see
   // renderBody — collapsed by default like every other kind's).

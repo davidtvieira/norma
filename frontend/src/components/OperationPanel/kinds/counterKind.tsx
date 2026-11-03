@@ -19,7 +19,7 @@ function asCounterFields(fields: OperationFields): CounterFields {
 }
 
 /**
- * Unlike lookup/sum, a counter has no table/column/range to set up at all — it just adds up
+ * Unlike lookup/find, a counter has no table/column/range to set up at all — it just adds up
  * whatever its inputs resolve to — so there's nothing to configure before confirming (see
  * renderDraftConfig below); the inputs themselves, like every other kind's chainable value, are
  * only edited on the confirmed card (renderBody). Unlike every other kind's chainable field, a
@@ -244,7 +244,7 @@ type CounterRequestState =
  * Runs the operation on the API, same as SumResult/LookupResult: the frontend only resolves
  * *which* values the counter's inputs currently stand for (see resolveOperationInputs) — the
  * actual addition happens server-side, via POST /api/v1/dataset/operation/counter, given just
- * those already-resolved values (no dataset/table/column/range, unlike lookup/sum, since a
+ * those already-resolved values (no dataset/table/column/range, unlike lookup/find, since a
  * counter isn't tied to any of those).
  */
 function CounterResult({ resolvedInputs, hasUnsetInput, testSignal, resetSignal, onResultChange }: CounterResultProps) {
@@ -294,7 +294,7 @@ function CounterResult({ resolvedInputs, hasUnsetInput, testSignal, resetSignal,
     // A referenced operation's own result can go from pending to ready mid test-cycle (once its
     // own upstream fetch resolves) — including briefly going *back* to pending right after a
     // fresh "Testar modelo" click, before that operation's own re-fetch has produced its new
-    // value yet. Unlike lookup/sum, a counter has no single "already responded to this click"
+    // value yet. Unlike lookup/find, a counter has no single "already responded to this click"
     // latch: it simply always calls the API with whatever its inputs currently resolve to once
     // every one of them is ready, however many pending/ready flips it takes to get there. A
     // latch here caused a real bug — a stale "ready" read (this operation's own last-computed

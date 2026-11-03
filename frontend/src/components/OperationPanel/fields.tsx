@@ -46,7 +46,7 @@ export function TableSelect({ label, dataset, sheetIndex, onSelect, disabled = f
 }
 
 /**
- * Shown while setting up a sheet-based operation (lookup/sum/find) in a model that has a page
+ * Shown while setting up a sheet-based operation (lookup/find) in a model that has a page
  * selector: the table picked here is replaced by the page the selector picks (see
  * PageSheetNotice for the same thing on the confirmed card).
  */
@@ -72,7 +72,7 @@ interface PageSheetNoticeProps {
 }
 
 /**
- * Tells a sheet-based operation (lookup/sum/find) that it is following the model's page selector:
+ * Tells a sheet-based operation (lookup/find) that it is following the model's page selector:
  * every such operation automatically reads from the page the selector picks (see pageSelector.ts),
  * with nothing to switch on per operation.
  */
@@ -103,7 +103,7 @@ interface IteratorSheetToggleProps {
  * iterator is on instead of its own fixed table (for a lookup, only where it searches — see its own
  * label/hint), keeping its columns/range exactly as picked (against the sample table) and blindly
  * applying them to every iterated sheet. Offered at the top of a
- * sheet-based operation's body (lookup/sum/find), only while the model actually has an iterator.
+ * sheet-based operation's body (lookup/find), only while the model actually has an iterator.
  */
 export function IteratorSheetToggle({
   iteratorSheet,

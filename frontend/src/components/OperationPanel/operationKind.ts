@@ -79,7 +79,7 @@ export interface OperationBodyContext {
   iteratorSheet: number | null;
   /** The dataset's sheet names, by sheet index. */
   sheetNames: string[];
-  /** The page the model's page selector picks — every sheet-based operation (lookup/sum/find) reads
+  /** The page the model's page selector picks — every sheet-based operation (lookup/find) reads
    * from it automatically. null when the model has no page selector, -1 while it has no valid
    * result yet (the operations skip their request for a negative page). */
   pageSheet: number | null;
