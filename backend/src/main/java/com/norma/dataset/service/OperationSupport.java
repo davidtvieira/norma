@@ -311,6 +311,14 @@ final class OperationSupport {
      * "24.0") now share, instead of each keeping its own independent copy.
      */
     /** Parses a decimal number (a comma is accepted as the decimal separator) for the calc operation. */
+    /** One value of a calc made with a list: a blank one says so, any other that is not a number says which input it is. */
+    static double parseCalcInput(String value, int position) {
+        if (value == null || value.trim().isEmpty()) {
+            throw new IllegalArgumentException("Input " + position + " has no value.");
+        }
+        return parseNumber(value, "input " + position);
+    }
+
     static double parseNumber(String value, String fieldName) {
         String trimmed = value == null ? "" : value.trim();
         try {

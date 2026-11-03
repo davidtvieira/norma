@@ -122,7 +122,7 @@ public class DatasetOperationService {
         if (request.values() != null) {
             List<Double> values = new ArrayList<>();
             for (String value : request.values()) {
-                values.add(OperationSupport.parseNumber(value, "input " + (values.size() + 1)));
+                values.add(OperationSupport.parseCalcInput(value, values.size() + 1));
             }
             return new CalcResponse(OperationSupport.calculateAll(values, request.operation(), request.format()));
         }

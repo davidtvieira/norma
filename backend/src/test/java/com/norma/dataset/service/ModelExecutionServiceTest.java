@@ -997,6 +997,12 @@ class ModelExecutionServiceTest {
     }
 
     @Test
+    void aCalcWithAListSaysWhichInputIsEmptyOrNotANumber() {
+        assertThat(runCalcOver("add", "none", "1", "").error()).contains("Input 2 has no value");
+        assertThat(runCalcOver("add", "none", "1", "x").error()).contains("input 2");
+    }
+
+    @Test
     void aCalcWhoseInputsReferenceItselfFailsInsteadOfHanging() {
         ModelOperationInput calc = new ModelOperationInput("calc", "calc", Map.of(
                 "inputs", List.of(referenceInput("calc"), literalInput("1")), "operation", "add", "format", "none"), "calc");

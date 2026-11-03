@@ -21,6 +21,9 @@ server:
   port: 8080
 
 norma:
+  baseline:
+    # TEMPORARY, for the one-off conversion of saved normas (see the legacy package): what each one answered before it.
+    dir: ${NORMA_BASELINE_DIR:./data/baseline}
   storage:
     # Where the saved .nrm files are kept, one <id>.nrm each. Back this folder up together with the database.
     dir: ${NORMA_STORAGE_DIR:./data/nrm}
