@@ -9,6 +9,7 @@ import { NormaCard } from '../components/NormaCard/NormaCard';
 import { NormasExportButton, NormasToolbar, type NormasView } from '../components/NormasToolbar/NormasToolbar';
 import { NormaTree, NormaTreeEnd } from '../components/NormaTree/NormaTree';
 import { NormaInfoModal } from '../components/NormaInfoModal/NormaInfoModal';
+import { ConvertNormasModal } from '../components/ConvertNormasModal/ConvertNormasModal';
 import { useNormaTree } from '../hooks/useNormaTree';
 import { buildNormaTree } from '../utils/normaTree';
 import { CategoryModal } from '../components/CategoryModal/CategoryModal';
@@ -190,6 +191,8 @@ export function NormasScreen({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  // TEMPORARY: the one-off conversion of the saved normas (see ConvertNormasModal).
+  const [isConverting, setIsConverting] = useState(false);
   // The norma being dragged right now, if any: one that is in a folder gets a card to drop it on to take it out.
   const [draggedNorma, setDraggedNorma] = useState<SavedNrmPayload | null>(null);
 
@@ -214,6 +217,15 @@ export function NormasScreen({
                 </span>
               )}
             </div>
+            {/* TEMPORARY, deleted with the conversion once every norma is converted. */}
+            <button
+              type="button"
+              className="btn btn--secondary"
+              onClick={() => setIsConverting(true)}
+              title="Converte as normas guardadas para o formato atual, testando cada uma com os mesmos valores de antes."
+            >
+              Converter normas
+            </button>
             <NormasExportButton
               disabled={isExporting}
               onExport={() => {
@@ -395,6 +407,7 @@ export function NormasScreen({
       )}
 
       {infoFor && <NormaInfoModal model={infoFor} onClose={() => setInfoFor(null)} />}
+      {isConverting && <ConvertNormasModal onClose={() => setIsConverting(false)} />}
 
       {pendingDelete && (
         <ConfirmModal

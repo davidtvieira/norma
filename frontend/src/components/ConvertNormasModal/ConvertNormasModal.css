@@ -1,0 +1,85 @@
+.convert-normas__option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.convert-normas__summary {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--btn-primary-bg);
+}
+
+.convert-normas__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+}
+
+.convert-normas__row {
+  padding: 0.55rem 0.8rem;
+}
+
+.convert-normas__row + .convert-normas__row {
+  border-top: 1px solid var(--color-border);
+}
+
+.convert-normas__line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.convert-normas__name {
+  min-width: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.convert-normas__description {
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.convert-normas__status {
+  flex: none;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.convert-normas__status--converted,
+.convert-normas__status--verified {
+  color: var(--color-success);
+}
+
+.convert-normas__status--running {
+  color: var(--btn-primary-bg);
+}
+
+.convert-normas__status--failed,
+.convert-normas__status--error {
+  color: var(--color-error);
+}
+
+.convert-normas__detail,
+.convert-normas__problem {
+  margin: 0.2rem 0 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.convert-normas__problem {
+  color: var(--color-error);
+}

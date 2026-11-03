@@ -13,6 +13,7 @@ import type {
 import type { SelectorRequestPayload, SelectorResponsePayload } from '../types/selector';
 import type { NrmImportStatusPayload, NrmInfoPayload, NrmOpenPayload } from '../types/nrm';
 import type { CategoryNode } from '../types/category';
+import type { ConversionReportPayload } from '../types/conversion';
 import type { LibraryListingPayload, SavedNrmPayload, SavedNrmQuery } from '../types/savedNrm';
 import type { NodeRequestPayload, NodeResponsePayload } from '../types/node';
 import type { OperationType } from '../types/operation';
@@ -613,6 +614,19 @@ export async function assignSavedNrmCategory(id: string, categoryId: string | nu
   });
   if (!response.ok) {
     throw await apiError(response, 'Falha ao mudar a pasta da norma');
+  }
+  return response.json();
+}
+
+/**
+ * TEMPORARY, with the "Converter normas" button: converts one saved norma to the current model shape. The backend does it in
+ * memory, runs the norma's saved test cases on the result and compares them with what it answered before, and only then
+ * saves it (never with `dryRun`). A norma that does not check out comes back as `failed`, untouched.
+ */
+export async function convertNorma(id: string, dryRun: boolean): Promise<ConversionReportPayload> {
+  const response = await apiFetch(`${API_BASE_URL}/api/v1/library/${encodeURIComponent(id)}/convert?dryRun=${dryRun}`, { method: 'POST' });
+  if (!response.ok) {
+    throw await apiError(response, 'Falha ao converter a norma');
   }
   return response.json();
 }
