@@ -276,8 +276,9 @@ public class NrmService {
 
     /**
      * Every operation the engine runs for a model: the ones on its canvas (the tree, flattened) and, after them, the model's
-     * settings as the operations they are to the engine: one formatter for each rule set in {@code settings.validation}, and
-     * the page selector of {@code settings.page}. The settings keep them out of the canvas; the engine runs them as before.
+     * settings as the operations they are to the engine: one formatter for each rule set in {@code settings.validation}, the
+     * page selector of {@code settings.page} and the iterator of {@code settings.iteration}. The settings keep them out of the
+     * canvas; the engine runs them as before.
      */
     private List<ModelOperationInput> operationsOf(JsonNode model) {
         List<ModelOperationInput> operations = new ArrayList<>();
@@ -292,6 +293,11 @@ public class NrmService {
         if (page.isObject()) {
             Map<String, Object> fields = objectMapper.convertValue(page.path("fields"), new TypeReference<>() { });
             operations.add(new ModelOperationInput(page.path("id").asText(), "page", fields, page.path("name").asText()));
+        }
+        JsonNode iteration = model.path("settings").path("iteration");
+        if (iteration.isObject()) {
+            Map<String, Object> fields = objectMapper.convertValue(iteration.path("fields"), new TypeReference<>() { });
+            operations.add(new ModelOperationInput(iteration.path("id").asText(), "iterator", fields, iteration.path("name").asText()));
         }
         return operations;
     }
@@ -465,7 +471,7 @@ public class NrmService {
         validateSettings(model.path("settings"));
     }
 
-    /** The model's optional settings: its input validation rule sets and its page selector, each an id, a name and its fields. */
+    /** The model's optional settings: its input validation rule sets, its page selector and its iteration, each an id, a name and its fields. */
     private void validateSettings(JsonNode settings) {
         if (settings.isMissingNode() || settings.isNull()) {
             return;
@@ -480,6 +486,9 @@ public class NrmService {
         }
         if (!settings.path("page").isMissingNode() && !isSettingEntry(settings.path("page"))) {
             throw invalid("the model has a malformed page selector setting.");
+        }
+        if (!settings.path("iteration").isMissingNode() && !isSettingEntry(settings.path("iteration"))) {
+            throw invalid("the model has a malformed iteration setting.");
         }
     }
 

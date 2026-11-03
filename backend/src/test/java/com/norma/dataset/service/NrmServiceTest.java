@@ -108,6 +108,35 @@ class NrmServiceTest {
                 assertThat(result.success()).isFalse());
     }
 
+    /** An iteration kept in the model's settings over the dataset's only page; a node on the canvas reads its position. */
+    private static final String MODEL_WITH_ITERATION_SETTING = """
+            {"modelName":"M","datasetId":"d","inputOperationIds":[],"outputOperationIds":["n"],
+             "operations":[
+               {"id":"n","kind":"node","name":"Posição","fields":{"input":{"type":"reference","operationId":"it"}},"operations":[]}],
+             "settings":{"iteration":{"id":"it","name":"Iterador","fields":{"startSheet":0,"endSheet":0,"previewSheet":"","descriptions":["Só uma"]}}}}""";
+
+    @Test
+    void aModelsIterationSettingRunsItOncePerPageAndCanBeReferenced() throws IOException {
+        NrmImportStatus imported = nrmService.importNrm(nrm("a.nrm", entries(MODEL_WITH_ITERATION_SETTING, INFO)));
+
+        assertThat(nrmService.run(imported.nrmId(), Map.of())).singleElement().satisfies(result -> {
+            assertThat(result.success()).isTrue();
+            assertThat(result.value()).isEqualTo("0");
+            assertThat(result.name()).isEqualTo("Só uma");
+        });
+    }
+
+    @Test
+    void aModelWithAnIterationSettingNeedsADatasetAndPagesThatExist() throws IOException {
+        Map<String, byte[]> withoutDataset = new LinkedHashMap<>();
+        withoutDataset.put("modelo.json", MODEL_WITH_ITERATION_SETTING.getBytes(StandardCharsets.UTF_8));
+        withoutDataset.put("info.json", "{\"version\":2,\"name\":\"Vendas\",\"createdAt\":\"2026-10-19T13:04:00.000Z\"}".getBytes(StandardCharsets.UTF_8));
+        assertThatThrownBy(() -> nrmService.importNrm(nrm("a.nrm", withoutDataset))).isInstanceOf(ModelDatasetMismatchException.class);
+
+        String tooFar = MODEL_WITH_ITERATION_SETTING.replace("\"endSheet\":0", "\"endSheet\":5");
+        assertThatThrownBy(() -> nrmService.importNrm(nrm("a.nrm", entries(tooFar, INFO)))).isInstanceOf(ModelDatasetMismatchException.class);
+    }
+
     @Test
     void aModelWithAPageSettingNeedsADataset() throws IOException {
         Map<String, byte[]> withoutDataset = new LinkedHashMap<>();

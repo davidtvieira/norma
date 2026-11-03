@@ -23,6 +23,11 @@ final class ModelDatasetValidator {
         for (JsonNode operation : model.path("operations")) {
             assertOperationFits(operation, sheetCount);
         }
+        // The iteration of the settings has a range of pages, like the iterator it stands for.
+        JsonNode iteration = model.path("settings").path("iteration");
+        if (iteration.isObject()) {
+            assertOperationFits(iteration, sheetCount);
+        }
     }
 
     /**
@@ -37,6 +42,11 @@ final class ModelDatasetValidator {
         JsonNode page = model.path("settings").path("page");
         if (page.isObject()) {
             throw new ModelDatasetMismatchException("The page selector \"" + page.path("name").asText()
+                    + "\" needs a dataset, but the model has none.");
+        }
+        JsonNode iteration = model.path("settings").path("iteration");
+        if (iteration.isObject()) {
+            throw new ModelDatasetMismatchException("The iteration \"" + iteration.path("name").asText()
                     + "\" needs a dataset, but the model has none.");
         }
     }

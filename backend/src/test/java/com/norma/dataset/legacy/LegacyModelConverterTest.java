@@ -135,4 +135,29 @@ class LegacyModelConverterTest {
         // Moving it again changes nothing.
         assertThat(LegacyModelConverter.convert(result.model()).changes().any()).isFalse();
     }
+
+    private static final String WITH_ITERATOR = """
+            {"modelName":"M","operations":[
+              {"id":"it","kind":"iterator","name":"Iterador de Páginas","fields":{"startSheet":1,"endSheet":13,"previewSheet":"","descriptions":["A","B"]},"position":{"x":1,"y":2},"operations":[
+                {"id":"s","kind":"selector","name":"Escolher Página","fields":{"index":{"type":"reference","operationId":"it"},"inputs":[]},"position":{"x":3,"y":4},"operations":[
+                  {"id":"l","kind":"lookup","name":"Encontrar","fields":{"input":{"type":"reference","operationId":"s"}},"position":{"x":5,"y":6},"operations":[]}]}]}]}""";
+
+    @Test
+    void theIteratorLeavesTheCanvasForTheSettingsAndWhatWasUnderItStaysInItsPlace() throws Exception {
+        LegacyModelConverter.Result result = LegacyModelConverter.convert(model(WITH_ITERATOR));
+
+        assertThat(result.changes().iterations()).isEqualTo(1);
+        // The selector (and the lookup under it) now sit where the iterator was.
+        assertThat(result.model().path("operations")).hasSize(1);
+        assertThat(result.model().path("operations").get(0).path("id").asText()).isEqualTo("s");
+        assertThat(result.model().path("operations").get(0).path("operations").get(0).path("id").asText()).isEqualTo("l");
+        JsonNode iteration = result.model().path("settings").path("iteration");
+        assertThat(iteration.path("id").asText()).isEqualTo("it");
+        assertThat(iteration.path("name").asText()).isEqualTo("Iterador de Páginas");
+        assertThat(iteration.path("fields").path("startSheet").asInt()).isEqualTo(1);
+        assertThat(iteration.path("fields").path("descriptions")).hasSize(2);
+        // What referenced it still does, by the same id.
+        assertThat(result.model().path("operations").get(0).path("fields").path("index").path("operationId").asText()).isEqualTo("it");
+        assertThat(LegacyModelConverter.convert(result.model()).changes().any()).isFalse();
+    }
 }
