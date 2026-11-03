@@ -47,7 +47,7 @@ export interface ChainableFields {
   input: ValueSource;
 }
 
-/** Fields shape a kind with *several* chainable inputs exposes (e.g. counter, which sums
+/** Fields shape a kind with *several* chainable inputs exposes (e.g. calc, which combines
  * however many it's given) — a list instead of the single `input` above. */
 export interface MultiChainableFields {
   inputs: ValueSource[];
@@ -79,7 +79,7 @@ function isValueSource(value: unknown): value is ValueSource {
 /**
  * Reads every chainable value source a kind's fields hold, in object-key order: a field that is
  * itself a value source (lookup's "input", node's/find's value, lookup's "searchColumn", ...)
- * contributes one, and a field holding a *list* of them (counter's "inputs") contributes each
+ * contributes one, and a field holding a *list* of them (calc's "inputs") contributes each
  * element. A kind may have both — a selector's "index" followed by its "inputs" — in which case
  * its single fields and list elements appear in the order its fields are declared (the kind
  * itself is responsible for declaring them in a fixed order). A list that's empty is still a

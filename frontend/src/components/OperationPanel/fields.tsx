@@ -244,7 +244,7 @@ interface ValueSourceFieldProps {
   resolvedInput: ResolvedInput;
   /**
    * When true, this field can only ever be a reference to another operation — no "Input
-   * estático" side to the toggle, no plain typed value at all. Used by counter, which sums
+   * estático" side to the toggle, no plain typed value at all. Used by a list of references, which sums
    * *other operations'* results by design, not values typed in by hand; with nothing yet to
    * reference, this shows a warning instead of a field with nothing useful to pick.
    */
@@ -252,9 +252,9 @@ interface ValueSourceFieldProps {
   /**
    * Overrides what clicking a confirmed *dynamic* pill does: instead of backing out to the
    * reference list (the default — see `reset`), it removes this field/row entirely. Used by
-   * counter, where each input is its own removable row rather than a single fixed field — once a
+   * a list, where each input is its own removable row rather than a single fixed field — once a
    * row's reference is picked, clicking its pill deletes that row outright (the same way a fresh,
-   * not-yet-picked row is cancelled — see CounterInputs' own row-remove button) instead of just
+   * not-yet-picked row is cancelled — see CalcInputs' own row-remove button) instead of just
    * clearing back to "pick again".
    */
   onRemove?: () => void;
@@ -263,7 +263,7 @@ interface ValueSourceFieldProps {
    * order, shown numbered) instead of just one. Picking exactly one still goes through `onChange`
    * as usual; picking two or more calls this instead, with every selected operation id in order —
    * the caller is expected to put the first in this field's own row and add one more row per
-   * remaining id. Used by the list kinds (counter's/selector's inputs), where each reference is its
+   * remaining id. Used by the list kinds (selector's inputs), where each reference is its
    * own row; meaningless for a single-valued field, which has nowhere to put the extras.
    */
   onPickMany?: (operationIds: string[]) => void;

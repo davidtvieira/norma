@@ -80,7 +80,7 @@ class ModelExecutionServiceTest {
     void runsAModelRegisteredWithoutADataset() {
         ModelOperationInput node = new ModelOperationInput("n", "node", Map.of("input", literalInput("")), "Valor");
         ModelOperationInput calc = new ModelOperationInput("c", "calc",
-                Map.of("a", referenceInput("n"), "b", literalInput("2"), "operation", "multiply"), "Dobro");
+                Map.of("inputs", List.of(referenceInput("n"), literalInput("2")), "operation", "multiply"), "Dobro");
 
         String modelId = modelExecutionService.registerModel(
                 null, new ModelRegisterRequest("Sem dados", List.of(node, calc), List.of("n"), List.of("c")));
@@ -220,17 +220,17 @@ class ModelExecutionServiceTest {
     }
 
     @Test
-    void chainsAWholeNumberCountersResultIntoALookupsInputWithoutATrailingDecimal() {
+    void chainsAWholeNumberCalcResultIntoALookupsInputWithoutATrailingDecimal() {
         SheetData clients = new SheetData("Clientes", 3, List.of(
                 new RowData(0, List.of(new CellData(0, 10L), new CellData(1, "Ana"))),
                 new RowData(1, List.of(new CellData(0, 15L), new CellData(1, "Bruno")))
         ));
-        String datasetId = storeDataset(new DatasetImportResponse("dataset-counter-lookup-chain", "test.xlsx", Instant.now(), List.of(clients)));
+        String datasetId = storeDataset(new DatasetImportResponse("dataset-calc-lookup-chain", "test.xlsx", Instant.now(), List.of(clients)));
 
         // Adds up to a whole number (15) that must match a Long-typed cell's own "15" — a naive
         // String.valueOf(Double) on the raw total would instead produce "15.0" and never match.
-        ModelOperationInput sum = new ModelOperationInput("op-1", "counter", Map.of(
-                "inputs", List.of(literalInput("10"), literalInput("5"))));
+        ModelOperationInput sum = new ModelOperationInput("op-1", "calc", Map.of(
+                "inputs", List.of(literalInput("10"), literalInput("5")), "operation", "add", "format", "none"));
         ModelOperationInput findByTotal = new ModelOperationInput("op-2", "lookup", Map.of(
                 "startRow", literalInput("0"),
                 "input", referenceInput("op-1"),
@@ -292,7 +292,7 @@ class ModelExecutionServiceTest {
         String datasetId = twoSheetDataset();
 
         ModelOperationInput unknown = new ModelOperationInput("op-1", "does-not-exist", Map.of());
-        ModelOperationInput sum = new ModelOperationInput("op-2", "counter", Map.of("inputs", List.of(literalInput("1"))));
+        ModelOperationInput sum = new ModelOperationInput("op-2", "calc", Map.of("inputs", List.of(literalInput("1")), "operation", "add", "format", "none"));
 
         // Only what the output (op-2) actually depends on gets computed — op-1 is never referenced
         // by it, so its broken kind never gets in the way of running the model for op-2.
@@ -374,11 +374,11 @@ class ModelExecutionServiceTest {
     }
 
     @Test
-    void sumsAllOfACountersInputs() {
+    void addsAllOfACalcsInputs() {
         String datasetId = twoSheetDataset();
 
-        ModelOperationInput counter = new ModelOperationInput("op-1", "counter", Map.of(
-                "inputs", List.of(literalInput("2"), literalInput("3.5"), literalInput("10"))));
+        ModelOperationInput counter = new ModelOperationInput("op-1", "calc", Map.of(
+                "inputs", List.of(literalInput("2"), literalInput("3.5"), literalInput("10")), "operation", "add", "format", "none"));
 
         ModelOperationResult result = registerAndRun(datasetId, List.of(counter), null, "op-1", null);
 
@@ -387,19 +387,19 @@ class ModelExecutionServiceTest {
     }
 
     @Test
-    void sumsSeveralOtherOperationsResultsThroughACounter() {
+    void addsSeveralOtherOperationsResultsThroughACalc() {
         SheetData sales = new SheetData("Vendas", 2, List.of(
                 new RowData(0, List.of(new CellData(0, 10L))),
                 new RowData(1, List.of(new CellData(0, 5L)))
         ));
-        String datasetId = storeDataset(new DatasetImportResponse("dataset-counter-1", "test.xlsx", Instant.now(), List.of(sales)));
+        String datasetId = storeDataset(new DatasetImportResponse("dataset-calc-1", "test.xlsx", Instant.now(), List.of(sales)));
 
         ModelOperationInput sumA = new ModelOperationInput("op-a", "node", Map.of("input", literalInput("10")));
         ModelOperationInput sumB = new ModelOperationInput("op-b", "node", Map.of("input", literalInput("5")));
-        // The counter takes both values as inputs — this is its whole point: unlike every other
+        // The calc takes both values as inputs — unlike most kinds
         // kind (at most one chainable field), it can chain off several operations at once.
-        ModelOperationInput counter = new ModelOperationInput("op-counter", "counter", Map.of(
-                "inputs", List.of(referenceInput("op-a"), referenceInput("op-b"), literalInput("100"))));
+        ModelOperationInput counter = new ModelOperationInput("op-counter", "calc", Map.of(
+                "inputs", List.of(referenceInput("op-a"), referenceInput("op-b"), literalInput("100")), "operation", "add", "format", "none"));
 
         ModelOperationResult result = registerAndRun(
                 datasetId, List.of(sumA, sumB, counter), null, "op-counter", null);
@@ -521,8 +521,8 @@ class ModelExecutionServiceTest {
                 "useIteratorSheet", true,
                 "searchColumn", literalInput("1"),
                 "resultColumn", 0));
-        ModelOperationInput counter = new ModelOperationInput("op-1", "counter", Map.of(
-                "inputs", List.of(referenceInput("op-lookup"))));
+        ModelOperationInput counter = new ModelOperationInput("op-1", "calc", Map.of(
+                "inputs", List.of(referenceInput("op-lookup")), "operation", "add", "format", "none"));
 
         List<ModelOperationResult> results = registerAndRunMulti(
                 datasetId, List.of(iterator(0, 1), lookup, counter), null, List.of("op-1"), null);
@@ -591,8 +591,8 @@ class ModelExecutionServiceTest {
     void selectorTakesItsIndexFromAnotherOperation() {
         String datasetId = twoSheetDataset();
 
-        ModelOperationInput counter = new ModelOperationInput("op-idx", "counter", Map.of(
-                "inputs", List.of(literalInput("1"), literalInput("1"))));
+        ModelOperationInput counter = new ModelOperationInput("op-idx", "calc", Map.of(
+                "inputs", List.of(literalInput("1"), literalInput("1")), "operation", "add", "format", "none"));
         ModelOperationInput selector = new ModelOperationInput("op-1", "selector", Map.of(
                 "index", Map.of("type", "reference", "operationId", "op-idx"),
                 "inputs", List.of(literalInput("a"), literalInput("b"), literalInput("c"))));
@@ -607,8 +607,8 @@ class ModelExecutionServiceTest {
     void selectorIgnoresABrokenInputItDidNotSelect() {
         String datasetId = twoSheetDataset();
 
-        ModelOperationInput broken = new ModelOperationInput("op-broken", "counter", Map.of(
-                "inputs", List.of(literalInput("not-a-number"))));
+        ModelOperationInput broken = new ModelOperationInput("op-broken", "calc", Map.of(
+                "inputs", List.of(literalInput("not-a-number")), "operation", "add", "format", "none"));
         ModelOperationInput selector = new ModelOperationInput("op-1", "selector", Map.of(
                 "index", literalInput("0"),
                 "inputs", List.of(literalInput("ok"), Map.of("type", "reference", "operationId", "op-broken"))));
@@ -661,10 +661,10 @@ class ModelExecutionServiceTest {
     }
 
     @Test
-    void reportsACounterWithNoInputsAsAnError() {
+    void reportsACalcWithNoInputsAsAnError() {
         String datasetId = twoSheetDataset();
 
-        ModelOperationInput counter = new ModelOperationInput("op-1", "counter", Map.of("inputs", List.of()));
+        ModelOperationInput counter = new ModelOperationInput("op-1", "calc", Map.of("inputs", List.of(), "operation", "add", "format", "none"));
 
         ModelOperationResult result = registerAndRun(datasetId, List.of(counter), null, "op-1", null);
 
@@ -673,11 +673,11 @@ class ModelExecutionServiceTest {
     }
 
     @Test
-    void reportsANonNumericCounterEntryAsAnError() {
+    void reportsANonNumericCalcInputAsAnError() {
         String datasetId = twoSheetDataset();
 
-        ModelOperationInput counter = new ModelOperationInput("op-1", "counter", Map.of(
-                "inputs", List.of(literalInput("not-a-number"))));
+        ModelOperationInput counter = new ModelOperationInput("op-1", "calc", Map.of(
+                "inputs", List.of(literalInput("not-a-number")), "operation", "add", "format", "none"));
 
         ModelOperationResult result = registerAndRun(datasetId, List.of(counter), null, "op-1", null);
 
@@ -686,15 +686,15 @@ class ModelExecutionServiceTest {
     }
 
     @Test
-    void reportsACircularReferenceThroughACountersMultipleInputsAsAnError() {
+    void reportsACircularReferenceThroughACalcsMultipleInputsAsAnError() {
         String datasetId = twoSheetDataset();
 
         // op-a's counter chains back to op-b, which chains back to op-a — a cycle reachable
         // through only one of the counter's two inputs, the other being a plain literal.
-        ModelOperationInput opA = new ModelOperationInput("op-a", "counter", Map.of(
-                "inputs", List.of(referenceInput("op-b"), literalInput("1"))));
-        ModelOperationInput opB = new ModelOperationInput("op-b", "counter", Map.of(
-                "inputs", List.of(referenceInput("op-a"))));
+        ModelOperationInput opA = new ModelOperationInput("op-a", "calc", Map.of(
+                "inputs", List.of(referenceInput("op-b"), literalInput("1")), "operation", "add", "format", "none"));
+        ModelOperationInput opB = new ModelOperationInput("op-b", "calc", Map.of(
+                "inputs", List.of(referenceInput("op-a")), "operation", "add", "format", "none"));
 
         ModelOperationResult result = registerAndRun(datasetId, List.of(opA, opB), null, "op-a", null);
 
@@ -849,13 +849,13 @@ class ModelExecutionServiceTest {
     }
 
     @Test
-    void aTranslatorWithSeveralInputsTranslatesEachAndACounterCanSumItsOutputs() {
+    void aTranslatorWithSeveralInputsTranslatesEachAndACalcCanAddItsOutputs() {
         String datasetId = twoSheetDataset();
         List<ModelOperationInput> operations = List.of(
                 node("a", "3"), node("b", "2"), node("c", "3"),
                 translatorOf("t", List.of(referenceInput("a"), referenceInput("b"), referenceInput("c"))),
-                new ModelOperationInput("sum", "counter", Map.of("inputs", List.of(
-                        outputRef("t", 0), outputRef("t", 1), outputRef("t", 2))), "sum"));
+                new ModelOperationInput("sum", "calc", Map.of("inputs", List.of(
+                        outputRef("t", 0), outputRef("t", 1), outputRef("t", 2)), "operation", "add", "format", "none"), "sum"));
 
         ModelOperationResult result = registerAndRun(datasetId, operations, null, "sum", null);
 
@@ -889,22 +889,8 @@ class ModelExecutionServiceTest {
         assertThat(result.success()).isFalse();
     }
 
-    @Test
-    void aTranslatorWithASingleLegacyInputStillWorks() {
-        String datasetId = twoSheetDataset();
-        ModelOperationInput legacy = new ModelOperationInput("t", "translator", Map.of(
-                "input", literalInput("3"),
-                "rules", List.of(Map.of("from", "3", "to", "1"))), "t");
-
-        ModelOperationResult result = registerAndRun(datasetId, List.of(legacy), null, "t", null);
-
-        assertThat(result.value()).isEqualTo("1");
-    }
-
     private ModelOperationResult runCalc(String operation, String format, String a, String b) {
-        ModelOperationInput calc = new ModelOperationInput("calc", "calc", Map.of(
-                "a", referenceInput("a"), "b", referenceInput("b"), "operation", operation, "format", format), "calc");
-        return registerAndRun(twoSheetDataset(), List.of(node("a", a), node("b", b), calc), null, "calc", null);
+        return runCalcOver(operation, format, a, b);
     }
 
     @Test
@@ -962,40 +948,6 @@ class ModelExecutionServiceTest {
     }
 
     /** What the two ways of writing the same calculation must agree on, for every operation and format. */
-    @Test
-    void aCalcWithAListOfTwoInputsGivesExactlyWhatTheOlderAAndBFormGives() {
-        String[][] pairs = {{"7.5", "2.25"}, {"2", "5"}, {"-3", "4,5"}, {"10", "4"}, {"0", "3"}, {"1000000", "0.001"}, {"-8", "-2"}};
-        for (String operation : List.of("add", "subtract", "multiply", "divide")) {
-            for (String format : List.of("none", "round", "abs")) {
-                for (String[] pair : pairs) {
-                    ModelOperationResult older = runCalc(operation, format, pair[0], pair[1]);
-                    ModelOperationResult newer = runCalcOver(operation, format, pair[0], pair[1]);
-                    assertThat(newer.success()).as("%s %s %s", operation, format, String.join(",", pair)).isEqualTo(older.success());
-                    assertThat(newer.value()).as("%s %s %s", operation, format, String.join(",", pair)).isEqualTo(older.value());
-                }
-            }
-        }
-    }
-
-    /** The reason Contador can become a Calcular: adding a list of other operations' values is the same either way. */
-    @Test
-    void aCalcThatAddsGivesExactlyWhatACounterGivesOverTheSameValues() {
-        String[][] sets = {{"1", "2"}, {"2", "3.5", "10"}, {"0.1", "0.2", "0.3"}, {"-4", "9", "1,5", "2"}, {"1e3", "5", "7", "11", "13"}, {"3"}};
-        for (String[] values : sets) {
-            List<ModelOperationInput> operations = new java.util.ArrayList<>();
-            List<Object> inputs = new java.util.ArrayList<>();
-            for (int index = 0; index < values.length; index++) {
-                operations.add(node("n" + index, values[index]));
-                inputs.add(referenceInput("n" + index));
-            }
-            operations.add(new ModelOperationInput("counter", "counter", Map.of("inputs", inputs), "counter"));
-            ModelOperationResult counter = registerAndRun(twoSheetDataset(), operations, null, "counter", null);
-            ModelOperationResult calc = runCalcOver("add", "none", values);
-            assertThat(calc.success()).as(String.join(",", values)).isEqualTo(counter.success());
-            assertThat(calc.value()).as(String.join(",", values)).isEqualTo(counter.value());
-        }
-    }
-
     @Test
     void aCalcWithAListSaysWhichInputIsEmptyOrNotANumber() {
         assertThat(runCalcOver("add", "none", "1", "").error()).contains("Input 2 has no value");
@@ -1287,8 +1239,8 @@ class ModelExecutionServiceTest {
         // The output chains through a counter that adds both nodes' (overridden) values together —
         // this is the whole point of allowing more than one designated input: a caller fills in
         // two separate values, not just one.
-        ModelOperationInput counter = new ModelOperationInput("op-counter", "counter", Map.of(
-                "inputs", List.of(referenceInput("op-a"), referenceInput("op-b"))));
+        ModelOperationInput counter = new ModelOperationInput("op-counter", "calc", Map.of(
+                "inputs", List.of(referenceInput("op-a"), referenceInput("op-b")), "operation", "add", "format", "none"));
 
         String modelId = modelExecutionService.registerModel(datasetId, new ModelRegisterRequest(
                 "Test model", List.of(nodeA, nodeB, counter), List.of("op-a", "op-b"), List.of("op-counter")));
@@ -1380,7 +1332,7 @@ class ModelExecutionServiceTest {
         ModelOperationInput broken = new ModelOperationInput("op-broken", "lookup", Map.of(
                 "startRow", literalInput("0"),
                 "input", referenceInput("does-not-exist"), "sheetIndex", 0, "searchColumn", literalInput("0"), "resultColumn", 1));
-        ModelOperationInput sum = new ModelOperationInput("op-sum", "counter", Map.of("inputs", List.of(literalInput("1"))));
+        ModelOperationInput sum = new ModelOperationInput("op-sum", "calc", Map.of("inputs", List.of(literalInput("1")), "operation", "add", "format", "none"));
 
         List<ModelOperationResult> results = registerAndRunMulti(
                 datasetId, List.of(broken, sum), null, List.of("op-broken", "op-sum"), null);
@@ -1455,7 +1407,7 @@ class ModelExecutionServiceTest {
     private ModelOperationInput rangeTranslator(String input) {
         return new ModelOperationInput("t", "translator", Map.of(
                 "type", "range",
-                "input", literalInput(input),
+                "inputs", List.of(literalInput(input)),
                 "rules", List.of(rangeRule("", "8", "Normativo"), rangeRule("9", "13", "Borderline"), rangeRule("13.5", null, "Clínico"))));
     }
 
@@ -1482,23 +1434,23 @@ class ModelExecutionServiceTest {
     @Test
     void aRangeTranslatorRefusesOverlappingOrBoundlessIntervals() {
         ModelOperationInput overlapping = new ModelOperationInput("t", "translator", Map.of(
-                "type", "range", "input", literalInput("5"),
+                "type", "range", "inputs", List.of(literalInput("5")),
                 "rules", List.of(rangeRule("1", "5", "a"), rangeRule("5", "9", "b"))));
         assertThat(registerAndRun(null, List.of(overlapping), null, "t", null).error()).contains("overlap");
 
         ModelOperationInput boundless = new ModelOperationInput("t", "translator", Map.of(
-                "type", "range", "input", literalInput("5"), "rules", List.of(rangeRule("", "", "a"))));
+                "type", "range", "inputs", List.of(literalInput("5")), "rules", List.of(rangeRule("", "", "a"))));
         assertThat(registerAndRun(null, List.of(boundless), null, "t", null).error()).contains("no bounds");
 
         ModelOperationInput inverted = new ModelOperationInput("t", "translator", Map.of(
-                "type", "range", "input", literalInput("5"), "rules", List.of(rangeRule("9", "1", "a"))));
+                "type", "range", "inputs", List.of(literalInput("5")), "rules", List.of(rangeRule("9", "1", "a"))));
         assertThat(registerAndRun(null, List.of(inverted), null, "t", null).error()).contains("above where it ends");
     }
 
     @Test
     void aTranslatorWithoutATypeIsStillAFixedOne() {
         ModelOperationInput translator = new ModelOperationInput("t", "translator", Map.of(
-                "input", literalInput("6"), "rules", translatorRules("6", "2")));
+                "inputs", List.of(literalInput("6")), "rules", translatorRules("6", "2")));
         assertThat(registerAndRun(null, List.of(translator), null, "t", null).value()).isEqualTo("2");
     }
 
@@ -1507,7 +1459,7 @@ class ModelExecutionServiceTest {
         String datasetId = twoSheetDataset();
 
         ModelOperationInput translator = new ModelOperationInput("op-1", "translator", Map.of(
-                "input", literalInput("6"),
+                "inputs", List.of(literalInput("6")),
                 "rules", translatorRules("3", "1", "4", "1", "5", "1", "6", "2")));
 
         ModelOperationResult result = registerAndRun(datasetId, List.of(translator), null, "op-1", null);
@@ -1522,7 +1474,7 @@ class ModelExecutionServiceTest {
 
         ModelOperationInput node = new ModelOperationInput("op-node", "node", Map.of("input", literalInput("3")));
         ModelOperationInput translator = new ModelOperationInput("op-translator", "translator", Map.of(
-                "input", referenceInput("op-node"),
+                "inputs", List.of(referenceInput("op-node")),
                 "rules", translatorRules("3", "1", "6", "2")));
 
         ModelOperationResult result = registerAndRun(datasetId, List.of(node, translator), null, "op-translator", null);
@@ -1536,7 +1488,7 @@ class ModelExecutionServiceTest {
         String datasetId = twoSheetDataset();
 
         ModelOperationInput translator = new ModelOperationInput("op-1", "translator", Map.of(
-                "input", literalInput("does-not-exist"),
+                "inputs", List.of(literalInput("does-not-exist")),
                 "rules", translatorRules("3", "1")));
 
         ModelOperationResult result = registerAndRun(datasetId, List.of(translator), null, "op-1", null);
@@ -1550,7 +1502,7 @@ class ModelExecutionServiceTest {
         String datasetId = twoSheetDataset();
 
         ModelOperationInput translator = new ModelOperationInput("op-1", "translator", Map.of(
-                "input", literalInput("3"),
+                "inputs", List.of(literalInput("3")),
                 "rules", translatorRules("3", "1", "3", "2")));
 
         ModelOperationResult result = registerAndRun(datasetId, List.of(translator), null, "op-1", null);

@@ -99,11 +99,11 @@ type NodeRequestState =
   | { status: 'done'; value: string };
 
 /**
- * Runs the operation on the API, same as SumResult/LookupResult/CounterResult: POST
+ * Runs the operation on the API, same as SumResult/LookupResult/CalcResult: POST
  * /api/v1/dataset/operation/node just echoes back the value it's given — there's no computation
  * on the backend's side either, this only exists so a node's result-reporting (and therefore
  * chaining) goes through the same testSignal-gated flow every other kind's does. Deliberately
- * latch-free (no "already responded to this click" state) — see CounterResult's own note on why
+ * latch-free (no "already responded to this click" state) — see CalcResult's own note on why
  * that caused a real bug when an input can itself be chained off another operation.
  */
 function NodeResult({ resolvedInput, testSignal, resetSignal, onResultChange }: NodeResultProps) {
@@ -149,7 +149,7 @@ function NodeResult({ resolvedInput, testSignal, resetSignal, onResultChange }: 
     }
 
     // An empty value has nothing to test yet — same as lookup's own empty-query no-op — so this
-    // must not clear an already-shown value; a true no-op, like counter's own for an unset row.
+    // must not clear an already-shown value; a true no-op.
     if (resolvedInput.value.trim() === '') {
       return;
     }
@@ -171,7 +171,7 @@ function NodeResult({ resolvedInput, testSignal, resetSignal, onResultChange }: 
         }
       });
 
-    // Deliberately doesn't null the result on cleanup (see CounterResult's identical note) — a
+    // Deliberately doesn't null the result on cleanup (see CalcResult's identical note) — a
     // cleanup runs before every re-invocation of this effect, including the empty-value no-op
     // above, which must leave an already-shown value exactly as it was.
     return () => {

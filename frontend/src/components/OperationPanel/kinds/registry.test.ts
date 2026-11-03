@@ -11,6 +11,6 @@ describe('the kinds that need a dataset', () => {
 
   it('leave the value-only kinds available without one', () => {
     const free = KINDS.filter((kind) => !kind.requiresDataset).map((kind) => kind.id).sort();
-    expect(free).toEqual(['calc', 'counter', 'formatter', 'node', 'selector', 'translator']);
+    expect(free).toEqual(['calc', 'formatter', 'node', 'selector', 'translator']);
   });
 });

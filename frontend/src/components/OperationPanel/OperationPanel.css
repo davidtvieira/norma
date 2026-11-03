@@ -578,21 +578,21 @@
   box-shadow: none;
 }
 
-/* counterKind: one row per input, each a full ValueSourceField. The × to cancel the row only
+/* A list of inputs (calc, selector, translator): one row per input, each a full ValueSourceField. The × to cancel the row only
    shows before a reference is picked — once picked, clicking the field's own pill removes the row
    instead (see onRemove in fields.tsx). */
-.counter-entry__input-row {
+.list-entry__input-row {
   display: flex;
   align-items: flex-start;
   gap: 0.4rem;
 }
 
-.counter-entry__input-field {
+.list-entry__input-field {
   flex: 1;
   min-width: 0;
 }
 
-.counter-entry__remove-input {
+.list-entry__remove-input {
   margin-top: 1.55rem;
 }
 

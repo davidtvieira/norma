@@ -2316,7 +2316,7 @@ export function OperationPanel({
           setIsAddModalOpen(false);
           if (stagingEntryIds.length > 0) cancelStaging();
         }}
-        kinds={KINDS.filter((kind) => !kind.deprecated && !kind.setting).map((kind) => ({ id: kind.id, label: labelForKind(kind.id), requiresDataset: kind.requiresDataset }))}
+        kinds={KINDS.filter((kind) => !kind.setting).map((kind) => ({ id: kind.id, label: labelForKind(kind.id), requiresDataset: kind.requiresDataset }))}
         // A model has one iterator — it's the always-first loop around everything else.
         disabledKindIds={[...(iteratorEntry ? ['iterator'] : []), ...(entries.some((entry) => entry.kindId === PAGE_SELECTOR_KIND_ID) ? [PAGE_SELECTOR_KIND_ID] : [])]}
         needsDatasetKindIds={withoutDataset ? KINDS.filter((kind) => kind.requiresDataset).map((kind) => kind.id) : []}

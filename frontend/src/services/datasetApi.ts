@@ -1,6 +1,5 @@
 import { ApiError, reportApiError } from './apiErrors';
 import type { CalcRequestPayload, CalcResponsePayload } from '../types/calc';
-import type { CounterRequestPayload, CounterResponsePayload } from '../types/counter';
 import type { DatasetImportResponse, DatasetImportStatus } from '../types/dataset';
 import type { FindRequestPayload, FindResponsePayload } from '../types/find';
 import type { LookupRequestPayload, LookupResponsePayload } from '../types/lookup';
@@ -297,28 +296,8 @@ export async function findMatch(payload: FindRequestPayload): Promise<FindRespon
 }
 
 /**
- * Adds up however many already-resolved values it's given. Unlike lookup/find, a counter has no
- * dataset dependency of its own — each value was already resolved client-side (a typed literal,
- * or another operation's own live result) before this is called, so no datasetId/table/column/
- * range is sent, only the values — the API just does the actual addition.
- */
-export async function counterValues(payload: CounterRequestPayload): Promise<CounterResponsePayload> {
-  const response = await apiFetch(`${API_BASE_URL}/api/v1/dataset/operation/counter`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    throw await apiError(response, 'Falha ao somar as entradas');
-  }
-
-  return response.json();
-}
-
-/**
  * Does arithmetic on two already-resolved values (add, subtract, multiply or divide, then an
- * optional rounding or absolute value). Like a counter, a calc has no dataset dependency.
+ * optional rounding or absolute value). A calc has no dataset dependency.
  */
 export async function calcValues(payload: CalcRequestPayload): Promise<CalcResponsePayload> {
   const response = await apiFetch(`${API_BASE_URL}/api/v1/dataset/operation/calc`, {
@@ -356,7 +335,7 @@ export async function nodeValue(payload: NodeRequestPayload): Promise<NodeRespon
 /**
  * Translates a value against a user-defined source→target mapping table — the actual lookup (and
  * its "no two rules can share a source" / "no rule for this value" validation) happens on the API,
- * same as every other kind's own computation. No dataset dependency, same as counter/node: the
+ * same as every other kind's own computation. No dataset dependency, same as calc/node: the
  * rules are entirely user-defined, not read from any table. Unlike lookup/find, a value with no
  * matching rule rejects (a non-ok response) rather than resolving to a calm "not found" result —
  * see TranslatorResponsePayload's own note.
@@ -381,7 +360,7 @@ export async function translateValue(payload: TranslatorRequestPayload): Promise
  * kept server-side, and (on each run) the values a caller supplies for its designated input
  * operations, if it has any (a model can have several, each filled in separately). Called when the
  * user picks Utilizar on an already-built model (see App.tsx's prepareUtilize) — the editing page (OperationPanel) keeps calling
- * the individual /api/v1/dataset/operation/{lookup,sum,counter,node} endpoints per operation as
+ * the individual /api/v1/dataset/operation/{lookup,find,calc,node} endpoints per operation as
  * it's being built, where a live per-field result is what's wanted.
  */
 export async function registerModel(
@@ -549,7 +528,7 @@ export async function runModel(
 /**
  * Picks one of the given already-resolved values by zero-based index — the actual selection (and
  * its "index must be a whole number inside the values" validation) happens on the API, same as
- * every other kind's own computation. No dataset dependency, same as counter/node.
+ * every other kind's own computation. No dataset dependency, same as calc/node.
  */
 export async function selectValue(payload: SelectorRequestPayload): Promise<SelectorResponsePayload> {
   const response = await apiFetch(`${API_BASE_URL}/api/v1/dataset/operation/selector`, {

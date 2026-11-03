@@ -2,7 +2,6 @@
  * what's sent to/matched against the API, only the label shown in the UI is translated here. */
 export const KIND_LABELS: Record<string, string> = {
   lookup: 'Pesquisa aninhada',
-  counter: 'Contador',
   node: 'Nó',
   find: 'Localizar',
   translator: 'Tradutor',
@@ -16,7 +15,6 @@ export const KIND_LABELS: Record<string, string> = {
 /** A one-line description of what each operation kind does, shown when picking one to add. */
 export const KIND_DESCRIPTIONS: Record<string, string> = {
   lookup: 'Procura um valor numa coluna e devolve o valor correspondente de outra.',
-  counter: 'Soma os resultados de outras operações.',
   node: 'Guarda um valor para outras operações o usarem.',
   find: 'Procura um valor num intervalo e devolve a posição (linha, coluna): serve para escolher a coluna de uma Pesquisa pelo cabeçalho.',
   translator: 'Troca valores por outros, segundo regras definidas por si: valores exatos ou intervalos de números.',

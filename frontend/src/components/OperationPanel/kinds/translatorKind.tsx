@@ -14,10 +14,8 @@ interface TranslatorFields {
   // inclusive, either left empty for no limit). A translator made before the type existed has none, and is fixed.
   type?: TranslatorType;
   // The values to translate, each translated on its own with the same rules, giving one output per
-  // input — typed directly, or chained from other operations' results. A translator made before
-  // there could be several instead has a single `input` (see translatorInputs).
+  // input — typed directly, or chained from other operations' results.
   inputs?: ValueSource[];
-  input?: ValueSource;
   // The mapping table itself: each rule's "from" must be unique (see findDuplicateSources) — the
   // whole point of a translator is that a given input value translates to exactly one output —
   // but several rules can share the same "to" (many sources translating to one target is the
@@ -33,9 +31,9 @@ function translatorType(f: TranslatorFields): TranslatorType {
   return f.type === 'range' ? 'range' : 'fixed';
 }
 
-/** The translator's inputs: its `inputs` list, or — for one made with a single `input` — just that. */
+/** The translator's inputs: its `inputs` list. */
 function translatorInputs(f: TranslatorFields): ValueSource[] {
-  return f.inputs ?? (f.input ? [f.input] : []);
+  return f.inputs ?? [];
 }
 
 /** Every "from" value that's reused by more than one rule (trimmed, case-insensitive — same match
@@ -229,23 +227,6 @@ export const translatorKind: OperationKind = {
     );
   },
 
-  // Only a translator with a single `input` can be a model's designated input (see
-  // hasSingleInputField); one with an `inputs` list is fed through other operations instead.
-  renderInputEditor: ({ fields, updateFields, resolvedInput }) => {
-    const f = asTranslatorFields(fields);
-    return (
-      <ValueSourceField
-        label="Valor a traduzir"
-        placeholder="Introduza um valor"
-        inputType="text"
-        source={f.input ?? literalSource('')}
-        onChange={(input) => updateFields({ input })}
-        referenceOptions={[]}
-        resolvedInput={resolvedInput}
-      />
-    );
-  },
-
   getOutputLabels: (fields, labelOf) => {
     const inputs = translatorInputs(asTranslatorFields(fields));
     if (inputs.length < 2) return null;
@@ -259,8 +240,7 @@ export const translatorKind: OperationKind = {
     return (
       <TranslatorInputs
         inputs={translatorInputs(f)}
-        // Editing moves a translator made with a single `input` over to the `inputs` list.
-        onChange={(inputs) => updateFields({ inputs, input: undefined })}
+        onChange={(inputs) => updateFields({ inputs })}
         referenceOptions={referenceOptions}
         resolvedInputs={resolvedInputs}
         rules={f.rules}
@@ -312,7 +292,7 @@ type TranslatorRequestState =
   | { status: 'done'; outputs: OutputState[] };
 
 /**
- * The editable list of inputs (each row keeps a stable id, like counter's rows, so removing one
+ * The editable list of inputs (each row keeps a stable id, like a calc's rows, so removing one
  * from the middle doesn't hand its field state to the next), plus the live outputs: one translated
  * value per input, each via /api/v1/dataset/operation/translator (which does the actual
  * source→target lookup and its own "no rule for this value" validation) — only once "Testar
@@ -424,8 +404,8 @@ function TranslatorInputs({
       {rows.map((row, index) => {
         const removeRow = () => commit(rows.filter((current) => current.id !== row.id));
         return (
-          <div key={row.id} className="counter-entry__input-row">
-            <div className="counter-entry__input-field">
+          <div key={row.id} className="list-entry__input-row">
+            <div className="list-entry__input-field">
               <ValueSourceField
                 label={`Entrada ${index + 1}`}
                 placeholder="Introduza um valor"

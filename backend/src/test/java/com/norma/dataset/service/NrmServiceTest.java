@@ -344,12 +344,12 @@ class NrmServiceTest {
     }
 
     @Test
-    void aVersionAnOlderFileCarriesIsIgnoredBothInItsInfoAndItsModel() throws IOException {
-        String oldInfo = INFO.replace("{", "{\"version\":1,");
-        String oldModel = MODEL_WITH_INPUT.replace("{\"modelName\"", "{\"version\":1,\"modelName\"");
+    void refusesASettingKeptAmongTheOperations() throws IOException {
+        for (String kind : new String[] {"formatter", "page", "iterator"}) {
+            String model = MODEL_WITH_INPUT.replace("\"kind\":\"node\"", "\"kind\":\"" + kind + "\"");
 
-        assertThat(nrmService.importNrm(nrm("a.nrm", entries(oldModel, oldInfo))).status()).isEqualTo("success");
-        assertThat(nrmService.importNrm(nrm("a.nrm", entriesWithoutDataset(oldModel, oldInfo.replace("\"version\":1", "\"version\":2")))).status()).isEqualTo("success");
+            assertRejected(entries(model, INFO));
+        }
     }
 
     @Test

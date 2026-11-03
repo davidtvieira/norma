@@ -38,6 +38,8 @@ export interface RecentSessionEntryProps {
   datasetFileName: string;
   /** The cached .nrm's own name — null for a dataset-only entry (or an unnamed legacy one). */
   nrmName: string | null;
+  /** What the author wrote about the norma, when they wrote something. */
+  description: string | null;
   /** False for a dataset-only entry — nothing built or imported on it yet. */
   hasModel: boolean;
   /** Also kept on the platform, not only in this browser. */
@@ -343,6 +345,7 @@ export function NormasScreen({
                 key={entry.id}
                 datasetFileName={entry.datasetFileName}
                 nrmName={entry.nrmName}
+                description={entry.description}
                 hasModel={entry.hasModel}
                 isSaved={entry.isSaved}
                 isResuming={entry.isResuming}

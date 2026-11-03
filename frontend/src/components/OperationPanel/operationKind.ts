@@ -71,7 +71,7 @@ export interface OperationBodyContext {
    * lookup) doesn't need to index into an array for the one value it actually has. */
   resolvedInput: ResolvedInput;
   /** Every one of the operation's chainable inputs, resolved in field order — for a kind with
-   * several (e.g. counter's "inputs" list) rather than just one. */
+   * several (e.g. calc's "inputs" list) rather than just one. */
   resolvedInputs: ResolvedInput[];
   /** The sheet the model's iterator is on (the one it previews while editing; every sheet of its
    * range in a real run), or null when the model has no iterator. Sheet-based kinds use it in
@@ -112,8 +112,6 @@ export interface OperationInputEditorContext {
 }
 
 export interface OperationKind {
-  /** True for a kind being phased out: operations already of it keep showing and working, but it is no longer offered when adding one. */
-  deprecated?: boolean;
   /** True for a kind that belongs to the model's settings: it is not offered when adding an operation, not drawn on the canvas, and managed from its own panel. */
   setting?: boolean;
   /** Matches an id from GET /api/v1/dataset/operations. */

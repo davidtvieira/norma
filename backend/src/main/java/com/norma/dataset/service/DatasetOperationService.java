@@ -2,8 +2,6 @@ package com.norma.dataset.service;
 
 import com.norma.dataset.dto.CalcRequest;
 import com.norma.dataset.dto.CalcResponse;
-import com.norma.dataset.dto.CounterRequest;
-import com.norma.dataset.dto.CounterResponse;
 import com.norma.dataset.dto.DatasetImportResponse;
 import com.norma.dataset.dto.FindRequest;
 import com.norma.dataset.dto.FindResponse;
@@ -27,7 +25,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Runs the single-operation live-editor endpoints (lookup/find/counter/node/translator/selector)
+ * Runs the single-operation live-editor endpoints (lookup/find/calc/node/translator/selector)
  * against a dataset previously imported and kept in memory by {@link DatasetStore} — callers
  * reference it by id instead of resending the parsed JSON. Used while a model is being built in
  * the editor, one field at a time; see {@link ModelExecutionService} for registering/running a
@@ -95,45 +93,20 @@ public class DatasetOperationService {
     }
 
     /**
-     * Adds up however many already-resolved values it's given — the live-editor counterpart of a
-     * counter operation's own model-run computation, called the same way lookup/find's own live
-     * endpoints are while a model is being built (see DatasetOperationController), just with no
-     * dataset to look anything up against: each value was already resolved client-side (a typed
-     * literal, or another operation's own live result) before this is ever called.
-     */
-    public CounterResponse counter(CounterRequest request) {
-        List<String> values = request.values() == null ? List.of() : request.values();
-        if (values.isEmpty()) {
-            throw new IllegalArgumentException("The counter has no inputs.");
-        }
-
-        double total = 0;
-        for (String value : values) {
-            total += OperationSupport.parseCounterEntry(value);
-        }
-        return new CounterResponse(total);
-    }
-
-    /**
-     * Applies an arithmetic operation to two already-resolved values — the live-editor counterpart
-     * of a calc operation's own model-run computation. No dataset dependency, same as counter.
+     * Applies an arithmetic operation to any number of already-resolved values — the live-editor counterpart
+     * of a calc operation's own model-run computation. No dataset dependency.
      */
     public CalcResponse calc(CalcRequest request) {
-        if (request.values() != null) {
-            List<Double> values = new ArrayList<>();
-            for (String value : request.values()) {
-                values.add(OperationSupport.parseCalcInput(value, values.size() + 1));
-            }
-            return new CalcResponse(OperationSupport.calculateAll(values, request.operation(), request.format()));
+        List<Double> values = new ArrayList<>();
+        for (String value : request.values() == null ? List.<String>of() : request.values()) {
+            values.add(OperationSupport.parseCalcInput(value, values.size() + 1));
         }
-        double a = OperationSupport.parseNumber(request.a(), "the first value");
-        double b = OperationSupport.parseNumber(request.b(), "the second value");
-        return new CalcResponse(OperationSupport.calculate(a, b, request.operation(), request.format()));
+        return new CalcResponse(OperationSupport.calculateAll(values, request.operation(), request.format()));
     }
 
     /**
      * Passes a value straight through — the live-editor counterpart of a node operation's own
-     * model-run computation, called the same way lookup/find/counter's own live endpoints are
+     * model-run computation, called the same way lookup/find/calc's own live endpoints are
      * while a model is being built. A node does no computation and has no dataset dependency;
      * this exists purely so a node's own result-reporting (and therefore its testSignal-gated
      * "Testar modelo" flow) works the same way every other kind's does.
@@ -146,7 +119,7 @@ public class DatasetOperationService {
      * Translates a value against a user-defined source-to-target mapping table — the live-editor
      * counterpart of a translator operation's own model-run computation, called the same way
      * every other kind's own live endpoint is while a model is being built. No dataset
-     * dependency, same as counter/node: the rules are entirely user-defined, not read from any
+     * dependency, same as calc/node: the rules are entirely user-defined, not read from any
      * table. A value with no matching rule is a request error, not a quiet non-match — unlike
      * lookup/find, which treat "nothing matched" as a legitimate, non-error result.
      */
@@ -158,7 +131,7 @@ public class DatasetOperationService {
 
     /**
      * Picks one of its values by zero-based index — the live-editor counterpart of a selector
-     * operation's own model-run computation. No dataset dependency, same as counter/node: the
+     * operation's own model-run computation. No dataset dependency, same as calc/node: the
      * index and every value were already resolved client-side before this is called. An index
      * outside the values is a request error, not an empty result.
      */

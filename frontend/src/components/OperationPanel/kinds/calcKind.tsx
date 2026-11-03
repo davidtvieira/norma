@@ -14,9 +14,6 @@ interface CalcFields {
   inputs: ValueSource[];
   operation: CalcOperation;
   format: CalcFormat;
-  // A calc saved before it took a list has just two values, here: still read as a list of two (see inputsOf).
-  a?: ValueSource;
-  b?: ValueSource;
 }
 
 const OPERATION_LABELS: Record<CalcOperation, string> = {
@@ -41,12 +38,6 @@ const FORMAT_LABELS: Record<CalcFormat, string> = {
 
 function asCalcFields(fields: OperationFields): CalcFields {
   return fields as unknown as CalcFields;
-}
-
-/** The values of a calc, whichever way it was saved: its list, or the two it had before it took a list. */
-function inputsOf(f: CalcFields): ValueSource[] {
-  if (Array.isArray(f.inputs)) return f.inputs;
-  return [f.a ?? literalSource(''), f.b ?? literalSource('')];
 }
 
 /**
@@ -106,7 +97,7 @@ export const calcKind: OperationKind = {
 
   renderSummary: (fields) => {
     const f = asCalcFields(fields);
-    const count = inputsOf(f).length;
+    const count = f.inputs.length;
     return (
       <span>
         {OPERATION_NAMES[f.operation]}
@@ -121,9 +112,8 @@ export const calcKind: OperationKind = {
     return (
       <>
         <CalcInputs
-          inputs={inputsOf(f)}
-          // Saving the list drops the two values an older calc had, which it now replaces.
-          onChange={(inputs) => updateFields({ inputs, a: undefined, b: undefined })}
+          inputs={f.inputs}
+          onChange={(inputs) => updateFields({ inputs })}
           referenceOptions={referenceOptions}
           resolvedInputs={resolvedInputs}
         />
@@ -164,7 +154,7 @@ interface CalcInputsProps {
 /**
  * The editable list of a calc's values: at least two, each one fixed, from another operation or a column, with
  * "+ Adicionar valor" for more. Each row has an id of its own, independent of its position, so removing one from the
- * middle doesn't hand its picker state to the row that moves up into its place (see the same note on CounterInputs).
+ * middle doesn't hand its picker state to the row that moves up into its place (see the same note on CalcInputs).
  */
 function CalcInputs({ inputs, onChange, referenceOptions, resolvedInputs }: CalcInputsProps) {
   const [rows, setRows] = useState<CalcRow[]>(() => inputs.map((source) => ({ id: nextRowId(), source })));
@@ -177,8 +167,8 @@ function CalcInputs({ inputs, onChange, referenceOptions, resolvedInputs }: Calc
   return (
     <>
       {rows.map((row, index) => (
-        <div key={row.id} className="counter-entry__input-row">
-          <div className="counter-entry__input-field">
+        <div key={row.id} className="list-entry__input-row">
+          <div className="list-entry__input-field">
             <ValueSourceField
               label={`Valor ${index + 1}`}
               placeholder="Introduza um número"
@@ -192,7 +182,7 @@ function CalcInputs({ inputs, onChange, referenceOptions, resolvedInputs }: Calc
           {rows.length > 2 && (
             <button
               type="button"
-              className="operation-entry__reset-button counter-entry__remove-input"
+              className="operation-entry__reset-button list-entry__remove-input"
               onClick={() => commit(rows.filter((current) => current.id !== row.id))}
               aria-label="Remover valor"
             >
@@ -230,10 +220,9 @@ type CalcRequestState =
   | { status: 'done'; value: number };
 
 /**
- * Runs the operation on the API, same as CounterResult: the frontend only resolves which values the
+ * Runs the operation on the API, same as CalcResult: the frontend only resolves which values the
  * inputs currently stand for, the arithmetic happens server-side (POST
- * /api/v1/dataset/operation/calc) — and only once "Testar modelo" has been clicked. Like the
- * counter it has no "already answered this click" latch, so a chained input catching up
+ * /api/v1/dataset/operation/calc) — and only once "Testar modelo" has been clicked. It has no "already answered this click" latch, so a chained input catching up
  * mid-test still produces its result.
  */
 function CalcResult({ inputs, operation, format, testSignal, resetSignal, onResultChange }: CalcResultProps) {

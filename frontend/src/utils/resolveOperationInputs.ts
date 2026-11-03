@@ -32,7 +32,7 @@ function formatOf(fields: object): ValueFormat {
 
 /**
  * entryId -> every operationId it references — usually at most one (a kind with a single
- * chainable "input", e.g. lookup), but a kind with several (counter's "inputs" list) can have
+ * chainable "input", e.g. lookup), but a kind with several (calc's "inputs" list) can have
  * more than one, so this is a multi-edge graph rather than a single successor per node.
  */
 export function buildReferenceGraph(entries: ChainableEntry[]): Map<string, string[]> {
@@ -171,7 +171,7 @@ function resolveSource(
  * operation has produced a result, and stays pending/missing/cycle otherwise. `results` holds the
  * latest computed value per entry id (null while it has none yet, e.g. still loading or errored).
  * Returned as an array per entry — one element for a single-input kind (e.g. lookup), several for
- * a kind like counter — in the same order as getInputSources(entry.fields).
+ * a kind like calc — in the same order as getInputSources(entry.fields).
  */
 export function resolveOperationInputs(
   entries: ChainableEntry[],

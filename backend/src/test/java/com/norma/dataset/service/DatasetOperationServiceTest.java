@@ -2,8 +2,6 @@ package com.norma.dataset.service;
 
 import com.norma.dataset.dto.CellData;
 import com.norma.dataset.dto.CalcRequest;
-import com.norma.dataset.dto.CounterRequest;
-import com.norma.dataset.dto.CounterResponse;
 import com.norma.dataset.dto.DatasetImportResponse;
 import com.norma.dataset.dto.FindRequest;
 import com.norma.dataset.dto.FindResponse;
@@ -252,13 +250,6 @@ class DatasetOperationServiceTest {
     }
 
     @Test
-    void addsUpTheCountersValuesViaTheLiveEndpoint() {
-        CounterResponse response = datasetOperationService.counter(new CounterRequest(List.of("2", "3.5", "10")));
-
-        assertThat(response.total()).isEqualTo(15.5);
-    }
-
-    @Test
     void selectsTheValueAtTheIndexViaTheLiveEndpoint() {
         assertThat(datasetOperationService.selector(new SelectorRequest("1", List.of("a", "b", "c"))).value()).isEqualTo("b");
     }
@@ -268,18 +259,6 @@ class DatasetOperationServiceTest {
         assertThatThrownBy(() -> datasetOperationService.selector(new SelectorRequest("3", List.of("a", "b", "c"))))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> datasetOperationService.selector(new SelectorRequest("0", List.of())))
-                .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    void rejectsALiveCounterCallWithNoValues() {
-        assertThatThrownBy(() -> datasetOperationService.counter(new CounterRequest(List.of())))
-                .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    void rejectsALiveCounterCallWithANonNumericValue() {
-        assertThatThrownBy(() -> datasetOperationService.counter(new CounterRequest(List.of("1", "not-a-number"))))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -353,11 +332,10 @@ class DatasetOperationServiceTest {
 
     @Test
     void calcTakesAnyNumberOfValuesInItsLiveEndpointToo() {
-        assertThat(datasetOperationService.calc(new CalcRequest(null, null, "add", "none", List.of("2", "3.5", "10"))).value()).isEqualTo(15.5);
-        assertThat(datasetOperationService.calc(new CalcRequest(null, null, "subtract", "abs", List.of("2", "5", "1"))).value()).isEqualTo(4L);
-        assertThatThrownBy(() -> datasetOperationService.calc(new CalcRequest(null, null, "subtract", "none", List.of("5"))))
+        assertThat(datasetOperationService.calc(new CalcRequest(List.of("2", "3.5", "10"), "add", "none")).value()).isEqualTo(15.5);
+        assertThat(datasetOperationService.calc(new CalcRequest(List.of("2", "5", "1"), "subtract", "abs")).value()).isEqualTo(4L);
+        assertThatThrownBy(() -> datasetOperationService.calc(new CalcRequest(List.of("5"), "subtract", "none")))
                 .isInstanceOf(IllegalArgumentException.class);
-        // The two-value form still works.
-        assertThat(datasetOperationService.calc(new CalcRequest("2", "5", "subtract", "none")).value()).isEqualTo(-3L);
+        assertThat(datasetOperationService.calc(new CalcRequest(List.of("2", "5"), "subtract", "none")).value()).isEqualTo(-3L);
     }
 }

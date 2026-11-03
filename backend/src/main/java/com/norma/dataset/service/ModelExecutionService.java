@@ -523,10 +523,9 @@ public class ModelExecutionService {
             String inputValue = applyFormatters(operation, resolveInputValue(operation, dataset, byId, cyclicIds, resolved), byId);
             return switch (operation.kind()) {
                 case "lookup" -> computeLookup(operation, dataset, inputValue, byId, cyclicIds, resolved);
-                case "counter" -> computeCounter(operation, dataset, byId, cyclicIds, resolved);
                 case "node" -> new ModelOperationResult(id, true, inputValue, null);
                 case "find" -> computeFind(operation, dataset, inputValue);
-                case "translator" -> computeTranslator(operation, inputValue, dataset, byId, cyclicIds, resolved);
+                case "translator" -> computeTranslator(operation, dataset, byId, cyclicIds, resolved);
                 case "page" -> computePage(operation, inputValue, dataset);
                 case "calc" -> computeCalc(operation, dataset, byId, cyclicIds, resolved);
                 case "selector" -> computeSelector(operation, dataset, byId, cyclicIds, resolved);
@@ -609,7 +608,7 @@ public class ModelExecutionService {
      * every chainable field — "input" or one entry of "inputs" — uses) to the literal string it
      * stands for: a literal value as-is, a reference recursively resolved against the operation
      * it points at. Shared by {@link #resolveInputValue} (kinds with one chainable field, e.g.
-     * lookup) and {@link #computeCounter} (a kind with several).
+     * lookup) and {@link #computeCalc} (a kind with several).
      */
     private String resolveValueSource(
             Map<String, Object> source,
@@ -809,7 +808,7 @@ public class ModelExecutionService {
     }
 
     /**
-     * A translator has no dataset dependency of its own (same as counter/node) — it just looks
+     * A translator has no dataset dependency of its own (same as calc/node) — it just looks
      * {@code input} up against its own user-defined "rules" field. Throwing (rather than returning
      * a "not found" result the way computeLookup/computeFind do) for a value with no matching rule
      * is deliberate here: a translator is meant to be a strict function over a known domain, not a
@@ -877,28 +876,23 @@ public class ModelExecutionService {
             Map<String, ModelOperationResult> resolved) {
         Map<String, Object> fields = fieldsOf(operation);
         String format = fields.get("format") instanceof String text ? text : "none";
-        // A calc made with a list of "inputs" takes any number of values; one made before that, with just "a" and "b", still works.
-        if (fields.get("inputs") instanceof List<?> inputs) {
-            List<Double> values = new ArrayList<>();
-            for (Object rawSource : inputs) {
-                if (!(rawSource instanceof Map<?, ?> source)) {
-                    throw new IllegalArgumentException("One of the calculation inputs is malformed.");
-                }
-                String value = resolveValueSource(asStringKeyedMap(source), dataset, byId, cyclicIds, resolved);
-                values.add(OperationSupport.parseCalcInput(value, values.size() + 1));
-            }
-            return new ModelOperationResult(operation.id(), true,
-                    OperationSupport.calculateAll(values, stringField(fields, "operation"), format), null);
+        if (!(fields.get("inputs") instanceof List<?> inputs)) {
+            throw new IllegalArgumentException("The calculation has no inputs.");
         }
-        double a = OperationSupport.parseNumber(resolveChainableField(fields, "a", dataset, byId, cyclicIds, resolved), "the first value");
-        double b = OperationSupport.parseNumber(resolveChainableField(fields, "b", dataset, byId, cyclicIds, resolved), "the second value");
+        List<Double> values = new ArrayList<>();
+        for (Object rawSource : inputs) {
+            if (!(rawSource instanceof Map<?, ?> source)) {
+                throw new IllegalArgumentException("One of the calculation inputs is malformed.");
+            }
+            String value = resolveValueSource(asStringKeyedMap(source), dataset, byId, cyclicIds, resolved);
+            values.add(OperationSupport.parseCalcInput(value, values.size() + 1));
+        }
         return new ModelOperationResult(operation.id(), true,
-                OperationSupport.calculate(a, b, stringField(fields, "operation"), format), null);
+                OperationSupport.calculateAll(values, stringField(fields, "operation"), format), null);
     }
 
     private ModelOperationResult computeTranslator(
             ModelOperationInput operation,
-            String input,
             DatasetImportResponse dataset,
             Map<String, ModelOperationInput> byId,
             Set<String> cyclicIds,
@@ -906,24 +900,20 @@ public class ModelExecutionService {
         // "fixed" (an exact source value per rule — also what a translator made before the type existed is) or "range".
         String type = fieldsOf(operation).get("type") instanceof String text ? text : null;
         List<TranslatorRule> rules = OperationSupport.validateTranslatorRules(type, extractRules(fieldsOf(operation)));
-        // A translator made with several inputs translates each with the same rules, one output
-        // per input (a list, or just the value when there is only one); an older one has a single "input".
-        if (fieldsOf(operation).get("inputs") instanceof List<?> inputs) {
-            if (inputs.isEmpty()) {
-                throw new IllegalArgumentException("The translator has no inputs.");
-            }
-            List<String> translated = new ArrayList<>();
-            for (Object rawSource : inputs) {
-                if (!(rawSource instanceof Map<?, ?> source)) {
-                    throw new IllegalArgumentException("One of the translator inputs is malformed.");
-                }
-                String value = resolveValueSource(asStringKeyedMap(source), dataset, byId, cyclicIds, resolved);
-                translated.add(OperationSupport.translate(type, rules, value.trim()));
-            }
-            return new ModelOperationResult(operation.id(), true, translated.size() == 1 ? translated.get(0) : translated, null);
+        // Each input is translated on its own with the same rules, one output per input (a list, or just
+        // the value when there is only one).
+        if (!(fieldsOf(operation).get("inputs") instanceof List<?> inputs) || inputs.isEmpty()) {
+            throw new IllegalArgumentException("The translator has no inputs.");
         }
-        String normalizedInput = input == null ? "" : input.trim();
-        return new ModelOperationResult(operation.id(), true, OperationSupport.translate(type, rules, normalizedInput), null);
+        List<String> translated = new ArrayList<>();
+        for (Object rawSource : inputs) {
+            if (!(rawSource instanceof Map<?, ?> source)) {
+                throw new IllegalArgumentException("One of the translator inputs is malformed.");
+            }
+            String value = resolveValueSource(asStringKeyedMap(source), dataset, byId, cyclicIds, resolved);
+            translated.add(OperationSupport.translate(type, rules, value.trim()));
+        }
+        return new ModelOperationResult(operation.id(), true, translated.size() == 1 ? translated.get(0) : translated, null);
     }
 
     /**
@@ -950,37 +940,6 @@ public class ModelExecutionService {
                     min == null ? null : String.valueOf(min), max == null ? null : String.valueOf(max)));
         }
         return rules;
-    }
-
-    /**
-     * A counter has no dataset dependency of its own (unlike lookup/find): it just adds up
-     * whatever its "inputs" — each a value source, literal or chained off another operation's
-     * result, same shape as lookup's single "input" — resolve to. Unlike every other kind, it can
-     * have more than one chainable field, which is why cycle detection (see
-     * {@link #buildReferenceGraph}) has to track more than one outgoing edge per operation.
-     */
-    private ModelOperationResult computeCounter(
-            ModelOperationInput operation,
-            DatasetImportResponse dataset,
-            Map<String, ModelOperationInput> byId,
-            Set<String> cyclicIds,
-            Map<String, ModelOperationResult> resolved) {
-
-        Map<String, Object> fields = fieldsOf(operation);
-        if (!(fields.get("inputs") instanceof List<?> inputs) || inputs.isEmpty()) {
-            throw new IllegalArgumentException("The counter has no inputs.");
-        }
-
-        double total = 0;
-        for (Object rawSource : inputs) {
-            if (!(rawSource instanceof Map<?, ?> source)) {
-                throw new IllegalArgumentException("One of the counter inputs is malformed.");
-            }
-            String value = resolveValueSource(asStringKeyedMap(source), dataset, byId, cyclicIds, resolved);
-            total += OperationSupport.parseCounterEntry(value);
-        }
-
-        return new ModelOperationResult(operation.id(), true, OperationSupport.normalizeNumber(total), null);
     }
 
     /**
@@ -1018,7 +977,7 @@ public class ModelExecutionService {
 
     /**
      * entryId -> every operationId it references — usually at most one (lookup's single "input"),
-     * but a kind with several chainable fields (counter's "inputs" list) can have more than one,
+     * but a kind with several chainable fields (calc's "inputs" list) can have more than one,
      * so this is a multi-edge graph rather than a single successor per node.
      */
     private Map<String, List<String>> buildReferenceGraph(List<ModelOperationInput> operations) {
@@ -1076,7 +1035,7 @@ public class ModelExecutionService {
     /**
      * Every operationId referenced by any chainable field in `fields` — scanned structurally
      * (any field whose value is itself a reference-shaped map, e.g. "input" or lookup's own
-     * "searchColumn", or a list of them, e.g. counter's "inputs") rather than by a fixed set of
+     * "searchColumn", or a list of them, e.g. calc's "inputs") rather than by a fixed set of
      * field names, so a new chainable field on any kind is automatically covered here without
      * this needing to know its name in advance. A field that happens to be a plain map without a
      * "reference" type (e.g. find's "range") is harmlessly skipped by referencedOperationId.

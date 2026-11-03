@@ -2,8 +2,6 @@ package com.norma.dataset.controller;
 
 import com.norma.dataset.dto.CalcRequest;
 import com.norma.dataset.dto.CalcResponse;
-import com.norma.dataset.dto.CounterRequest;
-import com.norma.dataset.dto.CounterResponse;
 import com.norma.dataset.dto.NodeRequest;
 import com.norma.dataset.dto.NodeResponse;
 import com.norma.dataset.dto.OperationType;
@@ -40,15 +38,6 @@ public class OperationController {
     @GetMapping("/api/v1/dataset/operations")
     public ResponseEntity<List<OperationType>> listOperationTypes() {
         return ResponseEntity.ok(OperationTypes.ALL);
-    }
-
-    @Operation(
-            summary = "Add up a list of values",
-            description = "Adds up the given values. No dataset needed."
-    )
-    @PostMapping("/api/v1/dataset/operation/counter")
-    public ResponseEntity<CounterResponse> counter(@RequestBody CounterRequest request) {
-        return ResponseEntity.ok(datasetOperationService.counter(request));
     }
 
     @Operation(

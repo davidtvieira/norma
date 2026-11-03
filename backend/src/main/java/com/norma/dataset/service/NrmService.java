@@ -51,6 +51,8 @@ public class NrmService {
     private static final Logger log = LoggerFactory.getLogger(NrmService.class);
     private static final String INVALID_MESSAGE = "Invalid .nrm file.";
     private static final String INFO_ENTRY_NAME = "info.json";
+    /** The kinds a model keeps in its settings (see operationsOf), not among its operations. */
+    private static final java.util.Set<String> SETTING_KINDS = java.util.Set.of("formatter", "page", "iterator");
     /** The longest description a .nrm may carry, in characters (the frontend's field stops at the same number). */
     public static final int MAX_DESCRIPTION_LENGTH = 2000;
     /** A .nrm only ever holds three files; this just bounds how much of a hostile zip is walked. */
@@ -102,8 +104,8 @@ public class NrmService {
                 contents.info().createdAt(),
                 contents.spreadsheetName(),
                 operations.size(),
-                readIds(contents.model(), "inputOperationIds", "inputOperationId").size(),
-                readIds(contents.model(), "outputOperationIds", "outputOperationId").size(),
+                readIds(contents.model(), "inputOperationIds").size(),
+                readIds(contents.model(), "outputOperationIds").size(),
                 contents.info().description());
     }
 
@@ -215,8 +217,8 @@ public class NrmService {
      */
     private String registerModel(String datasetId, JsonNode model) {
         List<ModelOperationInput> operations = operationsOf(model);
-        List<String> inputIds = readIds(model, "inputOperationIds", "inputOperationId");
-        List<String> outputIds = readIds(model, "outputOperationIds", "outputOperationId");
+        List<String> inputIds = readIds(model, "inputOperationIds");
+        List<String> outputIds = readIds(model, "outputOperationIds");
         if (operations.isEmpty() || outputIds.isEmpty()) {
             return null;
         }
@@ -266,18 +268,14 @@ public class NrmService {
         }
     }
 
-    /** The array field if present, else the older singular field wrapped in a list, else none. */
-    private List<String> readIds(JsonNode model, String arrayField, String legacyField) {
+    /** The ids in the model's array field, or none when it is missing. */
+    private List<String> readIds(JsonNode model, String arrayField) {
         List<String> ids = new ArrayList<>();
-        if (model.path(arrayField).isArray()) {
-            model.path(arrayField).forEach(id -> {
-                if (id.isTextual()) {
-                    ids.add(id.asText());
-                }
-            });
-        } else if (model.path(legacyField).isTextual()) {
-            ids.add(model.path(legacyField).asText());
-        }
+        model.path(arrayField).forEach(id -> {
+            if (id.isTextual()) {
+                ids.add(id.asText());
+            }
+        });
         return ids;
     }
 
@@ -456,6 +454,9 @@ public class NrmService {
         }
         if (!OperationTypes.isKnown(node.path("kind").asText())) {
             throw invalid("the model has an unknown operation type: " + node.path("kind").asText());
+        }
+        if (SETTING_KINDS.contains(node.path("kind").asText())) {
+            throw invalid("the model has \"" + node.path("name").asText() + "\" among its operations, but it belongs in the settings.");
         }
         JsonNode children = node.path("operations");
         if (!children.isMissingNode() && !children.isArray()) {

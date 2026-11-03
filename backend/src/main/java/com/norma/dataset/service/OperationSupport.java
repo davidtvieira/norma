@@ -259,18 +259,6 @@ final class OperationSupport {
                 .orElseThrow(() -> new IllegalArgumentException("No rule exists for the value: " + normalizedInput));
     }
 
-    static double parseCounterEntry(String value) {
-        String trimmed = value == null ? "" : value.trim();
-        if (trimmed.isEmpty()) {
-            throw new IllegalArgumentException("O contador tem uma entrada sem valor.");
-        }
-        try {
-            return Double.parseDouble(trimmed.replace(',', '.'));
-        } catch (NumberFormatException ex) {
-            throw new IllegalArgumentException("The counter has an input that is not numeric: " + trimmed);
-        }
-    }
-
     /**
      * Parses a selector's index (zero-based, so index 1 of a, b, c is b): a whole number, with a
      * decimal comma or a trailing ".0" tolerated since a chained index may come from a numeric
@@ -307,7 +295,7 @@ final class OperationSupport {
     /**
      * Mirrors {@link DatasetParserService}'s own cell-value normalization — the single copy both
      * that service (parsing whole-number cells) and {@link ModelExecutionService} (stringifying a
-     * whole-number counter result so it matches a whole-number cell the same way, "24" not
+     * whole-number calc result so it matches a whole-number cell the same way, "24" not
      * "24.0") now share, instead of each keeping its own independent copy.
      */
     /** Parses a decimal number (a comma is accepted as the decimal separator) for the calc operation. */
@@ -394,15 +382,6 @@ final class OperationSupport {
             throw new IllegalArgumentException("Must be at most " + format.max().toPlainString() + ".");
         }
         return number;
-    }
-
-    /**
-     * Applies one of the calc operation's arithmetic operations to two numbers, then its output
-     * format: {@code round} gives a rounded integer, {@code abs} the absolute value, anything else
-     * (including {@code none}) the result as is. Dividing by zero is an error.
-     */
-    static Object calculate(double a, double b, String operation, String format) {
-        return calculateAll(List.of(a, b), operation, format);
     }
 
     /**

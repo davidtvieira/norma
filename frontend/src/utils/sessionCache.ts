@@ -1,5 +1,5 @@
 const DB_NAME = 'norma-session-cache';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_NAME = 'sessions';
 /** The oldest entry past this count is dropped on every save — a .nrm bundles a whole dataset's
  * bytes, so IndexedDB usage is capped rather than growing unbounded across a long-lived browser
@@ -47,8 +47,8 @@ function openDb(): Promise<IDBDatabase> {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
-      // v1 kept a single out-of-line-keyed slot under this same store name — drop it rather than
-      // try to migrate its one entry into the new keyPath-based shape.
+      // Whatever an older version kept is dropped, not migrated: the models in it were saved in an older shape (and v1 had
+      // a single out-of-line-keyed slot under this same store name).
       if (db.objectStoreNames.contains(STORE_NAME)) {
         db.deleteObjectStore(STORE_NAME);
       }

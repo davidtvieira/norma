@@ -139,6 +139,17 @@ function cachedNrmName(modelJson: string | null): string | null {
   }
 }
 
+/** The norma description kept in a cached session's modelJson (what the author wrote about it), for the recent-session card; null when there is none. */
+function cachedNrmDescription(modelJson: string | null): string | null {
+  if (!modelJson) return null;
+  try {
+    const parsed = JSON.parse(modelJson) as { nrmDescription?: unknown };
+    return typeof parsed.nrmDescription === 'string' && parsed.nrmDescription.trim() ? parsed.nrmDescription.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Not cryptographically unique, just unlikely enough to collide within one session — plain
  * crypto.randomUUID() requires a secure context (HTTPS or localhost), which isn't guaranteed for
@@ -1409,6 +1420,7 @@ function App() {
               id: entry.id,
               datasetFileName: entry.datasetFileName,
               nrmName: entry.nrmName ?? cachedNrmName(entry.modelJson),
+              description: cachedNrmDescription(entry.modelJson),
               hasModel: entry.modelJson !== null || Boolean(entry.savedNrmId),
               isSaved: Boolean(entry.savedNrmId),
               isResuming: resumingId === entry.id,

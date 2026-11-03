@@ -4,7 +4,7 @@ import java.util.List;
 
 /**
  * One operation's outcome from a model calculation: its own single output value (a lookup's
- * found value, or a counter's total) when {@code success} is true, or {@code error} describing why
+ * found value, or a calc's total) when {@code success} is true, or {@code error} describing why
  * it couldn't be computed (unknown kind, a broken/circular reference, a bad range, ...) — one
  * operation failing doesn't stop the others in the same request from being computed.
  * {@code name} is the operation's display name, only filled in on a model run's designated

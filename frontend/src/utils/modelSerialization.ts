@@ -57,6 +57,7 @@ export interface ExportedRuleSet {
 const VALIDATION_KIND_ID = 'formatter';
 const PAGE_KIND_ID = 'page';
 const ITERATOR_KIND_ID = 'iterator';
+const SETTING_KIND_IDS: ReadonlySet<string> = new Set([VALIDATION_KIND_ID, PAGE_KIND_ID, ITERATOR_KIND_ID]);
 
 export interface ExportedModel {
   modelName: string;
@@ -84,7 +85,7 @@ export interface ExportedModel {
 }
 
 /**
- * An entry's tree parent for export nesting: the first of its (possibly several — e.g. counter's
+ * An entry's tree parent for export nesting: the first of its (possibly several — e.g. calc's
  * "inputs" list) chainable fields that's a reference. Purely cosmetic — a node that references
  * more than one other operation still nests under only this one, since the tree can't show two
  * parents at once, but every reference it holds (not just this "primary" one) stays fully
@@ -194,6 +195,9 @@ function flattenNode(node: unknown, knownKindIds: Set<string>, out: Serializable
   }
 
   const typedNode = node as ExportedOperationNode;
+  if (SETTING_KIND_IDS.has(typedNode.kind)) {
+    throw new ModelImportError(`Ficheiro de modelo inválido: "${typedNode.name}" é uma configuração e não pode estar entre as operações.`);
+  }
   if (!knownKindIds.has(typedNode.kind)) {
     throw new ModelImportError(`Tipo de operação desconhecido: ${typedNode.kind}`);
   }
@@ -230,20 +234,10 @@ function readRuleSets(model: ExportedModel): ExportedRuleSet[] {
   return validation.map((item) => readSettingEntry(item ?? {}) as ExportedRuleSet);
 }
 
-/**
- * Reads one of the model's designated input/output lists, tolerating a file exported before a
- * model could have more than one of either: the current array field (`arrayField`) if present,
- * falling back to wrapping the old singular field (`legacyField`, e.g. `inputOperationId` or
- * `outputOperationId`) into a one-element array if that one's set, or an empty array for either a
- * model with none at all or one exported before either field existed.
- */
-function readOperationIds(model: Record<string, unknown>, arrayField: string, legacyField: string): string[] {
-  const current = model[arrayField];
-  if (Array.isArray(current)) {
-    return current.filter((id): id is string => typeof id === 'string');
-  }
-  const legacy = model[legacyField];
-  return typeof legacy === 'string' ? [legacy] : [];
+/** One of the model's designated input/output lists: the ids it holds, or none when the field is missing. */
+function readOperationIds(model: Record<string, unknown>, field: string): string[] {
+  const ids = model[field];
+  return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : [];
 }
 
 /**
@@ -287,8 +281,8 @@ export function parseModelImport(
     ...model,
     nrmName: typeof model.nrmName === 'string' ? model.nrmName.trim() : '',
     nrmDescription: typeof model.nrmDescription === 'string' ? model.nrmDescription.trim() : '',
-    inputOperationIds: readOperationIds(rawModel, 'inputOperationIds', 'inputOperationId'),
-    outputOperationIds: readOperationIds(rawModel, 'outputOperationIds', 'outputOperationId'),
+    inputOperationIds: readOperationIds(rawModel, 'inputOperationIds'),
+    outputOperationIds: readOperationIds(rawModel, 'outputOperationIds'),
     entries,
   };
 }

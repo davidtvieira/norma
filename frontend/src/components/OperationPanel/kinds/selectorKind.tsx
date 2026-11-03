@@ -21,10 +21,10 @@ function asSelectorFields(fields: OperationFields): SelectorFields {
 }
 
 /**
- * Picks one of its inputs by a zero-based index (index 1 over a, b, c gives b) — like counter and
+ * Picks one of its inputs by a zero-based index (index 1 over a, b, c gives b) — like calc and
  * node it has no table/column/range, so there's nothing to configure before confirming (see
  * renderDraftConfig below); the index and inputs are edited on the confirmed card (renderBody).
- * Both can be typed or chained, unlike counter's reference-only inputs: choosing between a few
+ * Both can be typed or chained: choosing between a few
  * typed values is as legitimate a use as choosing between other operations' results.
  */
 export const selectorKind: OperationKind = {
@@ -92,7 +92,7 @@ interface SelectorFieldsEditorProps {
 
 /**
  * The index field plus the editable list of inputs, and the live result (SelectorResult below).
- * Rows get their own stable ids for the same reason counter's do (see CounterInputs): removing a
+ * Rows get their own stable ids for the same reason a calc's do (see CalcInputs): removing a
  * middle row must not shift a later row into an earlier row's ValueSourceField, which keeps its
  * own toggle state locally.
  */
@@ -139,8 +139,8 @@ function SelectorFieldsEditor({
       {rows.map((row, position) => {
         const removeRow = () => commit(rows.filter((current) => current.id !== row.id));
         return (
-          <div key={row.id} className="counter-entry__input-row">
-            <div className="counter-entry__input-field">
+          <div key={row.id} className="list-entry__input-row">
+            <div className="list-entry__input-field">
               <ValueSourceField
                 label={`Entrada ${position}`}
                 placeholder="Introduza um valor"
@@ -149,7 +149,7 @@ function SelectorFieldsEditor({
                 onChange={(source) => commit(rows.map((current) => (current.id === row.id ? { ...current, source } : current)))}
                 referenceOptions={referenceOptions}
                 resolvedInput={resolvedInputs[position + 1] ?? { status: 'missing' }}
-                // Clicking a picked reference's pill removes the row (see counter's identical use);
+                // Clicking a picked reference's pill removes the row;
                 // the × below is for a row still without a reference or a typed value.
                 onRemove={removeRow}
                 // Several references picked at once: the first fills this row, each other gets a
@@ -171,7 +171,7 @@ function SelectorFieldsEditor({
             {row.source.type !== 'reference' && (
               <button
                 type="button"
-                className="operation-entry__reset-button counter-entry__remove-input"
+                className="operation-entry__reset-button list-entry__remove-input"
                 onClick={removeRow}
                 aria-label="Remover entrada"
               >
@@ -212,7 +212,7 @@ function SelectorFieldsEditor({
         resolvedInputs={resolvedInputs}
         // An empty literal is indistinguishable from a "ready" empty value by status alone, and
         // means a field the user hasn't finished setting up — skip testing rather than report on it
-        // (same reasoning as counter's hasUnsetInput).
+        // (see CalcInputs).
         hasUnsetInput={index.type === 'literal' && index.value.trim() === '' ? true : rows.some((row) => row.source.type === 'literal' && row.source.value === '')}
         testSignal={testSignal}
         resetSignal={resetSignal}
@@ -239,10 +239,10 @@ type SelectorRequestState =
   | { status: 'done'; value: string };
 
 /**
- * Runs the operation on the API, same as CounterResult: the frontend only resolves which values
+ * Runs the operation on the API, same as CalcResult: the frontend only resolves which values
  * the index and inputs currently stand for; the actual selection (and its index validation) is
- * POST /api/v1/dataset/operation/selector. Latch-free for the same reason as CounterResult (see
- * its note). Unlike counter, only the index and the *selected* input need to be ready — an
+ * POST /api/v1/dataset/operation/selector. Latch-free for the same reason as CalcResult (see
+ * its note). Only the index and the *selected* input need to be ready — an
  * unselected input that's still pending doesn't hold the result up.
  */
 function SelectorResult({ resolvedInputs, hasUnsetInput, testSignal, resetSignal, onResultChange }: SelectorResultProps) {
@@ -263,7 +263,7 @@ function SelectorResult({ resolvedInputs, hasUnsetInput, testSignal, resetSignal
     }
 
     // Nothing to pick from, or a field still unset: a true no-op that leaves an already-shown
-    // result alone (see CounterResult's identical note).
+    // result alone (see CalcResult's identical note).
     if (resolvedInputs.length < 2 || hasUnsetInput) {
       return;
     }
@@ -327,7 +327,7 @@ function SelectorResult({ resolvedInputs, hasUnsetInput, testSignal, resetSignal
         }
       });
 
-    // Deliberately doesn't null the result on cleanup — see CounterResult's identical note.
+    // Deliberately doesn't null the result on cleanup — see CalcResult's identical note.
     return () => {
       cancelled = true;
     };

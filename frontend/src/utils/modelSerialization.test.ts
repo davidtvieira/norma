@@ -110,10 +110,12 @@ describe('buildModelExport / parseModelImport round trip', () => {
     expect(exported).not.toHaveProperty('settings');
   });
 
-  it('still reads a formatter that an older model kept among its operations', () => {
-    const older = { modelName: 'M', operations: [{ id: 'f', kind: 'formatter', name: 'F', fields: { type: 'text' }, position: { x: 0, y: 0 }, operations: [] }] };
+  it('refuses a setting (a validation rule set, the page selector, the iterator) among the operations', () => {
+    for (const kind of ['formatter', 'page', 'iterator']) {
+      const model = { modelName: 'M', operations: [{ id: 'x', kind, name: 'X', fields: {}, position: { x: 0, y: 0 }, operations: [] }] };
 
-    expect(parseModelImport(JSON.stringify(older), KNOWN_KIND_IDS).entries.map((item) => item.kindId)).toEqual(['formatter']);
+      expect(() => parseModelImport(JSON.stringify(model), KNOWN_KIND_IDS)).toThrow(ModelImportError);
+    }
   });
 
   it('refuses settings that are malformed', () => {
@@ -178,22 +180,17 @@ describe('buildModelExport / parseModelImport round trip', () => {
     expect(imported.outputOperationIds).toEqual(['op-c']);
   });
 
-  it('falls back to the legacy singular input/output field for a model exported before it could have several', () => {
-    const legacyJson = JSON.stringify({
-      modelName: 'Old model',
+  it('reads a model with no input or output ids as having none', () => {
+    const json = JSON.stringify({
+      modelName: 'Model',
       datasetId: 'dataset-1',
-      inputOperationId: 'op-a',
-      outputOperationId: 'op-b',
-      operations: [
-        { id: 'op-a', kind: 'node', name: 'Input', fields: {}, position: { x: 0, y: 0 }, operations: [] },
-        { id: 'op-b', kind: 'find', name: 'Output', fields: {}, position: { x: 0, y: 0 }, operations: [] },
-      ],
+      operations: [{ id: 'op-a', kind: 'node', name: 'Input', fields: {}, position: { x: 0, y: 0 }, operations: [] }],
     });
 
-    const imported = parseModelImport(legacyJson, KNOWN_KIND_IDS);
+    const imported = parseModelImport(json, KNOWN_KIND_IDS);
 
-    expect(imported.inputOperationIds).toEqual(['op-a']);
-    expect(imported.outputOperationIds).toEqual(['op-b']);
+    expect(imported.inputOperationIds).toEqual([]);
+    expect(imported.outputOperationIds).toEqual([]);
   });
 
   it('tolerates a node with no saved position by leaving it undefined, not rejecting the import', () => {

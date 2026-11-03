@@ -97,10 +97,10 @@ describe('resolveOperationInputs', () => {
     expect(resolved['op-1']).toEqual([{ status: 'cycle' }]);
   });
 
-  it('detects a cycle reached only through one of several chainable inputs (counter-like)', () => {
+  it('detects a cycle reached only through one of several chainable inputs (calc-like)', () => {
     // op-a's second input chains to op-b, which chains back to op-a — a cycle reachable through
     // only one of the two inputs, the other being a plain literal. Mirrors
-    // ModelExecutionServiceTest#reportsACircularReferenceThroughACountersMultipleInputsAsAnError.
+    // ModelExecutionServiceTest#reportsACircularReferenceThroughACalcsMultipleInputsAsAnError.
     const entries = [
       entry('op-a', { inputs: [reference('op-b'), literalSource('1')] }),
       entry('op-b', { inputs: [reference('op-a')] }),
@@ -128,12 +128,12 @@ describe('resolveOperationInputs', () => {
   it('resolves every chainable input of a multi-input kind independently, in field order', () => {
     const entries = [
       entry('op-a', { input: literalSource('10') }),
-      entry('op-counter', { inputs: [reference('op-a'), literalSource('5')] }),
+      entry('op-calc', { inputs: [reference('op-a'), literalSource('5')] }),
     ];
 
     const resolved = resolveOperationInputs(entries, { 'op-a': '10' });
 
-    expect(resolved['op-counter']).toEqual([
+    expect(resolved['op-calc']).toEqual([
       { status: 'ready', value: '10' },
       { status: 'ready', value: '5' },
     ]);
@@ -182,14 +182,14 @@ describe('getDependencyChain', () => {
     expect(getDependencyChain('op-a', entries)).toEqual(new Set(['op-a']));
   });
 
-  it('collects every branch for a kind with several chainable inputs (counter-like)', () => {
+  it('collects every branch for a kind with several chainable inputs (calc-like)', () => {
     const entries = [
       entry('op-a', { input: literalSource('x') }),
       entry('op-b', { input: literalSource('y') }),
-      entry('op-counter', { inputs: [reference('op-a'), reference('op-b'), literalSource('1')] }),
+      entry('op-calc', { inputs: [reference('op-a'), reference('op-b'), literalSource('1')] }),
     ];
 
-    expect(getDependencyChain('op-counter', entries)).toEqual(new Set(['op-counter', 'op-a', 'op-b']));
+    expect(getDependencyChain('op-calc', entries)).toEqual(new Set(['op-calc', 'op-a', 'op-b']));
   });
 
   it('terminates instead of looping forever on a cycle reachable from the entry', () => {
