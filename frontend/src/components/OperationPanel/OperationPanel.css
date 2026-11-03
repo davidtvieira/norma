@@ -633,7 +633,7 @@
      "working area" the same way in both light and dark mode, plus a dotted grid — dots sit a
      little darker than the wash itself — for a sense of scale/position while panning. The grid
      is repositioned (see the inline backgroundPosition style) to pan along with the surface. */
-  background-color: color-mix(in srgb, #000 2%, var(--color-surface));
+  background-color: color-mix(in srgb, #000 var(--canvas-wash), var(--color-surface));
   /* Mixed from --color-text (dark in light mode, light in dark mode) over transparent, not from
      black — a dot darkened toward black would all but vanish against dark mode's already-dark
      wash above, since there'd be barely any contrast left to darken into. */

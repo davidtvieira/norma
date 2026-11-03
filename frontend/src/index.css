@@ -73,6 +73,9 @@
 
   /* The outline a box shows while it is pointed at: a darker neutral than its resting line, in both themes. */
   --color-border-hover: color-mix(in srgb, var(--color-text) 30%, var(--color-border));
+  /* How much black the editor's canvas is washed with over the surface: more in light mode, where it has to stand apart from
+     the page and the white cards on it. */
+  --canvas-wash: 6%;
 
   /* The thickness of every box outline (cards, dialogs, panels, inputs). Buttons keep a thin line of their own. */
   --border-width: 1.5px;
@@ -88,6 +91,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
+    --canvas-wash: 2%;
 
     --logo-color: #fff;
     /* The orange is deeper on the dark theme, so it sits calmer on the dark surfaces. */
@@ -131,6 +135,7 @@
 
 :root[data-theme='dark'] {
   color-scheme: dark;
+  --canvas-wash: 2%;
 
   --logo-color: #fff;
   /* The orange is deeper on the dark theme, so it sits calmer on the dark surfaces. */
