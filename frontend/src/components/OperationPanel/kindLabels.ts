@@ -22,7 +22,7 @@ export const KIND_DESCRIPTIONS: Record<string, string> = {
   translator: 'Troca valores por outros, segundo regras definidas por si: valores exatos ou intervalos de números.',
   selector: 'Escolhe um dos seus valores pelo número da posição.',
   iterator: 'Repete o modelo inteiro por cada página de um intervalo.',
-  calc: 'Soma, subtrai, multiplica ou divide dois valores.',
+  calc: 'Soma, subtrai, multiplica ou divide dois ou mais valores.',
   page: 'Escolhe a página dos dados que as outras operações vão ler.',
   formatter: 'Define o tipo e os limites (tamanho máximo, número, obrigatório…) das entradas que escolher.',
 };

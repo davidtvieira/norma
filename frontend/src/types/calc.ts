@@ -4,8 +4,8 @@ export type CalcOperation = 'add' | 'subtract' | 'multiply' | 'divide';
 export type CalcFormat = 'none' | 'round' | 'abs';
 
 export interface CalcRequestPayload {
-  a: string;
-  b: string;
+  /** Every value to combine, in order (the first, then the rest). */
+  values: string[];
   operation: CalcOperation;
   format: CalcFormat;
 }

@@ -1,3 +1,4 @@
+import { CloseIcon } from '../../ButtonIcons/ButtonIcons';
 import { inlineErrorMessage } from '../../../services/apiErrors';
 import { useEffect, useState } from 'react';
 import { calcValues } from '../../../services/datasetApi';
@@ -5,22 +6,24 @@ import type { CalcFormat, CalcOperation } from '../../../types/calc';
 import { literalSource, type ValueSource } from '../../../types/valueSource';
 import type { ResolvedInput } from '../../../utils/resolveOperationInputs';
 import { ValueSourceField } from '../fields';
-import type { OperationFields, OperationKind } from '../operationKind';
+import type { OperationFields, OperationKind, ReferenceOption } from '../operationKind';
 
 interface CalcFields {
-  // The two numbers to combine — typed directly, or chained from other operations' results. Declared
+  // Every value to combine, in order — typed directly, chained from other operations' results, or a column. Declared
   // in this order: resolvedInputs mirrors it (see getInputSources).
-  a: ValueSource;
-  b: ValueSource;
+  inputs: ValueSource[];
   operation: CalcOperation;
   format: CalcFormat;
+  // A calc saved before it took a list has just two values, here: still read as a list of two (see inputsOf).
+  a?: ValueSource;
+  b?: ValueSource;
 }
 
 const OPERATION_LABELS: Record<CalcOperation, string> = {
-  add: 'Somar (A + B)',
-  subtract: 'Subtrair (A − B)',
-  multiply: 'Multiplicar (A × B)',
-  divide: 'Dividir (A ÷ B)',
+  add: 'Somar (valor 1 + valor 2 + …)',
+  subtract: 'Subtrair (valor 1 − valor 2 − …)',
+  multiply: 'Multiplicar (valor 1 × valor 2 × …)',
+  divide: 'Dividir (valor 1 ÷ valor 2 ÷ …)',
 };
 
 const OPERATION_NAMES: Record<CalcOperation, string> = {
@@ -40,19 +43,24 @@ function asCalcFields(fields: OperationFields): CalcFields {
   return fields as unknown as CalcFields;
 }
 
+/** The values of a calc, whichever way it was saved: its list, or the two it had before it took a list. */
+function inputsOf(f: CalcFields): ValueSource[] {
+  if (Array.isArray(f.inputs)) return f.inputs;
+  return [f.a ?? literalSource(''), f.b ?? literalSource('')];
+}
+
 /**
- * Arithmetic on two values: add, subtract, multiply or divide, with the result optionally rounded
- * to an integer or turned into its absolute value. Like a counter it has no table/column/range, so
- * the only thing to set up before confirming is which operation and format (renderDraftConfig); the
- * two values are edited on the confirmed card, like every other kind's chainable fields.
+ * Arithmetic on two or more values: add, subtract, multiply or divide them (the first, then each of the rest in turn),
+ * with the result optionally rounded to an integer or turned into its absolute value. It has no table/column/range, so
+ * the only thing to set up before confirming is which operation and format (renderDraftConfig); the values are edited on
+ * the confirmed card, like every other kind's chainable fields.
  */
 export const calcKind: OperationKind = {
   id: 'calc',
   requiresDataset: false,
 
   createFields: (): OperationFields => ({
-    a: literalSource(''),
-    b: literalSource(''),
+    inputs: [literalSource(''), literalSource('')],
     operation: 'add',
     format: 'none',
   } satisfies CalcFields),
@@ -98,9 +106,11 @@ export const calcKind: OperationKind = {
 
   renderSummary: (fields) => {
     const f = asCalcFields(fields);
+    const count = inputsOf(f).length;
     return (
       <span>
         {OPERATION_NAMES[f.operation]}
+        {count > 2 && ` · ${count} valores`}
         {f.format !== 'none' && ` · ${FORMAT_LABELS[f.format].toLowerCase()}`}
       </span>
     );
@@ -108,32 +118,18 @@ export const calcKind: OperationKind = {
 
   renderBody: ({ fields, updateFields, testSignal, resetSignal, resolvedInputs, referenceOptions, onResultChange }) => {
     const f = asCalcFields(fields);
-    const aResolved = resolvedInputs[0] ?? { status: 'missing' as const };
-    const bResolved = resolvedInputs[1] ?? { status: 'missing' as const };
     return (
       <>
-        <ValueSourceField
-          label="Valor A"
-          placeholder="Introduza um número"
-          inputType="text"
-          source={f.a}
-          onChange={(a) => updateFields({ a })}
+        <CalcInputs
+          inputs={inputsOf(f)}
+          // Saving the list drops the two values an older calc had, which it now replaces.
+          onChange={(inputs) => updateFields({ inputs, a: undefined, b: undefined })}
           referenceOptions={referenceOptions}
-          resolvedInput={aResolved}
-        />
-
-        <ValueSourceField
-          label="Valor B"
-          placeholder="Introduza um número"
-          inputType="text"
-          source={f.b}
-          onChange={(b) => updateFields({ b })}
-          referenceOptions={referenceOptions}
-          resolvedInput={bResolved}
+          resolvedInputs={resolvedInputs}
         />
 
         <CalcResult
-          inputs={[aResolved, bResolved]}
+          inputs={resolvedInputs}
           operation={f.operation}
           format={f.format}
           testSignal={testSignal}
@@ -147,8 +143,78 @@ export const calcKind: OperationKind = {
   getColumnHighlights: () => [],
 };
 
+interface CalcRow {
+  id: string;
+  source: ValueSource;
+}
+
+let rowIdSeq = 0;
+function nextRowId(): string {
+  rowIdSeq += 1;
+  return `calc-row-${rowIdSeq}`;
+}
+
+interface CalcInputsProps {
+  inputs: ValueSource[];
+  onChange: (inputs: ValueSource[]) => void;
+  referenceOptions: ReferenceOption[];
+  resolvedInputs: ResolvedInput[];
+}
+
+/**
+ * The editable list of a calc's values: at least two, each one fixed, from another operation or a column, with
+ * "+ Adicionar valor" for more. Each row has an id of its own, independent of its position, so removing one from the
+ * middle doesn't hand its picker state to the row that moves up into its place (see the same note on CounterInputs).
+ */
+function CalcInputs({ inputs, onChange, referenceOptions, resolvedInputs }: CalcInputsProps) {
+  const [rows, setRows] = useState<CalcRow[]>(() => inputs.map((source) => ({ id: nextRowId(), source })));
+
+  function commit(nextRows: CalcRow[]) {
+    setRows(nextRows);
+    onChange(nextRows.map((row) => row.source));
+  }
+
+  return (
+    <>
+      {rows.map((row, index) => (
+        <div key={row.id} className="counter-entry__input-row">
+          <div className="counter-entry__input-field">
+            <ValueSourceField
+              label={`Valor ${index + 1}`}
+              placeholder="Introduza um número"
+              inputType="text"
+              source={row.source}
+              onChange={(source) => commit(rows.map((current) => (current.id === row.id ? { ...current, source } : current)))}
+              referenceOptions={referenceOptions}
+              resolvedInput={resolvedInputs[index] ?? { status: 'missing' }}
+            />
+          </div>
+          {rows.length > 2 && (
+            <button
+              type="button"
+              className="operation-entry__reset-button counter-entry__remove-input"
+              onClick={() => commit(rows.filter((current) => current.id !== row.id))}
+              aria-label="Remover valor"
+            >
+              <CloseIcon />
+            </button>
+          )}
+        </div>
+      ))}
+
+      <button
+        type="button"
+        className="btn btn--secondary btn--sm btn--block"
+        onClick={() => commit([...rows, { id: nextRowId(), source: literalSource('') }])}
+      >
+        + Adicionar valor
+      </button>
+    </>
+  );
+}
+
 interface CalcResultProps {
-  /** The two values to combine: A, then B. */
+  /** The values to combine, in order. */
   inputs: ResolvedInput[];
   operation: CalcOperation;
   format: CalcFormat;
@@ -164,8 +230,8 @@ type CalcRequestState =
   | { status: 'done'; value: number };
 
 /**
- * Runs the operation on the API, same as CounterResult: the frontend only resolves which values A,
- * B currently stand for, the arithmetic happens server-side (POST
+ * Runs the operation on the API, same as CounterResult: the frontend only resolves which values the
+ * inputs currently stand for, the arithmetic happens server-side (POST
  * /api/v1/dataset/operation/calc) — and only once "Testar modelo" has been clicked. Like the
  * counter it has no "already answered this click" latch, so a chained input catching up
  * mid-test still produces its result.
@@ -215,7 +281,7 @@ function CalcResult({ inputs, operation, format, testSignal, resetSignal, onResu
     let cancelled = false;
     setState({ status: 'loading' });
 
-    calcValues({ a: values[0], b: values[1], operation, format })
+    calcValues({ values, operation, format })
       .then((response) => {
         if (!cancelled) {
           setState({ status: 'done', value: response.value });

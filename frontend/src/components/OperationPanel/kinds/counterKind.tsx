@@ -27,8 +27,10 @@ function asCounterFields(fields: OperationFields): CounterFields {
  * operations'* results, not values typed in by hand, so it starts with none at all rather than
  * one empty typed one.
  */
+// Phased out: Calcular adds any number of values now. Contadores already in a norma keep working until the norma is converted.
 export const counterKind: OperationKind = {
   id: 'counter',
+  deprecated: true,
   requiresDataset: false,
 
   createFields: (): OperationFields => ({
