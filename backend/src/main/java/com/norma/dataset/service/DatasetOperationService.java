@@ -22,6 +22,7 @@ import com.norma.dataset.service.OperationSupport.FindOutcome;
 import com.norma.dataset.service.OperationSupport.MatchMode;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -118,6 +119,13 @@ public class DatasetOperationService {
      * of a calc operation's own model-run computation. No dataset dependency, same as counter.
      */
     public CalcResponse calc(CalcRequest request) {
+        if (request.values() != null) {
+            List<Double> values = new ArrayList<>();
+            for (String value : request.values()) {
+                values.add(OperationSupport.parseNumber(value, "input " + (values.size() + 1)));
+            }
+            return new CalcResponse(OperationSupport.calculateAll(values, request.operation(), request.format()));
+        }
         double a = OperationSupport.parseNumber(request.a(), "the first value");
         double b = OperationSupport.parseNumber(request.b(), "the second value");
         return new CalcResponse(OperationSupport.calculate(a, b, request.operation(), request.format()));

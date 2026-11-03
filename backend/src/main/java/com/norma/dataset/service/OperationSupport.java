@@ -394,18 +394,42 @@ final class OperationSupport {
      * (including {@code none}) the result as is. Dividing by zero is an error.
      */
     static Object calculate(double a, double b, String operation, String format) {
-        double result = switch (operation == null ? "" : operation) {
-            case "add" -> a + b;
-            case "subtract" -> a - b;
-            case "multiply" -> a * b;
-            case "divide" -> {
-                if (b == 0) {
-                    throw new IllegalArgumentException("Division by zero.");
+        return calculateAll(List.of(a, b), operation, format);
+    }
+
+    /**
+     * Applies an arithmetic operation across any number of values, from left to right: {@code add} and {@code multiply}
+     * combine them all, {@code subtract} and {@code divide} take the first and then subtract or divide by each of the
+     * rest in turn (the first minus the second minus the third…), so with two values it is exactly a - b or a / b.
+     * Subtract and divide need at least two values.
+     */
+    static Object calculateAll(List<Double> values, String operation, String format) {
+        if (values.isEmpty()) {
+            throw new IllegalArgumentException("The calculation has no values.");
+        }
+        String name = operation == null ? "" : operation;
+        if (("subtract".equals(name) || "divide".equals(name)) && values.size() < 2) {
+            throw new IllegalArgumentException("Subtract and divide need at least two values.");
+        }
+        double result = values.get(0);
+        for (int index = 1; index < values.size(); index++) {
+            double next = values.get(index);
+            result = switch (name) {
+                case "add" -> result + next;
+                case "subtract" -> result - next;
+                case "multiply" -> result * next;
+                case "divide" -> {
+                    if (next == 0) {
+                        throw new IllegalArgumentException("Division by zero.");
+                    }
+                    yield result / next;
                 }
-                yield a / b;
-            }
-            default -> throw new IllegalArgumentException("Unknown calc operation: " + operation);
-        };
+                default -> throw new IllegalArgumentException("Unknown calc operation: " + operation);
+            };
+        }
+        if (values.size() == 1 && !("add".equals(name) || "multiply".equals(name))) {
+            throw new IllegalArgumentException("Unknown calc operation: " + operation);
+        }
         if ("round".equals(format)) {
             return Math.round(result);
         }

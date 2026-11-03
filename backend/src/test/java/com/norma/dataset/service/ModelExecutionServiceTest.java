@@ -927,6 +927,83 @@ class ModelExecutionServiceTest {
         assertThat(runCalc("add", "none", "x", "1").success()).isFalse();
     }
 
+    /** A calc made with a list of inputs (any number of them), each a node holding the given value. */
+    private ModelOperationResult runCalcOver(String operation, String format, String... values) {
+        List<ModelOperationInput> operations = new java.util.ArrayList<>();
+        List<Object> inputs = new java.util.ArrayList<>();
+        for (int index = 0; index < values.length; index++) {
+            operations.add(node("n" + index, values[index]));
+            inputs.add(referenceInput("n" + index));
+        }
+        operations.add(new ModelOperationInput("calc", "calc", Map.of("inputs", inputs, "operation", operation, "format", format), "calc"));
+        return registerAndRun(twoSheetDataset(), operations, null, "calc", null);
+    }
+
+    @Test
+    void aCalcWithAListOfInputsAddsOrMultipliesAllOfThem() {
+        assertThat(runCalcOver("add", "none", "2", "3.5", "10").value()).isEqualTo(15.5);
+        assertThat(runCalcOver("multiply", "none", "2", "3", "4").value()).isEqualTo(24L);
+        assertThat(runCalcOver("add", "none", "7").value()).isEqualTo(7L);
+    }
+
+    @Test
+    void aCalcWithAListOfInputsSubtractsOrDividesTheRestFromTheFirstInOrder() {
+        assertThat(runCalcOver("subtract", "none", "100", "10", "5").value()).isEqualTo(85L);
+        assertThat(runCalcOver("divide", "none", "100", "5", "2").value()).isEqualTo(10L);
+        assertThat(runCalcOver("subtract", "abs", "2", "5", "1").value()).isEqualTo(4L);
+    }
+
+    @Test
+    void aCalcWithAListOfInputsNeedsTwoToSubtractOrDivideAndRefusesZeroDivisionAndNonNumbers() {
+        assertThat(runCalcOver("subtract", "none", "5").success()).isFalse();
+        assertThat(runCalcOver("divide", "none", "5").success()).isFalse();
+        assertThat(runCalcOver("divide", "none", "8", "2", "0").success()).isFalse();
+        assertThat(runCalcOver("add", "none", "1", "x").success()).isFalse();
+    }
+
+    /** What the two ways of writing the same calculation must agree on, for every operation and format. */
+    @Test
+    void aCalcWithAListOfTwoInputsGivesExactlyWhatTheOlderAAndBFormGives() {
+        String[][] pairs = {{"7.5", "2.25"}, {"2", "5"}, {"-3", "4,5"}, {"10", "4"}, {"0", "3"}, {"1000000", "0.001"}, {"-8", "-2"}};
+        for (String operation : List.of("add", "subtract", "multiply", "divide")) {
+            for (String format : List.of("none", "round", "abs")) {
+                for (String[] pair : pairs) {
+                    ModelOperationResult older = runCalc(operation, format, pair[0], pair[1]);
+                    ModelOperationResult newer = runCalcOver(operation, format, pair[0], pair[1]);
+                    assertThat(newer.success()).as("%s %s %s", operation, format, String.join(",", pair)).isEqualTo(older.success());
+                    assertThat(newer.value()).as("%s %s %s", operation, format, String.join(",", pair)).isEqualTo(older.value());
+                }
+            }
+        }
+    }
+
+    /** The reason Contador can become a Calcular: adding a list of other operations' values is the same either way. */
+    @Test
+    void aCalcThatAddsGivesExactlyWhatACounterGivesOverTheSameValues() {
+        String[][] sets = {{"1", "2"}, {"2", "3.5", "10"}, {"0.1", "0.2", "0.3"}, {"-4", "9", "1,5", "2"}, {"1e3", "5", "7", "11", "13"}, {"3"}};
+        for (String[] values : sets) {
+            List<ModelOperationInput> operations = new java.util.ArrayList<>();
+            List<Object> inputs = new java.util.ArrayList<>();
+            for (int index = 0; index < values.length; index++) {
+                operations.add(node("n" + index, values[index]));
+                inputs.add(referenceInput("n" + index));
+            }
+            operations.add(new ModelOperationInput("counter", "counter", Map.of("inputs", inputs), "counter"));
+            ModelOperationResult counter = registerAndRun(twoSheetDataset(), operations, null, "counter", null);
+            ModelOperationResult calc = runCalcOver("add", "none", values);
+            assertThat(calc.success()).as(String.join(",", values)).isEqualTo(counter.success());
+            assertThat(calc.value()).as(String.join(",", values)).isEqualTo(counter.value());
+        }
+    }
+
+    @Test
+    void aCalcWhoseInputsReferenceItselfFailsInsteadOfHanging() {
+        ModelOperationInput calc = new ModelOperationInput("calc", "calc", Map.of(
+                "inputs", List.of(referenceInput("calc"), literalInput("1")), "operation", "add", "format", "none"), "calc");
+
+        assertThat(registerAndRun(twoSheetDataset(), List.of(calc), null, "calc", null).success()).isFalse();
+    }
+
     private ModelOperationInput findCaneta() {
         return new ModelOperationInput("find", "find", Map.of(
                 "input", literalInput("Caneta"),

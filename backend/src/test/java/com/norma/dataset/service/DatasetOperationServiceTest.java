@@ -1,6 +1,7 @@
 package com.norma.dataset.service;
 
 import com.norma.dataset.dto.CellData;
+import com.norma.dataset.dto.CalcRequest;
 import com.norma.dataset.dto.CounterRequest;
 import com.norma.dataset.dto.CounterResponse;
 import com.norma.dataset.dto.DatasetImportResponse;
@@ -348,5 +349,15 @@ class DatasetOperationServiceTest {
     void rejectsALiveTranslatorCallWithNoRules() {
         assertThatThrownBy(() -> datasetOperationService.translator(new TranslatorRequest("3", List.of())))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void calcTakesAnyNumberOfValuesInItsLiveEndpointToo() {
+        assertThat(datasetOperationService.calc(new CalcRequest(null, null, "add", "none", List.of("2", "3.5", "10"))).value()).isEqualTo(15.5);
+        assertThat(datasetOperationService.calc(new CalcRequest(null, null, "subtract", "abs", List.of("2", "5", "1"))).value()).isEqualTo(4L);
+        assertThatThrownBy(() -> datasetOperationService.calc(new CalcRequest(null, null, "subtract", "none", List.of("5"))))
+                .isInstanceOf(IllegalArgumentException.class);
+        // The two-value form still works.
+        assertThat(datasetOperationService.calc(new CalcRequest("2", "5", "subtract", "none")).value()).isEqualTo(-3L);
     }
 }

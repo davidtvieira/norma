@@ -876,9 +876,22 @@ public class ModelExecutionService {
             Set<String> cyclicIds,
             Map<String, ModelOperationResult> resolved) {
         Map<String, Object> fields = fieldsOf(operation);
+        String format = fields.get("format") instanceof String text ? text : "none";
+        // A calc made with a list of "inputs" takes any number of values; one made before that, with just "a" and "b", still works.
+        if (fields.get("inputs") instanceof List<?> inputs) {
+            List<Double> values = new ArrayList<>();
+            for (Object rawSource : inputs) {
+                if (!(rawSource instanceof Map<?, ?> source)) {
+                    throw new IllegalArgumentException("One of the calculation inputs is malformed.");
+                }
+                String value = resolveValueSource(asStringKeyedMap(source), dataset, byId, cyclicIds, resolved);
+                values.add(OperationSupport.parseNumber(value, "input " + (values.size() + 1)));
+            }
+            return new ModelOperationResult(operation.id(), true,
+                    OperationSupport.calculateAll(values, stringField(fields, "operation"), format), null);
+        }
         double a = OperationSupport.parseNumber(resolveChainableField(fields, "a", dataset, byId, cyclicIds, resolved), "the first value");
         double b = OperationSupport.parseNumber(resolveChainableField(fields, "b", dataset, byId, cyclicIds, resolved), "the second value");
-        String format = fields.get("format") instanceof String text ? text : "none";
         return new ModelOperationResult(operation.id(), true,
                 OperationSupport.calculate(a, b, stringField(fields, "operation"), format), null);
     }
