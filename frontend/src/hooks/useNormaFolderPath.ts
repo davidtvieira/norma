@@ -17,6 +17,21 @@ export function pathTo(tree: CategoryNode[], categoryId: string): FolderStep[] {
   return [];
 }
 
+// The lookup in flight for each norma, shared so React StrictMode's dev-only mount → cleanup → mount joins it instead
+// of asking again. Dropped once it settles: a folder can be renamed or the norma moved, so a later mount asks afresh.
+const lookups = new Map<string, Promise<FolderStep[]>>();
+
+function lookUpFolderPath(savedId: string): Promise<FolderStep[]> {
+  let lookup = lookups.get(savedId);
+  if (!lookup) {
+    lookup = getSavedNrm(savedId)
+      .then(async (saved) => (saved.categoryId ? pathTo(await listCategories(), saved.categoryId) : []))
+      .finally(() => lookups.delete(savedId));
+    lookups.set(savedId, lookup);
+  }
+  return lookup;
+}
+
 /**
  * The folders a norma kept in the platform is filed under, top-most first — what the Utilizar screen shows as the
  * trail in front of the norma's name. Empty for a norma filed under none; null while it is being read, for a norma that
@@ -28,8 +43,7 @@ export function useNormaFolderPath(savedId: string | undefined): FolderStep[] | 
   useEffect(() => {
     if (!savedId) return;
     let cancelled = false;
-    getSavedNrm(savedId)
-      .then(async (saved) => (saved.categoryId ? pathTo(await listCategories(), saved.categoryId) : []))
+    lookUpFolderPath(savedId)
       .then((path) => {
         if (!cancelled) setResult({ savedId, path });
       })
