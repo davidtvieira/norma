@@ -18,7 +18,7 @@ export const KIND_DESCRIPTIONS: Record<string, string> = {
   lookup: 'Procura um valor numa coluna e devolve o valor correspondente de outra.',
   counter: 'Soma os resultados de outras operações.',
   node: 'Guarda um valor para outras operações o usarem.',
-  find: 'Encontra a posição da primeira correspondência num intervalo.',
+  find: 'Procura um valor num intervalo e devolve a posição (linha, coluna): serve para escolher a coluna de uma Pesquisa pelo cabeçalho.',
   translator: 'Troca valores por outros, segundo regras definidas por si: valores exatos ou intervalos de números.',
   selector: 'Escolhe um dos seus valores pelo número da posição.',
   iterator: 'Repete o modelo inteiro por cada página de um intervalo.',
