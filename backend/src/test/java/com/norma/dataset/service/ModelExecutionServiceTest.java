@@ -487,6 +487,22 @@ class ModelExecutionServiceTest {
     }
 
     @Test
+    void anIteratedModelGivesOneResultPerRoundWithAListOutputKeptIntact() {
+        String datasetId = twoSheetDataset();
+        List<ModelOperationInput> operations = List.of(
+                iterator(0, 1), node("a", "5"), node("b", "1"),
+                filterOf("f", Map.of("mode", "single", "operator", "gt", "value", literalInput("3")),
+                        List.of(referenceInput("a"), referenceInput("b"))));
+
+        List<ModelOperationResult> results = registerAndRunMulti(datasetId, operations, null, List.of("f"), null);
+
+        // One result per round, named by the round, each holding the filter's whole list.
+        assertThat(results).extracting(ModelOperationResult::name).containsExactly("0", "1");
+        assertThat(results).extracting(ModelOperationResult::value).containsExactly(List.of("5"), List.of("5"));
+        assertThat(results.get(0).labels()).containsExactly("a");
+    }
+
+    @Test
     void iteratorLeavesAnOperationOnItsOwnSheetUnlessItUsesTheIteratorsSheet() {
         String datasetId = twoSheetDataset();
 
@@ -864,7 +880,7 @@ class ModelExecutionServiceTest {
     }
 
     @Test
-    void aTranslatorWithSeveralInputsAsAModelOutputYieldsOneNamedResultPerInputInOrder() {
+    void aTranslatorWithSeveralInputsAsAModelOutputIsOneResultHoldingAListNamedAfterItsInputs() {
         String datasetId = twoSheetDataset();
         List<ModelOperationInput> operations = List.of(
                 node("a", "3"), node("b", "2"), node("c", "1"),
@@ -872,8 +888,11 @@ class ModelExecutionServiceTest {
 
         List<ModelOperationResult> results = registerAndRunMulti(datasetId, operations, null, List.of("t"), null);
 
-        assertThat(results).extracting(ModelOperationResult::value).containsExactly("1", "0", "0");
-        assertThat(results).extracting(ModelOperationResult::name).containsExactly("a", "b", "c");
+        assertThat(results).singleElement().satisfies(result -> {
+            assertThat(result.value()).isEqualTo(List.of("1", "0", "0"));
+            assertThat(result.labels()).containsExactly("a", "b", "c");
+            assertThat(result.name()).isEqualTo("t");
+        });
     }
 
     @Test
@@ -887,6 +906,141 @@ class ModelExecutionServiceTest {
         ModelOperationResult result = registerAndRun(datasetId, operations, null, "n", null);
 
         assertThat(result.success()).isFalse();
+    }
+
+    private ModelOperationInput filterOf(String id, Map<String, Object> condition, List<Map<String, Object>> inputs) {
+        Map<String, Object> fields = new java.util.HashMap<>(condition);
+        fields.put("inputs", inputs);
+        return new ModelOperationInput(id, "filter", fields, id);
+    }
+
+    @Test
+    void aFilterAsAModelOutputIsOneResultHoldingOnlyTheInputsThatMeetTheCondition() {
+        List<ModelOperationInput> operations = List.of(
+                node("a", "5"), node("b", "1"), node("c", "abc"), node("d", "7"),
+                filterOf("f", Map.of("mode", "single", "operator", "gt", "value", literalInput("3")),
+                        List.of(referenceInput("a"), referenceInput("b"), referenceInput("c"), referenceInput("d"))));
+
+        List<ModelOperationResult> results = registerAndRunMulti(null, operations, null, List.of("f"), null);
+
+        assertThat(results).singleElement().satisfies(result -> {
+            assertThat(result.value()).isEqualTo(List.of("5", "7"));
+            assertThat(result.labels()).containsExactly("a", "d");
+            assertThat(result.name()).isEqualTo("f");
+        });
+    }
+
+    @Test
+    void aFilterThatKeepsOneInputOrNoneStillHoldsAList() {
+        List<ModelOperationInput> one = List.of(
+                node("a", "5"), node("b", "1"),
+                filterOf("f", Map.of("mode", "single", "operator", "gt", "value", literalInput("3")),
+                        List.of(referenceInput("a"), referenceInput("b"))));
+        assertThat(registerAndRunMulti(null, one, null, List.of("f"), null)).singleElement().satisfies(result -> {
+            assertThat(result.value()).isEqualTo(List.of("5"));
+            assertThat(result.labels()).containsExactly("a");
+        });
+
+        List<ModelOperationInput> none = List.of(
+                node("a", "1"),
+                filterOf("f", Map.of("mode", "single", "operator", "gt", "value", literalInput("3")),
+                        List.of(referenceInput("a"))),
+                new ModelOperationInput("n", "node", Map.of("input", referenceInput("f")), "n"));
+        assertThat(registerAndRunMulti(null, none, null, List.of("f"), null)).singleElement().satisfies(result -> {
+            assertThat(result.success()).isTrue();
+            assertThat(result.value()).isEqualTo(List.of());
+        });
+        // Nothing to read from it: a reference to a filter that kept nothing fails.
+        assertThat(registerAndRun(null, none, null, "n", null).success()).isFalse();
+    }
+
+    @Test
+    void aFilterRangeIsInclusiveAndItsLimitsCanBeDynamic() {
+        List<ModelOperationInput> operations = List.of(
+                node("a", "10"), node("limit", "10"),
+                filterOf("f", Map.of("mode", "range", "min", literalInput("1"), "max", referenceInput("limit")),
+                        List.of(referenceInput("a"))));
+
+        ModelOperationResult result = registerAndRun(null, operations, null, "f", null);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.value()).isEqualTo(List.of("10"));
+    }
+
+    @Test
+    void aFilterRangeWithAnEmptyLimitHasNoLimitThere() {
+        List<ModelOperationInput> operations = List.of(
+                node("a", "1000"),
+                filterOf("f", Map.of("mode", "range", "min", literalInput("5"), "max", literalInput("")),
+                        List.of(referenceInput("a"))));
+
+        assertThat(registerAndRun(null, operations, null, "f", null).success()).isTrue();
+    }
+
+    @Test
+    void aFilterTextConditionIgnoresCase() {
+        List<ModelOperationInput> operations = List.of(
+                node("a", "Lisboa Norte"),
+                filterOf("f", Map.of("mode", "single", "operator", "startsWith", "value", literalInput("lisboa")),
+                        List.of(referenceInput("a"))));
+
+        assertThat(registerAndRun(null, operations, null, "f", null).success()).isTrue();
+    }
+
+    private ModelOperationInput combinedOf(String id, Map<String, Object> first, Map<String, Object> second) {
+        return new ModelOperationInput(id, "combined", Map.of("first", first, "second", second), id);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> part(ModelOperationResult result, String key) {
+        return (Map<String, Object>) ((Map<String, Object>) result.value()).get(key);
+    }
+
+    @Test
+    void aCombinedOutputMergesAnEvaluationAndAWholeListIntoOneResult() {
+        List<ModelOperationInput> operations = List.of(
+                node("a", "5"), node("b", "1"), node("c", "7"), node("sum", "3"),
+                translatorOf("t", List.of(referenceInput("sum"))),
+                filterOf("f", Map.of("mode", "single", "operator", "gt", "value", literalInput("3")),
+                        List.of(referenceInput("a"), referenceInput("b"), referenceInput("c"))),
+                combinedOf("combined", referenceInput("t"), referenceInput("f")));
+
+        List<ModelOperationResult> results = registerAndRunMulti(null, operations, null, List.of("combined"), null);
+
+        assertThat(results).singleElement().satisfies(result -> {
+            assertThat(result.success()).isTrue();
+            assertThat(result.name()).isEqualTo("combined");
+            assertThat(part(result, "first").get("value")).isEqualTo("1");
+            assertThat(part(result, "second").get("value")).isEqualTo(List.of("5", "7"));
+            assertThat(part(result, "second").get("labels")).isEqualTo(List.of("a", "c"));
+        });
+    }
+
+    @Test
+    void aCombinedOutputTakesTypedValuesAndASingleOutputToo() {
+        List<ModelOperationInput> operations = List.of(
+                node("a", "3"), node("b", "2"),
+                translatorOf("t", List.of(referenceInput("a"), referenceInput("b"))),
+                combinedOf("combined", literalInput("Borderline"), outputRef("t", 1)));
+
+        ModelOperationResult result = registerAndRun(twoSheetDataset(), operations, null, "combined", null);
+
+        assertThat(part(result, "first").get("value")).isEqualTo("Borderline");
+        assertThat(part(result, "second").get("value")).isEqualTo("0");
+    }
+
+    @Test
+    void aCombinedOutputFailsWhenOneOfItsInputsFailsAndCannotBeReferenced() {
+        List<ModelOperationInput> broken = List.of(
+                combinedOf("combined", literalInput("x"), referenceInput("missing")));
+        assertThat(registerAndRun(null, broken, null, "combined", null).success()).isFalse();
+
+        List<ModelOperationInput> chained = List.of(
+                combinedOf("combined", literalInput("x"), literalInput("y")),
+                new ModelOperationInput("n", "node", Map.of("input", referenceInput("combined")), "n"));
+        ModelOperationResult result = registerAndRun(null, chained, null, "n", null);
+        assertThat(result.success()).isFalse();
+        assertThat(result.error()).contains("combined output");
     }
 
     private ModelOperationResult runCalc(String operation, String format, String a, String b) {

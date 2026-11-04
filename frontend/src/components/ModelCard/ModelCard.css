@@ -791,3 +791,19 @@
   font-size: 0.9rem;
 }
 
+
+/* An output holding several values: the same one-line box as any other result, but a button that opens the list. */
+.model-card__result-multi {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  border: none;
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.model-card__result-multi:hover {
+  filter: brightness(1.08);
+}

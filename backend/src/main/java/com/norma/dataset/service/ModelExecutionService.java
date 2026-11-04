@@ -42,6 +42,7 @@ import java.util.stream.Collectors;
 public class ModelExecutionService {
 
     private static final String ITERATOR_KIND = "iterator";
+    private static final String COMBINED_KIND = "combined";
     private static final String FORMATTER_KIND = "formatter";
     private static final String PAGE_KIND = "page";
     /** The kinds that read from a page of the dataset, and so follow the model's page selector. */
@@ -219,22 +220,22 @@ public class ModelExecutionService {
         Map<String, List<String>> referenceGraph = buildReferenceGraph(operations);
         Set<String> cyclicIds = findCyclicIds(referenceGraph);
         Map<String, ModelOperationResult> resolved = new HashMap<>();
+        // One result per designated output, however many values it holds: a list-valued one (a translator with several
+        // inputs, a filter) stays a single result whose items are named after the inputs they came from.
         List<ModelOperationResult> outputResults = outputOperationIds.stream()
-                .flatMap(outputOperationId -> {
+                .map(outputOperationId -> {
+                    ModelOperationInput operation = byId.get(outputOperationId);
                     ModelOperationResult result = resolveOperation(outputOperationId, dataset, byId, cyclicIds, resolved);
                     if (!iterating) {
                         result = result.withTouches(chainTouches(outputOperationId, referenceGraph, resolved));
                     }
-                    if (iterating) {
-                        return java.util.stream.Stream.of(new ModelOperationResult(
-                                outputOperationId + ":" + iteration, result.success(), result.value(), result.error(), iterationName));
+                    result = withItemLabels(result, operation, byId);
+                    if (!iterating) {
+                        return result.withName(nameOf(operation));
                     }
-                    if (result.success() && result.value() instanceof List<?> outputs) {
-                        List<DatasetTouch> touches = result.touches();
-                        return expandOutputs(byId.get(outputOperationId), outputs, byId).stream()
-                                .map(expanded -> expanded.withTouches(touches));
-                    }
-                    return java.util.stream.Stream.of(result.withName(nameOf(byId.get(outputOperationId))));
+                    // A round of an iterated model (which has exactly one output): named by the round's description.
+                    return new ModelOperationResult(outputOperationId + ":" + iteration, result.success(), result.value(),
+                            result.error(), iterationName, null, null, result.labels());
                 })
                 .toList();
         for (String watchId : watchIds) {
@@ -289,28 +290,37 @@ public class ModelExecutionService {
     }
 
     /**
-     * An operation with several outputs designated as a model output yields one result per output,
-     * in order (ids suffixed with the position), each named after the operation its input came from
-     * (the operation's own name plus the position when that has no name).
+     * A designated output whose value is a list gets, for each item, the name of the input it came from (the operation
+     * it references, the value typed there, or the operation's own name plus the position when that has no name). A
+     * filter that kept a single input still yields a list of one (and one that kept none, an empty list), so it always
+     * reads the same way.
      */
-    private List<ModelOperationResult> expandOutputs(ModelOperationInput operation, List<?> outputs, Map<String, ModelOperationInput> byId) {
+    private ModelOperationResult withItemLabels(
+            ModelOperationResult result, ModelOperationInput operation, Map<String, ModelOperationInput> byId) {
+        if (!result.success() || operation == null) {
+            return result;
+        }
+        List<?> items = result.value() instanceof List<?> list ? list : result.sources() != null ? List.of(result.value()) : null;
+        if (items == null) {
+            return result;
+        }
         List<?> sources = fieldsOf(operation).get("inputs") instanceof List<?> inputs ? inputs : List.of();
-        List<ModelOperationResult> results = new ArrayList<>();
-        for (int index = 0; index < outputs.size(); index++) {
+        List<Integer> positions = result.sources();
+        List<String> labels = new ArrayList<>();
+        for (int index = 0; index < items.size(); index++) {
             String name = "";
-            if (index < sources.size() && sources.get(index) instanceof Map<?, ?> source) {
+            // A filter skips inputs, so it says which input each item came from.
+            int sourceIndex = positions != null && index < positions.size() ? positions.get(index) : index;
+            if (sourceIndex < sources.size() && sources.get(sourceIndex) instanceof Map<?, ?> source) {
                 if ("reference".equals(source.get("type")) && byId.get(source.get("operationId")) != null) {
                     name = nameOf(byId.get(source.get("operationId")));
                 } else if (source.get("value") != null) {
                     name = String.valueOf(source.get("value")).trim();
                 }
             }
-            if (name.isBlank()) {
-                name = nameOf(operation) + " " + (index + 1);
-            }
-            results.add(new ModelOperationResult(operation.id() + ":" + index, true, outputs.get(index), null, name));
+            labels.add(name.isBlank() ? nameOf(operation) + " " + (index + 1) : name);
         }
-        return results;
+        return new ModelOperationResult(result.id(), true, items, null, result.name(), result.touches(), positions, labels);
     }
 
     /**
@@ -529,6 +539,8 @@ public class ModelExecutionService {
                 case "page" -> computePage(operation, inputValue, dataset);
                 case "calc" -> computeCalc(operation, dataset, byId, cyclicIds, resolved);
                 case "selector" -> computeSelector(operation, dataset, byId, cyclicIds, resolved);
+                case "filter" -> computeFilter(operation, dataset, byId, cyclicIds, resolved);
+                case COMBINED_KIND -> computeCombined(operation, dataset, byId, cyclicIds, resolved);
                 case ITERATOR_KIND -> computeIterator(operation);
                 // A formatter produces nothing itself: it only puts its rules on the inputs it applies to (see applyFormatters).
                 case FORMATTER_KIND -> new ModelOperationResult(id, true, null, null);
@@ -629,6 +641,9 @@ public class ModelExecutionService {
             throw new IllegalArgumentException("References an operation that does not exist in the model.");
         }
 
+        if (COMBINED_KIND.equals(byId.get(referencedId).kind())) {
+            throw new IllegalArgumentException("A combined output can't be used as an input.");
+        }
         ModelOperationResult referenced = resolveOperation(referencedId, dataset, byId, cyclicIds, resolved);
         if (!referenced.success() || referenced.value() == null) {
             throw new IllegalArgumentException("The referenced operation did not produce a result.");
@@ -889,6 +904,117 @@ public class ModelExecutionService {
         }
         return new ModelOperationResult(operation.id(), true,
                 OperationSupport.calculateAll(values, stringField(fields, "operation"), format), null);
+    }
+
+    /**
+     * A combined output merges two inputs into the one result a caller sees as a single card: its "first" (the main value,
+     * e.g. an evaluation) and its "second" (the detail, e.g. the values that were counted). Each input is taken whole —
+     * a list (a filter, a translator with several inputs) stays a list, with the name of the input each item came from — so
+     * unlike every other kind it doesn't pick one output of what it references. Either input failing fails the operation.
+     * The value is {@code {first: {value, labels}, second: {value, labels}}}.
+     */
+    private ModelOperationResult computeCombined(
+            ModelOperationInput operation,
+            DatasetImportResponse dataset,
+            Map<String, ModelOperationInput> byId,
+            Set<String> cyclicIds,
+            Map<String, ModelOperationResult> resolved) {
+        Map<String, Object> fields = fieldsOf(operation);
+        Map<String, Object> value = new LinkedHashMap<>();
+        for (String key : List.of("first", "second")) {
+            if (!(fields.get(key) instanceof Map<?, ?> source)) {
+                throw new IllegalArgumentException("The combined output has no " + key + " input.");
+            }
+            value.put(key, resolveWholeSource(asStringKeyedMap(source), dataset, byId, cyclicIds, resolved));
+        }
+        return new ModelOperationResult(operation.id(), true, value, null);
+    }
+
+    /**
+     * A value source taken whole, as {@code {value, labels}}: a typed value as is, a reference to the operation's result
+     * as it is (a list stays one, with its items' labels), or — when it names one of the operation's outputs — that
+     * single value. A combined output can't be referenced.
+     */
+    private Map<String, Object> resolveWholeSource(
+            Map<String, Object> source,
+            DatasetImportResponse dataset,
+            Map<String, ModelOperationInput> byId,
+            Set<String> cyclicIds,
+            Map<String, ModelOperationResult> resolved) {
+        Map<String, Object> part = new LinkedHashMap<>();
+        if (!"reference".equals(source.get("type"))) {
+            Object typed = source.get("value");
+            part.put("value", typed == null ? "" : String.valueOf(typed));
+            part.put("labels", null);
+            return part;
+        }
+        if (!(source.get("operationId") instanceof String referencedId) || !byId.containsKey(referencedId)) {
+            throw new IllegalArgumentException("References an operation that does not exist in the model.");
+        }
+        if (COMBINED_KIND.equals(byId.get(referencedId).kind())) {
+            throw new IllegalArgumentException("A combined output can't be used as an input.");
+        }
+        ModelOperationResult referenced = resolveOperation(referencedId, dataset, byId, cyclicIds, resolved);
+        if (!referenced.success() || referenced.value() == null) {
+            throw new IllegalArgumentException("The referenced operation did not produce a result.");
+        }
+        if (source.get("outputIndex") != null) {
+            part.put("value", pickOutput(referenced.value(), source.get("outputIndex")));
+            part.put("labels", null);
+            return part;
+        }
+        ModelOperationResult labelled = withItemLabels(referenced, byId.get(referencedId), byId);
+        part.put("value", labelled.value());
+        part.put("labels", labelled.labels());
+        return part;
+    }
+
+    /**
+     * A filter checks each of its "inputs" against its condition: a single one ("operator" against "value") or a range
+     * ("min".."max"). Its outputs are only the inputs that meet it (a list, or just the value when one does, an empty list
+     * when none does); the others are skipped, not errors. The condition's
+     * "value", "min" and "max" are value sources too, so they can be typed (static) or chained (dynamic).
+     */
+    private ModelOperationResult computeFilter(
+            ModelOperationInput operation,
+            DatasetImportResponse dataset,
+            Map<String, ModelOperationInput> byId,
+            Set<String> cyclicIds,
+            Map<String, ModelOperationResult> resolved) {
+        Map<String, Object> fields = fieldsOf(operation);
+        if (!(fields.get("inputs") instanceof List<?> inputs) || inputs.isEmpty()) {
+            throw new IllegalArgumentException("The filter has no inputs.");
+        }
+        boolean range = "range".equals(stringField(fields, "mode"));
+        String value = range ? null : resolveOptionalSource(fields, "value", dataset, byId, cyclicIds, resolved);
+        String min = range ? resolveOptionalSource(fields, "min", dataset, byId, cyclicIds, resolved) : null;
+        String max = range ? resolveOptionalSource(fields, "max", dataset, byId, cyclicIds, resolved) : null;
+        List<String> values = new ArrayList<>();
+        for (Object rawSource : inputs) {
+            if (!(rawSource instanceof Map<?, ?> source)) {
+                throw new IllegalArgumentException("One of the filter inputs is malformed.");
+            }
+            values.add(resolveValueSource(asStringKeyedMap(source), dataset, byId, cyclicIds, resolved));
+        }
+        List<Integer> kept = OperationSupport.filterIndices(
+                stringField(fields, "mode"), stringField(fields, "operator"), value, min, max, values);
+        List<String> passed = kept.stream().map(values::get).toList();
+        return new ModelOperationResult(operation.id(), true, passed.size() == 1 ? passed.get(0) : passed, null)
+                .withSources(kept);
+    }
+
+    /** A condition field that is a value source (absent = no value). */
+    private String resolveOptionalSource(
+            Map<String, Object> fields,
+            String key,
+            DatasetImportResponse dataset,
+            Map<String, ModelOperationInput> byId,
+            Set<String> cyclicIds,
+            Map<String, ModelOperationResult> resolved) {
+        if (!(fields.get(key) instanceof Map<?, ?> source)) {
+            return null;
+        }
+        return resolveValueSource(asStringKeyedMap(source), dataset, byId, cyclicIds, resolved);
     }
 
     private ModelOperationResult computeTranslator(

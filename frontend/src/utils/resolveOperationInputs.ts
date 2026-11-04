@@ -15,7 +15,8 @@ export interface ChainableEntry {
 }
 
 export type ResolvedInput =
-  | { status: 'ready'; value: string }
+  // `items`: the operation holds several values (a translator with several inputs, a filter) and this reads them all — `value` is them joined.
+  | { status: 'ready'; value: string; items?: string[] }
   | { status: 'pending' }
   | { status: 'missing' }
   | { status: 'cycle' }
@@ -162,7 +163,16 @@ function resolveSource(
   }
 
   const value = results[source.outputIndex === undefined ? source.operationId : outputResultKey(source.operationId, source.outputIndex)];
-  return value == null ? { status: 'pending' } : { status: 'ready', value };
+  if (value != null) return { status: 'ready', value };
+  // A reference to the operation as a whole (no output chosen) that has several outputs: all of them, in order.
+  if (source.outputIndex === undefined) {
+    const items: string[] = [];
+    for (let index = 0; results[outputResultKey(source.operationId, index)] != null; index += 1) {
+      items.push(results[outputResultKey(source.operationId, index)] as string);
+    }
+    if (items.length > 0) return { status: 'ready', value: items.join(', '), items };
+  }
+  return { status: 'pending' };
 }
 
 /**

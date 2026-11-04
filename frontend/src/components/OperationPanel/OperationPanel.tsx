@@ -1,4 +1,4 @@
-import { reportApiError } from '../../services/apiErrors';
+import { inlineErrorMessage, reportApiError } from '../../services/apiErrors';
 import { ModelTitle } from '../ModelTitle/ModelTitle';
 import { LogoIcon, BroomIcon, ClearIcon, CloseIcon, EyeIcon, HelpIcon, LoadIcon, PencilIcon, PlayIcon, RedoIcon, SaveIcon, StopIcon, UndoIcon } from '../ButtonIcons/ButtonIcons';
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -11,13 +11,14 @@ import { useOperationTypes } from '../../hooks/useOperationTypes';
 import { KIND_LABELS } from './kindLabels';
 import { buildReferenceGraph, getDependencyChain, getDependents, resolveOperationInputs } from '../../utils/resolveOperationInputs';
 import { getInputSource, getInputSources, hasSingleInputField, literalSource, outputResultKey, remapValueSourceReferences } from '../../types/valueSource';
-import type { SerializableEntry } from '../../utils/modelSerialization';
+import { parseModelImport, type SerializableEntry } from '../../utils/modelSerialization';
 import { NOT_A_TEST_MESSAGE, checkTestCaseMatches, parseTestCaseFile } from '../../utils/testCaseSerialization';
 import type { FormatTarget, OperationFields, ReferenceOption } from './operationKind';
 import { iteratorPreviewSheet } from './kinds/iteratorKind';
 import { FORMATTER_KIND_ID } from './kinds/formatterKind';
+import { COMBINED_KIND_ID } from './kinds/combinedKind';
 import { PAGE_AWARE_KIND_IDS, PAGE_SELECTOR_KIND_ID, pageSheetFromResult } from '../../utils/pageSelector';
-import { KINDS, KINDS_BY_ID } from './kinds/registry';
+import { KINDS, KINDS_BY_ID, OPERATION_KIND_IDS } from './kinds/registry';
 import { AddOperationModal } from '../AddOperationModal/AddOperationModal';
 import { ConfirmModal } from '../Modal/ConfirmModal';
 import { Modal, ModalAsideContext } from '../Modal/Modal';
@@ -295,6 +296,8 @@ interface ConfirmedOperationCardProps {
   onToggleModelOutput: () => void;
   /** A formatter has no value of its own, so no output, nothing to test and no model input to be. */
   isFormatter: boolean;
+  /** A combined output is always a model output (see the effect that keeps it so), so its toggle isn't offered. */
+  isCombined: boolean;
   /** Whether this card's detail modal (its editable field(s) + live result — see `children`) is
    * currently open. Owned by OperationPanel (modalEntryId) rather than local state so it isn't
    * lost if this card unmounts and remounts (e.g. entries reordering), and so opening one card's
@@ -360,6 +363,7 @@ function ConfirmedOperationCard({
   isModelOutput,
   onToggleModelOutput,
   isFormatter,
+  isCombined,
   isModalOpen,
   onCloseModal,
   onCancelModal,
@@ -444,7 +448,7 @@ function ConfirmedOperationCard({
           {!isEditMode && (
             <>
               {isModelInputEligible && <IoToggle label="Input" active={isModelInput} onToggle={onToggleModelInput} />}
-              {!isFormatter && <IoToggle label="Output" active={isModelOutput} onToggle={onToggleModelOutput} />}
+              {!isFormatter && !isCombined && <IoToggle label="Output" active={isModelOutput} onToggle={onToggleModelOutput} />}
               {!isFormatter && <TestUpToHereButton onTest={onTestUpToHere} isTested={isTested} onClear={onClearTest} hasEmptyInput={hasEmptyInput} />}
               {isRevealEligible && <RevealButton onReveal={onReveal} />}
             </>
@@ -594,6 +598,8 @@ interface OperationPanelProps {
   isSheetPanelOpen: boolean;
   /** Reports the current entry list up so App.tsx can export it (see the "Guardar modelo" flow). */
   onEntriesChange: (entries: SerializableEntry[]) => void;
+  /** The model as it would be exported, pretty-printed — what "Editar JSON" (in "Editar" mode) starts from. */
+  getModelJson: () => string;
   /** Tells the screen whether the canvas is in "Editar" mode (its changes only count once it is left with "Guardar"), so
    * the norma itself can't be saved from under it. */
   onEditModeChange?: (isEditing: boolean) => void;
@@ -685,6 +691,7 @@ export function OperationPanel({
   onOperationConfirmed,
   isSheetPanelOpen,
   onEntriesChange,
+  getModelJson,
   onEditModeChange,
   modelInputIds,
   modelOutputIds,
@@ -714,6 +721,11 @@ export function OperationPanel({
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
   // The "?" on the canvas' toolbar: the list of shortcuts.
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+  // "Editar JSON" (only in "Editar" mode): the text being written, null while the dialog is closed, and why it can't be applied.
+  const [jsonDraft, setJsonDraft] = useState<string | null>(null);
+  const [jsonError, setJsonError] = useState<string | null>(null);
+  // The model's designated inputs/outputs as they were when "Editar" turned on: "Cancelar" puts them back, since the JSON can change them too.
+  const ioSnapshot = useRef<{ inputs: string[]; outputs: string[] } | null>(null);
   // "Configuração" on the canvas' toolbar: the model's page selector and input validation rule sets (see ModelSettingsModal).
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   // The open node modal's fields as they were when it opened, so "Cancelar" can put them back
@@ -1169,6 +1181,16 @@ export function OperationPanel({
   }, [isEditingCanvas, onEditModeChange]);
   useEffect(() => () => onEditModeChange?.(false), [onEditModeChange]);
 
+  // A combined output is always one of the model's outputs: confirming one makes it so (an iterated model has exactly one
+  // output, so there the one it already has is left alone). Its own toggle is not offered, so it can't be turned off.
+  useEffect(() => {
+    if (entries.some((entry) => entry.kindId === 'iterator')) return;
+    const missing = entries
+      .filter((entry) => entry.confirmed && entry.kindId === COMBINED_KIND_ID && !modelOutputIds.includes(entry.id))
+      .map((entry) => entry.id);
+    if (missing.length > 0) onModelOutputIdsChange([...modelOutputIds, ...missing]);
+  }, [entries, modelOutputIds, onModelOutputIdsChange]);
+
   // Commits a new "Desfazer"/"Refazer" step (see EditHistoryState) whenever `entries` actually
   // settles on something new during "Editar" — skipped mid-drag (dragNode still set: onDragEntry
   // fires on every single mousemove, so committing here too would turn one drag into dozens of
@@ -1375,6 +1397,7 @@ export function OperationPanel({
   function enterEditMode() {
     clearTest();
     const snapshot = structuredClone(entries);
+    ioSnapshot.current = { inputs: modelInputIds, outputs: modelOutputIds };
     setEditModeSnapshot(snapshot);
     setEditHistory({ steps: [snapshot], index: 0 });
     setModalEntryId(null);
@@ -1400,6 +1423,30 @@ export function OperationPanel({
     setPendingPaste(false);
   }
 
+  // "Editar JSON" → "Guardar": replaces the operations on the canvas (and the model's designated inputs/outputs) with the
+  // model written in the dialog. It is one more edit of this "Editar" session: "Desfazer" steps back over it and
+  // "Cancelar" throws it away with everything else. The model's own name and description are not part of the canvas.
+  function applyJson() {
+    if (jsonDraft === null) return;
+    try {
+      const imported = parseModelImport(jsonDraft, OPERATION_KIND_IDS);
+      if (withoutDataset) {
+        const needsDataset = imported.entries.find((entry) => KINDS_BY_ID[entry.kindId].requiresDataset);
+        if (needsDataset) {
+          throw new Error(`A operação "${needsDataset.name || 'sem nome'}" precisa de um conjunto de dados, mas esta norma não tem nenhum.`);
+        }
+      }
+      setEntries(imported.entries.map((entry, index) => ({ ...entry, position: entry.position ?? placementFor(index) })));
+      onModelInputIdsChange(imported.inputOperationIds ?? []);
+      onModelOutputIdsChange(imported.outputOperationIds ?? []);
+    } catch (error) {
+      setJsonError(inlineErrorMessage(error, 'O JSON não é válido.'));
+      return;
+    }
+    setJsonDraft(null);
+    setJsonError(null);
+  }
+
   // "Cancelar" (only shown while editing — see its own button): restores every entry to how it
   // looked the moment "Editar" turned on, undoing every move/copy/paste/delete made since, then
   // exits the same way "Guardar" does. editModeSnapshot is never null in practice here — it's
@@ -1407,6 +1454,10 @@ export function OperationPanel({
   function cancelEditMode() {
     if (editModeSnapshot) {
       setEntries(editModeSnapshot);
+    }
+    if (ioSnapshot.current) {
+      onModelInputIdsChange(ioSnapshot.current.inputs);
+      onModelOutputIdsChange(ioSnapshot.current.outputs);
     }
     exitEditMode();
   }
@@ -1568,7 +1619,8 @@ export function OperationPanel({
   const referenceOptionPool = useMemo(
     () =>
       committedEntries
-        .filter((entry) => entry.confirmed)
+        // A combined output ends its chain: nothing can read it.
+        .filter((entry) => entry.confirmed && entry.kindId !== COMBINED_KIND_ID)
         .map((entry) => {
           // An operation with several outputs is referenced per output ("Tradutor › Pergunta 2").
           const label = (id: string) => entryLabels.get(id) ?? 'Operação sem nome';
@@ -1580,7 +1632,10 @@ export function OperationPanel({
                   label: `${label(entry.id)} › ${outputLabel}`,
                 }))
               : [{ operationId: entry.id, label: label(entry.id) }];
-          return { entryId: entry.id, options };
+          // What a combined output can read besides one output: the operation's outputs all together, as a list.
+          const whole: ReferenceOption[] =
+            outputLabels && outputLabels.length > 1 ? [{ operationId: entry.id, label: `${label(entry.id)} (todas as saídas)` }] : [];
+          return { entryId: entry.id, options, whole };
         }),
     [committedEntries, entryLabels],
   );
@@ -1588,11 +1643,11 @@ export function OperationPanel({
   // What a given operation's "input" field can reference: every other confirmed operation,
   // except ones that (transitively) already read their own input from this one — offering those
   // would let the user wire up a cycle from the picker itself.
-  function referenceOptionsFor(entryId: string): ReferenceOption[] {
+  function referenceOptionsFor(entryId: string, kindId: string): ReferenceOption[] {
     const dependents = getDependents(entryId, entries, referenceGraph);
     return referenceOptionPool
       .filter((item) => item.entryId !== entryId && !dependents.has(item.entryId))
-      .flatMap((item) => item.options);
+      .flatMap((item) => (kindId === COMBINED_KIND_ID ? [...item.whole, ...item.options] : item.options));
   }
 
   // The page the model's page selector picks for a sheet-based operation (-1 while it has no result
@@ -2065,6 +2120,7 @@ export function OperationPanel({
           }
         }}
         isFormatter={entry.kindId === FORMATTER_KIND_ID}
+        isCombined={entry.kindId === COMBINED_KIND_ID}
         isModelOutput={modelOutputIds.includes(entry.id)}
         onToggleModelOutput={() =>
           onModelOutputIdsChange(
@@ -2106,7 +2162,7 @@ export function OperationPanel({
           },
           resolvedInput: liveResolvedInputsByEntry[entry.id][0],
           resolvedInputs: liveResolvedInputsByEntry[entry.id],
-          referenceOptions: referenceOptionsFor(entry.id),
+          referenceOptions: referenceOptionsFor(entry.id, entry.kindId),
           pageSheet: pageSheetFor(entry.kindId),
           iteratorSheet,
           sheetNames: dataset.sheets.map((sheet) => sheet.sheetName),
@@ -2649,6 +2705,19 @@ export function OperationPanel({
             Configuração
           </button>
 
+          {/* Only while editing: the JSON of the model is written here, and "Cancelar" on the canvas undoes it. */}
+          {tool === 'select' && (
+            <button
+              type="button"
+              className="btn btn--secondary btn--sm"
+              onClick={() => setJsonDraft(getModelJson())}
+              disabled={hasDraftInProgress}
+              title={hasDraftInProgress ? 'Termine a operação em curso antes de editar o JSON.' : 'Escrever o modelo em JSON.'}
+            >
+              {'{ }'} Editar JSON
+            </button>
+          )}
+
           {/* "Desfazer"/"Refazer": step back/forward through this "Editar" session's own history
               (see editHistory/undoEditMode/redoEditMode) — kept with zoom rather than the
               create/select/copy/paste/delete cluster on the right: both this and zoom are "meta"
@@ -2971,6 +3040,46 @@ export function OperationPanel({
       {renderConfigPanel()}
 
       {isShortcutsOpen && <ShortcutsModal onClose={() => setIsShortcutsOpen(false)} />}
+
+      {jsonDraft !== null && (
+        <Modal
+          title="Editar JSON"
+          size="md"
+          onClose={() => {
+            setJsonDraft(null);
+            setJsonError(null);
+          }}
+          actions={
+            <>
+              <button
+                type="button"
+                className="btn btn--secondary"
+                onClick={() => {
+                  setJsonDraft(null);
+                  setJsonError(null);
+                }}
+              >
+                Cancelar
+              </button>
+              <button type="button" className="btn btn--primary" onClick={applyJson}>
+                Guardar
+              </button>
+            </>
+          }
+        >
+          <textarea
+            className="editor-json editor-json--editable"
+            value={jsonDraft}
+            spellCheck={false}
+            aria-label="JSON do modelo"
+            onChange={(event) => {
+              setJsonDraft(event.target.value);
+              setJsonError(null);
+            }}
+          />
+          {jsonError && <p className="editor-json__error">{jsonError}</p>}
+        </Modal>
+      )}
       {isSettingsOpen && (
         <ModelSettingsModal
           hasDataset={!withoutDataset}

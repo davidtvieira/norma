@@ -3,7 +3,6 @@ import { useRef, useState } from 'react';
 import { BackButton } from '../components/BackButton/BackButton';
 import { AppFooter } from '../components/AppFooter/AppFooter';
 import { OperationPanel } from '../components/OperationPanel/OperationPanel';
-import { Modal } from '../components/Modal/Modal';
 import { SaveModal, type IoItem, type ModelExportFormat } from '../components/SaveModal/SaveModal';
 import { SheetPanel } from '../components/SheetPanel/SheetPanel';
 import { SheetViewer } from '../components/SheetViewer/SheetViewer';
@@ -14,8 +13,6 @@ import type { ColumnHighlight, OperationHighlight, RangeHighlight } from '../typ
 import type { CellRange } from '../types/cellRange';
 import type { SerializableEntry } from '../utils/modelSerialization';
 import type { Theme } from '../hooks/useTheme';
-import { reportApiError, reportSuccess } from '../services/apiErrors';
-import { copyText } from '../utils/copyText';
 import type { CategoryNode } from '../types/category';
 
 interface EditorScreenProps {
@@ -44,7 +41,7 @@ interface EditorScreenProps {
   onCellHighlightChange: (highlight: OperationHighlight | null) => void;
   onRevealInSheet: (sheetIndex: number) => void;
   onEntriesChange: (entries: SerializableEntry[]) => void;
-  /** The model as it would be exported, pretty-printed — only asked for while the JSON dialog is open. */
+  /** The model as it would be exported, pretty-printed — only asked for when "Editar JSON" opens. */
   getModelJson: () => string;
 
   modelInputIds: string[];
@@ -156,7 +153,6 @@ export function EditorScreen({
   const [testActionsSlot, setTestActionsSlot] = useState<HTMLElement | null>(null);
   // ...and the bottom-right one it draws "Carregar teste" into, on the left of the main action.
   const [loadActionSlot, setLoadActionSlot] = useState<HTMLElement | null>(null);
-  const [isJsonOpen, setIsJsonOpen] = useState(false);
   const attachInputRef = useRef<HTMLInputElement>(null);
   // The canvas is in "Editar" mode: its changes only count once that is left, so the norma can't be saved meanwhile.
   const [isEditingCanvas, setIsEditingCanvas] = useState(false);
@@ -166,9 +162,6 @@ export function EditorScreen({
       <header className="app__topbar app__topbar--with-title">
         <BackButton onClick={onBackToChoose} />
         <div className="app__topbar-actions">
-          <button type="button" className="btn btn--secondary" onClick={() => setIsJsonOpen(true)}>
-            {'{ }'} Ver JSON
-          </button>
           {withoutDataset ? (
             <>
               <button type="button" className="btn btn--secondary" onClick={() => attachInputRef.current?.click()}>
@@ -206,6 +199,7 @@ export function EditorScreen({
             dataset={dataset}
             withoutDataset={withoutDataset}
             initialEntries={pendingImportEntries}
+            getModelJson={getModelJson}
             columnPick={columnPick}
             onStartColumnPick={onStartColumnPick}
             onFinishColumnPick={onFinishColumnPick}
@@ -268,33 +262,6 @@ export function EditorScreen({
           active={isSheetPanelOpen}
         />
       </SheetPanel>
-      )}
-
-      {isJsonOpen && (
-        <Modal
-          title="JSON do modelo"
-          size="md"
-          onClose={() => setIsJsonOpen(false)}
-          actions={
-            <>
-              <button type="button" className="btn btn--secondary" onClick={() => setIsJsonOpen(false)}>
-                Fechar
-              </button>
-              <button
-                type="button"
-                className="btn btn--primary"
-                onClick={async () => {
-                  if (await copyText(getModelJson())) reportSuccess('JSON copiado');
-                  else reportApiError({ title: 'Não foi possível copiar o JSON' });
-                }}
-              >
-                Copiar
-              </button>
-            </>
-          }
-        >
-          <pre className="editor-json">{getModelJson()}</pre>
-        </Modal>
       )}
 
       <SaveModal

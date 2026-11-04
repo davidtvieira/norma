@@ -87,6 +87,8 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
   const [viewFullText, setViewFullText] = useState<{
     name: string;
     value: string;
+    /** Only for an output holding several values: shown as a list, a line per value. */
+    items?: { label: string; value: string }[];
     /** Only for an input a formatter puts rules on (opened from its title): the modal then shows its rules instead of its value. */
     format?: ValueFormat | null;
     /** The rules of `format` the value breaks: highlighted in the list. */
@@ -452,18 +454,19 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
                 {outputEntries.map((outputEntry) => {
                     const outputResult = results?.find((candidate) => candidate.id === outputEntry.id) ?? null;
                     const name = outputEntry.name || 'Output';
-                    const value = outputResult && outputResult.success && outputResult.value != null ? String(outputResult.value) : null;
+                    // What the output holds, as one or two parts (a combined output has two): each part is a value or a list of values.
+                    const parts = outputPartsOf(outputResult);
+                    const value = parts ? parts.map(describePart).join(' | ') : null;
                     const error = runError ?? (outputResult && !outputResult.success ? outputResult.error : null);
+                    const listPart = parts?.find((part) => part.items !== null) ?? null;
+                    const fullText = { name, value: describeResult(hasRun, isRunning, value, error), ...(listPart?.items ? { items: listPart.items } : {}) };
                     return (
                       <div key={outputEntry.id} className="model-card__field">
                         <EyeButton
                           onView={() =>
                             onViewOutputData
                               ? onViewOutputData(outputResult?.touches ?? null)
-                              : setViewFullText({
-                                  name,
-                                  value: describeResult(hasRun, isRunning, value, error),
-                                })
+                              : setViewFullText(fullText)
                           }
                           label={onViewOutputData ? 'Ver na folha de dados' : undefined}
                         />
@@ -475,11 +478,7 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
                           tabIndex={onViewOutputData ? 0 : undefined}
                           onClick={
                             onViewOutputData
-                              ? () =>
-                                  setViewFullText({
-                                    name,
-                                    value: describeResult(hasRun, isRunning, value, error),
-                                  })
+                              ? () => setViewFullText(fullText)
                               : undefined
                           }
                           onKeyDown={
@@ -487,10 +486,7 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
                               ? (event) => {
                                   if (event.key === 'Enter' || event.key === ' ') {
                                     event.preventDefault();
-                                    setViewFullText({
-                                      name,
-                                      value: describeResult(hasRun, isRunning, value, error),
-                                    });
+                                    setViewFullText(fullText);
                                   }
                                 }
                               : undefined
@@ -498,7 +494,28 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
                         >
                           {name}
                         </h3>
-                        <ModelOperationResultView hasRun={hasRun} isCalculating={isRunning} value={value} error={error} />
+                        {parts && !error && hasRun && !isRunning ? (
+                          // Each part gets an output box of its own; a list is one line (so every card is the same height), opened on click.
+                          parts.map((part, index) =>
+                            part.items === null ? (
+                              <ModelOperationResultView key={index} hasRun={hasRun} isCalculating={isRunning} value={part.text} error={null} />
+                            ) : part.items.length === 0 ? (
+                              <p key={index} className="operation-entry__result operation-entry__result--empty">Nenhum valor.</p>
+                            ) : (
+                              <button
+                                key={index}
+                                type="button"
+                                className="operation-entry__result model-card__result-multi"
+                                onClick={() => setViewFullText({ name, value: describePart(part), items: part.items ?? [] })}
+                                title="Ver as saídas"
+                              >
+                                <span className="operation-entry__result-label">Saída:</span> {part.items.length} saídas — ver
+                              </button>
+                            ),
+                          )
+                        ) : (
+                          <ModelOperationResultView hasRun={hasRun} isCalculating={isRunning} value={value} error={error} />
+                        )}
                       </div>
                     );
                   })}
@@ -778,7 +795,7 @@ function EyeButton({ onView, label = 'Ver texto completo' }: EyeButtonProps) {
 interface FullTextModalProps {
   /** Null closes the modal — same "the value itself is the open/closed state" pattern as most of
    * this app's other single-item modals (e.g. OperationPanel's modalEntryId). */
-  field: { name: string; value: string; format?: ValueFormat | null; broken?: RuleKey[] } | null;
+  field: { name: string; value: string; items?: { label: string; value: string }[]; format?: ValueFormat | null; broken?: RuleKey[] } | null;
   onClose: () => void;
 }
 
@@ -798,11 +815,55 @@ function FullTextModal({ field, onClose }: FullTextModalProps) {
             </li>
           ))}
         </ul>
+      ) : field.items ? (
+        // An output holding several values: a line per value, named after the input it came from.
+        <ul className="model-card__rules-list">
+          {field.items.map((item, index) => (
+            <li key={index}>
+              <strong>{item.label}:</strong> {formatCellValue(item.value) || '(vazio)'}
+            </li>
+          ))}
+        </ul>
       ) : (
         <p className="modal__text">{field.value || '(vazio)'}</p>
       )}
     </Modal>
   );
+}
+
+/** One part of an output: a single value, or a list of values (each named after the input it came from). */
+interface OutputPart {
+  items: { label: string; value: string }[] | null;
+  text: string | null;
+}
+
+function partOf(value: unknown, labels?: string[] | null): OutputPart {
+  if (Array.isArray(value)) {
+    const items = value.map((item, index) => ({ label: labels?.[index] || `Saída ${index + 1}`, value: String(item ?? '') }));
+    return { items, text: null };
+  }
+  return { items: null, text: value == null ? null : String(value) };
+}
+
+function isCombinedValue(value: unknown): value is { first: { value: unknown; labels?: string[] | null }; second: { value: unknown; labels?: string[] | null } } {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const candidate = value as { first?: unknown; second?: unknown };
+  return typeof candidate.first === 'object' && candidate.first !== null && typeof candidate.second === 'object' && candidate.second !== null;
+}
+
+/** What a successful output holds: one part, or two for a combined output (its main value and its detail). Null when it has no result. */
+function outputPartsOf(result: ModelOperationResultPayload | null): OutputPart[] | null {
+  if (!result || !result.success) return null;
+  if (isCombinedValue(result.value)) {
+    return [partOf(result.value.first.value, result.value.first.labels), partOf(result.value.second.value, result.value.second.labels)];
+  }
+  return result.value == null ? null : [partOf(result.value, result.labels)];
+}
+
+/** A part as plain text: its value, or how many values it holds. */
+function describePart(part: OutputPart): string {
+  if (part.items === null) return part.text ?? '';
+  return part.items.length === 0 ? 'Nenhum valor' : `${part.items.length} saídas`;
 }
 
 interface ModelOperationResultViewProps {

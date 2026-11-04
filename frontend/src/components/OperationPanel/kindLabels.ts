@@ -10,6 +10,8 @@ export const KIND_LABELS: Record<string, string> = {
   calc: 'Calcular',
   page: 'Seletor de página',
   formatter: 'Formatador de entrada',
+  filter: 'Filtro',
+  combined: 'Saída combinada',
 };
 
 /** A one-line description of what each operation kind does, shown when picking one to add. */
@@ -23,4 +25,6 @@ export const KIND_DESCRIPTIONS: Record<string, string> = {
   calc: 'Soma, subtrai, multiplica ou divide dois ou mais valores.',
   page: 'Escolhe a página dos dados que as outras operações vão ler.',
   formatter: 'Define o tipo e os limites (tamanho máximo, número, obrigatório…) das entradas que escolher.',
+  filter: 'Só deixa passar as entradas que cumprem uma condição (um valor ou um intervalo); as outras são ignoradas.',
+  combined: 'Junta dois valores num só cartão de saída: um valor principal e um detalhe (por exemplo, a avaliação e os valores contados). É sempre uma saída.',
 };

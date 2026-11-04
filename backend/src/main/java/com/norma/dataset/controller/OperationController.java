@@ -2,6 +2,8 @@ package com.norma.dataset.controller;
 
 import com.norma.dataset.dto.CalcRequest;
 import com.norma.dataset.dto.CalcResponse;
+import com.norma.dataset.dto.FilterRequest;
+import com.norma.dataset.dto.FilterResponse;
 import com.norma.dataset.dto.NodeRequest;
 import com.norma.dataset.dto.NodeResponse;
 import com.norma.dataset.dto.OperationType;
@@ -74,5 +76,14 @@ public class OperationController {
     @PostMapping("/api/v1/dataset/operation/selector")
     public ResponseEntity<SelectorResponse> selector(@RequestBody SelectorRequest request) {
         return ResponseEntity.ok(datasetOperationService.selector(request));
+    }
+
+    @Operation(
+            summary = "Filter values",
+            description = "Returns only the values that meet the condition (a single condition or a range), unchanged and in order; the others are skipped. No dataset needed."
+    )
+    @PostMapping("/api/v1/dataset/operation/filter")
+    public ResponseEntity<FilterResponse> filter(@RequestBody FilterRequest request) {
+        return ResponseEntity.ok(datasetOperationService.filter(request));
     }
 }

@@ -298,6 +298,114 @@ final class OperationSupport {
      * whole-number calc result so it matches a whole-number cell the same way, "24" not
      * "24.0") now share, instead of each keeping its own independent copy.
      */
+    /**
+     * The filter operation: returns only the inputs that meet the condition, unchanged and in order (the others are
+     * skipped; there may be none). {@code mode} is {@code "range"}
+     * (numbers between {@code min} and {@code max}, both inclusive, either blank for no limit) or anything else for a
+     * single condition ({@code operator} against {@code value}).
+     */
+    static List<String> filterValues(
+            String mode, String operator, String value, String min, String max, List<String> inputs) {
+        return filterIndices(mode, operator, value, min, max, inputs).stream().map(inputs::get).toList();
+    }
+
+    /** Same as {@link #filterValues}, but as the positions of the inputs that were kept. */
+    static List<Integer> filterIndices(
+            String mode, String operator, String value, String min, String max, List<String> inputs) {
+        if (inputs == null || inputs.isEmpty()) {
+            throw new IllegalArgumentException("The filter has no inputs.");
+        }
+        boolean range = "range".equals(mode);
+        Double lower = null;
+        Double upper = null;
+        String target = value == null ? "" : value.trim();
+        if (range) {
+            lower = blankToNull(min) == null ? null : parseNumber(min, "the range start");
+            upper = blankToNull(max) == null ? null : parseNumber(max, "the range end");
+            if (lower == null && upper == null) {
+                throw new IllegalArgumentException("The filter range has no limits.");
+            }
+            if (lower != null && upper != null && lower > upper) {
+                throw new IllegalArgumentException("The filter range starts after it ends.");
+            }
+        } else {
+            if (operator == null || !FILTER_OPERATORS.contains(operator)) {
+                throw new IllegalArgumentException("Unknown filter condition: " + operator);
+            }
+            if (target.isEmpty()) {
+                throw new IllegalArgumentException("The filter has no value to compare with.");
+            }
+        }
+
+        List<Integer> passed = new ArrayList<>();
+        for (int position = 0; position < inputs.size(); position++) {
+            String input = inputs.get(position);
+            // An input that is blank, or not a number where the condition needs one, simply doesn't match.
+            if (input == null || input.trim().isEmpty()) {
+                continue;
+            }
+            Double number = null;
+            if (range || NUMERIC_FILTER_OPERATORS.contains(operator)) {
+                number = tryParseNumber(input);
+                if (number == null) {
+                    continue;
+                }
+            }
+            boolean passes = range
+                    ? (lower == null || number >= lower) && (upper == null || number <= upper)
+                    : meetsCondition(operator, input.trim(), target, number);
+            if (passes) {
+                passed.add(position);
+            }
+        }
+        return passed;
+    }
+
+    private static final List<String> FILTER_OPERATORS =
+            List.of("eq", "ne", "contains", "startsWith", "endsWith", "gt", "gte", "lt", "lte");
+
+    private static String blankToNull(String text) {
+        return text == null || text.trim().isEmpty() ? null : text;
+    }
+
+    private static final List<String> NUMERIC_FILTER_OPERATORS = List.of("gt", "gte", "lt", "lte");
+
+    private static Double tryParseNumber(String text) {
+        try {
+            return parseNumber(text, "");
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    private static boolean meetsCondition(String operator, String input, String target, Double number) {
+        return switch (operator) {
+            case "eq" -> sameValue(input, target);
+            case "ne" -> !sameValue(input, target);
+            case "contains" -> input.toLowerCase().contains(target.toLowerCase());
+            case "startsWith" -> input.toLowerCase().startsWith(target.toLowerCase());
+            case "endsWith" -> input.toLowerCase().endsWith(target.toLowerCase());
+            default -> {
+                double limit = parseNumber(target, "the filter value");
+                yield switch (operator) {
+                    case "gt" -> number > limit;
+                    case "gte" -> number >= limit;
+                    case "lt" -> number < limit;
+                    default -> number <= limit;
+                };
+            }
+        };
+    }
+
+    /** Two numbers are the same when equal as numbers ("7" and "7.0"), anything else when equal ignoring case. */
+    private static boolean sameValue(String left, String right) {
+        try {
+            return parseNumber(left, "") == parseNumber(right, "");
+        } catch (IllegalArgumentException ex) {
+            return left.equalsIgnoreCase(right);
+        }
+    }
+
     /** Parses a decimal number (a comma is accepted as the decimal separator) for the calc operation. */
     /** One value of a calc made with a list: a blank one says so, any other that is not a number says which input it is. */
     static double parseCalcInput(String value, int position) {

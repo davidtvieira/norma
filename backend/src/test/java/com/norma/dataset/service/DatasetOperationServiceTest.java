@@ -338,4 +338,17 @@ class DatasetOperationServiceTest {
                 .isInstanceOf(IllegalArgumentException.class);
         assertThat(datasetOperationService.calc(new CalcRequest(List.of("2", "5"), "subtract", "none")).value()).isEqualTo(-3L);
     }
+
+    @Test
+    void filterKeepsOnlyTheValuesThatMeetTheConditionAndRejectsAnIncompleteOne() {
+        assertThat(datasetOperationService.filter(new com.norma.dataset.dto.FilterRequest(
+                "range", null, null, "1", "", List.of("0", "1", "50", "x", " "))).values()).containsExactly("1", "50");
+        assertThat(datasetOperationService.filter(new com.norma.dataset.dto.FilterRequest(
+                "single", "contains", "AB", null, null, List.of("xaby", "zzz"))).values()).containsExactly("xaby");
+        assertThat(datasetOperationService.filter(new com.norma.dataset.dto.FilterRequest(
+                "single", "eq", "7", null, null, List.of("7.0", "8"))).values()).containsExactly("7.0");
+        assertThatThrownBy(() -> datasetOperationService.filter(new com.norma.dataset.dto.FilterRequest(
+                "range", null, null, "", " ", List.of("1"))))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
 }

@@ -2,6 +2,8 @@ package com.norma.dataset.service;
 
 import com.norma.dataset.dto.CalcRequest;
 import com.norma.dataset.dto.CalcResponse;
+import com.norma.dataset.dto.FilterRequest;
+import com.norma.dataset.dto.FilterResponse;
 import com.norma.dataset.dto.DatasetImportResponse;
 import com.norma.dataset.dto.FindRequest;
 import com.norma.dataset.dto.FindResponse;
@@ -141,5 +143,15 @@ public class DatasetOperationService {
         OperationSupport.validateSelectorIndex(index, values.size());
         String selected = values.get(index);
         return new SelectorResponse(selected == null ? "" : selected);
+    }
+
+    /**
+     * Keeps the values that meet the filter's condition — the live-editor counterpart of a filter operation's own
+     * model-run computation. No dataset dependency, same as calc/node. Values that don't meet the condition are skipped.
+     */
+    public FilterResponse filter(FilterRequest request) {
+        List<Integer> kept = OperationSupport.filterIndices(
+                request.mode(), request.operator(), request.value(), request.min(), request.max(), request.values());
+        return new FilterResponse(kept.stream().map(request.values()::get).toList(), kept);
     }
 }

@@ -9,6 +9,7 @@ import type {
   ModelRegisterResponsePayload,
   ModelRunResponsePayload,
 } from '../types/modelCalculation';
+import type { FilterRequestPayload, FilterResponsePayload } from '../types/filter';
 import type { SelectorRequestPayload, SelectorResponsePayload } from '../types/selector';
 import type { NrmImportStatusPayload, NrmInfoPayload, NrmOpenPayload } from '../types/nrm';
 import type { CategoryNode } from '../types/category';
@@ -539,6 +540,25 @@ export async function selectValue(payload: SelectorRequestPayload): Promise<Sele
 
   if (!response.ok) {
     throw await apiError(response, 'Falha ao selecionar o valor');
+  }
+
+  return response.json();
+}
+
+/**
+ * Checks the already-resolved values against a filter's condition (a single comparison or a range) — the check itself
+ * happens on the API, same as every other kind's own computation. A value that doesn't meet it is an error naming it.
+ * No dataset dependency, same as calc/node.
+ */
+export async function filterValues(payload: FilterRequestPayload): Promise<FilterResponsePayload> {
+  const response = await apiFetch(`${API_BASE_URL}/api/v1/dataset/operation/filter`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw await apiError(response, 'Falha ao filtrar os valores');
   }
 
   return response.json();

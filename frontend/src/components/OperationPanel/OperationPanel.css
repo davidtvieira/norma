@@ -1309,3 +1309,24 @@
 .operation-canvas__navigation .operation-canvas__zoom-level:hover:not(:disabled) {
   background: var(--color-surface-hover);
 }
+
+/* "Editar JSON": the model's JSON as a field (the block look is .editor-json in App.css). */
+.editor-json--editable {
+  display: block;
+  width: 100%;
+  min-height: 24rem;
+  box-sizing: border-box;
+  color: inherit;
+  resize: vertical;
+}
+
+.editor-json--editable:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.editor-json__error {
+  margin: 0.5rem 0 0;
+  color: var(--color-error);
+  font-size: 0.85rem;
+}

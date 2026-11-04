@@ -20,7 +20,9 @@ public final class OperationTypes {
             new OperationType("iterator", "Iterator", true),
             new OperationType("calc", "Calc", false),
             new OperationType("page", "Page selector", true),
-            new OperationType("formatter", "Input formatter", false)
+            new OperationType("formatter", "Input formatter", false),
+            new OperationType("filter", "Filter", false),
+            new OperationType("combined", "Combined output", false)
     );
 
     private OperationTypes() {

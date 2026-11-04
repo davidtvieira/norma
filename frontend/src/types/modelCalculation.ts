@@ -38,6 +38,8 @@ export interface ModelOperationResultPayload {
   name?: string | null;
   /** Only on a run's designated outputs: everything the output's chain read from the dataset. */
   touches?: DatasetTouchPayload[] | null;
+  /** Only on a designated output whose value is a list (a translator with several inputs, a filter): the name of the input each item came from. */
+  labels?: string[] | null;
 }
 
 export interface ModelRegisterRequestPayload {
