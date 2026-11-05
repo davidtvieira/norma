@@ -3,7 +3,7 @@ import type { DragEvent } from 'react';
 import { ChevronRightIcon, FolderClosedIcon, FolderOpenIcon, InfoIcon, PencilIcon, PlusIcon, TrashIcon } from '../ButtonIcons/ButtonIcons';
 import { NormaMark } from '../NormaMark/NormaMark';
 import { useNormaDropTarget } from '../../hooks/useNormaDropTarget';
-import { NORMA_DRAG_TYPE } from '../../utils/normaDrag';
+import { FOLDER_DRAG_TYPE, NORMA_DRAG_TYPE } from '../../utils/normaDrag';
 import { formatDate, truncate } from '../../utils/formatNorma';
 import { toFolderEntry, type TreeFolder, type TreeItem, type TreeNorma } from '../../utils/normaTree';
 import { MAX_FOLDER_DEPTH } from '../../types/category';
@@ -26,6 +26,10 @@ interface NormaTreeProps {
   onShowInfo: (model: SavedNrmPayload) => void;
   /** A norma was dropped on a folder (null: taken out of its folder). */
   onDropNorma: (normaId: string, folderId: string | null) => void;
+  /** A folder was dropped on another folder (null: taken out of its parent, to the top level). */
+  onDropFolder: (draggedId: string, folderId: string | null) => void;
+  /** A folder started (it) or stopped (null) being dragged. */
+  onFolderDragChange: (folder: FolderEntryPayload | null) => void;
   /** A norma started (it) or stopped (null) being dragged. */
   onDragChange: (model: SavedNrmPayload | null) => void;
   onNewFolder: (parentId: string) => void;
@@ -55,7 +59,11 @@ function TreeNode({ item, ...rest }: { item: TreeItem } & NormaTreeProps) {
 
 function FolderNode({ folder, ...props }: { folder: TreeFolder } & NormaTreeProps) {
   const isOpen = props.openAll || !props.collapsed.has(folder.id);
-  const drop = useNormaDropTarget((normaId) => props.onDropNorma(normaId, folder.id));
+  const drop = useNormaDropTarget(
+    (normaId) => props.onDropNorma(normaId, folder.id),
+    (draggedId) => props.onDropFolder(draggedId, folder.id),
+  );
+  const [isDragging, setIsDragging] = useState(false);
   const canHaveSubfolder = folder.depth + 1 < MAX_FOLDER_DEPTH;
   const entry = toFolderEntry(folder);
   const Icon = isOpen ? FolderOpenIcon : FolderClosedIcon;
@@ -63,7 +71,18 @@ function FolderNode({ folder, ...props }: { folder: TreeFolder } & NormaTreeProp
   return (
     <li role="none">
       <div
-        className={`normas-tree__row normas-tree__row--folder${drop.isOver ? ' normas-tree__row--drop' : ''}`}
+        className={`normas-tree__row normas-tree__row--folder${drop.isOver ? ' normas-tree__row--drop' : ''}${isDragging ? ' normas-tree__row--dragging' : ''}`}
+        draggable
+        onDragStart={(event: DragEvent) => {
+          event.dataTransfer.setData(FOLDER_DRAG_TYPE, folder.id);
+          event.dataTransfer.effectAllowed = 'move';
+          setIsDragging(true);
+          props.onFolderDragChange(entry);
+        }}
+        onDragEnd={() => {
+          setIsDragging(false);
+          props.onFolderDragChange(null);
+        }}
         style={{ paddingLeft: `calc(${folder.depth} * var(--tree-indent) + 0.5rem)` }}
         role="treeitem"
         aria-expanded={isOpen}
@@ -197,17 +216,21 @@ function RowButton({ label, onClick, children }: { label: string; onClick: () =>
 }
 
 interface NormaTreeEndProps {
-  /** A norma that is in a folder is being dragged: the row becomes the place to drop it to take it out of its folder. */
+  /** A norma or folder that is inside a folder is being dragged: the row becomes the place to drop it to take it out of its folder. */
   isDraggingFiled: boolean;
   /** A new top-level folder can be made (not while searching). */
   canCreate: boolean;
   onNewFolder: () => void;
   onDropNorma: (normaId: string, folderId: string | null) => void;
+  onDropFolder: (draggedId: string, folderId: string | null) => void;
 }
 
 /** The last row of the tree: "Nova pasta" — or, while a filed norma is dragged, "Remover da pasta" to drop it on. */
-export function NormaTreeEnd({ isDraggingFiled, canCreate, onNewFolder, onDropNorma }: NormaTreeEndProps) {
-  const drop = useNormaDropTarget((normaId) => onDropNorma(normaId, null));
+export function NormaTreeEnd({ isDraggingFiled, canCreate, onNewFolder, onDropNorma, onDropFolder }: NormaTreeEndProps) {
+  const drop = useNormaDropTarget(
+    (normaId) => onDropNorma(normaId, null),
+    (draggedId) => onDropFolder(draggedId, null),
+  );
   if (isDraggingFiled) {
     return (
       <div className={`normas-tree__remove${drop.isOver ? ' normas-tree__remove--over' : ''}`} {...drop.props}>

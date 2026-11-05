@@ -16,13 +16,29 @@ import { FolderBreadcrumb } from '../components/FolderBreadcrumb/FolderBreadcrum
 import { RemoveFromFolderCard } from '../components/RemoveFromFolderCard/RemoveFromFolderCard';
 import { NewFolderCard } from '../components/NewFolderCard/NewFolderCard';
 import { FolderCard } from '../components/FolderCard/FolderCard';
-import { MAX_FOLDER_DEPTH } from '../types/category';
+import { MAX_FOLDER_DEPTH, type CategoryNode } from '../types/category';
 import { useNormaDropTarget } from '../hooks/useNormaDropTarget';
 import type { Theme } from '../hooks/useTheme';
 import type { FolderEntryPayload, LibraryListingPayload, PathStepPayload, SavedNrmPayload, SavedNrmQuery } from '../types/savedNrm';
 import './NormasHeading.css';
 
 const VIEW_KEY = 'norma.normasView';
+
+/** A folder in the tree of categories, wherever it is. */
+function findCategory(nodes: CategoryNode[], id: string): CategoryNode | null {
+  for (const node of nodes) {
+    if (node.id === id) return node;
+    const inside = findCategory(node.children, id);
+    if (inside) return inside;
+  }
+  return null;
+}
+
+/** The folder `id` is `ancestor` itself or somewhere inside it. */
+function isInsideCategory(nodes: CategoryNode[], ancestorId: string, id: string): boolean {
+  const ancestor = findCategory(nodes, ancestorId);
+  return ancestor !== null && findCategory([ancestor], id) !== null;
+}
 
 /** The view last chosen (it stays between visits); the tree until one was chosen. */
 function readStoredView(): NormasView {
@@ -184,6 +200,23 @@ export function NormasScreen({
       .finally(() => setIsMoving(false));
   }
 
+  // A folder card (or tree row) dropped on another folder, a step of the breadcrumb or the title: moves it inside (null: to the top
+  // level). Not onto itself, nor into what it already is in, nor — in the tree, which knows them — into one of its own subfolders;
+  // the backend still refuses a move that would make the folders go deeper than they may.
+  function dropFolder(folderId: string, parentId: string | null) {
+    const categories = tree.data?.categories ?? [];
+    const moved = isTree ? findCategory(categories, folderId) : folders.find((candidate) => candidate.id === folderId);
+    if (!moved || moved.parentId === parentId || folderId === parentId) return;
+    if (isTree && parentId !== null && isInsideCategory(categories, folderId, parentId)) return;
+    // The dragged card may be gone before its dragend fires.
+    setDraggedFolder(null);
+    setIsMoving(true);
+    onUpdateCategory(folderId, moved.name, parentId)
+      .then(() => refreshTree())
+      .catch(() => undefined)
+      .finally(() => setIsMoving(false));
+  }
+
   // The counter by the title: how many normas the open folder (and the ones inside it) holds, or all of them at the top —
   // the backend counts it, whatever the search says.
   const count = isTree ? (tree.data?.total ?? null) : (listing?.total ?? null);
@@ -194,6 +227,8 @@ export function NormasScreen({
   const [isExporting, setIsExporting] = useState(false);
   // The norma being dragged right now, if any: one that is in a folder gets a card to drop it on to take it out.
   const [draggedNorma, setDraggedNorma] = useState<SavedNrmPayload | null>(null);
+  // The same for a folder: one that is inside another can be dropped on that card to bring it to the top level.
+  const [draggedFolder, setDraggedFolder] = useState<FolderEntryPayload | null>(null);
 
   return (
     <div className="app app--landing normas-screen">
@@ -207,9 +242,9 @@ export function NormasScreen({
           <div className="app__normas-headline">
             <div className="normas-heading">
               <h1 className={`app__normas-title app__normas-title--crumb${path.length > 0 ? ' app__normas-title--trail' : ''}`}>
-                {path.length > 0 ? <HomeTitle onOpen={() => onFolderChange(null)} onDropNorma={(normaId) => dropNorma(normaId, null)} /> : 'As minhas normas'}
+                {path.length > 0 ? <HomeTitle onOpen={() => onFolderChange(null)} onDropNorma={(normaId) => dropNorma(normaId, null)} onDropFolder={(folderId) => dropFolder(folderId, null)} /> : 'As minhas normas'}
               </h1>
-              {path.length > 0 && <FolderBreadcrumb path={path} onOpen={onFolderChange} onDropNorma={dropNorma} />}
+              {path.length > 0 && <FolderBreadcrumb path={path} onOpen={onFolderChange} onDropNorma={dropNorma} onDropFolder={dropFolder} />}
               {count !== null && (
                 <span className="app__normas-count" title={current ? 'Normas nesta pasta' : 'Normas guardadas na plataforma'}>
                   {count}
@@ -259,6 +294,8 @@ export function NormasScreen({
                     onDelete={setPendingDelete}
                     onShowInfo={setInfoFor}
                     onDropNorma={dropNorma}
+                    onDropFolder={dropFolder}
+                    onFolderDragChange={setDraggedFolder}
                     onDragChange={setDraggedNorma}
                     onNewFolder={(parentId) => setCategoryDialog({ editing: null, parentId })}
                     onEditFolder={(folder) => setCategoryDialog({ editing: folder, parentId: null })}
@@ -266,10 +303,11 @@ export function NormasScreen({
                   />
                   <div className="normas-tree__end">
                     <NormaTreeEnd
-                      isDraggingFiled={draggedNorma?.categoryId != null}
+                      isDraggingFiled={draggedNorma?.categoryId != null || draggedFolder?.parentId != null}
                       canCreate={!searching}
                       onNewFolder={() => setCategoryDialog({ editing: null, parentId: null })}
                       onDropNorma={dropNorma}
+                      onDropFolder={dropFolder}
                     />
                   </div>
                 </div>
@@ -290,6 +328,8 @@ export function NormasScreen({
                     category={category}
                     onOpen={() => onFolderChange(category.id)}
                     onDropNorma={(normaId) => dropNorma(normaId, category.id)}
+                    onDropFolder={(folderId) => dropFolder(folderId, category.id)}
+                    onDragChange={(isDragging) => setDraggedFolder(isDragging ? category : null)}
                     onEdit={() => setCategoryDialog({ editing: category, parentId: null })}
                     onDelete={() => setPendingDeleteCategory(category)}
                   />
@@ -306,8 +346,8 @@ export function NormasScreen({
                 ))}
                 {/* The last card: "Nova pasta" — which, while a norma that is in a folder is dragged, becomes the card to
                     drop it on to take it out of its folder. */}
-                {draggedNorma?.categoryId ? (
-                  <RemoveFromFolderCard onDropNorma={(normaId) => dropNorma(normaId, null)} />
+                {draggedNorma?.categoryId || draggedFolder?.parentId ? (
+                  <RemoveFromFolderCard onDropNorma={(normaId) => dropNorma(normaId, null)} onDropFolder={(folderId) => dropFolder(folderId, null)} />
                 ) : (
                   !searching &&
                   path.length < MAX_FOLDER_DEPTH && (
@@ -422,8 +462,8 @@ export function NormasScreen({
 }
 
 /** The page's title once a folder is open: the way back to the top, and a place to drop a norma to take it out of its folder. */
-function HomeTitle({ onOpen, onDropNorma }: { onOpen: () => void; onDropNorma: (normaId: string) => void }) {
-  const drop = useNormaDropTarget(onDropNorma);
+function HomeTitle({ onOpen, onDropNorma, onDropFolder }: { onOpen: () => void; onDropNorma: (normaId: string) => void; onDropFolder: (folderId: string) => void }) {
+  const drop = useNormaDropTarget(onDropNorma, onDropFolder);
   return (
     <button type="button" className={`normas-heading__home${drop.isOver ? ' normas-heading__home--drop' : ''}`} onClick={onOpen} {...drop.props}>
       As minhas normas

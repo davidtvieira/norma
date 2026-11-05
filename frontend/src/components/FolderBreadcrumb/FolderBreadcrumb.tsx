@@ -8,10 +8,11 @@ interface FolderBreadcrumbProps {
   onOpen: (id: string) => void;
   /** A norma card was dropped on a step of the path: files it in that folder. */
   onDropNorma: (normaId: string, folderId: string) => void;
+  onDropFolder: (draggedId: string, folderId: string) => void;
 }
 
 /** "Fiscal › IVA": the open folder and the ones it is in, each a way back up. */
-export function FolderBreadcrumb({ path, onOpen, onDropNorma }: FolderBreadcrumbProps) {
+export function FolderBreadcrumb({ path, onOpen, onDropNorma, onDropFolder }: FolderBreadcrumbProps) {
   return (
     <div className="folder-breadcrumb">
       <nav className="folder-breadcrumb__path" aria-label="Pasta">
@@ -21,7 +22,7 @@ export function FolderBreadcrumb({ path, onOpen, onDropNorma }: FolderBreadcrumb
             {index === path.length - 1 ? (
               <span className="folder-breadcrumb__current" title={node.name}>{node.name}</span>
             ) : (
-              <Crumb label={node.name} onOpen={() => onOpen(node.id)} onDropNorma={(normaId) => onDropNorma(normaId, node.id)} />
+              <Crumb label={node.name} onOpen={() => onOpen(node.id)} onDropNorma={(normaId) => onDropNorma(normaId, node.id)} onDropFolder={(draggedId) => onDropFolder(draggedId, node.id)} />
             )}
           </span>
         ))}
@@ -31,8 +32,8 @@ export function FolderBreadcrumb({ path, onOpen, onDropNorma }: FolderBreadcrumb
 }
 
 /** A step of the path you can go back to; a norma dropped on it is filed in that folder. */
-function Crumb({ label, onOpen, onDropNorma }: { label: string; onOpen: () => void; onDropNorma: (normaId: string) => void }) {
-  const drop = useNormaDropTarget(onDropNorma);
+function Crumb({ label, onOpen, onDropNorma, onDropFolder }: { label: string; onOpen: () => void; onDropNorma: (normaId: string) => void; onDropFolder: (folderId: string) => void }) {
+  const drop = useNormaDropTarget(onDropNorma, onDropFolder);
   return (
     <button type="button" className={`folder-breadcrumb__link${drop.isOver ? ' folder-breadcrumb__link--drop' : ''}`} title={label} onClick={onOpen} {...drop.props}>
       {label}
