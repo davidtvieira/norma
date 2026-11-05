@@ -301,6 +301,14 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
   });
   // A test can be saved once there is something in it, every input that needs a value has one and none breaks its rules.
   const canSaveTest = hasAnyTestInputValue && allRequiredFilled && allInputsValid;
+  // The tooltip on the disabled "Correr modelo": the inputs that keep it so (one needing a value that has none, or breaking its rules).
+  const runBlockedBy = inputEntries
+    .filter((entry) => {
+      if (brokenRules.has(entry.id)) return true;
+      const source = getInputSource(fields[entry.id]);
+      return entry.format?.required && source.type === 'literal' && source.value.trim() === '';
+    })
+    .map((entry) => entry.name || 'Input');
   // Outputs are only known once a run has returned them (each result carries its own name).
   const outputEntries = (results ?? []).map((result) => ({
     id: result.id,
@@ -582,6 +590,7 @@ export function ModelCard({ dataset, modelName, modelId, nrmId, inputs, operatio
               disabled={isRunning || !allRequiredFilled || !allInputsValid}
               // The arrow (add operations to analyze) follows the button: nothing to run, nothing to analyze.
               arrowDisabled={isRunning || !allRequiredFilled || !allInputsValid}
+              mainProps={runBlockedBy.length > 0 && !isRunning ? { title: runBlockedBy.join('\n') } : undefined}
               items={[
                 {
                   label: `Adicionar operações para análise${watchIds.length > 0 ? ` (${watchIds.length})` : ''}`,
