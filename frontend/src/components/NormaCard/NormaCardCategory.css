@@ -3,6 +3,26 @@
   padding-right: 3.6rem;
 }
 
+/* A folder reads apart from a norma at a glance: a slightly thicker, lightly accent-tinted edge runs along its bottom, like the lip of a folder
+   (the background is the same as a norma's). Pointing at it (or
+   focusing it) turns that edge to the full accent colour, along with its icon (below). */
+.norma-card--folder {
+  border-bottom-width: 0.18rem;
+  border-bottom-color: color-mix(in srgb, var(--btn-primary-bg) 25%, var(--color-border));
+  transition: transform 0.2s ease, border-bottom-color 0.2s ease;
+}
+
+.norma-card--folder:hover,
+.norma-card--folder:focus-visible {
+  border-bottom-color: var(--btn-primary-bg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .norma-card--folder {
+    transition: none;
+  }
+}
+
 .norma-card__move,
 .norma-card__info {
   position: absolute;
