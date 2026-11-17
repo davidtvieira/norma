@@ -96,7 +96,7 @@ npm install
 npm run dev
 ```
 
-Open the URL Vite prints (http://localhost:5173 by default). The dev server listens on all interfaces and accepts any
+Open the URL Vite prints (http://localhost:5174). The dev server listens on all interfaces and accepts any
 host, so it also works behind a proxy or tunnel. Copy `frontend/.env.example` to `frontend/.env.local` and set
 `VITE_API_BASE_URL` only if the backend is served from somewhere else than the dev server's `/api` proxy.
 

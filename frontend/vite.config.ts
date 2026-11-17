@@ -6,6 +6,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: true,
+    port: 5174,
+    strictPort: true,
     allowedHosts: true,
     proxy: {
       // Forwards API calls to the backend so the browser only ever talks to this
